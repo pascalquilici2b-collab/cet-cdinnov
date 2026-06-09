@@ -231,6 +231,38 @@
   .help-banner svg{width:18px;height:18px;stroke:var(--accent-strong);flex:0 0 18px;margin-top:1px}
   a.link{color:var(--accent-strong);font-weight:600;text-decoration:none;cursor:pointer}
   a.link:hover{text-decoration:underline}
+  .mois-grid{display:grid;grid-template-columns:repeat(12,1fr);gap:6px}
+  .mois-cell{border:1px solid var(--line);border-radius:8px;padding:8px 4px;text-align:center;background:#fff}
+  .mois-cell.on{border-color:#cfe6f7}
+  .mois-cell .mn{font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase}
+  .mois-cell .mv{font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:2px;color:var(--ink)}
+  @media(max-width:880px){ .mois-grid{grid-template-columns:repeat(6,1fr)} }
+  .emp-tabs{display:flex;gap:8px;flex-wrap:wrap}
+  .emp-tab{padding:7px 13px;border-radius:999px;border:1px solid var(--line-strong);background:#fff;cursor:pointer;font-weight:600;font-size:13px;color:var(--ink);display:inline-flex;align-items:center;gap:7px}
+  .emp-tab:hover{border-color:var(--muted-2)}
+  .emp-tab.act{background:var(--accent-soft);border-color:#cfe6f7;color:var(--accent-strong)}
+  .cal-toolbar{display:flex;flex-wrap:wrap;gap:16px;align-items:center;margin:2px 0 18px}
+  .mnav{display:flex;align-items:center;gap:8px;font-weight:700;color:var(--navy)}
+  .mnav .mlabel{min-width:150px;text-align:center;text-transform:capitalize}
+  .legend{display:flex;gap:13px;flex-wrap:wrap;font-size:11px;color:var(--muted);align-items:center}
+  .legend .lg{display:inline-flex;align-items:center;gap:5px}
+  .legend .sw{width:12px;height:12px;border-radius:3px;display:inline-block;border:1px solid rgba(0,0,0,.06)}
+  .legend .sw.pendsw{background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.65) 0 4px,transparent 4px 8px)}
+  .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+  .cal .cah{font-size:11px;font-weight:600;color:var(--muted);text-align:center;text-transform:uppercase;letter-spacing:.3px;padding-bottom:2px}
+  .day{border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff;min-height:60px;display:flex;flex-direction:column}
+  .day.blank{border:none;background:transparent;min-height:0}
+  .day.we{background:var(--panel)}
+  .day .dn{font-size:11px;font-weight:600;color:var(--muted);padding:3px 6px;cursor:pointer;user-select:none}
+  .day.we .dn{cursor:default;opacity:.45}
+  .day .halves{flex:1;display:flex;flex-direction:column;min-height:34px}
+  .hf{flex:1;cursor:pointer;border-top:1px solid var(--line);transition:background .1s,filter .1s}
+  .hf:first-child{border-top:none}
+  .hf:hover{background:var(--accent-soft)}
+  .hf.on:hover{filter:brightness(1.07)}
+  .hf.we,.hf.we:hover{cursor:default;background:repeating-linear-gradient(45deg,transparent 0 5px,rgba(0,0,0,.035) 5px 10px)}
+  .hf.pend{opacity:.55;background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.65) 0 4px,transparent 4px 8px)}
+  @media(max-width:880px){ .day{min-height:52px} .mnav .mlabel{min-width:120px} }
 
   @media (max-width:880px){
     .sidebar{display:none}
@@ -264,6 +296,10 @@
     <div class="nav-item" data-view="salaries">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
       Salariés
+    </div>
+    <div class="nav-item" data-view="conges">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg>
+      Congés payés
     </div>
     <div class="nav-label">Réglages</div>
     <div class="nav-item" data-view="parametres">
@@ -372,7 +408,8 @@ function freshState(){
     params: structuredClone(PARAMS_DEFAULT),
     types: structuredClone(TYPES_DEFAULT),
     salaries: structuredClone(SALARIES_DEFAULT),
-    mouvements: structuredClone(MOUVEMENTS_DEFAULT)
+    mouvements: structuredClone(MOUVEMENTS_DEFAULT),
+    conges: []
   };
 }
 function load(){
@@ -384,7 +421,8 @@ function load(){
       params: Object.assign(structuredClone(PARAMS_DEFAULT), d.params||{}),
       types: d.types && d.types.length ? d.types : structuredClone(TYPES_DEFAULT),
       salaries: d.salaries || [],
-      mouvements: d.mouvements || []
+      mouvements: d.mouvements || [],
+      conges: d.conges || []
     };
   }catch(e){ STORAGE_OK=false; return freshState(); }
 }
@@ -407,7 +445,7 @@ async function cloudLoad(){
       if(d && d.params){
         state={ params:Object.assign(structuredClone(PARAMS_DEFAULT), d.params),
                 types:(d.types&&d.types.length)?d.types:structuredClone(TYPES_DEFAULT),
-                salaries:d.salaries||[], mouvements:d.mouvements||[] };
+                salaries:d.salaries||[], mouvements:d.mouvements||[], conges:d.conges||[] };
         try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){}
         currentYear=Number(state.params.anneeSuivi)||currentYear;
       }
@@ -496,9 +534,16 @@ function globalTotals(rows){
 }
 function availableYears(){
   const ys = new Set(state.mouvements.map(m=>yearOf(m.date)).filter(Boolean));
+  (state.conges||[]).forEach(c=>{ const y=yearOf(c.date||c.dateDebut); if(y) ys.add(y); });
   ys.add(Number(state.params.anneeSuivi));
-  ys.add(new Date().getFullYear());
-  return [...ys].sort((a,b)=>b-a);
+  const now=new Date().getFullYear();
+  ys.add(now);
+  // plage continue : qq années en arrière -> jusqu'à 2035 (années futures anticipées)
+  const min=Math.min(now-2, ...ys);
+  const max=Math.max(2035, ...ys);
+  const out=[];
+  for(let y=max; y>=min; y--) out.push(y);
+  return out;
 }
 
 /* ---------- chrome / nav ---------- */
@@ -508,6 +553,7 @@ const VIEW_META = {
   dashboard:{title:'Tableau de bord', sub:"Vue d'ensemble du Compte Épargne-Temps", action:'Nouveau mouvement', actFn:()=>openMouvement()},
   mouvements:{title:'Mouvements', sub:'Historique des alimentations et utilisations', action:'Nouveau mouvement', actFn:()=>openMouvement()},
   salaries:{title:'Salariés', sub:'Bénéficiaires du dispositif CET', action:'Nouveau salarié', actFn:()=>openSalarie()},
+  conges:{title:'Congés payés', sub:'Calendrier des congés — demi-journées incluses', action:'Poser une période', actFn:()=>openConge()},
   parametres:{title:'Paramètres & données', sub:'Plafonds, types de mouvements, sauvegardes', action:null}
 };
 
@@ -539,6 +585,7 @@ function render(){
   if(currentView==='dashboard') renderDashboard();
   else if(currentView==='mouvements') renderMouvements();
   else if(currentView==='salaries') renderSalaries();
+  else if(currentView==='conges') renderConges();
   else if(currentView==='parametres') renderParametres();
   injectStorageWarning();
 }
@@ -826,6 +873,200 @@ function saveParams(){
   save(); toast('Paramètres enregistrés'); render();
 }
 
+/* ===================== CONGÉS PAYÉS ===================== */
+const MOIS_FR=['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+const MOIS_ABBR=['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Aoû','Sep','Oct','Nov','Déc'];
+const CONGES_TYPES=['Congés payés','RTT','Congé sans solde','Maladie','Autre'];
+const CONGES_TYPE_COLOR={'Congés payés':'#1786c9','RTT':'#2e9b8f','Congé sans solde':'#8a93a3','Maladie':'#c0455b','Autre':'#5b59b8'};
+let congesSal=null, congesMonth=new Date().getMonth(), congesType='Congés payés', congesStatut='Validé';
+
+function conges(){ return state.conges || (state.conges=[]); }
+function joursOuvres(d1,d2){
+  if(!d1||!d2) return 0;
+  const a=new Date(d1+'T00:00:00'), b=new Date(d2+'T00:00:00');
+  if(isNaN(a)||isNaN(b)||b<a) return 0;
+  let n=0; for(let d=new Date(a); d<=b; d.setDate(d.getDate()+1)){ const j=d.getDay(); if(j!==0&&j!==6) n++; } return n;
+}
+/* migration ancien format (dateDebut/dateFin/nbJours) -> demi-journées */
+function migrateConges(){
+  const arr=state.conges||[];
+  if(!arr.some(c=>c && !c.half && c.dateDebut)) return;
+  const out=[];
+  arr.forEach(c=>{
+    if(c && c.date && c.half){ out.push(c); return; }
+    if(c && c.dateDebut){
+      const a=new Date(c.dateDebut+'T00:00:00'), b=new Date((c.dateFin||c.dateDebut)+'T00:00:00');
+      for(let d=new Date(a); d<=b; d.setDate(d.getDate()+1)){ const j=d.getDay(); if(j===0||j===6) continue;
+        const ds=d.toISOString().slice(0,10); ['AM','PM'].forEach(hf=>out.push({id:uid(),matricule:c.matricule,date:ds,half:hf,type:c.type||'Congés payés',statut:c.statut||'Validé'})); }
+    }
+  });
+  state.conges=out; save();
+}
+function congeAt(mat,date,half){ return conges().find(c=>c.matricule===mat && c.date===date && c.half===half); }
+function toggleHalf(mat,date,half){
+  const ex=congeAt(mat,date,half);
+  if(ex) state.conges=conges().filter(c=>c!==ex);
+  else conges().push({id:uid(),matricule:mat,date,half,type:congesType,statut:congesStatut});
+  save(); renderConges();
+}
+function toggleDay(mat,date){
+  const am=congeAt(mat,date,'AM'), pm=congeAt(mat,date,'PM');
+  if(am&&pm) state.conges=conges().filter(c=>!(c.matricule===mat&&c.date===date));
+  else ['AM','PM'].forEach(hf=>{ if(!congeAt(mat,date,hf)) conges().push({id:uid(),matricule:mat,date,half:hf,type:congesType,statut:congesStatut}); });
+  save(); renderConges();
+}
+function setCongesSal(m){ congesSal=m; renderConges(); }
+function setCongesType(v){ congesType=v; }
+function setCongesStatut(v){ congesStatut=v; }
+function congesShiftMonth(delta){ let m=congesMonth+delta, y=currentYear; if(m<0){m=11;y--;} if(m>11){m=0;y++;} congesMonth=m; currentYear=y; render(); }
+
+function halfCell(rec,mat,date,half){
+  const lib = half==='AM'?'Matin':'Après-midi';
+  if(!rec) return `<div class="hf" title="${lib} — libre (cliquer pour poser)" onclick="toggleHalf('${mat}','${date}','${half}')"></div>`;
+  const col=CONGES_TYPE_COLOR[rec.type]||'#1786c9';
+  const pend=rec.statut!=='Validé';
+  return `<div class="hf on ${pend?'pend':''}" style="background:${col}" title="${esc(rec.type)} · ${esc(rec.statut)} · ${lib} (cliquer pour retirer)" onclick="toggleHalf('${mat}','${date}','${half}')"></div>`;
+}
+function calendarHTML(mat,Y,M){
+  const firstDow=(new Date(Y,M,1).getDay()+6)%7;
+  const dim=new Date(Y,M+1,0).getDate();
+  const heads=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'].map(d=>`<div class="cah">${d}</div>`).join('');
+  let cells='';
+  for(let i=0;i<firstDow;i++) cells+='<div class="day blank"></div>';
+  for(let day=1;day<=dim;day++){
+    const date=`${Y}-${String(M+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    const dow=new Date(Y,M,day).getDay(); const we=(dow===0||dow===6);
+    const halves = we ? '<div class="hf we"></div><div class="hf we"></div>' : halfCell(congeAt(mat,date,'AM'),mat,date,'AM')+halfCell(congeAt(mat,date,'PM'),mat,date,'PM');
+    cells += `<div class="day ${we?'we':''}"><div class="dn" ${we?'':`onclick="toggleDay('${mat}','${date}')"`} title="${we?'':'Cliquer le numéro = journée entière'}">${day}</div><div class="halves">${halves}</div></div>`;
+  }
+  return `<div class="cal">${heads}${cells}</div>`;
+}
+function joursValideAnnee(mat,Y){ return conges().filter(c=>c.matricule===mat && yearOf(c.date)===Y && c.statut==='Validé').length*0.5; }
+
+function renderConges(){
+  migrateConges();
+  const Y=currentYear; const cont=$('#content');
+  if(!congesSal || !salByMat(congesSal)) congesSal = state.salaries[0] ? state.salaries[0].matricule : null;
+  const list=conges().filter(c=>yearOf(c.date)===Y);
+  const totalValide=list.filter(c=>c.statut==='Validé').length*0.5;
+  const totalAttente=list.filter(c=>c.statut!=='Validé').length*0.5;
+  const nbSal=new Set(list.map(c=>c.matricule)).size;
+  const sal=salByMat(congesSal);
+
+  const legend = Object.entries(CONGES_TYPE_COLOR).map(([t,c])=>`<span class="lg"><span class="sw" style="background:${c}"></span>${t}</span>`).join('')
+    + `<span class="lg"><span class="sw pendsw" style="background:#c9ced6"></span>En attente (hachuré)</span>`;
+
+  cont.innerHTML=`
+    <div class="help-banner">${ic('info')}<div>Cliquez les demi-journées dans le calendrier : <b>haut = matin</b>, <b>bas = après-midi</b> (cliquez le n° du jour = journée entière). Le <b>type</b> et le <b>statut</b> choisis dans la barre s'appliquent aux nouvelles cases. Re-cliquer une case la retire.</div></div>
+    <div class="stat-grid">
+      <div class="stat accent"><div class="k">${ic('sun')} Congés validés ${Y}</div><div class="v">${nbJours(totalValide)}<span class="u">jours</span></div><div class="sub">tous salariés</div></div>
+      <div class="stat"><div class="k">${ic('clock')} En attente ${Y}</div><div class="v">${nbJours(totalAttente)}<span class="u">j</span></div><div class="sub">à valider</div></div>
+      <div class="stat"><div class="k">${ic('calendar')} Salariés concernés ${Y}</div><div class="v">${nbSal}</div><div class="sub">sur ${state.salaries.length}</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h2>Calendrier des congés</h2><div class="grow"></div>
+        <button class="btn btn-ghost btn-sm no-print" onclick="exportCongesCSV()">${ic('download')} Export (CSV)</button>
+        <button class="btn btn-ghost btn-sm no-print" onclick="exportCongesMensuelCSV()">${ic('download')} Récap mensuel</button>
+        <button class="btn btn-primary btn-sm no-print" onclick="openConge('${congesSal||''}')">${ic('plus')} Poser une période</button>
+      </div>
+      <div class="card-pad">
+        <div class="emp-tabs" style="margin-bottom:14px">
+          ${state.salaries.map(s=>`<div class="emp-tab ${s.matricule===congesSal?'act':''}" onclick="setCongesSal('${s.matricule}')"><span class="avatar" style="width:22px;height:22px;font-size:10px">${esc(initials(s))}</span>${esc(s.nom)} ${esc(s.prenom)}</div>`).join('')}
+        </div>
+        ${sal?`
+        <div class="cal-toolbar">
+          <div class="mnav">
+            <button class="icon-btn" onclick="congesShiftMonth(-1)" title="Mois précédent">${ic('chevL')}</button>
+            <span class="mlabel">${MOIS_FR[congesMonth]} ${Y}</span>
+            <button class="icon-btn" onclick="congesShiftMonth(1)" title="Mois suivant">${ic('chevR')}</button>
+          </div>
+          <div class="field"><select class="inp slim" onchange="setCongesType(this.value)" style="width:auto">${CONGES_TYPES.map(t=>`<option ${t===congesType?'selected':''}>${t}</option>`).join('')}</select></div>
+          <div class="field"><select class="inp slim" onchange="setCongesStatut(this.value)" style="width:auto"><option ${congesStatut==='Validé'?'selected':''}>Validé</option><option ${congesStatut!=='Validé'?'selected':''}>En attente</option></select></div>
+          <span class="chip">${nbJours(joursValideAnnee(congesSal,Y))} j validés en ${Y}</span>
+        </div>
+        ${calendarHTML(congesSal,Y,congesMonth)}
+        <div class="legend" style="margin-top:14px">${legend}</div>
+        `:`<div class="empty">${ic('inbox')}<div style="font-weight:600;color:var(--ink)">Aucun salarié</div><div>Ajoutez des salariés pour saisir leurs congés.</div></div>`}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Récapitulatif mensuel — ${Y}</h2><div class="desc">Jours validés, par salarié (pour la paie)</div></div>
+      <div class="card-body">
+        ${congesRecapTable(Y)}
+      </div>
+    </div>
+  `;
+}
+function congesRecapTable(Y){
+  return `<table>
+    <thead><tr><th>Salarié</th>${MOIS_ABBR.map(m=>`<th class="num">${m}</th>`).join('')}<th class="num">Total</th></tr></thead>
+    <tbody>
+    ${state.salaries.map(s=>{
+      const pm=Array(12).fill(0);
+      conges().filter(c=>c.matricule===s.matricule && yearOf(c.date)===Y && c.statut==='Validé').forEach(c=>{ pm[new Date(c.date+'T00:00:00').getMonth()]+=0.5; });
+      const tot=pm.reduce((a,b)=>a+b,0);
+      return `<tr><td><div class="name-cell"><div class="avatar">${esc(initials(s))}</div><div><div class="t">${esc(s.nom)} ${esc(s.prenom)}</div><div class="s">Mat. ${esc(s.matricule)}</div></div></div></td>${pm.map(v=>`<td class="num">${v?nbJours(v):'<span style="color:var(--muted-2)">·</span>'}</td>`).join('')}<td class="num"><b>${nbJours(tot)}</b></td></tr>`;
+    }).join('')}
+    </tbody></table>`;
+}
+function openConge(matPre){
+  const today=new Date().toISOString().slice(0,10);
+  modal(`
+    <div class="modal-head"><h3>Poser une période de congés</h3></div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-row"><label>Salarié</label><select class="inp" id="cgSal">${state.salaries.map(s=>`<option value="${s.matricule}" ${matPre===s.matricule?'selected':''}>${esc(s.nom)} ${esc(s.prenom)} (${s.matricule})</option>`).join('')}</select></div>
+        <div class="form-row"><label>Type</label><select class="inp" id="cgType">${CONGES_TYPES.map(t=>`<option>${t}</option>`).join('')}</select></div>
+        <div class="form-row"><label>Date de début</label><input class="inp" type="date" id="cgD1" value="${today}"></div>
+        <div class="form-row"><label>Date de fin</label><input class="inp" type="date" id="cgD2" value="${today}"></div>
+        <div class="form-row"><label>Statut</label><select class="inp" id="cgStatut"><option>Validé</option><option>En attente</option></select></div>
+        <div class="form-row"></div>
+        <div class="form-row full"><div class="preview" id="cgPrev"></div></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+      <button class="btn btn-primary" onclick="saveConge()">${ic('check')} Ajouter en journées entières</button>
+    </div>`);
+  const upd=()=>{ const n=joursOuvres($('#cgD1').value,$('#cgD2').value);
+    $('#cgPrev').innerHTML=`${ic('info')}<span><b>${nbJours(n)}</b> jour(s) ouvré(s) seront ajoutés en <b>journées entières</b>.</span> <span>· ajustez ensuite les demi-journées d'un clic dans le calendrier.</span>`; };
+  $('#cgD1').addEventListener('input',upd); $('#cgD2').addEventListener('input',upd); upd();
+}
+function saveConge(){
+  const mat=$('#cgSal').value, type=$('#cgType').value, statut=$('#cgStatut').value;
+  const d1=$('#cgD1').value, d2=$('#cgD2').value;
+  if(!mat||!d1||!d2){ toast('Salarié et dates requis'); return; }
+  if(d2<d1){ toast('La date de fin précède le début'); return; }
+  const a=new Date(d1+'T00:00:00'), b=new Date(d2+'T00:00:00'); let added=0;
+  for(let d=new Date(a); d<=b; d.setDate(d.getDate()+1)){ const j=d.getDay(); if(j===0||j===6) continue;
+    const ds=d.toISOString().slice(0,10); ['AM','PM'].forEach(hf=>{ if(!congeAt(mat,ds,hf)){ conges().push({id:uid(),matricule:mat,date:ds,half:hf,type,statut}); added++; } }); }
+  save(); closeModal(); toast(added? `${added/2} jour(s) ajouté(s)` : 'Aucun jour ouvré dans la période');
+  congesSal=mat; congesMonth=a.getMonth(); currentYear=a.getFullYear(); render();
+}
+function exportCongesCSV(){
+  const head=['Matricule','Nom','Prénom','Date','Demi-journée','Type','Jours','Statut'];
+  const lines=[head.map(csvCell).join(';')];
+  conges().slice().sort((a,b)=>(a.date||'').localeCompare(b.date||'') || (a.half||'').localeCompare(b.half||'')).forEach(c=>{
+    const s=salByMat(c.matricule)||{};
+    lines.push([c.matricule,s.nom||'',s.prenom||'',c.date,c.half==='AM'?'Matin':'Après-midi',c.type||'Congés payés','0,5',c.statut].map(csvCell).join(';'));
+  });
+  dl('Conges_CDInnov.csv','﻿'+lines.join('\r\n'),'text/csv;charset=utf-8'); toast('Congés exportés');
+}
+function exportCongesMensuelCSV(){
+  const Y=currentYear;
+  const head=['Matricule','Nom','Prénom',...MOIS_FR,'Total '+Y];
+  const lines=[head.map(csvCell).join(';')];
+  state.salaries.forEach(s=>{
+    const pm=Array(12).fill(0);
+    conges().filter(c=>c.matricule===s.matricule && yearOf(c.date)===Y && c.statut==='Validé').forEach(c=>{ pm[new Date(c.date+'T00:00:00').getMonth()]+=0.5; });
+    lines.push([s.matricule,s.nom,s.prenom,...pm.map(v=>String(v).replace('.',',')),String(pm.reduce((a,b)=>a+b,0)).replace('.',',')].map(csvCell).join(';'));
+  });
+  dl('Conges_recap_mensuel_'+Y+'.csv','﻿'+lines.join('\r\n'),'text/csv;charset=utf-8'); toast('Récap mensuel exporté');
+}
+
 /* ===================== MODALS ===================== */
 function modal(html,wide){
   const o=$('#overlay');
@@ -1065,7 +1306,7 @@ function importJSON(ev){
   rd.onload=()=>{ try{
       const d=JSON.parse(rd.result);
       if(!d.params||!d.salaries) throw 0;
-      state={ params:Object.assign(structuredClone(PARAMS_DEFAULT),d.params), types:d.types||structuredClone(TYPES_DEFAULT), salaries:d.salaries||[], mouvements:d.mouvements||[] };
+      state={ params:Object.assign(structuredClone(PARAMS_DEFAULT),d.params), types:d.types||structuredClone(TYPES_DEFAULT), salaries:d.salaries||[], mouvements:d.mouvements||[], conges:d.conges||[] };
       currentYear=Number(state.params.anneeSuivi); save(); toast('Données importées'); render();
     }catch(e){ toast('Fichier invalide'); } };
   rd.readAsText(f); ev.target.value='';
@@ -1099,7 +1340,12 @@ function ic(name){
     info:'<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',
     search:'<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
     refresh:'<path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5"/>',
-    inbox:'<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5.5 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.5-6.5A2 2 0 0 0 16.8 4H7.2a2 2 0 0 0-1.7 1.5z"/>'
+    inbox:'<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5.5 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.5-6.5A2 2 0 0 0 16.8 4H7.2a2 2 0 0 0-1.7 1.5z"/>',
+    sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+    clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    calendar:'<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+    chevL:'<path d="M15 18l-6-6 6-6"/>',
+    chevR:'<path d="M9 18l6-6-6-6"/>'
   }[name]||'';
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
 }
