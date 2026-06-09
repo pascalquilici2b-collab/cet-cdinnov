@@ -88,6 +88,16 @@
   .year-pick label{font-size:12px;color:var(--muted);font-weight:600}
   .year-pick select{border:none;background:#fff;border-radius:999px;padding:5px 10px;font-weight:600;color:var(--navy);font-family:var(--font);cursor:pointer}
   .content{padding:26px 30px 60px;max-width:1180px;width:100%}
+  .sync-pill{display:inline-flex;align-items:center;gap:7px;padding:7px 13px;border-radius:999px;border:1px solid var(--line);background:var(--panel);font-size:12px;font-weight:600;color:var(--muted);cursor:pointer;user-select:none;transition:all .12s}
+  .sync-pill:hover{border-color:var(--muted-2)}
+  .sync-pill .sdot{width:7px;height:7px;border-radius:50%;background:var(--muted-2)}
+  .sync-pill[data-state="ok"]{color:var(--ok);background:var(--ok-soft);border-color:#cfe6da}
+  .sync-pill[data-state="ok"] .sdot{background:var(--ok)}
+  .sync-pill[data-state="busy"]{color:var(--accent-strong);background:var(--accent-soft);border-color:#cfe6f7}
+  .sync-pill[data-state="busy"] .sdot{background:var(--accent);animation:pulse 1s infinite}
+  .sync-pill[data-state="err"]{color:var(--warn);background:var(--warn-soft);border-color:#eccfd3}
+  .sync-pill[data-state="err"] .sdot{background:var(--warn)}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
 
   /* ---------- Buttons ---------- */
   .btn{
@@ -272,6 +282,7 @@
         <div class="sub" id="pageSub">Vue d'ensemble du Compte Épargne-Temps</div>
       </div>
       <div class="grow"></div>
+      <div class="sync-pill" id="syncPill" data-state="local" title="État de la synchronisation Cloudflare — cliquer pour recharger" onclick="cloudSyncNow()"><span class="sdot"></span><span id="syncTxt">Local</span></div>
       <div class="year-pick">
         <label>Année</label>
         <select id="yearSelect"></select>
@@ -290,6 +301,19 @@
 
 <script>
 "use strict";
+/* ============================================================
+   CONFIGURATION CLOUDFLARE  —  A REMPLIR MANUELLEMENT
+   ------------------------------------------------------------
+   CLOUD_ENDPOINT : adresse de votre Worker Cloudflare
+                    ex. "https://cet-cdinnov.mon-compte.workers.dev"
+   CLOUD_TOKEN    : UUID identifiant l'enregistrement des donnees
+                    dans la base KV (= cle secrete de vos donnees)
+   Laissez CLOUD_ENDPOINT = "" pour rester 100% local (sans cloud).
+   Le code du Worker a deployer est fourni dans "cloudflare-worker.js".
+   ============================================================ */
+const CLOUD_ENDPOINT = "cet-cdinnov.pascalquilici2b.workers.dev";  // <-- METTRE ICI l'adresse Cloudflare (Worker)
+const CLOUD_TOKEN    = "4d191eee-9345-4930-8f37-6ed2c43ea51c";   // <-- UUID du token / cle des donnees
+/* ============================================================ */
 /* =========================================================
    CET · CDInnov — moteur + UI (mono-fichier, hors-ligne)
    ========================================================= */
@@ -365,7 +389,46 @@ function load(){
     };
   }catch(e){ STORAGE_OK=false; return freshState(); }
 }
-function save(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); STORAGE_OK=true; }catch(e){ STORAGE_OK=false; } }
+function save(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); STORAGE_OK=true; }catch(e){ STORAGE_OK=false; } cloudSave(); }
+
+/* ===================== SYNCHRO CLOUDFLARE ===================== */
+let cloudTimer=null;
+function cloudEnabled(){ return typeof CLOUD_ENDPOINT==='string' && CLOUD_ENDPOINT.trim()!==''; }
+function cloudURL(){ return CLOUD_ENDPOINT.replace(/\/+$/,'')+'/'+encodeURIComponent(CLOUD_TOKEN); }
+function setSync(kind,txt){ const p=$('#syncPill'); if(!p) return; p.dataset.state=kind; const t=$('#syncTxt'); if(t) t.textContent=txt; }
+async function cloudLoad(){
+  if(!cloudEnabled()){ setSync('local','Local'); return; }
+  setSync('busy','Chargement…');
+  try{
+    const r=await fetch(cloudURL(),{method:'GET',cache:'no-store'});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const txt=await r.text();
+    if(txt && txt.trim()){
+      const d=JSON.parse(txt);
+      if(d && d.params){
+        state={ params:Object.assign(structuredClone(PARAMS_DEFAULT), d.params),
+                types:(d.types&&d.types.length)?d.types:structuredClone(TYPES_DEFAULT),
+                salaries:d.salaries||[], mouvements:d.mouvements||[] };
+        try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){}
+        currentYear=Number(state.params.anneeSuivi)||currentYear;
+      }
+      setSync('ok','Synchronisé'); render();
+    } else {
+      await cloudPush(); render();   // aucune donnee distante : on envoie l'etat local
+    }
+  }catch(e){ setSync('err','Hors ligne'); }
+}
+function cloudSave(){ if(!cloudEnabled()) return; clearTimeout(cloudTimer); cloudTimer=setTimeout(cloudPush, 700); }
+async function cloudPush(){
+  if(!cloudEnabled()) return;
+  setSync('busy','Envoi…');
+  try{
+    const r=await fetch(cloudURL(),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(state)});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    setSync('ok','Synchronisé');
+  }catch(e){ setSync('err','Erreur sync'); }
+}
+function cloudSyncNow(){ if(cloudEnabled()) cloudLoad(); else toast('Renseignez CLOUD_ENDPOINT en haut du fichier'); }
 
 /* ---------- helpers ---------- */
 const $ = (s,r=document)=>r.querySelector(s);
@@ -740,7 +803,9 @@ function renderParametres(){
     <div class="card">
       <div class="card-head"><h2>Données & sauvegarde</h2><div class="desc">Tout est stocké localement sur ce poste</div></div>
       <div class="card-pad">
-        <div class="help-banner">${ic('info')}<div>Vos données ne quittent pas cet ordinateur (stockage du navigateur). Faites une <b>sauvegarde JSON</b> régulière, et utilisez l'<b>export Excel/CSV</b> pour la paie.</div></div>
+        ${cloudEnabled()
+          ? `<div class="help-banner">${ic('info')}<div>Synchronisation <b>Cloudflare activée</b> — les données sont enregistrées dans la base KV via le Worker (<b>${esc(CLOUD_ENDPOINT)}</b>). Le navigateur garde un cache hors-ligne. Une <b>sauvegarde JSON</b> ponctuelle reste conseillée.</div></div>`
+          : `<div class="help-banner">${ic('info')}<div>Données en local (cache du navigateur). Pour synchroniser entre postes, renseignez <b>CLOUD_ENDPOINT</b> et <b>CLOUD_TOKEN</b> en haut du fichier (voir « cloudflare-worker.js »). Pensez à la <b>sauvegarde JSON</b>.</div></div>`}
         <div class="filters">
           <button class="btn btn-ghost" onclick="exportCSV()">${ic('download')} Export synthèse (CSV)</button>
           <button class="btn btn-ghost" onclick="exportMouvCSV()">${ic('download')} Export mouvements (CSV)</button>
@@ -1042,6 +1107,7 @@ function ic(name){
 
 /* ===================== boot ===================== */
 setView('dashboard');
+if(cloudEnabled()) cloudLoad(); else setSync('local','Local');
 </script>
 </body>
 </html>
