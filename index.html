@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>CET · CDInnov — Compte Épargne-Temps</title>
+<title>CDInnov - Gestion interne</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&display=swap" rel="stylesheet">
@@ -25,6 +25,8 @@
     --ok-soft:#e7f3ee;
     --warn:#b23a48;
     --warn-soft:#fbeaec;
+    --orange:#c26a1a;
+    --orange-soft:#fbeede;
     --pending:#8a6d12;
     --pending-soft:#fbf3dc;
     --radius:14px;
@@ -175,6 +177,8 @@
   .b-util{background:#eef0f4;color:#475065}
   .b-green{background:var(--ok-soft);color:var(--ok)} .b-green .dot{background:var(--ok)}
   .b-red{background:var(--warn-soft);color:var(--warn)} .b-red .dot{background:var(--warn)}
+  .b-orange{background:var(--orange-soft);color:var(--orange)} .b-orange .dot{background:var(--orange)}
+  .b-gray{background:var(--panel-2);color:var(--muted)} .b-gray .dot{background:var(--muted-2)}
   .chip{display:inline-block;font-size:11px;color:var(--muted);background:var(--panel-2);padding:2px 8px;border-radius:6px;font-weight:600}
 
   /* gauge */
@@ -195,7 +199,16 @@
   .inp.slim{padding:7px 11px}
   .search{position:relative}
   .search svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);width:15px;height:15px;stroke:var(--muted-2)}
-  .search input{padding-left:32px;min-width:210px}
+  .search input{min-width:210px}
+  .search input.inp{padding-left:34px}
+  .ps-chip{display:inline-flex;align-items:center;gap:5px;max-width:150px;background:var(--accent-soft);color:var(--accent-strong);border:1px solid #cfe6f7;border-radius:999px;padding:3px 9px;font-size:11px;font-weight:600;cursor:pointer}
+  .ps-chip svg{width:13px;height:13px;flex:0 0 13px}
+  .ps-chip .ps-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ps-x{width:24px;height:24px}
+  .ps-x svg{width:13px;height:13px}
+  .preview svg{width:15px;height:15px;flex:0 0 15px}
+  .icoinline{display:inline-flex;align-items:center}
+  .icoinline svg{width:16px;height:16px}
 
   /* ---------- Modal ---------- */
   .overlay{position:fixed;inset:0;background:rgba(20,22,30,.42);backdrop-filter:blur(2px);z-index:50;display:none;align-items:flex-start;justify-content:center;padding:48px 16px;overflow:auto}
@@ -282,7 +295,7 @@
   <aside class="sidebar">
     <div class="brand">
       <img class="brand-logo" src="data:image/png;base64,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" alt="cdinnov" />
-      <span class="brand-sub">Compte Épargne-Temps</span>
+      <span class="brand-sub">Gestion interne CET - CP</span>
     </div>
     <div class="nav-label">Pilotage</div>
     <div class="nav-item active" data-view="dashboard">
@@ -397,6 +410,8 @@ const PARAMS_DEFAULT = {
 
 const STORE_KEY = 'cet_cdinnov_v1';
 let STORAGE_OK = true;   // passe a false si le navigateur bloque le stockage local
+const SALARIES_PWD = 'Cdinnov1986';
+let salariesUnlocked = false;
 
 /* ---------- state / persistence ---------- */
 let state = load();
@@ -480,7 +495,8 @@ function initials(s){ return (s.nom?.[0]||'')+(s.prenom?.[0]||''); }
 function typeByCode(c){ return state.types.find(t=>t.code===c); }
 function salByMat(m){ return state.salaries.find(s=>s.matricule===m); }
 /* vert = alimentation ou affectation epargne (PEI/PERECOLI) ; rouge = utilisation */
-function movTone(m){ return (m.categorie==='Alimentation' || m.type==='UTIL_PEI' || m.type==='UTIL_PERECOLI') ? 'green' : 'red'; }
+function movTone(m){ if((m.type||'').indexOf('AJUST')>-1) return 'gray'; if(m.categorie==='Alimentation') return 'green'; return 'orange'; }
+function toneColor(t){ return t==='green'?'var(--ok)':t==='orange'?'var(--orange)':'var(--muted)'; }
 
 /* ---------- CET engine ---------- */
 function enrich(m){
@@ -605,7 +621,7 @@ function renderDashboard(){
   const g=globalTotals(rows);
   const pg=Number(state.params.plafondGlobal);
   const c=$('#content');
-  const anyAlert=g.alertesCP+g.alertesPlafond;
+  const anyAlert=g.alertesCP;
   c.innerHTML=`
     <div class="stat-grid">
       <div class="stat accent">
@@ -631,13 +647,11 @@ function renderDashboard(){
     </div>
 
     ${anyAlert ? `<div class="help-banner" style="background:var(--warn-soft);border-color:#eccfd3;color:#7a2530">
-      ${ic('alert')}<div><b>${anyAlert} alerte${anyAlert>1?'s':''} de plafond</b> sur ${currentYear} —
-      ${g.alertesCP} dépassement(s) du plafond CP→CET (${state.params.plafondCPan} j/an),
-      ${g.alertesPlafond} solde(s) au-delà du plafond global (${pg} j). Détail dans le tableau ci-dessous.</div></div>` : ''}
+      ${ic('alert')}<div><b>${anyAlert} dépassement${anyAlert>1?'s':''} du plafond CP→CET</b> (${state.params.plafondCPan} j/an) sur ${currentYear}. Détail dans le tableau.</div></div>` : ''}
 
     <div class="card">
       <div class="card-head">
-        <div><h2>Synthèse par salarié — ${currentYear}</h2><div class="desc">Cliquez une ligne pour le détail du compte</div></div>
+        <div><h2>Synthèse par salarié — ${currentYear}</h2></div>
         <div class="grow"></div>
         <button class="btn btn-ghost btn-sm no-print" onclick="exportCSV()">${ic('download')} Export Excel/CSV</button>
         <button class="btn btn-ghost btn-sm no-print" onclick="window.print()">${ic('print')} Imprimer</button>
@@ -661,7 +675,7 @@ function renderDashboard(){
                 <div><div class="t">${esc(r.sal.nom)} ${esc(r.sal.prenom)}</div><div class="s">Mat. ${esc(r.sal.matricule)}</div></div></div></td>
               <td class="num">${nbJours(r.soldeDebut)}</td>
               <td class="num" style="color:var(--ok)">+${nbJours(r.credits)}</td>
-              <td class="num" style="color:${r.debits?'var(--warn)':'var(--muted)'}">${r.debits?nbJours(r.debits):'0'}</td>
+              <td class="num" style="color:${r.debits?'var(--orange)':'var(--muted)'}">${r.debits?nbJours(r.debits):'0'}</td>
               <td class="num"><b>${nbJours(r.soldeFin)}</b></td>
               <td class="num">${nbJours(r.cpAffectes)} / ${state.params.plafondCPan}</td>
               <td>${stateBadges(r)}</td>
@@ -672,27 +686,11 @@ function renderDashboard(){
         ${rows.length?'':emptyState('Aucun salarié','Ajoutez vos salariés pour démarrer.')}
       </div>
     </div>
-
-    <div class="card">
-      <div class="card-head"><h2>Suivi des plafonds — ${currentYear}</h2><div class="grow"></div>
-        <span class="chip">Plafond global : ${pg} j</span></div>
-      <div class="card-pad">
-        ${rows.filter(r=>r.soldeFin>0).length? rows.filter(r=>r.soldeFin>0).map(r=>{
-          const pct=Math.min(100, pg? r.soldeFin/pg*100:0);
-          return `<div style="margin-bottom:15px">
-            <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:2px">
-              <span><b>${esc(r.sal.nom)} ${esc(r.sal.prenom)}</b></span>
-              <span style="color:var(--muted)">${nbJours(r.soldeFin)} / ${pg} j (${pct.toFixed(0)}%)</span></div>
-            <div class="gauge ${r.alertePlafond?'over':''}"><i style="width:${pct}%"></i></div></div>`;
-        }).join('') : `<div style="color:var(--muted);font-size:13px">Aucun solde positif sur ${currentYear}.</div>`}
-      </div>
-    </div>
   `;
 }
 function stateBadges(r){
   let h='';
   if(r.alerteCP) h+=`<span class="badge b-warn"><span class="dot"></span>CP &gt; plafond</span> `;
-  if(r.alertePlafond) h+=`<span class="badge b-warn"><span class="dot"></span>Plafond global</span> `;
   if(!h) h=`<span class="badge b-ok"><span class="dot"></span>OK</span>`;
   return h;
 }
@@ -714,6 +712,16 @@ function renderMouvements(){
   sortMovs(list);
 
   c.innerHTML=`
+    <div class="card">
+      <div class="card-head"><h2>Heures supplémentaires → CET</h2><div class="desc">${HEURES_PAR_JOUR_CET} h supp = 1 jour d'alimentation CET</div></div>
+      <div class="card-pad" style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between">
+        <div style="font-size:13px;color:var(--muted);max-width:520px">Chaque salarié remplit le modèle calendrier (heures supp. par jour), puis vous téléversez son fichier ici : l'outil additionne les heures et crédite l'alimentation CET. Import <b>incrémental</b> (pas de double comptage).</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap" class="no-print">
+          <a class="btn btn-ghost btn-sm" href="modele_suivi_CET.xlsx" download>${ic('download')} Télécharger le modèle</a>
+          <label class="btn btn-primary btn-sm" style="cursor:pointer;margin:0">${ic('upload')} Téléverse ton fichier de suivi CET<input type="file" accept=".xlsx,.xls,.xlsm" style="display:none" onchange="onSuiviCET(this)"></label>
+        </div>
+      </div>
+    </div>
     <div class="card">
       <div class="card-head" style="flex-wrap:wrap;gap:10px">
         <div class="filters">
@@ -744,8 +752,8 @@ function renderMouvements(){
               <td style="white-space:nowrap">${dateFR(m.date)}</td>
               <td><div class="name-cell"><div class="avatar">${m.sal?esc(initials(m.sal)):'?'}</div>
                 <div><div class="t">${m.sal?esc(m.sal.nom+' '+m.sal.prenom):'<i>inconnu</i>'}</div><div class="s">Mat. ${esc(m.matricule)}</div></div></div></td>
-              <td><span class="badge ${movTone(m)==='green'?'b-green':'b-red'}"><span class="dot"></span>${esc(m.libelle)}</span></td>
-              <td class="num" style="color:${movTone(m)==='green'?'var(--ok)':'var(--warn)'};font-weight:600">${m.qteSignee>0?'+':''}${nbJours(m.qteSignee)} j</td>
+              <td><span class="badge b-${movTone(m)}"><span class="dot"></span>${esc(m.libelle)}</span></td>
+              <td class="num" style="color:${toneColor(movTone(m))};font-weight:700">${m.qteSignee>0?'+':''}${nbJours(m.qteSignee)} j</td>
               <td>${statutBadge(m.statut)}</td>
               <td class="num">${eur(m.montant)}</td>
               <td class="num" style="white-space:nowrap">
@@ -769,13 +777,32 @@ function statutBadge(s){
 }
 
 /* ---------- Salariés ---------- */
+function renderSalariesLock(){
+  $('#content').innerHTML=`
+    <div class="card" style="max-width:440px;margin:48px auto">
+      <div class="card-pad" style="text-align:center">
+        <div style="width:46px;height:46px;border-radius:13px;background:var(--accent-soft);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;color:var(--accent-strong)">${ic('lock')}</div>
+        <h2 style="margin:0 0 6px">Onglet protégé</h2>
+        <div style="font-size:13px;color:var(--muted);margin-bottom:16px">Saisissez le mot de passe pour accéder aux salariés et aux coûts.</div>
+        <input class="inp" type="password" id="salPwd" placeholder="Mot de passe" style="text-align:center" onkeydown="if(event.key==='Enter')tryUnlockSalaries()">
+        <button class="btn btn-primary" style="margin-top:12px;width:100%;justify-content:center" onclick="tryUnlockSalaries()">${ic('check')} Déverrouiller</button>
+      </div>
+    </div>`;
+  setTimeout(()=>{ const e=$('#salPwd'); if(e) e.focus(); }, 60);
+}
+function tryUnlockSalaries(){
+  const e=$('#salPwd');
+  if(e && e.value===SALARIES_PWD){ salariesUnlocked=true; toast('Accès autorisé'); renderSalaries(); }
+  else { toast('Mot de passe incorrect'); if(e){ e.value=''; e.focus(); } }
+}
 function renderSalaries(){
+  if(!salariesUnlocked) return renderSalariesLock();
   const rows=computeYear(currentYear);
   const byMat=Object.fromEntries(rows.map(r=>[r.sal.matricule,r]));
   const c=$('#content');
   c.innerHTML=`
     <div class="card">
-      <div class="card-head"><h2>Salariés</h2><div class="desc">Soldes calculés sur ${currentYear}</div><div class="grow"></div>
+      <div class="card-head"><h2>Salariés</h2><div class="grow"></div>
         <button class="btn btn-primary btn-sm" onclick="openSalarie()">${ic('plus')} Nouveau salarié</button></div>
       <div class="card-body">
         <table>
@@ -787,7 +814,7 @@ function renderSalaries(){
                 <div><div class="t">${esc(s.nom)} ${esc(s.prenom)}</div><div class="s">Mat. ${esc(s.matricule)}</div></div></div></td>
               <td>${dateFR(s.dateEntree)}</td>
               <td>${s.tempsPartiel||100} %</td>
-              <td>${s.coutJour?eur(s.coutJour):'<span style="color:var(--muted-2)">—</span>'}</td>
+              <td><span style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap" onclick="event.stopPropagation()">${s.coutJour?eur(s.coutJour):'<span style="color:var(--muted-2)">—</span>'}<label class="icon-btn" title="Importer / remplacer la fiche de paie PDF (calcul du coût/jour)" style="cursor:pointer;margin:0">${ic('upload')}<input type="file" accept="application/pdf" style="display:none" onchange="onPayslip('${s.matricule}',this)"></label>${s.payslip?`<span class="ps-chip" title="${esc(s.payslipName||'fiche.pdf')} — aperçu" onclick="previewPayslip('${s.matricule}')">${ic('file')}<span class="ps-name">${esc(s.payslipName||'fiche.pdf')}</span></span><button class="icon-btn ps-x" title="Retirer la fiche de paie" onclick="removePayslip('${s.matricule}')">${ic('close')}</button>`:''}</span></td>
               <td class="num"><b>${nbJours(r.soldeFin)}</b> j</td>
               <td><span class="badge ${s.statut==='Actif'?'b-valid':'b-ok'}"><span class="dot"></span>${esc(s.statut||'Actif')}</span></td>
               <td class="num" style="white-space:nowrap" onclick="event.stopPropagation()">
@@ -822,7 +849,7 @@ function renderParametres(){
     </div>
 
     <div class="card">
-      <div class="card-head"><h2>Types de mouvements</h2><div class="desc">Référentiel — signe, compteur CP et épargne</div><div class="grow"></div>
+      <div class="card-head"><h2>Types de mouvements</h2><div class="grow"></div>
         <button class="btn btn-ghost btn-sm" onclick="openType()">${ic('plus')} Ajouter un type</button></div>
       <div class="card-body">
         <table>
@@ -847,7 +874,7 @@ function renderParametres(){
     </div>
 
     <div class="card">
-      <div class="card-head"><h2>Données & sauvegarde</h2><div class="desc">Tout est stocké localement sur ce poste</div></div>
+      <div class="card-head"><h2>Données & sauvegarde</h2></div>
       <div class="card-pad">
         ${cloudEnabled()
           ? `<div class="help-banner">${ic('info')}<div>Synchronisation <b>Cloudflare activée</b> — les données sont enregistrées dans la base KV via le Worker (<b>${esc(CLOUD_ENDPOINT)}</b>). Le navigateur garde un cache hors-ligne. Une <b>sauvegarde JSON</b> ponctuelle reste conseillée.</div></div>`
@@ -876,8 +903,8 @@ function saveParams(){
 /* ===================== CONGÉS PAYÉS ===================== */
 const MOIS_FR=['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 const MOIS_ABBR=['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Aoû','Sep','Oct','Nov','Déc'];
-const CONGES_TYPES=['Congés payés','RTT','Congé sans solde','Maladie','Autre'];
-const CONGES_TYPE_COLOR={'Congés payés':'#1786c9','RTT':'#2e9b8f','Congé sans solde':'#8a93a3','Maladie':'#c0455b','Autre':'#5b59b8'};
+const CONGES_TYPES=['Congés payés','Maladie','Autre'];
+const CONGES_TYPE_COLOR={'Congés payés':'#1786c9','Maladie':'#c0455b','Autre':'#5b59b8'};
 let congesSal=null, congesMonth=new Date().getMonth(), congesType='Congés payés', congesStatut='Validé';
 
 function conges(){ return state.conges || (state.conges=[]); }
@@ -1067,6 +1094,254 @@ function exportCongesMensuelCSV(){
   dl('Conges_recap_mensuel_'+Y+'.csv','﻿'+lines.join('\r\n'),'text/csv;charset=utf-8'); toast('Récap mensuel exporté');
 }
 
+/* ===================== COÛT/JOUR via FICHE DE PAIE PDF ===================== */
+function easterSunday(Y){
+  const a=Y%19,b=Math.floor(Y/100),c=Y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),
+    g=Math.floor((b-f+1)/3),hh=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,
+    l=(32+2*e+2*i-hh-k)%7,m=Math.floor((a+11*hh+22*l)/451),
+    mo=Math.floor((hh+l-7*m+114)/31),da=((hh+l-7*m+114)%31)+1;
+  return new Date(Y,mo-1,da);
+}
+function joursFeries(Y){
+  const e=easterSunday(Y), add=(base,n)=>{const x=new Date(base);x.setDate(x.getDate()+n);return x;};
+  return [ new Date(Y,0,1), add(e,1), new Date(Y,4,1), new Date(Y,4,8), add(e,39), add(e,50),
+           new Date(Y,6,14), new Date(Y,7,15), new Date(Y,10,1), new Date(Y,10,11), new Date(Y,11,25) ];
+}
+function joursOuvresAnnee(Y){
+  let wd=0;
+  for(let m=0;m<12;m++){ const dim=new Date(Y,m+1,0).getDate(); for(let day=1;day<=dim;day++){ const j=new Date(Y,m,day).getDay(); if(j!==0&&j!==6) wd++; } }
+  const feries=joursFeries(Y).filter(f=>{ const j=f.getDay(); return j!==0&&j!==6; }).length;
+  return {weekdays:wd, feries};
+}
+
+let _pdfjs=null;
+function loadPdfJs(){
+  if(_pdfjs) return Promise.resolve(_pdfjs);
+  const set=()=>{ window.pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; _pdfjs=window.pdfjsLib; return _pdfjs; };
+  if(window.pdfjsLib) return Promise.resolve(set());
+  return new Promise((res,rej)=>{
+    const s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    s.onload=()=>res(set());
+    s.onerror=()=>rej(new Error('Lecture PDF indisponible (connexion internet requise pour charger pdf.js).'));
+    document.head.appendChild(s);
+  });
+}
+async function pdfTextFromData(data){
+  const pdfjs=await loadPdfJs();
+  const doc=await pdfjs.getDocument({data}).promise;
+  let txt='';
+  for(let p=1;p<=doc.numPages;p++){ const page=await doc.getPage(p); const c=await page.getTextContent(); txt+=' '+c.items.map(i=>i.str).join(' '); }
+  return txt;
+}
+async function pdfText(file){ return pdfTextFromData(await file.arrayBuffer()); }
+function fileToDataURL(f){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=()=>rej(r.error||new Error('Lecture fichier impossible')); r.readAsDataURL(f); }); }
+function dataURLtoU8(d){ const b=atob(String(d).split(',')[1]||''); const u=new Uint8Array(b.length); for(let i=0;i<b.length;i++) u[i]=b.charCodeAt(i); return u; }
+function normNum(s){
+  s=String(s).replace(/[\s  ]/g,'');
+  const dec=Math.max(s.lastIndexOf(','),s.lastIndexOf('.'));
+  if(dec>-1 && s.length-dec===3) s=s.slice(0,dec).replace(/[.,]/g,'')+'.'+s.slice(dec+1);
+  else s=s.replace(/[.,]/g,'');
+  const n=parseFloat(s); return isNaN(n)?null:Math.round(n*100)/100;
+}
+function parseBrutAnnuel(text){
+  const t=text||'';
+  const NUMG='([0-9][0-9 .  ]*[.,][0-9]{2})';
+  // 1) Format bulletin : recap colonnes "Brut Plafond Net Imposable ..." -> 1ere ligne "Annee : <brut>"
+  let m=t.match(new RegExp('Brut\\s+Plafond\\s+Net\\s+Imposable[\\s\\S]*?Ann(?:é|e)e\\s*:\\s*'+NUMG,'i'));
+  if(m){ const v=normNum(m[1]); if(v) return {brut:v, via:'Brut annee (recap du bulletin)'}; }
+  // 2) Libelles generiques
+  for(const re of [ new RegExp('brut\\s*annuel[^0-9]{0,25}'+NUMG,'i'),
+                    new RegExp('cumul[^0-9a-zA-Z]{0,15}(?:imposable\\s+)?brut[^0-9]{0,25}'+NUMG,'i') ]){
+    const mm=t.match(re); if(mm){ const v=normNum(mm[1]); if(v&&v>2000) return {brut:v, via:mm[0].replace(/\s+/g,' ').trim().slice(0,70)}; }
+  }
+  // 3) Premiere valeur "Annee : <num> Eur"
+  m=t.match(new RegExp('Ann(?:é|e)e\\s*:\\s*'+NUMG+'\\s*Eur','i'));
+  if(m){ const v=normNum(m[1]); if(v) return {brut:v, via:'1ere valeur Annee du bulletin'}; }
+  return {brut:null, via:''};
+}
+async function onPayslip(mat, input){
+  const f=input&&input.files&&input.files[0]; input.value='';
+  if(!f) return;
+  if(f.type && f.type.indexOf('pdf')<0){ toast('Veuillez choisir un fichier PDF'); return; }
+  toast('Lecture de la fiche de paie…');
+  try{
+    const dataUrl=await fileToDataURL(f);
+    const s=salByMat(mat); if(s){ s.payslip=dataUrl; s.payslipName=f.name; save(); render(); }
+    const txt=await pdfTextFromData(dataURLtoU8(dataUrl));
+    const {brut,via}=parseBrutAnnuel(txt);
+    openCoutCalc(mat, brut, via);
+  }catch(e){ toast(e.message||'Impossible de lire ce PDF'); }
+}
+function previewPayslip(mat){
+  const s=salByMat(mat); if(!s||!s.payslip) return;
+  modal(`
+    <div class="modal-head"><h3>Fiche de paie — ${esc(s.nom)} ${esc(s.prenom)}</h3><div class="grow"></div><button class="icon-btn" onclick="closeModal()">${ic('close')}</button></div>
+    <div class="modal-body">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;font-size:12px;color:var(--muted)"><span class="icoinline" style="color:var(--accent-strong)">${ic('file')}</span><b style="color:var(--ink)">${esc(s.payslipName||'fiche.pdf')}</b><a class="link" href="${s.payslip}" download="${esc(s.payslipName||'fiche.pdf')}">Télécharger</a></div>
+      <div id="psThumb" style="display:flex;justify-content:center;align-items:center;min-height:120px"><div class="hint">Aperçu en cours…</div></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-danger" onclick="removePayslip('${mat}')">${ic('trash')} Retirer la pièce jointe</button>
+      <div class="grow"></div>
+      <button class="btn btn-ghost" onclick="closeModal()">Fermer</button>
+      <button class="btn btn-primary" onclick="recalcPayslip('${mat}')">${ic('refresh')} Recalculer le coût/jour</button>
+    </div>`);
+  renderPayslipThumb(s);
+}
+async function renderPayslipThumb(s){
+  const wrap=$('#psThumb'); if(!wrap) return;
+  try{
+    const pdfjs=await loadPdfJs();
+    const doc=await pdfjs.getDocument({data:dataURLtoU8(s.payslip)}).promise;
+    const page=await doc.getPage(1);
+    const base=page.getViewport({scale:1});
+    const scale=Math.min(1.5, 440/base.width);
+    const vp=page.getViewport({scale});
+    const canvas=document.createElement('canvas'); canvas.width=vp.width; canvas.height=vp.height;
+    canvas.style.maxWidth='100%'; canvas.style.height='auto'; canvas.style.border='1px solid var(--line)'; canvas.style.borderRadius='8px'; canvas.style.boxShadow='var(--shadow)';
+    await page.render({canvasContext:canvas.getContext('2d'), viewport:vp}).promise;
+    if($('#psThumb')){ wrap.innerHTML=''; wrap.appendChild(canvas); }
+  }catch(e){ if($('#psThumb')) wrap.innerHTML='<div class="hint">Aperçu indisponible — cliquez « Télécharger » pour ouvrir le PDF.</div>'; }
+}
+function removePayslip(mat){
+  const s=salByMat(mat); if(!s) return;
+  delete s.payslip; delete s.payslipName; s.coutJour=null; save(); closeModal(); toast('Fiche de paie et coût/jour retirés'); render();
+}
+async function recalcPayslip(mat){
+  const s=salByMat(mat); if(!s||!s.payslip) return;
+  toast('Lecture de la fiche de paie…');
+  try{ const txt=await pdfTextFromData(dataURLtoU8(s.payslip)); const {brut,via}=parseBrutAnnuel(txt); closeModal(); openCoutCalc(mat, brut, via); }
+  catch(e){ toast(e.message||'Impossible de lire ce PDF'); }
+}
+
+/* ===================== IMPORT SUIVI HEURES SUPP -> CET ===================== */
+const HEURES_PAR_JOUR_CET = 7;
+function loadXLSX(){
+  if(window.XLSX) return Promise.resolve(window.XLSX);
+  return new Promise((res,rej)=>{
+    const s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    s.onload=()=>res(window.XLSX);
+    s.onerror=()=>rej(new Error('Lecteur Excel indisponible (connexion internet requise).'));
+    document.head.appendChild(s);
+  });
+}
+async function onSuiviCET(input){
+  const f=input&&input.files&&input.files[0]; input.value=''; if(!f) return;
+  toast('Lecture du fichier de suivi…');
+  try{
+    const XLSX=await loadXLSX();
+    const buf=await f.arrayBuffer();
+    const wb=XLSX.read(buf,{type:'array'});
+    let emp='', total=0;
+    for(const name of wb.SheetNames){
+      const rows=XLSX.utils.sheet_to_json(wb.Sheets[name],{header:1,raw:true,blankrows:false});
+      if(!emp){ const e=findSalarieInRows(rows); if(e) emp=e; }
+      total += sumHoursSheet(rows);
+    }
+    total=Math.round(total*100)/100;
+    const matricule=matFromEmp(emp);
+    if(!matricule){ toast('Salarié non identifié (feuille « Salarié », liste déroulante).'); return; }
+    if(!(total>0)){ toast('Aucune heure supplémentaire trouvée dans le fichier'); return; }
+    openSuiviConfirm({matricule, emp, total});
+  }catch(e){ toast(e.message||'Fichier illisible'); }
+}
+function findSalarieInRows(rows){
+  for(let r=0;r<rows.length && r<40;r++){ const row=rows[r]||[];
+    for(let c=0;c<row.length;c++){ const v=row[c]; if(v==null) continue;
+      if(String(v).toLowerCase().indexOf('salari')>-1){
+        for(let k=c+1;k<row.length;k++){ if(row[k]!=null && String(row[k]).trim()!=='') return String(row[k]); }
+        const below=(rows[r+1]||[])[c]; if(below!=null && String(below).trim()!=='') return String(below);
+      } } }
+  return '';
+}
+function sumHoursSheet(rows){
+  let cols=[], hr=-1;
+  for(let r=0;r<rows.length && r<8;r++){ const row=rows[r]||[];
+    for(let c=0;c<row.length;c++){ const v=row[c]; if(v==null) continue; const t=String(v).toLowerCase().trim();
+      if(t==='heures'||t.indexOf('heures supp')===0||t==='heure'||t==='h'){ if(cols.indexOf(c)<0) cols.push(c); if(r>hr) hr=r; } } }
+  if(!cols.length) return 0;
+  let total=0;
+  for(let r=hr+1;r<rows.length;r++){ const row=rows[r]||[]; for(let i=0;i<cols.length;i++){ const v=row[cols[i]]; const n=Number(v); if(v!=null && v!=='' && !isNaN(n)) total+=n; } }
+  return total;
+}
+function matFromEmp(emp){
+  const mm=String(emp).match(/(\d{2,4})/);
+  if(mm && salByMat(mm[1])) return mm[1];
+  const low=String(emp).toLowerCase();
+  const s=state.salaries.find(x=> x.nom && x.prenom && low.includes(x.nom.toLowerCase()) && low.includes(x.prenom.toLowerCase()));
+  return s?s.matricule:'';
+}
+function openSuiviConfirm(p){
+  const s=salByMat(p.matricule);
+  const days=Math.floor(p.total/HEURES_PAR_JOUR_CET);
+  const reste=Math.round((p.total - days*HEURES_PAR_JOUR_CET)*100)/100;
+  const already=state.mouvements.filter(m=>m.matricule===p.matricule && m.type==='ALIM_CP' && m.src==='hsupp').reduce((a,m)=>a+(Number(m.qte)||0),0);
+  const delta=days-already;
+  modal(`
+    <div class="modal-head"><h3>Import suivi CET — ${esc(s.nom)} ${esc(s.prenom)}</h3></div>
+    <div class="modal-body">
+      <div class="help-banner">${ic('info')}<div>${HEURES_PAR_JOUR_CET} h supplémentaires = 1 jour d'alimentation CET (ALIM_CP). Import incrémental : seuls les nouveaux jours sont crédités.</div></div>
+      <div class="detail-stats" style="grid-template-columns:repeat(3,1fr)">
+        <div class="s"><div class="k">Heures supp. totales</div><div class="v">${nbJours(p.total)} h</div></div>
+        <div class="s"><div class="k">Jours CET (cumul)</div><div class="v">${days} j</div></div>
+        <div class="s"><div class="k">À créditer</div><div class="v" style="color:var(--ok)">+${delta>0?delta:0} j</div></div>
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-top:8px">Déjà crédité via imports : <b>${already} j</b> · reste <b>${nbJours(reste)} h</b> non convertis (en attente d'atteindre ${HEURES_PAR_JOUR_CET} h).</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+      <button class="btn btn-primary" ${delta>0?'':'disabled'} onclick="applySuiviCET('${p.matricule}',${delta},${p.total})">${ic('check')} ${delta>0?'Créditer +'+delta+' j':'Rien à créditer'}</button>
+    </div>`);
+}
+function applySuiviCET(mat, delta, total){
+  if(!(delta>0)){ closeModal(); return; }
+  const today=new Date().toISOString().slice(0,10);
+  state.mouvements.push({id:uid(),date:today,matricule:mat,type:'ALIM_CP',qte:delta,statut:'Validé',commentaire:'Heures supp. importées : '+total+' h cumulées → +'+delta+' j',src:'hsupp'});
+  movSort={key:'date',dir:'desc'};
+  save(); closeModal(); toast('+'+delta+' jour(s) CET crédité(s)'); render();
+}
+function openCoutCalc(mat, brut, via){
+  const s=salByMat(mat); if(!s) return;
+  const Yref=Number(state.params.anneeSuivi)-1;
+  modal(`
+    <div class="modal-head"><h3>Coût / jour — ${esc(s.nom)} ${esc(s.prenom)}</h3></div>
+    <div class="modal-body">
+      <div class="help-banner">${ic('info')}<div>Calcul : <b>brut annuel ÷ jours travaillés</b> de l'année de référence (jours ouvrés − fériés − CP). Le brut a été lu dans la fiche de paie — <b>vérifiez-le</b> avant d'appliquer.</div></div>
+      <div class="form-grid">
+        <div class="form-row"><label>Année de référence (N-1)</label><input class="inp" type="number" id="ccY" value="${Yref}"></div>
+        <div class="form-row"><label>Jours de CP déduits</label><input class="inp" type="number" id="ccCp" value="25"></div>
+        <div class="form-row full"><label>Brut annuel ${brut!=null?'détecté ':''}(€)</label><input class="inp" type="number" step="0.01" id="ccBrut" value="${brut!=null?brut:''}" placeholder="ex. 45000"></div>
+        <div class="form-row full" style="text-align:center;padding:4px 0">
+          <div style="font-size:12px;color:var(--muted);font-weight:600">Coût / jour calculé</div>
+          <div id="ccCout" style="font-size:28px;font-weight:700;color:var(--accent-strong);font-family:var(--font-head)">—</div>
+        </div>
+        ${via?`<div class="form-row full"><div class="hint">Lecture auto : « ${esc(via)} »</div></div>`:`<div class="form-row full"><div class="hint" style="color:var(--warn)">Brut annuel non détecté automatiquement — saisissez-le à la main.</div></div>`}
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+      <button class="btn btn-primary" onclick="applyCoutCalc('${mat}')">${ic('check')} Appliquer ce coût/jour</button>
+    </div>`);
+  ['#ccY','#ccCp','#ccBrut'].forEach(id=>$(id).addEventListener('input',coutCalcRefresh));
+  coutCalcRefresh();
+}
+function coutCalcRefresh(){
+  const Y=Number($('#ccY').value)||new Date().getFullYear();
+  const brut=Number($('#ccBrut').value)||0;
+  const cp=Number($('#ccCp').value)||0;
+  const o=joursOuvresAnnee(Y); const jt=o.weekdays-o.feries-cp;
+  const cout=(brut>0&&jt>0)? brut/jt : 0;
+  window._ccCout = cout? Math.round(cout*100)/100 : null;
+  $('#ccCout').textContent = cout? window._ccCout.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €' : '—';
+}
+function applyCoutCalc(mat){
+  if(!window._ccCout){ toast('Renseignez un brut annuel valide'); return; }
+  const s=salByMat(mat); if(!s) return;
+  s.coutJour=window._ccCout; save(); closeModal(); toast('Coût/jour mis à jour : '+eur(s.coutJour)); render();
+}
+
 /* ===================== MODALS ===================== */
 function modal(html,wide){
   const o=$('#overlay');
@@ -1091,26 +1366,12 @@ function openMouvement(id){
         <div class="form-row"><label>Quantité (jours, positive)</label><input class="inp" type="number" min="0" step="0.5" id="mQte" value="${m?m.qte:''}" placeholder="ex. 5"></div>
         <div class="form-row"><label>Statut</label><select class="inp" id="mStatut"><option ${m&&m.statut==='Validé'?'selected':''}>Validé</option><option ${m&&m.statut==='En attente'?'selected':''}>En attente</option></select></div>
         <div class="form-row full"><label>Commentaire</label><input class="inp" id="mComm" value="${m?esc(m.commentaire||''):''}" placeholder="optionnel"></div>
-        <div class="form-row full"><div class="preview" id="mPreview"></div></div>
       </div>
     </div>
     <div class="modal-foot">
       <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>
       <button class="btn btn-primary" onclick="saveMouvement('${m?m.id:''}')">${ic('check')} ${m?'Enregistrer':'Ajouter'}</button>
     </div>`);
-  const upd=()=>{
-    const t=typeByCode($('#mType').value); const q=Number($('#mQte').value)||0;
-    const sal=salByMat($('#mSal').value);
-    const signed=q*(t?t.signe:0);
-    const cout=sal&&sal.coutJour?Number(sal.coutJour):null;
-    $('#mPreview').innerHTML = t? `${ic('info')}
-      <span>Catégorie <b>${esc(t.categorie)}</b></span><span>·</span>
-      <span>Effet sur le solde <b style="color:${signed>=0?'var(--accent-strong)':'var(--warn)'}">${signed>0?'+':''}${nbJours(signed)} j</b></span><span>·</span>
-      <span>Compteur CP <b>${t.compteCP}</b></span><span>·</span>
-      <span>Épargne <b>${t.epargne}</b></span>${cout!=null?`<span>·</span><span>Montant <b>${eur(Math.abs(signed)*cout*(signed<0?-1:1))}</b></span>`:''}` : '';
-  };
-  ['#mType','#mQte','#mSal'].forEach(s=>$(s).addEventListener('input',upd));
-  upd();
 }
 function saveMouvement(id){
   const date=$('#mDate').value, mat=$('#mSal').value, type=$('#mType').value;
@@ -1245,8 +1506,8 @@ function openDetail(mat){
           ${histRows.length?histRows.map(({m,run})=>`
             <tr>
               <td style="white-space:nowrap">${dateFR(m.date)}</td>
-              <td><span class="badge ${movTone(m)==='green'?'b-green':'b-red'}"><span class="dot"></span>${esc(m.libelle)}</span></td>
-              <td class="num" style="color:${movTone(m)==='green'?'var(--ok)':'var(--warn)'};font-weight:600">${m.qteSignee>0?'+':''}${nbJours(m.qteSignee)} j</td>
+              <td><span class="badge b-${movTone(m)}"><span class="dot"></span>${esc(m.libelle)}</span></td>
+              <td class="num" style="color:${toneColor(movTone(m))};font-weight:700">${m.qteSignee>0?'+':''}${nbJours(m.qteSignee)} j</td>
               <td class="num">${m.statut==='Validé'?'<b>'+nbJours(run)+'</b>':'<span style="color:var(--muted-2)">—</span>'}</td>
               <td>${statutBadge(m.statut)}</td>
             </tr>`).join(''):`<tr><td colspan="5" class="empty">Aucun mouvement.</td></tr>`}
@@ -1345,7 +1606,9 @@ function ic(name){
     clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
     calendar:'<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
     chevL:'<path d="M15 18l-6-6 6-6"/>',
-    chevR:'<path d="M9 18l6-6-6-6"/>'
+    chevR:'<path d="M9 18l6-6-6-6"/>',
+    file:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>',
+    lock:'<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>'
   }[name]||'';
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
 }
