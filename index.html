@@ -722,21 +722,21 @@ function renderMouvements(){
   sortMovs(list);
 
   c.innerHTML=`
-    ${admin?`
+    ${admin?'':`
+    <div class="help-banner" style="justify-content:space-between;align-items:center">
+      <div style="display:flex;gap:10px;align-items:center">${ic('lock')}<div>Connecté : <b>${esc(me.nom)} ${esc(me.prenom)}</b> — vous voyez uniquement vos mouvements et montants.</div></div>
+      <button class="btn btn-ghost btn-sm no-print" onclick="logoutMouvements()">Changer d'accès</button>
+    </div>`}
     <div class="card">
       <div class="card-head"><h2>Heures supplémentaires → CET</h2><div class="desc">${HEURES_PAR_JOUR_CET} h supp = 1 jour d'alimentation CET</div></div>
       <div class="card-pad" style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between">
-        <div style="font-size:13px;color:var(--muted);max-width:520px">Chaque salarié remplit le modèle calendrier (heures supp. par jour), puis vous téléversez son fichier ici : l'outil additionne les heures et crédite l'alimentation CET. Import <b>incrémental</b> (pas de double comptage).</div>
+        <div style="font-size:13px;color:var(--muted);max-width:520px">${admin?`Chaque salarié remplit le modèle calendrier (heures supp. par jour), puis vous téléversez son fichier ici : l'outil additionne les heures et crédite l'alimentation CET. Import <b>incrémental</b>.`:`Remplissez le modèle (vos heures supp. par jour) puis téléversez-le ici pour créditer votre CET. Import <b>incrémental</b> (pas de double comptage).`}</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap" class="no-print">
           <a class="btn btn-ghost btn-sm" href="modele_suivi_CET.xlsx" download>${ic('download')} Télécharger le modèle</a>
           <label class="btn btn-primary btn-sm" style="cursor:pointer;margin:0">${ic('upload')} Téléverse ton fichier de suivi CET<input type="file" accept=".xlsx,.xls,.xlsm" style="display:none" onchange="onSuiviCET(this)"></label>
         </div>
       </div>
-    </div>`:`
-    <div class="help-banner" style="justify-content:space-between;align-items:center">
-      <div style="display:flex;gap:10px;align-items:center">${ic('lock')}<div>Connecté : <b>${esc(me.nom)} ${esc(me.prenom)}</b> — vous voyez uniquement vos mouvements et montants.</div></div>
-      <button class="btn btn-ghost btn-sm no-print" onclick="logoutMouvements()">Changer d'accès</button>
-    </div>`}
+    </div>
     <div class="card">
       <div class="card-head" style="flex-wrap:wrap;gap:10px">
         <div class="filters">
@@ -1329,7 +1329,8 @@ async function onSuiviCET(input){
       total += sumHoursSheet(rows);
     }
     total=Math.round(total*100)/100;
-    const matricule=matFromEmp(emp);
+    let matricule=matFromEmp(emp);
+    if(movAccess && movAccess!=='admin') matricule=movAccess; // agent connecté : crédite son propre CET
     if(!matricule){ toast('Salarié non identifié (feuille « Salarié », liste déroulante).'); return; }
     if(!(total>0)){ toast('Aucune heure supplémentaire trouvée dans le fichier'); return; }
     openSuiviConfirm({matricule, emp, total});
