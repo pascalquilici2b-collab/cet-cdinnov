@@ -209,6 +209,13 @@
   .preview svg{width:15px;height:15px;flex:0 0 15px}
   .icoinline{display:inline-flex;align-items:center}
   .icoinline svg{width:16px;height:16px}
+  .profile-grid{display:flex;flex-direction:column;gap:8px;margin-top:6px}
+  .profile-btn{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:11px 14px;border:1px solid var(--line-strong);border-radius:12px;background:#fff;cursor:pointer;font-family:var(--font);font-size:14px;font-weight:600;color:var(--ink);transition:all .12s}
+  .profile-btn:hover{border-color:var(--accent);background:var(--accent-soft)}
+  .profile-btn .avatar{width:34px;height:34px;flex:0 0 34px;font-size:12px}
+  .profile-btn .pgrow{flex:1}
+  .profile-btn small{display:block;font-weight:500;font-size:11px;color:var(--muted);margin-top:1px}
+  .profile-btn svg{width:16px;height:16px;stroke:var(--muted-2)}
 
   /* ---------- Modal ---------- */
   .overlay{position:fixed;inset:0;background:rgba(20,22,30,.42);backdrop-filter:blur(2px);z-index:50;display:none;align-items:flex-start;justify-content:center;padding:48px 16px;overflow:auto}
@@ -412,6 +419,9 @@ const STORE_KEY = 'cet_cdinnov_v1';
 let STORAGE_OK = true;   // passe a false si le navigateur bloque le stockage local
 const SALARIES_PWD = 'Cdinnov1986';
 let salariesUnlocked = false;
+const MOV_USER_PWD = { 'cdinnov-pascal':'001', 'cdinnov-david':'002', 'cdinnov-albert':'003', 'cdinnov4':'004', 'cdinnov5':'005' };
+let movAccess = null; // null | 'admin' | matricule
+let movLockProfile = null; // profil sélectionné sur l'écran d'accès
 
 /* ---------- state / persistence ---------- */
 let state = load();
@@ -702,9 +712,13 @@ function setSort(key){ if(movSort.key===key) movSort.dir=movSort.dir==='asc'?'de
 function sortArrow(key){ if(movSort.key!==key) return '<span class="car" style="opacity:.28">↕</span>'; return '<span class="car">'+(movSort.dir==='asc'?'▲':'▼')+'</span>'; }
 function sortMovs(list){ const k=movSort.key, s=movSort.dir==='asc'?1:-1; const val=m=>{ switch(k){ case 'sal': return m.sal?(m.sal.nom+' '+m.sal.prenom):'zzz'; case 'type': return m.libelle||m.type||''; case 'qte': return m.qteSignee; case 'statut': return m.statut||''; case 'montant': return m.montant==null?-Infinity:m.montant; default: return m.date||''; } }; return list.sort((a,b)=>{ let va=val(a),vb=val(b); if(typeof va==='number'&&typeof vb==='number') return (va-vb)*s; va=String(va).toLowerCase(); vb=String(vb).toLowerCase(); return (va<vb?-1:va>vb?1:0)*s; }); }
 function renderMouvements(){
+  if(!movAccess) return renderMouvementsLock();
+  const admin = movAccess==='admin';
+  const me = admin?null:salByMat(movAccess);
   const c=$('#content');
   let list=allEnriched().filter(m=>m.annee===currentYear);
-  if(movFilter.sal) list=list.filter(m=>m.matricule===movFilter.sal);
+  if(!admin) list=list.filter(m=>m.matricule===movAccess);
+  else if(movFilter.sal) list=list.filter(m=>m.matricule===movFilter.sal);
   if(movFilter.type) list=list.filter(m=>m.type===movFilter.type);
   if(movFilter.cat) list=list.filter(m=>m.categorie===movFilter.cat);
   if(movFilter.q){ const q=movFilter.q.toLowerCase();
@@ -712,6 +726,7 @@ function renderMouvements(){
   sortMovs(list);
 
   c.innerHTML=`
+    ${admin?`
     <div class="card">
       <div class="card-head"><h2>Heures supplémentaires → CET</h2><div class="desc">${HEURES_PAR_JOUR_CET} h supp = 1 jour d'alimentation CET</div></div>
       <div class="card-pad" style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between">
@@ -721,19 +736,23 @@ function renderMouvements(){
           <label class="btn btn-primary btn-sm" style="cursor:pointer;margin:0">${ic('upload')} Téléverse ton fichier de suivi CET<input type="file" accept=".xlsx,.xls,.xlsm" style="display:none" onchange="onSuiviCET(this)"></label>
         </div>
       </div>
-    </div>
+    </div>`:`
+    <div class="help-banner" style="justify-content:space-between;align-items:center">
+      <div style="display:flex;gap:10px;align-items:center">${ic('lock')}<div>Connecté : <b>${esc(me.nom)} ${esc(me.prenom)}</b> — vous voyez uniquement vos mouvements et montants.</div></div>
+      <button class="btn btn-ghost btn-sm no-print" onclick="logoutMouvements()">Changer d'accès</button>
+    </div>`}
     <div class="card">
       <div class="card-head" style="flex-wrap:wrap;gap:10px">
         <div class="filters">
           <div class="search">${ic('search')}<input class="inp slim" id="fq" placeholder="Rechercher…" value="${esc(movFilter.q)}"></div>
-          <select class="inp slim" id="fsal" style="width:auto">${optAll('Tous salariés')}${state.salaries.map(s=>`<option value="${s.matricule}" ${movFilter.sal===s.matricule?'selected':''}>${esc(s.nom)} ${esc(s.prenom)}</option>`).join('')}</select>
+          ${admin?`<select class="inp slim" id="fsal" style="width:auto">${optAll('Tous salariés')}${state.salaries.map(s=>`<option value="${s.matricule}" ${movFilter.sal===s.matricule?'selected':''}>${esc(s.nom)} ${esc(s.prenom)}</option>`).join('')}</select>`:''}
           <select class="inp slim" id="fcat" style="width:auto"><option value="">Toutes catégories</option><option value="Alimentation" ${movFilter.cat==='Alimentation'?'selected':''}>Alimentation</option><option value="Utilisation" ${movFilter.cat==='Utilisation'?'selected':''}>Utilisation</option></select>
           <select class="inp slim" id="ftype" style="width:auto">${optAll('Tous types')}${state.types.map(t=>`<option value="${t.code}" ${movFilter.type===t.code?'selected':''}>${esc(t.code)}</option>`).join('')}</select>
         </div>
         <div class="grow"></div>
         <span class="chip">${list.length} mouvement${list.length>1?'s':''}</span>
         <button class="btn btn-ghost btn-sm no-print" onclick="exportMouvCSV()">${ic('download')} Export</button>
-        <button class="btn btn-primary btn-sm no-print" onclick="openMouvement()">${ic('plus')} Nouveau</button>
+        ${admin?`<button class="btn btn-primary btn-sm no-print" onclick="openMouvement()">${ic('plus')} Nouveau</button>`:''}
       </div>
       <div class="card-body">
         <table>
@@ -744,7 +763,7 @@ function renderMouvements(){
             <th class="num th-sort${movSort.key==='qte'?' act':''}" onclick="setSort('qte')">Qté signée${sortArrow('qte')}</th>
             <th class="th-sort${movSort.key==='statut'?' act':''}" onclick="setSort('statut')">Statut${sortArrow('statut')}</th>
             <th class="num th-sort${movSort.key==='montant'?' act':''}" onclick="setSort('montant')">Montant${sortArrow('montant')}</th>
-            <th></th>
+            ${admin?'<th></th>':''}
           </tr></thead>
           <tbody>
           ${list.map(m=>`
@@ -756,21 +775,63 @@ function renderMouvements(){
               <td class="num" style="color:${toneColor(movTone(m))};font-weight:700">${m.qteSignee>0?'+':''}${nbJours(m.qteSignee)} j</td>
               <td>${statutBadge(m.statut)}</td>
               <td class="num">${eur(m.montant)}</td>
-              <td class="num" style="white-space:nowrap">
+              ${admin?`<td class="num" style="white-space:nowrap">
                 <button class="icon-btn" title="Modifier" onclick="openMouvement('${m.id}')">${ic('edit')}</button>
                 <button class="icon-btn" title="Supprimer" onclick="delMouvement('${m.id}')">${ic('trash')}</button>
-              </td>
+              </td>`:''}
             </tr>`).join('')}
           </tbody>
         </table>
-        ${list.length?'':emptyState('Aucun mouvement', `Aucune écriture pour ${currentYear}. Cliquez « Nouveau » pour saisir une alimentation ou une utilisation.`)}
+        ${list.length?'':emptyState('Aucun mouvement', admin?`Aucune écriture pour ${currentYear}. Cliquez « Nouveau » pour saisir.`:`Aucun mouvement vous concernant pour ${currentYear}.`)}
       </div>
     </div>`;
-  $('#fq').addEventListener('input', e=>{movFilter.q=e.target.value; renderMouvements(); setTimeout(()=>{const el=$('#fq'); el.focus(); el.setSelectionRange(el.value.length,el.value.length);},0);});
-  $('#fsal').addEventListener('change', e=>{movFilter.sal=e.target.value; renderMouvements();});
+  const ta=$('#topAction'); if(ta) ta.style.display=admin?'':'none';
+  $('#fq').addEventListener('input', e=>{movFilter.q=e.target.value; renderMouvements(); setTimeout(()=>{const el=$('#fq'); if(el){el.focus(); el.setSelectionRange(el.value.length,el.value.length);}},0);});
+  if($('#fsal')) $('#fsal').addEventListener('change', e=>{movFilter.sal=e.target.value; renderMouvements();});
   $('#fcat').addEventListener('change', e=>{movFilter.cat=e.target.value; renderMouvements();});
   $('#ftype').addEventListener('change', e=>{movFilter.type=e.target.value; renderMouvements();});
 }
+function renderMouvementsLock(){
+  const ta=$('#topAction'); if(ta) ta.style.display='none';
+  const cont=$('#content');
+  if(!movLockProfile){
+    cont.innerHTML=`
+      <div class="card" style="max-width:480px;margin:46px auto">
+        <div class="card-pad">
+          <div style="text-align:center;margin-bottom:8px"><span style="width:46px;height:46px;border-radius:13px;background:var(--accent-soft);display:inline-flex;align-items:center;justify-content:center;color:var(--accent-strong)">${ic('lock')}</span></div>
+          <h2 style="margin:0 0 4px;text-align:center">Accès aux mouvements</h2>
+          <div class="profile-grid">
+            <button class="profile-btn" onclick="selectMovProfile('admin')"><span class="avatar" style="background:var(--navy);color:#fff">AD</span><span class="pgrow">Administrateur</span>${ic('chevR')}</button>
+            ${state.salaries.map(s=>`<button class="profile-btn" onclick="selectMovProfile('${s.matricule}')"><span class="avatar">${esc(initials(s))}</span><span class="pgrow">${esc(s.nom)} ${esc(s.prenom)}</span>${ic('chevR')}</button>`).join('')}
+          </div>
+        </div>
+      </div>`;
+    return;
+  }
+  const isAdmin=movLockProfile==='admin'; const s=isAdmin?null:salByMat(movLockProfile);
+  if(!isAdmin && !s){ movLockProfile=null; return renderMouvementsLock(); }
+  cont.innerHTML=`
+    <div class="card" style="max-width:440px;margin:46px auto">
+      <div class="card-pad" style="text-align:center">
+        <div class="avatar" style="width:50px;height:50px;font-size:16px;margin:0 auto 12px;${isAdmin?'background:var(--navy);color:#fff':''}">${isAdmin?'AD':esc(initials(s))}</div>
+        <h2 style="margin:0 0 4px">${isAdmin?'Administrateur':esc(s.nom)+' '+esc(s.prenom)}</h2>
+        <div style="font-size:13px;color:var(--muted);margin-bottom:16px">${isAdmin?'Accès à tous les mouvements.':'Accès à vos mouvements et montants.'}</div>
+        <input class="inp" type="password" id="movPwd" placeholder="Mot de passe" style="text-align:center" onkeydown="if(event.key==='Enter')tryUnlockMouvements()">
+        <button class="btn btn-primary" style="margin-top:12px;width:100%;justify-content:center" onclick="tryUnlockMouvements()">${ic('check')} Accéder</button>
+        <button class="btn btn-ghost btn-sm" style="margin-top:8px;width:100%;justify-content:center" onclick="backMovProfile()">${ic('chevL')} Changer de profil</button>
+      </div>
+    </div>`;
+  setTimeout(()=>{ const e=$('#movPwd'); if(e) e.focus(); },60);
+}
+function selectMovProfile(p){ movLockProfile=p; renderMouvementsLock(); }
+function backMovProfile(){ movLockProfile=null; renderMouvementsLock(); }
+function tryUnlockMouvements(){
+  const e=$('#movPwd'); const v=(e?e.value:''); const p=movLockProfile;
+  if(p==='admin' && v===SALARIES_PWD){ movAccess='admin'; movLockProfile=null; movFilter={sal:'',type:'',cat:'',q:''}; toast('Accès administrateur'); renderMouvements(); return; }
+  if(p && p!=='admin'){ const mat=MOV_USER_PWD[(v||'').toLowerCase().trim()]; if(mat===p){ movAccess=p; movLockProfile=null; movFilter={sal:'',type:'',cat:'',q:''}; toast('Connecté : '+salByMat(p).prenom); renderMouvements(); return; } }
+  toast('Mot de passe incorrect'); if(e){ e.value=''; e.focus(); }
+}
+function logoutMouvements(){ movAccess=null; movLockProfile=null; movFilter={sal:'',type:'',cat:'',q:''}; renderMouvements(); }
 function statutBadge(s){
   if(s==='Validé') return `<span class="badge b-valid"><span class="dot"></span>Validé</span>`;
   return `<span class="badge b-pending"><span class="dot"></span>En attente</span>`;
@@ -962,21 +1023,47 @@ function calendarHTML(mat,Y,M){
   for(let i=0;i<firstDow;i++) cells+='<div class="day blank"></div>';
   for(let day=1;day<=dim;day++){
     const date=`${Y}-${String(M+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-    const dow=new Date(Y,M,day).getDay(); const we=(dow===0||dow===6);
-    const halves = we ? '<div class="hf we"></div><div class="hf we"></div>' : halfCell(congeAt(mat,date,'AM'),mat,date,'AM')+halfCell(congeAt(mat,date,'PM'),mat,date,'PM');
-    cells += `<div class="day ${we?'we':''}"><div class="dn" ${we?'':`onclick="toggleDay('${mat}','${date}')"`} title="${we?'':'Cliquer le numéro = journée entière'}">${day}</div><div class="halves">${halves}</div></div>`;
+    const dow=new Date(Y,M,day).getDay(); const isSat=dow===6, isSun=dow===0, we=isSat||isSun;
+    let halves, dnClick='', dnTitle='';
+    if(isSun){ halves='<div class="hf we"></div><div class="hf we"></div>'; }
+    else if(isSat){ const auto=autoSamediInfo(mat,date); if(auto){ halves=autoSatHalf(auto)+autoSatHalf(auto); dnTitle='Samedi décompté (vendredi en congés payés)'; } else { halves='<div class="hf we"></div><div class="hf we"></div>'; } }
+    else { halves=halfCell(congeAt(mat,date,'AM'),mat,date,'AM')+halfCell(congeAt(mat,date,'PM'),mat,date,'PM'); dnClick=`onclick="toggleDay('${mat}','${date}')"`; dnTitle='Cliquer le numéro = journée entière'; }
+    cells += `<div class="day ${we?'we':''}"><div class="dn" ${dnClick} title="${dnTitle}">${day}</div><div class="halves">${halves}</div></div>`;
   }
   return `<div class="cal">${heads}${cells}</div>`;
 }
-function joursValideAnnee(mat,Y){ return conges().filter(c=>c.matricule===mat && yearOf(c.date)===Y && c.statut==='Validé').length*0.5; }
+/* Convention : un vendredi entierement en Conges payes decompte aussi le samedi suivant. */
+function autoSamedisList(mat){
+  const out=[], byDate={};
+  conges().filter(c=>c.matricule===mat && c.type==='Congés payés').forEach(c=>{ (byDate[c.date]=byDate[c.date]||{})[c.half]=c; });
+  Object.keys(byDate).forEach(fd=>{ const dd=new Date(fd+'T00:00:00');
+    if(dd.getDay()===5 && byDate[fd].AM && byDate[fd].PM){ const sat=new Date(dd); sat.setDate(sat.getDate()+1); const ref=byDate[fd].PM||byDate[fd].AM;
+      out.push({date:sat.toISOString().slice(0,10), type:ref.type, statut:ref.statut}); } });
+  return out;
+}
+function autoSamediInfo(mat,date){
+  const dd=new Date(date+'T00:00:00'); if(dd.getDay()!==6) return null;
+  const fri=new Date(dd); fri.setDate(fri.getDate()-1); const fd=fri.toISOString().slice(0,10);
+  const am=congeAt(mat,fd,'AM'), pm=congeAt(mat,fd,'PM');
+  if(am&&pm){ const ref=pm||am; if(ref.type==='Congés payés') return {type:ref.type, statut:ref.statut}; }
+  return null;
+}
+function autoSatHalf(a){ const col=CONGES_TYPE_COLOR[a.type]||'#1786c9'; const pend=a.statut!=='Validé'; return `<div class="hf on ${pend?'pend':''}" style="background:${col};cursor:default" title="Samedi décompté (vendredi en congés payés)"></div>`; }
+function joursValideAnnee(mat,Y){
+  let j=conges().filter(c=>c.matricule===mat && yearOf(c.date)===Y && c.statut==='Validé').length*0.5;
+  j+=autoSamedisList(mat).filter(s=>s.statut==='Validé' && yearOf(s.date)===Y).length;
+  return j;
+}
 
 function renderConges(){
   migrateConges();
   const Y=currentYear; const cont=$('#content');
   if(!congesSal || !salByMat(congesSal)) congesSal = state.salaries[0] ? state.salaries[0].matricule : null;
   const list=conges().filter(c=>yearOf(c.date)===Y);
-  const totalValide=list.filter(c=>c.statut==='Validé').length*0.5;
-  const totalAttente=list.filter(c=>c.statut!=='Validé').length*0.5;
+  let satV=0, satA=0;
+  state.salaries.forEach(s=>{ autoSamedisList(s.matricule).forEach(x=>{ if(yearOf(x.date)===Y){ if(x.statut==='Validé') satV++; else satA++; } }); });
+  const totalValide=list.filter(c=>c.statut==='Validé').length*0.5 + satV;
+  const totalAttente=list.filter(c=>c.statut!=='Validé').length*0.5 + satA;
   const nbSal=new Set(list.map(c=>c.matricule)).size;
   const sal=salByMat(congesSal);
 
@@ -984,7 +1071,7 @@ function renderConges(){
     + `<span class="lg"><span class="sw pendsw" style="background:#c9ced6"></span>En attente (hachuré)</span>`;
 
   cont.innerHTML=`
-    <div class="help-banner">${ic('info')}<div>Cliquez les demi-journées dans le calendrier : <b>haut = matin</b>, <b>bas = après-midi</b> (cliquez le n° du jour = journée entière). Le <b>type</b> et le <b>statut</b> choisis dans la barre s'appliquent aux nouvelles cases. Re-cliquer une case la retire.</div></div>
+    <div class="help-banner">${ic('info')}<div>Cliquez les demi-journées : <b>haut = matin</b>, <b>bas = après-midi</b> (n° du jour = journée entière). <b>Convention :</b> un vendredi entièrement en congés payés décompte aussi le <b>samedi</b> (affiché et compté automatiquement).</div></div>
     <div class="stat-grid">
       <div class="stat accent"><div class="k">${ic('sun')} Congés validés ${Y}</div><div class="v">${nbJours(totalValide)}<span class="u">jours</span></div><div class="sub">tous salariés</div></div>
       <div class="stat"><div class="k">${ic('clock')} En attente ${Y}</div><div class="v">${nbJours(totalAttente)}<span class="u">j</span></div><div class="sub">à valider</div></div>
@@ -1034,6 +1121,7 @@ function congesRecapTable(Y){
     ${state.salaries.map(s=>{
       const pm=Array(12).fill(0);
       conges().filter(c=>c.matricule===s.matricule && yearOf(c.date)===Y && c.statut==='Validé').forEach(c=>{ pm[new Date(c.date+'T00:00:00').getMonth()]+=0.5; });
+      autoSamedisList(s.matricule).forEach(x=>{ if(yearOf(x.date)===Y && x.statut==='Validé') pm[new Date(x.date+'T00:00:00').getMonth()]+=1; });
       const tot=pm.reduce((a,b)=>a+b,0);
       return `<tr><td><div class="name-cell"><div class="avatar">${esc(initials(s))}</div><div><div class="t">${esc(s.nom)} ${esc(s.prenom)}</div><div class="s">Mat. ${esc(s.matricule)}</div></div></div></td>${pm.map(v=>`<td class="num">${v?nbJours(v):'<span style="color:var(--muted-2)">·</span>'}</td>`).join('')}<td class="num"><b>${nbJours(tot)}</b></td></tr>`;
     }).join('')}
@@ -1080,6 +1168,9 @@ function exportCongesCSV(){
     const s=salByMat(c.matricule)||{};
     lines.push([c.matricule,s.nom||'',s.prenom||'',c.date,c.half==='AM'?'Matin':'Après-midi',c.type||'Congés payés','0,5',c.statut].map(csvCell).join(';'));
   });
+  state.salaries.forEach(s=>{ autoSamedisList(s.matricule).forEach(x=>{
+    lines.push([s.matricule,s.nom||'',s.prenom||'',x.date,'Journée (samedi conv.)',x.type,'1',x.statut].map(csvCell).join(';'));
+  }); });
   dl('Conges_CDInnov.csv','﻿'+lines.join('\r\n'),'text/csv;charset=utf-8'); toast('Congés exportés');
 }
 function exportCongesMensuelCSV(){
@@ -1089,6 +1180,7 @@ function exportCongesMensuelCSV(){
   state.salaries.forEach(s=>{
     const pm=Array(12).fill(0);
     conges().filter(c=>c.matricule===s.matricule && yearOf(c.date)===Y && c.statut==='Validé').forEach(c=>{ pm[new Date(c.date+'T00:00:00').getMonth()]+=0.5; });
+    autoSamedisList(s.matricule).forEach(x=>{ if(yearOf(x.date)===Y && x.statut==='Validé') pm[new Date(x.date+'T00:00:00').getMonth()]+=1; });
     lines.push([s.matricule,s.nom,s.prenom,...pm.map(v=>String(v).replace('.',',')),String(pm.reduce((a,b)=>a+b,0)).replace('.',',')].map(csvCell).join(';'));
   });
   dl('Conges_recap_mensuel_'+Y+'.csv','﻿'+lines.join('\r\n'),'text/csv;charset=utf-8'); toast('Récap mensuel exporté');
@@ -1551,7 +1643,8 @@ function exportCSV(){
 function exportMouvCSV(){
   const head=['Date','Matricule','Nom Prénom','Type','Libellé','Catégorie','Qté','Signe','Qté signée','Montant €','Année','CP?','Épargne?','Statut','Commentaire'];
   const lines=[head.map(csvCell).join(';')];
-  allEnriched().sort((a,b)=>(a.date||'').localeCompare(b.date||'')).forEach(m=>lines.push([
+  const own = (typeof movAccess!=='undefined' && movAccess && movAccess!=='admin') ? movAccess : null;
+  allEnriched().filter(m=>!own||m.matricule===own).sort((a,b)=>(a.date||'').localeCompare(b.date||'')).forEach(m=>lines.push([
     m.date, m.matricule, m.sal?m.sal.nom+' '+m.sal.prenom:'', m.type, m.libelle, m.categorie, m.qte, m.signe, m.qteSignee,
     m.montant==null?'':m.montant, m.annee, m.cp, m.epargne, m.statut, m.commentaire||''].map(csvCell).join(';')));
   dl(`CET_Mouvements.csv`, '﻿'+lines.join('\r\n'), 'text/csv;charset=utf-8');
