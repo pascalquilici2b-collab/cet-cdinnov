@@ -637,7 +637,7 @@ function renderDashboard(){
       <div class="stat accent">
         <div class="k">${ic('wallet')} Solde total CET</div>
         <div class="v">${nbJours(g.soldeFin)}<span class="u">jours</span></div>
-        <div class="sub">${eur(g.montant)} valorisés · ${state.salaries.length} salariés</div>
+        <div class="sub">${state.salaries.length} salariés</div>
       </div>
       <div class="stat">
         <div class="k">${ic('plus')} Crédits ${currentYear}</div>
@@ -670,26 +670,22 @@ function renderDashboard(){
         <table>
           <thead><tr>
             <th>Salarié</th>
-            <th class="num">Solde début</th>
             <th class="num">Crédits</th>
             <th class="num">Débits</th>
-            <th class="num">Solde fin</th>
+            <th class="num">Solde</th>
             <th class="num">CP affectés</th>
             <th>État</th>
-            <th class="num">Valorisation</th>
           </tr></thead>
           <tbody>
           ${rows.map(r=>`
             <tr class="clickable" onclick="openDetail('${r.sal.matricule}')">
               <td><div class="name-cell"><div class="avatar">${esc(initials(r.sal))}</div>
                 <div><div class="t">${esc(r.sal.nom)} ${esc(r.sal.prenom)}</div><div class="s">Mat. ${esc(r.sal.matricule)}</div></div></div></td>
-              <td class="num">${nbJours(r.soldeDebut)}</td>
               <td class="num" style="color:var(--ok)">+${nbJours(r.credits)}</td>
               <td class="num" style="color:${r.debits?'var(--orange)':'var(--muted)'}">${r.debits?nbJours(r.debits):'0'}</td>
               <td class="num"><b>${nbJours(r.soldeFin)}</b></td>
               <td class="num">${nbJours(r.cpAffectes)} / ${state.params.plafondCPan}</td>
               <td>${stateBadges(r)}</td>
-              <td class="num">${eur(r.montant)}</td>
             </tr>`).join('')}
           </tbody>
         </table>
@@ -1585,11 +1581,6 @@ function openDetail(mat){
         <div class="s"><div class="k">CP affectés</div><div class="v">${nbJours(r.cpAffectes)}<span style="font-size:12px;color:var(--muted)"> / ${state.params.plafondCPan}</span></div></div>
       </div>
       ${(r.alerteCP||r.alertePlafond)?`<div class="help-banner" style="background:var(--warn-soft);border-color:#eccfd3;color:#7a2530">${ic('alert')}<div>${r.alerteCP?`Plafond CP→CET dépassé (${nbJours(r.cpAffectes)} j &gt; ${state.params.plafondCPan} j). `:''}${r.alertePlafond?`Solde au-delà du plafond global (${nbJours(r.soldeFin)} j &gt; ${state.params.plafondGlobal} j).`:''}</div></div>`:''}
-      <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:12px;font-size:12.5px;color:var(--muted)">
-        <span>${ic('bank')} PEI : <b style="color:var(--ink)">${nbJours(r.peiJ)} j</b> ${r.peiE!=null?`(${eur(r.peiE)})`:''}</span>
-        <span>${ic('bank')} PERECOLI : <b style="color:var(--ink)">${nbJours(r.perJ)} j</b> ${r.perE!=null?`(${eur(r.perE)})`:''}</span>
-        <span>Valorisation solde : <b style="color:var(--ink)">${eur(r.montant)}</b></span>
-      </div>
       <div class="section-title" style="margin-top:6px">Historique du compte</div>
       <div style="max-height:300px;overflow:auto;border:1px solid var(--line);border-radius:var(--radius-sm)">
         <table>
