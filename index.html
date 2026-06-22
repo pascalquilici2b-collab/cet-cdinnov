@@ -216,6 +216,18 @@
   .profile-btn .pgrow{flex:1}
   .profile-btn small{display:block;font-weight:500;font-size:11px;color:var(--muted);margin-top:1px}
   .profile-btn svg{width:16px;height:16px;stroke:var(--muted-2)}
+  .nf-line{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:10px;background:var(--panel)}
+  .nf-line-top{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+  .nf-km{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:8px;padding:8px 10px;background:#fff;border:1px dashed var(--line-strong);border-radius:8px}
+  .nf-line .form-row label{font-size:11px}
+  .nf-itin{display:flex;gap:8px;align-items:center;flex-wrap:wrap;width:100%;margin-bottom:8px;padding-bottom:10px;border-bottom:1px dashed var(--line-strong)}
+  .ac-wrap{position:relative}
+  .ac-list{position:absolute;top:calc(100% + 2px);left:0;right:0;z-index:70;background:#fff;border:1px solid var(--line-strong);border-radius:8px;box-shadow:var(--shadow-lg);max-height:230px;overflow:auto;display:none}
+  .ac-list.show{display:block}
+  .ac-item{padding:8px 11px;font-size:12.5px;cursor:pointer;border-bottom:1px solid var(--line)}
+  .ac-item:hover{background:var(--accent-soft)}
+  .ac-item:last-child{border-bottom:none}
+  .ac-item small{display:block;color:var(--muted);font-size:11px}
 
   /* ---------- Modal ---------- */
   .overlay{position:fixed;inset:0;background:rgba(20,22,30,.42);backdrop-filter:blur(2px);z-index:50;display:none;align-items:flex-start;justify-content:center;padding:48px 16px;overflow:auto}
@@ -320,6 +332,10 @@
     <div class="nav-item" data-view="conges">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg>
       Congés payés
+    </div>
+    <div class="nav-item" data-view="notesfrais">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h11l5 5v15a0 0 0 0 1 0 0H4z"/><path d="M15 2v5h5"/><path d="M8 13h8M8 17h6M8 9h3"/></svg>
+      Note de frais
     </div>
     <div class="nav-label">Réglages</div>
     <div class="nav-item" data-view="parametres">
@@ -434,7 +450,8 @@ function freshState(){
     types: structuredClone(TYPES_DEFAULT),
     salaries: structuredClone(SALARIES_DEFAULT),
     mouvements: structuredClone(MOUVEMENTS_DEFAULT),
-    conges: []
+    conges: [],
+    notesFrais: []
   };
 }
 function load(){
@@ -447,7 +464,8 @@ function load(){
       types: d.types && d.types.length ? d.types : structuredClone(TYPES_DEFAULT),
       salaries: d.salaries || [],
       mouvements: d.mouvements || [],
-      conges: d.conges || []
+      conges: d.conges || [],
+      notesFrais: d.notesFrais || []
     };
   }catch(e){ STORAGE_OK=false; return freshState(); }
 }
@@ -470,7 +488,7 @@ async function cloudLoad(){
       if(d && d.params){
         state={ params:Object.assign(structuredClone(PARAMS_DEFAULT), d.params),
                 types:(d.types&&d.types.length)?d.types:structuredClone(TYPES_DEFAULT),
-                salaries:d.salaries||[], mouvements:d.mouvements||[], conges:d.conges||[] };
+                salaries:d.salaries||[], mouvements:d.mouvements||[], conges:d.conges||[], notesFrais:d.notesFrais||[] };
         try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){}
         currentYear=Number(state.params.anneeSuivi)||currentYear;
       }
@@ -500,6 +518,7 @@ const esc = s => (s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':
 const yearOf = d => d ? Number(String(d).slice(0,4)) : null;
 function nbJours(n){ if(n==null||n==='') return '—'; return Number(n).toLocaleString('fr-FR',{maximumFractionDigits:2}); }
 function eur(n){ if(n==null||n==='') return '—'; return Number(n).toLocaleString('fr-FR',{maximumFractionDigits:0})+' €'; }
+function eur2(n){ if(n==null||n==='') return '—'; return Number(n).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'; }
 function dateFR(d){ if(!d) return '—'; const [y,m,da]=String(d).split('-'); return `${da}/${m}/${y}`; }
 function initials(s){ return (s.nom?.[0]||'')+(s.prenom?.[0]||''); }
 function typeByCode(c){ return state.types.find(t=>t.code===c); }
@@ -580,6 +599,7 @@ const VIEW_META = {
   mouvements:{title:'Mouvements', sub:'Historique des alimentations et utilisations', action:'Nouveau mouvement', actFn:()=>openMouvement()},
   salaries:{title:'Salariés', sub:'Bénéficiaires du dispositif CET', action:'Nouveau salarié', actFn:()=>openSalarie()},
   conges:{title:'Congés payés', sub:'Calendrier des congés — demi-journées incluses', action:'Poser une période', actFn:()=>openConge()},
+  notesfrais:{title:'Note de frais', sub:'Création, suivi et archivage des notes de frais', action:'Créer une note de frais', actFn:()=>openNoteFrais()},
   parametres:{title:'Paramètres & données', sub:'Plafonds, types de mouvements, sauvegardes', action:null}
 };
 
@@ -612,6 +632,7 @@ function render(){
   else if(currentView==='mouvements') renderMouvements();
   else if(currentView==='salaries') renderSalaries();
   else if(currentView==='conges') renderConges();
+  else if(currentView==='notesfrais') renderNotesFrais();
   else if(currentView==='parametres') renderParametres();
   injectStorageWarning();
 }
@@ -748,7 +769,7 @@ function renderMouvements(){
         <div class="grow"></div>
         <span class="chip">${list.length} mouvement${list.length>1?'s':''}</span>
         <button class="btn btn-ghost btn-sm no-print" onclick="exportMouvCSV()">${ic('download')} Export</button>
-        ${admin?`<button class="btn btn-primary btn-sm no-print" onclick="openMouvement()">${ic('plus')} Nouveau</button>`:''}
+        <button class="btn btn-primary btn-sm no-print" onclick="openMouvement()">${ic('plus')} Nouveau</button>
       </div>
       <div class="card-body">
         <table>
@@ -759,7 +780,7 @@ function renderMouvements(){
             <th class="num th-sort${movSort.key==='qte'?' act':''}" onclick="setSort('qte')">Qté signée${sortArrow('qte')}</th>
             <th class="th-sort${movSort.key==='statut'?' act':''}" onclick="setSort('statut')">Statut${sortArrow('statut')}</th>
             <th class="num th-sort${movSort.key==='montant'?' act':''}" onclick="setSort('montant')">Montant${sortArrow('montant')}</th>
-            ${admin?'<th></th>':''}
+            <th></th>
           </tr></thead>
           <tbody>
           ${list.map(m=>`
@@ -771,17 +792,17 @@ function renderMouvements(){
               <td class="num" style="color:${toneColor(movTone(m))};font-weight:700">${m.qteSignee>0?'+':''}${nbJours(m.qteSignee)} j</td>
               <td>${statutBadge(m.statut)}</td>
               <td class="num">${eur(m.montant)}</td>
-              ${admin?`<td class="num" style="white-space:nowrap">
+              <td class="num" style="white-space:nowrap">
                 <button class="icon-btn" title="Modifier" onclick="openMouvement('${m.id}')">${ic('edit')}</button>
                 <button class="icon-btn" title="Supprimer" onclick="delMouvement('${m.id}')">${ic('trash')}</button>
-              </td>`:''}
+              </td>
             </tr>`).join('')}
           </tbody>
         </table>
         ${list.length?'':emptyState('Aucun mouvement', admin?`Aucune écriture pour ${currentYear}. Cliquez « Nouveau » pour saisir.`:`Aucun mouvement vous concernant pour ${currentYear}.`)}
       </div>
     </div>`;
-  const ta=$('#topAction'); if(ta) ta.style.display=admin?'':'none';
+  const ta=$('#topAction'); if(ta) ta.style.display='';
   $('#fq').addEventListener('input', e=>{movFilter.q=e.target.value; renderMouvements(); setTimeout(()=>{const el=$('#fq'); if(el){el.focus(); el.setSelectionRange(el.value.length,el.value.length);}},0);});
   if($('#fsal')) $('#fsal').addEventListener('change', e=>{movFilter.sal=e.target.value; renderMouvements();});
   $('#fcat').addEventListener('change', e=>{movFilter.cat=e.target.value; renderMouvements();});
@@ -1397,11 +1418,11 @@ function openCoutCalc(mat, brut, via){
   modal(`
     <div class="modal-head"><h3>Coût / jour — ${esc(s.nom)} ${esc(s.prenom)}</h3></div>
     <div class="modal-body">
-      <div class="help-banner">${ic('info')}<div>Calcul : <b>brut annuel ÷ jours travaillés</b> de l'année de référence (jours ouvrés − fériés − CP). Le brut a été lu dans la fiche de paie — <b>vérifiez-le</b> avant d'appliquer.</div></div>
+      <div class="help-banner">${ic('info')}<div>Calcul : <b>brut chargé annuel ÷ jours ouvrés</b> de l'année de référence (jours ouvrés − fériés, <b>sans déduire les congés payés</b>). Vérifiez le brut détecté avant d'appliquer.</div></div>
       <div class="form-grid">
         <div class="form-row"><label>Année de référence (N-1)</label><input class="inp" type="number" id="ccY" value="${Yref}"></div>
-        <div class="form-row"><label>Jours de CP déduits</label><input class="inp" type="number" id="ccCp" value="25"></div>
-        <div class="form-row full"><label>Brut annuel ${brut!=null?'détecté ':''}(€)</label><input class="inp" type="number" step="0.01" id="ccBrut" value="${brut!=null?brut:''}" placeholder="ex. 45000"></div>
+        <div class="form-row"><label>Jours ouvrés</label><input class="inp" id="ccJt" value="" disabled></div>
+        <div class="form-row full"><label>Brut chargé annuel ${brut!=null?'détecté ':''}(€)</label><input class="inp" type="number" step="0.01" id="ccBrut" value="${brut!=null?brut:''}" placeholder="ex. 45000"></div>
         <div class="form-row full" style="text-align:center;padding:4px 0">
           <div style="font-size:12px;color:var(--muted);font-weight:600">Coût / jour calculé</div>
           <div id="ccCout" style="font-size:28px;font-weight:700;color:var(--accent-strong);font-family:var(--font-head)">—</div>
@@ -1413,22 +1434,345 @@ function openCoutCalc(mat, brut, via){
       <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>
       <button class="btn btn-primary" onclick="applyCoutCalc('${mat}')">${ic('check')} Appliquer ce coût/jour</button>
     </div>`);
-  ['#ccY','#ccCp','#ccBrut'].forEach(id=>$(id).addEventListener('input',coutCalcRefresh));
+  ['#ccY','#ccBrut'].forEach(id=>$(id).addEventListener('input',coutCalcRefresh));
   coutCalcRefresh();
 }
 function coutCalcRefresh(){
   const Y=Number($('#ccY').value)||new Date().getFullYear();
   const brut=Number($('#ccBrut').value)||0;
-  const cp=Number($('#ccCp').value)||0;
-  const o=joursOuvresAnnee(Y); const jt=o.weekdays-o.feries-cp;
+  const o=joursOuvresAnnee(Y); const jt=o.weekdays-o.feries;
   const cout=(brut>0&&jt>0)? brut/jt : 0;
   window._ccCout = cout? Math.round(cout*100)/100 : null;
+  const el=$('#ccJt'); if(el) el.textContent=jt+' jours ouvrés';
   $('#ccCout').textContent = cout? window._ccCout.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €' : '—';
 }
 function applyCoutCalc(mat){
   if(!window._ccCout){ toast('Renseignez un brut annuel valide'); return; }
   const s=salByMat(mat); if(!s) return;
-  s.coutJour=window._ccCout; save(); closeModal(); toast('Coût/jour mis à jour : '+eur(s.coutJour)); render();
+  s.coutJour=window._ccCout; s.brutAnnuel=Number($('#ccBrut').value)||null; s.brutRefYear=Number($('#ccY').value)||null;
+  save(); closeModal(); toast('Coût/jour mis à jour : '+eur(s.coutJour)); render();
+}
+
+/* ===================== NOTES DE FRAIS ===================== */
+const NF_CATS=['Repas','Restaurant','Hébergement','Transport (train/avion/bateau)','Bus/Car/Métro','Parking','Péage','Carburant','Taxi','Location véhicule','Fournitures','Frais kilométriques','Invitation client','Taxe de séjour','Autres frais professionnels'];
+const NF_STATUTS=['Brouillon','Soumise','Validée','Payée'];
+/* Barème kilométrique 2026 (identique 2025, non revalorisé) — [seuil km, coef, constante] */
+const BAREME_KM={
+  voiture:{label:'Voiture', cv:{
+    '3':[[5000,0.529,0],[20000,0.316,1065],[1e9,0.370,0]],
+    '4':[[5000,0.606,0],[20000,0.340,1330],[1e9,0.407,0]],
+    '5':[[5000,0.636,0],[20000,0.357,1395],[1e9,0.427,0]],
+    '6':[[5000,0.665,0],[20000,0.374,1457],[1e9,0.447,0]],
+    '7':[[5000,0.697,0],[20000,0.394,1515],[1e9,0.470,0]]}},
+  moto:{label:'Moto', cv:{
+    '1':[[3000,0.395,0],[6000,0.099,888],[1e9,0.248,0]],
+    '3':[[3000,0.468,0],[6000,0.082,1158],[1e9,0.275,0]],
+    '6':[[3000,0.606,0],[6000,0.079,1583],[1e9,0.343,0]]}},
+  cyclo:{label:'Cyclomoteur (<50cm³)', cv:{
+    '0':[[3000,0.315,0],[6000,0.079,711],[1e9,0.198,0]]}}
+};
+function baremeCv(vt){ return Object.keys((BAREME_KM[vt]||{cv:{}}).cv); }
+function calcKm(vt,cv,km,elec){
+  const t=BAREME_KM[vt]; if(!t) return 0; const b=t.cv[cv]||t.cv[Object.keys(t.cv)[0]]; if(!b) return 0;
+  km=Number(km)||0; let r=0; for(let j=0;j<b.length;j++){ if(km<=b[j][0]){ r=km*b[j][1]+b[j][2]; break; } }
+  if(elec) r*=1.2; return Math.round(r*100)/100;
+}
+function baremeFormule(vt,cv,km){
+  const t=BAREME_KM[vt]; if(!t) return ''; const b=t.cv[cv]||t.cv[Object.keys(t.cv)[0]]; if(!b) return '';
+  km=Number(km)||0; for(let j=0;j<b.length;j++){ if(km<=b[j][0]){ const coef=b[j][1], cst=b[j][2];
+    return coef.toLocaleString('fr-FR',{minimumFractionDigits:3})+' €/km'+(cst?(' + '+cst.toLocaleString('fr-FR')+' €'):''); } }
+  return '';
+}
+/* Itinéraire gratuit sans clé : Nominatim (géocodage OSM) + OSRM (routage) */
+async function geocodeOSM(q){
+  const r=await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q='+encodeURIComponent(q),{headers:{'Accept':'application/json'}});
+  if(!r.ok) throw new Error('Géocodage indisponible'); const j=await r.json();
+  if(!j||!j.length) throw new Error('Adresse introuvable : '+q);
+  return {lat:+j[0].lat, lon:+j[0].lon};
+}
+async function routeKmOSM(a,b){
+  const r=await fetch('https://router.project-osrm.org/route/v1/driving/'+a.lon+','+a.lat+';'+b.lon+','+b.lat+'?overview=false');
+  if(!r.ok) throw new Error('Routage indisponible'); const j=await r.json();
+  if(j.code!=='Ok'||!j.routes||!j.routes.length) throw new Error('Itinéraire introuvable');
+  return j.routes[0].distance/1000;
+}
+async function nfCalcItineraire(i){
+  nfSync(); const l=nfDraft.lignes[i];
+  const dep=(l.depart||'').trim(), arr=(l.arrivee||'').trim();
+  if(!dep||!arr){ toast('Renseignez le départ et l\'arrivée'); return; }
+  toast('Calcul de l\'itinéraire…');
+  try{
+    let ga=(l.depLat!=null&&l.depLon!=null)?{lat:l.depLat,lon:l.depLon}:null;
+    let gb=(l.arrLat!=null&&l.arrLon!=null)?{lat:l.arrLat,lon:l.arrLon}:null;
+    const needA=!ga, needB=!gb;
+    if(needA) ga=await geocodeOSM(dep);
+    if(needB){ if(needA) await new Promise(r=>setTimeout(r,1100)); gb=await geocodeOSM(arr); }
+    let km=Math.round(await routeKmOSM(ga,gb));
+    if(l.allerRetour) km*=2;
+    l.km=km; l.montant=calcKm(l.vehicule||'voiture',String(l.cv||baremeCv(l.vehicule||'voiture')[0]),km,l.elec);
+    renderNoteEditor(); toast(km+' km calculés'+(l.allerRetour?' (A/R)':''));
+  }catch(e){ toast(e.message||'Calcul impossible — saisissez les km manuellement'); }
+}
+function nfOpenMaps(i){
+  nfSync(); const l=nfDraft.lignes[i]; const dep=(l.depart||'').trim(), arr=(l.arrivee||'').trim();
+  if(!dep||!arr){ toast('Renseignez le départ et l\'arrivée'); return; }
+  window.open('https://www.google.com/maps/dir/?api=1&origin='+encodeURIComponent(dep)+'&destination='+encodeURIComponent(arr),'_blank');
+}
+
+let _acTimer=null, _acData={};
+function nfAddrSuggest(i,field){
+  const inp=$('#nfl-'+field+'-'+i), box=$('#ac-'+field+'-'+i); if(!inp||!box) return;
+  const l=nfDraft.lignes[i]; const q=inp.value.trim();
+  if(l){ if(field==='dep'){l.depart=inp.value;l.depLat=null;l.depLon=null;} else {l.arrivee=inp.value;l.arrLat=null;l.arrLon=null;} }
+  if(q.length<3){ box.classList.remove('show'); box.innerHTML=''; return; }
+  clearTimeout(_acTimer);
+  _acTimer=setTimeout(async()=>{
+    try{
+      const r=await fetch('https://photon.komoot.io/api/?lang=fr&limit=6&q='+encodeURIComponent(q));
+      const j=await r.json(); const feats=(j&&j.features)||[];
+      const data=feats.map(f=>{ const p=f.properties||{}, c=(f.geometry||{}).coordinates||[0,0];
+        const main=[p.name,p.housenumber].filter(Boolean).join(' ')||p.street||p.city||p.country||'';
+        const sub=[(p.street&&p.street!==p.name)?p.street:'',p.postcode,p.city,p.state,p.country].filter(Boolean).join(', ');
+        return {lon:c[0],lat:c[1],main:main,sub:sub,label:(main+(sub?', '+sub:''))}; });
+      _acData[field+i]=data;
+      if(!data.length){ box.classList.remove('show'); box.innerHTML=''; return; }
+      box.innerHTML=data.map((o,k)=>`<div class="ac-item" onmousedown="nfAddrPick(${i},'${field}',${k})"><b>${esc(o.main)}</b>${o.sub?`<small>${esc(o.sub)}</small>`:''}</div>`).join('');
+      box.classList.add('show');
+    }catch(e){ box.classList.remove('show'); }
+  },350);
+}
+function nfAddrPick(i,field,k){
+  const o=(_acData[field+i]||[])[k]; if(!o) return;
+  const inp=$('#nfl-'+field+'-'+i); if(inp) inp.value=o.label;
+  const l=nfDraft.lignes[i];
+  if(field==='dep'){ l.depart=o.label; l.depLat=o.lat; l.depLon=o.lon; } else { l.arrivee=o.label; l.arrLat=o.lat; l.arrLon=o.lon; }
+  const box=$('#ac-'+field+'-'+i); if(box){ box.classList.remove('show'); box.innerHTML=''; }
+}
+function nfAddrBlur(field,i){ setTimeout(()=>{ const b=$('#ac-'+field+'-'+i); if(b) b.classList.remove('show'); },180); }
+function notesFrais(){ return state.notesFrais || (state.notesFrais=[]); }
+function nextNumNF(){ const ns=notesFrais().map(n=>Number(n.numero)||0); return (ns.length?Math.max(...ns):0)+1; }
+function nfTotal(n){ return Math.round((n.lignes||[]).reduce((a,l)=>a+(Number(l.montant)||0),0)*100)/100; }
+function nfRembourse(n){ return Math.round((nfTotal(n)-(Number(n.avance)||0))*100)/100; }
+function nfStatutBadge(st){ const m={'Brouillon':'b-gray','Soumise':'b-pending','Validée':'b-green','Payée':'b-valid'}; return `<span class="badge ${m[st]||'b-gray'}"><span class="dot"></span>${esc(st||'Brouillon')}</span>`; }
+function nfCalcDuree(d1,d2){ if(!d1||!d2) return ''; const a=new Date(d1+'T00:00:00'),b=new Date(d2+'T00:00:00'); if(isNaN(a)||isNaN(b)||b<a) return ''; return Math.round((b-a)/86400000)+1; }
+
+let nfFilter={sal:'',statut:'',q:''};
+function renderNotesFrais(){
+  const c=$('#content');
+  let list=notesFrais().slice();
+  if(nfFilter.sal) list=list.filter(n=>n.matricule===nfFilter.sal);
+  if(nfFilter.statut) list=list.filter(n=>(n.statut||'Brouillon')===nfFilter.statut);
+  if(nfFilter.q){ const q=nfFilter.q.toLowerCase(); list=list.filter(n=>{const s=salByMat(n.matricule)||{}; return ((n.objet||'')+' '+(n.lieu||'')+' N'+(n.numero||'')+' '+(s.nom||'')+' '+(s.prenom||'')).toLowerCase().includes(q);}); }
+  list.sort((a,b)=>(b.dateNote||'').localeCompare(a.dateNote||'') || (Number(b.numero)||0)-(Number(a.numero)||0));
+  const tot=list.reduce((a,n)=>a+nfTotal(n),0);
+  c.innerHTML=`
+    <div class="card">
+      <div class="card-head" style="flex-wrap:wrap;gap:10px">
+        <div class="filters">
+          <div class="search">${ic('search')}<input class="inp slim" id="nfq" placeholder="Rechercher…" value="${esc(nfFilter.q)}"></div>
+          <select class="inp slim" id="nfsal" style="width:auto">${optAll('Tous salariés')}${state.salaries.map(s=>`<option value="${s.matricule}" ${nfFilter.sal===s.matricule?'selected':''}>${esc(s.nom)} ${esc(s.prenom)}</option>`).join('')}</select>
+          <select class="inp slim" id="nfstatut" style="width:auto">${optAll('Tous statuts')}${NF_STATUTS.map(st=>`<option ${nfFilter.statut===st?'selected':''}>${st}</option>`).join('')}</select>
+        </div>
+        <div class="grow"></div>
+        <span class="chip">${list.length} note${list.length>1?'s':''} · ${eur2(tot)}</span>
+        <button class="btn btn-primary btn-sm no-print" onclick="openNoteFrais()">${ic('plus')} Créer une note de frais</button>
+      </div>
+      <div class="card-body">
+        <table>
+          <thead><tr><th>N°</th><th>Salarié</th><th>Objet</th><th>Période</th><th class="num">Montant</th><th>Statut</th><th></th></tr></thead>
+          <tbody>
+          ${list.map(n=>{const s=salByMat(n.matricule)||{};return `
+            <tr class="clickable" onclick="openNoteFrais('${n.id}')">
+              <td><span class="chip">N°${esc(n.numero)}</span></td>
+              <td><div class="name-cell"><div class="avatar">${s.nom?esc(initials(s)):'?'}</div><div><div class="t">${esc(s.nom||'')} ${esc(s.prenom||'')}</div></div></div></td>
+              <td>${esc(n.objet||'—')}</td>
+              <td style="white-space:nowrap">${n.dateDepart?dateFR(n.dateDepart):''}${n.dateRetour?' → '+dateFR(n.dateRetour):''}</td>
+              <td class="num"><b>${eur2(nfTotal(n))}</b></td>
+              <td>${nfStatutBadge(n.statut)}</td>
+              <td class="num" style="white-space:nowrap" onclick="event.stopPropagation()">
+                <button class="icon-btn" title="Exporter PDF" onclick="exportNoteFraisPDF('${n.id}')">${ic('print')}</button>
+                <button class="icon-btn" title="Modifier" onclick="openNoteFrais('${n.id}')">${ic('edit')}</button>
+                <button class="icon-btn" title="Supprimer" onclick="delNoteFrais('${n.id}')">${ic('trash')}</button>
+              </td>
+            </tr>`;}).join('')}
+          </tbody>
+        </table>
+        ${list.length?'':emptyState('Aucune note de frais','Cliquez « Créer une note de frais » pour commencer.')}
+      </div>
+    </div>`;
+  $('#nfq').addEventListener('input',e=>{nfFilter.q=e.target.value;renderNotesFrais();setTimeout(()=>{const el=$('#nfq');if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length);}},0);});
+  $('#nfsal').addEventListener('change',e=>{nfFilter.sal=e.target.value;renderNotesFrais();});
+  $('#nfstatut').addEventListener('change',e=>{nfFilter.statut=e.target.value;renderNotesFrais();});
+}
+
+let nfDraft=null;
+function openNoteFrais(id){
+  if(id){ nfDraft=JSON.parse(JSON.stringify(notesFrais().find(n=>n.id===id))); }
+  else { nfDraft={ id:uid(), numero:nextNumNF(), matricule:(typeof movAccess!=='undefined'&&movAccess&&movAccess!=='admin'?movAccess:(state.salaries[0]?state.salaries[0].matricule:'')), objet:'', affaire:'', codeAffaire:'', codeCompta:'', lieu:'', dateDepart:'', dateRetour:'', duree:'', dateNote:new Date().toISOString().slice(0,10), statut:'Brouillon', avance:0, lignes:[{id:uid(),date:new Date().toISOString().slice(0,10),categorie:NF_CATS[0],description:'',montant:0}] }; }
+  renderNoteEditor();
+}
+function renderNoteEditor(){
+  const n=nfDraft; const lockMat=(typeof movAccess!=='undefined'&&movAccess&&movAccess!=='admin')?movAccess:null;
+  modal(`
+    <div class="modal-head"><h3>Note de frais — N°${esc(n.numero)}</h3><div class="grow"></div><button class="icon-btn" onclick="closeModal()">${ic('close')}</button></div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-row"><label>Salarié</label><select class="inp" id="nfSal" ${lockMat?'disabled':''}>${state.salaries.filter(s=>!lockMat||s.matricule===lockMat).map(s=>`<option value="${s.matricule}" ${n.matricule===s.matricule?'selected':''}>${esc(s.nom)} ${esc(s.prenom)} (${s.matricule})</option>`).join('')}</select></div>
+        <div class="form-row"><label>Statut</label><select class="inp" id="nfStatut">${NF_STATUTS.map(st=>`<option ${n.statut===st?'selected':''}>${st}</option>`).join('')}</select></div>
+        <div class="form-row full"><label>Objet de la mission</label><input class="inp" id="nfObjet" value="${esc(n.objet||'')}" placeholder="ex. Mission Livorno"></div>
+        <div class="form-row"><label>Affaire / SG</label><input class="inp" id="nfAffaire" value="${esc(n.affaire||'')}"></div>
+        <div class="form-row"><label>Code affaire / SG</label><input class="inp" id="nfCodeA" value="${esc(n.codeAffaire||'')}"></div>
+        <div class="form-row"><label>Lieu(x)</label><input class="inp" id="nfLieu" value="${esc(n.lieu||'')}"></div>
+        <div class="form-row"><label>Code compta</label><input class="inp" id="nfCodeC" value="${esc(n.codeCompta||'')}"></div>
+        <div class="form-row"><label>Date départ</label><input class="inp" type="date" id="nfD1" value="${n.dateDepart||''}" onchange="nfDureeUpd()"></div>
+        <div class="form-row"><label>Date retour</label><input class="inp" type="date" id="nfD2" value="${n.dateRetour||''}" onchange="nfDureeUpd()"></div>
+        <div class="form-row"><label>Durée (jours)</label><input class="inp" id="nfDuree" value="${n.duree||''}" disabled></div>
+        <div class="form-row"><label>Date de la note</label><input class="inp" type="date" id="nfDateNote" value="${n.dateNote||''}"></div>
+      </div>
+      <div class="section-title">Lignes de dépenses</div>
+      <div id="nfLines">${(n.lignes||[]).map((l,i)=>nfLineHTML(l,i)).join('')}</div>
+      <button class="btn btn-ghost btn-sm" style="margin-top:10px" onclick="nfAddLine()">${ic('plus')} Ajouter une ligne</button>
+      <div style="display:flex;justify-content:flex-end;gap:26px;margin-top:18px;align-items:flex-end;flex-wrap:wrap">
+        <div><label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Avance à déduire (€)</label><input class="inp slim" type="number" step="0.01" id="nfAvance" value="${n.avance||''}" style="width:130px" oninput="nfTot()"></div>
+        <div style="text-align:right"><div style="font-size:12px;color:var(--muted)">Total / Montant à rembourser</div><div style="font-size:22px;font-weight:700;color:var(--accent-strong);font-family:var(--font-head)"><span id="nfTotalDisp">${eur2(nfTotal(n))}</span> <span style="font-size:13px;color:var(--muted)">/</span> <span id="nfRembDisp">${eur2(nfRembourse(n))}</span></div></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal()">Fermer</button>
+      <div class="grow"></div>
+      <button class="btn btn-ghost" onclick="saveNoteFrais(false)">${ic('save')} Enregistrer</button>
+      <button class="btn btn-primary" onclick="saveNoteFrais(true)">${ic('print')} Enregistrer + PDF</button>
+    </div>`, true);
+}
+function nfLineHTML(l,i){
+  const km = l.categorie==='Frais kilométriques';
+  const cvs = baremeCv(l.vehicule||'voiture');
+  return `<div class="nf-line">
+    <div class="nf-line-top">
+      <div class="form-row" style="flex:0 0 135px"><label>Date</label><input class="inp slim" type="date" id="nfl-date-${i}" value="${l.date||''}"></div>
+      <div class="form-row" style="flex:1 1 180px"><label>Catégorie</label><select class="inp slim" id="nfl-cat-${i}" onchange="nfLineChanged(${i})">${NF_CATS.map(cc=>`<option ${l.categorie===cc?'selected':''}>${cc}</option>`).join('')}</select></div>
+      <div class="form-row" style="flex:0 0 120px"><label>Montant €</label><input class="inp slim" type="number" step="0.01" id="nfl-montant-${i}" value="${l.montant!=null&&l.montant!==''?l.montant:''}" ${km?'readonly style="background:var(--panel)"':''} oninput="nfTot()"></div>
+      <div class="form-row" style="flex:0 0 auto"><label>Justif.</label><div style="display:flex;gap:3px;align-items:center">${nfJustifHTML(l,i)}<button class="icon-btn" title="Supprimer la ligne" onclick="nfRemoveLine(${i})">${ic('trash')}</button></div></div>
+    </div>
+    ${km?`<div class="nf-km">
+      <div class="nf-itin">
+        <div class="ac-wrap" style="flex:1;min-width:150px"><input class="inp slim" id="nfl-dep-${i}" placeholder="Départ (ville / adresse)" value="${esc(l.depart||'')}" autocomplete="off" oninput="nfAddrSuggest(${i},'dep')" onblur="nfAddrBlur('dep',${i})"><div class="ac-list" id="ac-dep-${i}"></div></div>
+        <span style="color:var(--muted)">→</span>
+        <div class="ac-wrap" style="flex:1;min-width:150px"><input class="inp slim" id="nfl-arr-${i}" placeholder="Arrivée (ville / adresse)" value="${esc(l.arrivee||'')}" autocomplete="off" oninput="nfAddrSuggest(${i},'arr')" onblur="nfAddrBlur('arr',${i})"><div class="ac-list" id="ac-arr-${i}"></div></div>
+        <label style="font-size:12px;display:flex;gap:5px;align-items:center;cursor:pointer;white-space:nowrap"><input type="checkbox" id="nfl-ar-${i}" ${l.allerRetour?'checked':''} onchange="nfItinSync(${i})"> A/R ×2</label>
+        <button class="btn btn-primary btn-sm" type="button" style="margin:0" onclick="nfCalcItineraire(${i})">${ic('map')} Calculer les km</button>
+        <button class="btn btn-ghost btn-sm" type="button" style="margin:0" onclick="nfOpenMaps(${i})" title="Vérifier sur Google Maps">${ic('map')} Google Maps</button>
+      </div>
+      <div class="form-row" style="flex:0 0 160px"><label>Véhicule</label><select class="inp slim" id="nfl-vt-${i}" onchange="nfLineChanged(${i})">${Object.keys(BAREME_KM).map(vt=>`<option value="${vt}" ${(l.vehicule||'voiture')===vt?'selected':''}>${BAREME_KM[vt].label}</option>`).join('')}</select></div>
+      <div class="form-row" style="flex:0 0 120px"><label>Puiss. fiscale</label><select class="inp slim" id="nfl-cv-${i}" onchange="nfLineChanged(${i})">${cvs.map(cv=>`<option ${String(l.cv)===cv?'selected':''}>${cv}</option>`).join('')}</select></div>
+      <div class="form-row" style="flex:0 0 110px"><label>Km</label><input class="inp slim" type="number" id="nfl-km-${i}" value="${l.km||''}" oninput="nfLineKm(${i})"></div>
+      <label style="font-size:12px;display:flex;gap:5px;align-items:center;cursor:pointer;align-self:flex-end;padding-bottom:9px"><input type="checkbox" id="nfl-elec-${i}" ${l.elec?'checked':''} onchange="nfLineChanged(${i})"> Électrique (+20%)</label>
+      <div style="flex:1;text-align:right;align-self:flex-end;padding-bottom:9px;font-size:12px;color:var(--muted)">Forfait : <b id="nfl-bareme-${i}">${baremeFormule(l.vehicule||'voiture',String(l.cv||baremeCv(l.vehicule||'voiture')[0]),l.km||0)}${l.elec?' ×1,2':''}</b> → Indemnité : <b style="color:var(--accent-strong)" id="nfl-ind-${i}">${eur2(l.montant||0)}</b></div>
+    </div>`:''}
+    <div class="form-row" style="margin-top:8px"><input class="inp slim" id="nfl-desc-${i}" value="${esc(l.description||'')}" placeholder="Description / commentaire"></div>
+  </div>`;
+}
+function nfJustifHTML(l,i){
+  if(l.justificatif) return `<button class="icon-btn" title="${esc(l.justName||'justificatif')}" onclick="nfJustifPreview(${i})">${ic('file')}</button><button class="icon-btn ps-x" title="Retirer le justificatif" onclick="nfJustifRemove(${i})">${ic('close')}</button>`;
+  return `<label class="icon-btn" title="Joindre un justificatif (image ou PDF)" style="cursor:pointer;margin:0">${ic('upload')}<input type="file" accept="image/*,application/pdf" style="display:none" onchange="nfJustif(${i},this)"></label>`;
+}
+function nfSync(){
+  const n=nfDraft; if(!n) return; const g=s=>{const e=$(s);return e?e.value:undefined;};
+  if($('#nfSal')) n.matricule=$('#nfSal').value;
+  if($('#nfStatut')) n.statut=$('#nfStatut').value;
+  ['objet:nfObjet','affaire:nfAffaire','codeAffaire:nfCodeA','codeCompta:nfCodeC','lieu:nfLieu','dateDepart:nfD1','dateRetour:nfD2','dateNote:nfDateNote'].forEach(p=>{const[k,id]=p.split(':'); const v=g('#'+id); if(v!==undefined) n[k]=v;});
+  n.duree=nfCalcDuree(n.dateDepart,n.dateRetour);
+  const av=g('#nfAvance'); if(av!==undefined) n.avance=Number(av)||0;
+  (n.lignes||[]).forEach((l,i)=>{
+    const d=g('#nfl-date-'+i); if(d!==undefined) l.date=d;
+    const cat=g('#nfl-cat-'+i); if(cat!==undefined) l.categorie=cat;
+    const de=g('#nfl-desc-'+i); if(de!==undefined) l.description=de;
+    if(l.categorie==='Frais kilométriques'){
+      const vt=g('#nfl-vt-'+i); if(vt!==undefined) l.vehicule=vt;
+      const cv=g('#nfl-cv-'+i); if(cv!==undefined) l.cv=cv;
+      const km=g('#nfl-km-'+i); if(km!==undefined) l.km=Number(km)||0;
+      const dep=g('#nfl-dep-'+i); if(dep!==undefined) l.depart=dep;
+      const arr=g('#nfl-arr-'+i); if(arr!==undefined) l.arrivee=arr;
+      const ar=$('#nfl-ar-'+i); if(ar) l.allerRetour=ar.checked;
+      const el=$('#nfl-elec-'+i); if(el) l.elec=el.checked;
+      if(!l.vehicule) l.vehicule='voiture'; if(!l.cv) l.cv=baremeCv(l.vehicule)[0];
+      l.montant=calcKm(l.vehicule, String(l.cv), l.km||0, l.elec);
+    } else { const mo=g('#nfl-montant-'+i); if(mo!==undefined) l.montant=Number(mo)||0; }
+  });
+}
+function nfItinSync(i){ const l=nfDraft.lignes[i]; if(!l) return; const dep=$('#nfl-dep-'+i), arr=$('#nfl-arr-'+i), ar=$('#nfl-ar-'+i); if(dep) l.depart=dep.value; if(arr) l.arrivee=arr.value; if(ar) l.allerRetour=ar.checked; }
+function nfTot(){ nfSync(); const d=$('#nfTotalDisp'); if(d) d.textContent=eur2(nfTotal(nfDraft)); const r=$('#nfRembDisp'); if(r) r.textContent=eur2(nfRembourse(nfDraft)); }
+function nfLineKm(i){ nfSync(); const l=nfDraft.lignes[i]; const ind=$('#nfl-ind-'+i); if(ind) ind.textContent=eur2(l.montant||0); const bm=$('#nfl-bareme-'+i); if(bm) bm.innerHTML=baremeFormule(l.vehicule,String(l.cv),l.km||0)+(l.elec?' ×1,2':''); const mi=$('#nfl-montant-'+i); if(mi) mi.value=l.montant; nfTot(); }
+function nfLineChanged(i){ nfSync(); const l=nfDraft.lignes[i]; if(l&&l.categorie==='Frais kilométriques'){ if(!l.vehicule)l.vehicule='voiture'; const cvs=baremeCv(l.vehicule); if(cvs.indexOf(String(l.cv))<0)l.cv=cvs[0]; l.montant=calcKm(l.vehicule,String(l.cv),l.km||0,l.elec); } renderNoteEditor(); }
+function nfDureeUpd(){ const e=$('#nfDuree'); if(e) e.value=nfCalcDuree($('#nfD1').value,$('#nfD2').value); }
+function nfAddLine(){ nfSync(); nfDraft.lignes.push({id:uid(),date:new Date().toISOString().slice(0,10),categorie:NF_CATS[0],description:'',montant:0}); renderNoteEditor(); }
+function nfRemoveLine(i){ nfSync(); nfDraft.lignes.splice(i,1); renderNoteEditor(); }
+function nfJustif(i,input){ const f=input&&input.files&&input.files[0]; if(!f) return; nfSync(); fileToDataURL(f).then(d=>{ nfDraft.lignes[i].justificatif=d; nfDraft.lignes[i].justName=f.name; renderNoteEditor(); }).catch(()=>toast('Lecture du justificatif impossible')); }
+function nfJustifRemove(i){ nfSync(); delete nfDraft.lignes[i].justificatif; delete nfDraft.lignes[i].justName; renderNoteEditor(); }
+function nfJustifPreview(i){
+  const l=nfDraft.lignes[i]; if(!l||!l.justificatif) return;
+  const isImg=/^data:image\//.test(l.justificatif);
+  modal(`<div class="modal-head"><h3>Justificatif — ${esc(l.categorie||'')}</h3><div class="grow"></div><button class="icon-btn" onclick="renderNoteEditor()">${ic('close')}</button></div>
+    <div class="modal-body"><div style="font-size:12px;color:var(--muted);margin-bottom:10px">${esc(l.justName||'')} <a class="link" href="${l.justificatif}" download="${esc(l.justName||'justificatif')}">Télécharger</a></div>
+    ${isImg?`<img src="${l.justificatif}" style="max-width:100%;border:1px solid var(--line);border-radius:8px">`:`<iframe src="${l.justificatif}" style="width:100%;height:60vh;border:1px solid var(--line);border-radius:8px"></iframe>`}</div>
+    <div class="modal-foot"><button class="btn btn-ghost" onclick="renderNoteEditor()">Retour à la note</button></div>`, true);
+}
+function saveNoteFrais(thenPdf){
+  nfSync(); const n=nfDraft; if(!n.matricule){ toast('Salarié requis'); return; }
+  const arr=notesFrais(); const idx=arr.findIndex(x=>x.id===n.id); const copy=JSON.parse(JSON.stringify(n));
+  if(idx>=0) arr[idx]=copy; else arr.push(copy);
+  save(); toast('Note de frais enregistrée'); closeModal(); render();
+  if(thenPdf) exportNoteFraisPDF(n.id);
+}
+function delNoteFrais(id){
+  confirmModal('Supprimer cette note de frais ?','Cette action est définitive (justificatifs inclus).',()=>{
+    state.notesFrais=notesFrais().filter(n=>n.id!==id); save(); closeModal(); toast('Note supprimée'); render();
+  });
+}
+function loadJsPDF(){
+  if(window.jspdf && window.jspdf.jsPDF) return Promise.resolve(window.jspdf);
+  return new Promise((res,rej)=>{ const s=document.createElement('script'); s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'; s.onload=()=>res(window.jspdf); s.onerror=()=>rej(new Error('Génération PDF indisponible (connexion internet requise).')); document.head.appendChild(s); });
+}
+async function exportNoteFraisPDF(id){
+  let n = id? notesFrais().find(x=>x.id===id) : nfDraft;
+  if(!n){ toast('Note introuvable'); return; }
+  toast('Génération du PDF…');
+  try{
+    const lib=await loadJsPDF(); const doc=new lib.jsPDF({unit:'mm',format:'a4'});
+    const s=salByMat(n.matricule)||{}; const nf2=x=>(Number(x)||0).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2});
+    let y=16;
+    doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.text('CDInnov',14,y);
+    doc.setFontSize(17); doc.text('NOTE DE FRAIS',105,y,{align:'center'});
+    doc.setFontSize(11); doc.text('N° '+(n.numero||''),196,y,{align:'right'}); y+=10;
+    doc.setDrawColor(23,134,201); doc.setLineWidth(0.5); doc.line(14,y,196,y); y+=7;
+    doc.setFontSize(10);
+    const row=(label,val)=>{ doc.setFont('helvetica','bold'); doc.text(label,14,y); doc.setFont('helvetica','normal'); doc.text(doc.splitTextToSize(String(val||'—'),140),52,y); y+=6; };
+    row('Nom / Prénom :',(s.nom||'')+' '+(s.prenom||''));
+    row('Objet :',n.objet); row('Affaire / SG :',(n.affaire||'')+(n.codeAffaire?' ('+n.codeAffaire+')':''));
+    row('Lieu(x) :',n.lieu);
+    row('Période :',(n.dateDepart?dateFR(n.dateDepart):'')+(n.dateRetour?' au '+dateFR(n.dateRetour):'')+(n.duree?'   ('+n.duree+' j)':''));
+    y+=3;
+    doc.setFillColor(23,134,201); doc.setTextColor(255); doc.setFont('helvetica','bold'); doc.setFontSize(9);
+    doc.rect(14,y,182,7,'F'); doc.text('Date',16,y+5); doc.text('Catégorie',38,y+5); doc.text('Description',82,y+5); doc.text('Montant €',194,y+5,{align:'right'}); y+=7;
+    doc.setTextColor(0); doc.setFont('helvetica','normal'); doc.setFontSize(9);
+    (n.lignes||[]).forEach(l=>{
+      if(y>262){ doc.addPage(); y=16; }
+      let desc=l.description||''; if(l.categorie==='Frais kilométriques'&&l.km){ desc=(desc?desc+' — ':'')+(l.depart&&l.arrivee?l.depart+' → '+l.arrivee+(l.allerRetour?' (A/R)':'')+', ':'')+l.km+' km '+((BAREME_KM[l.vehicule]||{}).label||'')+' '+l.cv+' CV'+(l.elec?' élec.':'')+' ('+baremeFormule(l.vehicule,String(l.cv),l.km)+(l.elec?' ×1,2':'')+')'; }
+      doc.text(l.date?dateFR(l.date):'',16,y+5); doc.text(doc.splitTextToSize(l.categorie||'',40),38,y+5);
+      doc.text(doc.splitTextToSize(desc,95),82,y+5); doc.text(nf2(l.montant),194,y+5,{align:'right'});
+      doc.setDrawColor(225); doc.line(14,y+7,196,y+7); y+=7;
+    });
+    y+=5; doc.setFont('helvetica','bold'); doc.setFontSize(10);
+    doc.text('TOTAL GÉNÉRAL :',158,y,{align:'right'}); doc.text(nf2(nfTotal(n))+' €',196,y,{align:'right'}); y+=6;
+    if(Number(n.avance)){ doc.setFont('helvetica','normal'); doc.text('Avance à déduire :',158,y,{align:'right'}); doc.text(nf2(n.avance)+' €',196,y,{align:'right'}); y+=6; }
+    doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.text('MONTANT À REMBOURSER :',158,y,{align:'right'}); doc.text(nf2(nfRembourse(n))+' €',196,y,{align:'right'}); y+=14;
+    doc.setFont('helvetica','normal'); doc.setFontSize(9);
+    doc.text('Date : '+(n.dateNote?dateFR(n.dateNote):''),14,y); doc.text("Signature de l'intéressé(e) :",120,y); y+=12;
+    doc.text('Contrôle pour paiement — Visa :',14,y); doc.text('Accord du directeur — Visa :',120,y);
+    (n.lignes||[]).forEach(l=>{ if(l.justificatif && /^data:image\//.test(l.justificatif)){ try{ doc.addPage(); doc.setFontSize(10); doc.setFont('helvetica','bold'); doc.text('Justificatif — '+(l.categorie||'')+(l.date?' du '+dateFR(l.date):''),14,14); const p=doc.getImageProperties(l.justificatif); const w=180, hh=Math.min(p.height*w/p.width,255); doc.addImage(l.justificatif,p.fileType||'JPEG',14,20,w,hh); }catch(e){} } });
+    doc.save('Note_de_frais_N'+(n.numero||'')+'_'+(s.nom||'').replace(/\s+/g,'')+'.pdf');
+    toast('PDF généré');
+  }catch(e){ toast(e.message||'Erreur lors de la génération du PDF'); }
 }
 
 /* ===================== MODALS ===================== */
@@ -1444,13 +1788,14 @@ document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeModal(); });
 /* --- Mouvement form --- */
 function openMouvement(id){
   const m = id ? state.mouvements.find(x=>x.id===id) : null;
+  const lockMat = (typeof movAccess!=='undefined' && movAccess && movAccess!=='admin') ? movAccess : null;
   const today=new Date().toISOString().slice(0,10);
   modal(`
     <div class="modal-head"><h3>${m?'Modifier le mouvement':'Nouveau mouvement'}</h3></div>
     <div class="modal-body">
       <div class="form-grid">
         <div class="form-row"><label>Date</label><input class="inp" type="date" id="mDate" value="${m?m.date:today}"></div>
-        <div class="form-row"><label>Salarié</label><select class="inp" id="mSal">${state.salaries.map(s=>`<option value="${s.matricule}" ${m&&m.matricule===s.matricule?'selected':''}>${esc(s.nom)} ${esc(s.prenom)} (${s.matricule})</option>`).join('')}</select></div>
+        <div class="form-row"><label>Salarié</label><select class="inp" id="mSal" ${lockMat?'disabled':''}>${state.salaries.filter(s=>!lockMat||s.matricule===lockMat).map(s=>`<option value="${s.matricule}" ${(m?m.matricule:lockMat)===s.matricule?'selected':''}>${esc(s.nom)} ${esc(s.prenom)} (${s.matricule})</option>`).join('')}</select></div>
         <div class="form-row full"><label>Type de mouvement</label><select class="inp" id="mType">${state.types.map(t=>`<option value="${t.code}" ${m&&m.type===t.code?'selected':''}>${esc(t.libelle)}</option>`).join('')}</select></div>
         <div class="form-row"><label>Quantité (jours, positive)</label><input class="inp" type="number" min="0" step="0.5" id="mQte" value="${m?m.qte:''}" placeholder="ex. 5"></div>
         <div class="form-row"><label>Statut</label><select class="inp" id="mStatut"><option ${m&&m.statut==='Validé'?'selected':''}>Validé</option><option ${m&&m.statut==='En attente'?'selected':''}>En attente</option></select></div>
@@ -1463,7 +1808,9 @@ function openMouvement(id){
     </div>`);
 }
 function saveMouvement(id){
-  const date=$('#mDate').value, mat=$('#mSal').value, type=$('#mType').value;
+  const date=$('#mDate').value, type=$('#mType').value;
+  let mat=$('#mSal').value;
+  if(typeof movAccess!=='undefined' && movAccess && movAccess!=='admin') mat=movAccess; // agent : sur lui-même
   const qte=Number($('#mQte').value), statut=$('#mStatut').value, comm=$('#mComm').value.trim();
   if(!date||!mat||!type){ toast('Date, salarié et type sont requis'); return; }
   if(!(qte>0)){ toast('Saisissez une quantité positive'); return; }
@@ -1490,14 +1837,25 @@ function openSalarie(mat){
         <div class="form-row"><label>Prénom</label><input class="inp" id="sPrenom" value="${s?esc(s.prenom):''}"></div>
         <div class="form-row"><label>Date d'entrée</label><input class="inp" type="date" id="sDate" value="${s?s.dateEntree:''}"></div>
         <div class="form-row"><label>Temps de travail (%)</label><input class="inp" type="number" id="sTps" value="${s?s.tempsPartiel:100}"></div>
-        <div class="form-row"><label>Coût / jour (€) <span class="hint">pour valoriser</span></label><input class="inp" type="number" id="sCout" value="${s&&s.coutJour!=null?s.coutJour:''}" placeholder="optionnel"></div>
-        <div class="form-row"><label>Commentaire</label><input class="inp" id="sComm" value="${s?esc(s.commentaire||''):''}"></div>
+        <div class="form-row"><label>Brut chargé annuel (€) <span class="hint">N-1 ou estimé</span></label><input class="inp" type="number" step="0.01" id="sBrut" value="${s&&s.brutAnnuel!=null?s.brutAnnuel:''}" placeholder="ex. 40000" oninput="salCoutPreview()"></div>
+        <div class="form-row"><label>Année de réf. (jours ouvrés)</label><input class="inp" type="number" id="sBrutY" value="${s&&s.brutRefYear?s.brutRefYear:Number(state.params.anneeSuivi)}" oninput="salCoutPreview()"></div>
+        <div class="form-row"><label>Coût / jour manuel (€) <span class="hint">si pas de brut</span></label><input class="inp" type="number" step="0.01" id="sCout" value="${s&&s.coutJour!=null&&!(s&&s.brutAnnuel)?s.coutJour:''}" placeholder="optionnel" oninput="salCoutPreview()"></div>
+        <div class="form-row"><label>Coût / jour retenu</label><input class="inp" id="sCoutCalc" value="" disabled style="font-weight:700;color:var(--accent-strong)"></div>
+        <div class="form-row full"><label>Commentaire</label><input class="inp" id="sComm" value="${s?esc(s.commentaire||''):''}"></div>
       </div>
     </div>
     <div class="modal-foot">
       <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>
       <button class="btn btn-primary" onclick="saveSalarie('${s?s.matricule:''}')">${ic('check')} ${s?'Enregistrer':'Ajouter'}</button>
     </div>`);
+  salCoutPreview();
+}
+function salCoutPreview(){
+  const brut=Number($('#sBrut').value)||0; const Y=Number($('#sBrutY').value)||Number(state.params.anneeSuivi);
+  const o=joursOuvresAnnee(Y); const jt=o.weekdays-o.feries;
+  const manuel=Number($('#sCout').value)||0;
+  let cout = (brut>0&&jt>0)?Math.round(brut/jt*100)/100 : (manuel>0?manuel:null);
+  const el=$('#sCoutCalc'); if(el) el.value = cout? (cout.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'+(brut>0?' ('+jt+' j ouvrés)':' (manuel)')) : '—';
 }
 function saveSalarie(mat){
   const isNew=!mat;
@@ -1506,9 +1864,14 @@ function saveSalarie(mat){
   if(!matricule){ toast('Matricule requis'); return; }
   if(!nom){ toast('Nom requis'); return; }
   if(isNew && salByMat(matricule)){ toast('Ce matricule existe déjà'); return; }
+  const brut = $('#sBrut').value===''?null:Number($('#sBrut').value);
+  const brutY = Number($('#sBrutY').value)||Number(state.params.anneeSuivi);
+  let coutJour;
+  if(brut!=null && brut>0){ const o=joursOuvresAnnee(brutY); const jt=o.weekdays-o.feries; coutJour = jt>0?Math.round(brut/jt*100)/100:null; }
+  else { coutJour = $('#sCout').value===''?null:Number($('#sCout').value); }
   const data={matricule, nom, prenom, dateEntree:$('#sDate').value,
     tempsPartiel:Number($('#sTps').value)||100, statut:$('#sStatut').value,
-    coutJour: $('#sCout').value===''?null:Number($('#sCout').value), commentaire:$('#sComm').value.trim()};
+    coutJour, brutAnnuel:brut, brutRefYear:brutY, commentaire:$('#sComm').value.trim()};
   if(isNew) state.salaries.push(data);
   else Object.assign(salByMat(mat), data);
   save(); closeModal(); toast(isNew?'Salarié ajouté':'Salarié modifié'); render();
@@ -1652,7 +2015,7 @@ function importJSON(ev){
   rd.onload=()=>{ try{
       const d=JSON.parse(rd.result);
       if(!d.params||!d.salaries) throw 0;
-      state={ params:Object.assign(structuredClone(PARAMS_DEFAULT),d.params), types:d.types||structuredClone(TYPES_DEFAULT), salaries:d.salaries||[], mouvements:d.mouvements||[], conges:d.conges||[] };
+      state={ params:Object.assign(structuredClone(PARAMS_DEFAULT),d.params), types:d.types||structuredClone(TYPES_DEFAULT), salaries:d.salaries||[], mouvements:d.mouvements||[], conges:d.conges||[], notesFrais:d.notesFrais||[] };
       currentYear=Number(state.params.anneeSuivi); save(); toast('Données importées'); render();
     }catch(e){ toast('Fichier invalide'); } };
   rd.readAsText(f); ev.target.value='';
@@ -1693,6 +2056,7 @@ function ic(name){
     chevL:'<path d="M15 18l-6-6 6-6"/>',
     chevR:'<path d="M9 18l6-6-6-6"/>',
     file:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>',
+    map:'<path d="M9 20l-5.5 2.7A1 1 0 0 1 2 22V6l7-3 6 3 5.5-2.7A1 1 0 0 1 22 4v16l-7 3-6-3z"/><path d="M9 3v17M15 6v17"/>',
     lock:'<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>'
   }[name]||'';
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
@@ -1703,4 +2067,4 @@ setView('dashboard');
 if(cloudEnabled()) cloudLoad(); else setSync('local','Local');
 </script>
 </body>
-<
+</html>
