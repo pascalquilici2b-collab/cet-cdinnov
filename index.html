@@ -500,6 +500,17 @@ async function cloudLoad(){
   }catch(e){ setSync('err','Hors ligne'); }
 }
 function cloudSave(){ if(!cloudEnabled()) return; clearTimeout(cloudTimer); cloudTimer=setTimeout(cloudPush, 700); }
+/* ---- Notifications e-mail (via Worker /notify -> Brevo) ---- */
+function notify(subject, html){
+  if(!cloudEnabled()) return;
+  const u=CLOUD_ENDPOINT.replace(/\/+$/,'')+'/notify';
+  try{ fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({subject:subject,html:html})}).catch(()=>{}); }catch(e){}
+}
+let _cgNotifyTimer=null;
+function scheduleCongesNotify(mat){
+  clearTimeout(_cgNotifyTimer);
+  _cgNotifyTimer=setTimeout(()=>{ const days=conges().filter(c=>c.matricule===mat && c.statut!=='Validé').length*0.5; if(days>0){ const s=salByMat(mat)||{}; notify('Congés en attente — '+(s.nom||'')+' '+(s.prenom||''), '<p><b>'+esc(s.nom)+' '+esc(s.prenom)+'</b> a posé des congés <b>en attente de validation</b> : <b>'+nbJours(days)+' jour(s)</b> au total.</p><p>Connectez-vous à l\'outil pour les valider.</p>'); } }, 4500);
+}
 async function cloudPush(){
   if(!cloudEnabled()) return;
   setSync('busy','Envoi…');
@@ -517,6 +528,7 @@ const $$ = (s,r=document)=>[...r.querySelectorAll(s)];
 const uid = ()=> 'm'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const esc = s => (s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const yearOf = d => d ? Number(String(d).slice(0,4)) : null;
+function ymd(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function nbJours(n){ if(n==null||n==='') return '—'; return Number(n).toLocaleString('fr-FR',{maximumFractionDigits:2}); }
 function eur(n){ if(n==null||n==='') return '—'; return Number(n).toLocaleString('fr-FR',{maximumFractionDigits:0})+' €'; }
 function eur2(n){ if(n==null||n==='') return '—'; return Number(n).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'; }
@@ -1004,7 +1016,7 @@ function migrateConges(){
     if(c && c.dateDebut){
       const a=new Date(c.dateDebut+'T00:00:00'), b=new Date((c.dateFin||c.dateDebut)+'T00:00:00');
       for(let d=new Date(a); d<=b; d.setDate(d.getDate()+1)){ const j=d.getDay(); if(j===0||j===6) continue;
-        const ds=d.toISOString().slice(0,10); ['AM','PM'].forEach(hf=>out.push({id:uid(),matricule:c.matricule,date:ds,half:hf,type:c.type||'Congés payés',statut:c.statut||'Validé'})); }
+        const ds=ymd(d); ['AM','PM'].forEach(hf=>out.push({id:uid(),matricule:c.matricule,date:ds,half:hf,type:c.type||'Congés payés',statut:c.statut||'Validé'})); }
     }
   });
   state.conges=out; save();
@@ -1013,13 +1025,13 @@ function congeAt(mat,date,half){ return conges().find(c=>c.matricule===mat && c.
 function toggleHalf(mat,date,half){
   const ex=congeAt(mat,date,half);
   if(ex) state.conges=conges().filter(c=>c!==ex);
-  else conges().push({id:uid(),matricule:mat,date,half,type:congesType,statut:congesStatut});
+  else { conges().push({id:uid(),matricule:mat,date,half,type:congesType,statut:congesStatut}); if(congesStatut!=='Validé') scheduleCongesNotify(mat); }
   save(); renderConges();
 }
 function toggleDay(mat,date){
   const am=congeAt(mat,date,'AM'), pm=congeAt(mat,date,'PM');
   if(am&&pm) state.conges=conges().filter(c=>!(c.matricule===mat&&c.date===date));
-  else ['AM','PM'].forEach(hf=>{ if(!congeAt(mat,date,hf)) conges().push({id:uid(),matricule:mat,date,half:hf,type:congesType,statut:congesStatut}); });
+  else { ['AM','PM'].forEach(hf=>{ if(!congeAt(mat,date,hf)) conges().push({id:uid(),matricule:mat,date,half:hf,type:congesType,statut:congesStatut}); }); if(congesStatut!=='Validé') scheduleCongesNotify(mat); }
   save(); renderConges();
 }
 function setCongesSal(m){ congesSal=m; renderConges(); }
@@ -1057,12 +1069,12 @@ function autoSamedisList(mat){
   conges().filter(c=>c.matricule===mat && c.type==='Congés payés').forEach(c=>{ (byDate[c.date]=byDate[c.date]||{})[c.half]=c; });
   Object.keys(byDate).forEach(fd=>{ const dd=new Date(fd+'T00:00:00');
     if(dd.getDay()===5 && byDate[fd].AM && byDate[fd].PM){ const sat=new Date(dd); sat.setDate(sat.getDate()+1); const ref=byDate[fd].PM||byDate[fd].AM;
-      out.push({date:sat.toISOString().slice(0,10), type:ref.type, statut:ref.statut}); } });
+      out.push({date:ymd(sat), type:ref.type, statut:ref.statut}); } });
   return out;
 }
 function autoSamediInfo(mat,date){
   const dd=new Date(date+'T00:00:00'); if(dd.getDay()!==6) return null;
-  const fri=new Date(dd); fri.setDate(fri.getDate()-1); const fd=fri.toISOString().slice(0,10);
+  const fri=new Date(dd); fri.setDate(fri.getDate()-1); const fd=ymd(fri);
   const am=congeAt(mat,fd,'AM'), pm=congeAt(mat,fd,'PM');
   if(am&&pm){ const ref=pm||am; if(ref.type==='Congés payés') return {type:ref.type, statut:ref.statut}; }
   return null;
@@ -1131,8 +1143,21 @@ function renderConges(){
         ${congesRecapTable(Y)}
       </div>
     </div>
+    ${congesPendingCard(Y)}
   `;
 }
+function congesPendingCard(Y){
+  const pend=state.salaries.map(s=>{ const days=conges().filter(c=>c.matricule===s.matricule && yearOf(c.date)===Y && c.statut!=='Validé').length*0.5; return {s,days}; }).filter(x=>x.days>0);
+  const maxP=Math.max(1,...pend.map(x=>x.days));
+  return `<div class="card">
+    <div class="card-head"><h2>${ic('clock')} Congés en attente de validation — ${Y}</h2><div class="grow"></div>${pend.length?`<button class="btn btn-primary btn-sm no-print" onclick="validerCongesAll(${Y})">${ic('check')} Tout valider</button>`:''}</div>
+    <div class="card-pad">
+      ${pend.length? pend.map(x=>`<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:12.5px;margin-bottom:4px"><span class="name-cell"><span class="avatar" style="width:24px;height:24px;font-size:10px">${avInner(x.s)}</span><b>${esc(x.s.nom)} ${esc(x.s.prenom)}</b> — <span style="color:var(--pending);font-weight:700">${nbJours(x.days)} j en attente</span></span><button class="btn btn-ghost btn-sm no-print" onclick="validerCongesSal('${x.s.matricule}',${Y})">${ic('check')} Valider</button></div><div class="gauge" style="background:var(--pending-soft)"><i style="width:${Math.min(100,x.days/maxP*100)}%;background:var(--pending)"></i></div></div>`).join('') : `<div style="color:var(--muted);font-size:13px">Aucun congé en attente pour ${Y}.</div>`}
+    </div>
+  </div>`;
+}
+function validerCongesSal(mat,Y){ let n=0; conges().forEach(c=>{ if(c.matricule===mat && yearOf(c.date)===Y && c.statut!=='Validé'){ c.statut='Validé'; n++; } }); save(); toast(n?(n*0.5)+' j validés':'Rien à valider'); render(); }
+function validerCongesAll(Y){ let n=0; conges().forEach(c=>{ if(yearOf(c.date)===Y && c.statut!=='Validé'){ c.statut='Validé'; n++; } }); save(); toast(n?'Congés validés ('+(n*0.5)+' j)':'Rien à valider'); render(); }
 function congesRecapTable(Y){
   return `<table>
     <thead><tr><th>Salarié</th>${MOIS_ABBR.map(m=>`<th class="num">${m}</th>`).join('')}<th class="num">Total</th></tr></thead>
@@ -1147,7 +1172,7 @@ function congesRecapTable(Y){
     </tbody></table>`;
 }
 function openConge(matPre){
-  const today=new Date().toISOString().slice(0,10);
+  const today=ymd(new Date());
   modal(`
     <div class="modal-head"><h3>Poser une période de congés</h3></div>
     <div class="modal-body">
@@ -1176,8 +1201,9 @@ function saveConge(){
   if(d2<d1){ toast('La date de fin précède le début'); return; }
   const a=new Date(d1+'T00:00:00'), b=new Date(d2+'T00:00:00'); let added=0;
   for(let d=new Date(a); d<=b; d.setDate(d.getDate()+1)){ const j=d.getDay(); if(j===0||j===6) continue;
-    const ds=d.toISOString().slice(0,10); ['AM','PM'].forEach(hf=>{ if(!congeAt(mat,ds,hf)){ conges().push({id:uid(),matricule:mat,date:ds,half:hf,type,statut}); added++; } }); }
+    const ds=ymd(d); ['AM','PM'].forEach(hf=>{ if(!congeAt(mat,ds,hf)){ conges().push({id:uid(),matricule:mat,date:ds,half:hf,type,statut}); added++; } }); }
   save(); closeModal(); toast(added? `${added/2} jour(s) ajouté(s)` : 'Aucun jour ouvré dans la période');
+  if(statut!=='Validé' && added) scheduleCongesNotify(mat);
   congesSal=mat; congesMonth=a.getMonth(); currentYear=a.getFullYear(); render();
 }
 function exportCongesCSV(){
@@ -1409,7 +1435,7 @@ function openSuiviConfirm(p){
 }
 function applySuiviCET(mat, delta, total){
   if(!(delta>0)){ closeModal(); return; }
-  const today=new Date().toISOString().slice(0,10);
+  const today=ymd(new Date());
   state.mouvements.push({id:uid(),date:today,matricule:mat,type:'ALIM_CP',qte:delta,statut:'Validé',commentaire:'Heures supp. importées : '+total+' h cumulées → +'+delta+' j',src:'hsupp'});
   movSort={key:'date',dir:'desc'};
   save(); closeModal(); toast('+'+delta+' jour(s) CET crédité(s)'); render();
@@ -1522,6 +1548,16 @@ function nfOpenMaps(i){
 }
 
 let _acTimer=null, _acByLabel={};
+async function nfGeoSuggest(q){
+  try{ const r=await fetch('https://api-adresse.data.gouv.fr/search/?autocomplete=1&limit=6&q='+encodeURIComponent(q));
+    if(r.ok){ const j=await r.json(); if(j&&j.features&&j.features.length) return j.features.map(f=>({lon:f.geometry.coordinates[0],lat:f.geometry.coordinates[1],label:(f.properties.label||f.properties.name||'')})); } }catch(e){}
+  try{ const r=await fetch('https://photon.komoot.io/api/?lang=fr&limit=6&q='+encodeURIComponent(q));
+    const j=await r.json(); return ((j&&j.features)||[]).map(f=>{ const p=f.properties||{}, c=(f.geometry||{}).coordinates||[0,0];
+      const main=[p.name,p.housenumber].filter(Boolean).join(' ')||p.street||p.city||p.country||'';
+      const sub=[(p.street&&p.street!==p.name)?p.street:'',p.postcode,p.city,p.state,p.country].filter(Boolean).join(', ');
+      return {lon:c[0],lat:c[1],label:(main+(sub?', '+sub:''))}; }); }catch(e){}
+  return [];
+}
 function nfAddrInput(i,field){
   const inp=$('#nfl-'+field+'-'+i); if(!inp) return; const l=nfDraft.lignes[i]; if(!l) return; const v=inp.value;
   if(field==='dep'){ l.depart=v; const c=_acByLabel[v]; l.depLat=c?c.lat:null; l.depLon=c?c.lon:null; }
@@ -1529,18 +1565,11 @@ function nfAddrInput(i,field){
   const q=v.trim(); if(q.length<3) return;
   clearTimeout(_acTimer);
   _acTimer=setTimeout(async()=>{
-    try{
-      const r=await fetch('https://photon.komoot.io/api/?lang=fr&limit=6&q='+encodeURIComponent(q));
-      const j=await r.json(); const feats=(j&&j.features)||[]; const dl=$('#nfdl-'+field+'-'+i); if(!dl) return;
-      let opts='';
-      feats.forEach(f=>{ const p=f.properties||{}, c=(f.geometry||{}).coordinates||[0,0];
-        const main=[p.name,p.housenumber].filter(Boolean).join(' ')||p.street||p.city||p.country||'';
-        const sub=[(p.street&&p.street!==p.name)?p.street:'',p.postcode,p.city,p.state,p.country].filter(Boolean).join(', ');
-        const label=(main+(sub?', '+sub:'')); _acByLabel[label]={lat:c[1],lon:c[0]};
-        opts+='<option value="'+label.replace(/"/g,'&quot;')+'"></option>'; });
-      dl.innerHTML=opts;
-    }catch(e){}
-  },350);
+    const data=await nfGeoSuggest(q); const dl=$('#nfdl-'+field+'-'+i); if(!dl) return;
+    let opts='';
+    data.forEach(o=>{ if(!o.label) return; _acByLabel[o.label]={lat:o.lat,lon:o.lon}; opts+='<option value="'+String(o.label).replace(/"/g,'&quot;')+'"></option>'; });
+    dl.innerHTML=opts;
+  },300);
 }
 function nfInitSign(){
   const cv=$('#nfSign'); if(!cv) return; const ctx=cv.getContext&&cv.getContext('2d'); if(!ctx) return;
@@ -1615,7 +1644,7 @@ function renderNotesFrais(){
 let nfDraft=null;
 function openNoteFrais(id){
   if(id){ nfDraft=JSON.parse(JSON.stringify(notesFrais().find(n=>n.id===id))); }
-  else { nfDraft={ id:uid(), numero:nextNumNF(), matricule:(typeof movAccess!=='undefined'&&movAccess&&movAccess!=='admin'?movAccess:(state.salaries[0]?state.salaries[0].matricule:'')), objet:'', affaire:'', codeAffaire:'', codeCompta:'', lieu:'', dateDepart:'', dateRetour:'', duree:'', dateNote:new Date().toISOString().slice(0,10), statut:'Brouillon', avance:0, lignes:[{id:uid(),date:new Date().toISOString().slice(0,10),categorie:NF_CATS[0],description:'',montant:0}] }; }
+  else { nfDraft={ id:uid(), numero:nextNumNF(), matricule:(typeof movAccess!=='undefined'&&movAccess&&movAccess!=='admin'?movAccess:(state.salaries[0]?state.salaries[0].matricule:'')), objet:'', affaire:'', codeAffaire:'', codeCompta:'', lieu:'', dateDepart:'', dateRetour:'', duree:'', dateNote:ymd(new Date()), statut:'Brouillon', avance:0, lignes:[{id:uid(),date:ymd(new Date()),categorie:NF_CATS[0],description:'',montant:0}] }; }
   renderNoteEditor();
 }
 function renderNoteEditor(){
@@ -1720,7 +1749,7 @@ function nfTot(){ nfSync(); const d=$('#nfTotalDisp'); if(d) d.textContent=eur2(
 function nfLineKm(i){ nfSync(); const l=nfDraft.lignes[i]; const ind=$('#nfl-ind-'+i); if(ind) ind.textContent=eur2(l.montant||0); const bm=$('#nfl-bareme-'+i); if(bm) bm.innerHTML=baremeFormule(l.vehicule,String(l.cv),l.km||0)+(l.elec?' ×1,2':''); const mi=$('#nfl-montant-'+i); if(mi) mi.value=l.montant; nfTot(); }
 function nfLineChanged(i){ nfSync(); const l=nfDraft.lignes[i]; if(l&&l.categorie==='Frais kilométriques'){ if(!l.vehicule)l.vehicule='voiture'; const cvs=baremeCv(l.vehicule); if(cvs.indexOf(String(l.cv))<0)l.cv=cvs[0]; l.montant=calcKm(l.vehicule,String(l.cv),l.km||0,l.elec); } renderNoteEditor(); }
 function nfDureeUpd(){ const e=$('#nfDuree'); if(e) e.value=nfCalcDuree($('#nfD1').value,$('#nfD2').value); }
-function nfAddLine(){ nfSync(); nfDraft.lignes.push({id:uid(),date:new Date().toISOString().slice(0,10),categorie:NF_CATS[0],description:'',montant:0}); renderNoteEditor(); }
+function nfAddLine(){ nfSync(); nfDraft.lignes.push({id:uid(),date:ymd(new Date()),categorie:NF_CATS[0],description:'',montant:0}); renderNoteEditor(); }
 function nfRemoveLine(i){ nfSync(); nfDraft.lignes.splice(i,1); renderNoteEditor(); }
 function nfJustif(i,input){ const f=input&&input.files&&input.files[0]; if(!f) return; nfSync(); fileToDataURL(f).then(d=>{ nfDraft.lignes[i].justificatif=d; nfDraft.lignes[i].justName=f.name; renderNoteEditor(); }).catch(()=>toast('Lecture du justificatif impossible')); }
 function nfJustifRemove(i){ nfSync(); delete nfDraft.lignes[i].justificatif; delete nfDraft.lignes[i].justName; renderNoteEditor(); }
@@ -1736,7 +1765,7 @@ function saveNoteFrais(thenPdf){
   nfSync(); const n=nfDraft; if(!n.matricule){ toast('Salarié requis'); return; }
   const arr=notesFrais(); const idx=arr.findIndex(x=>x.id===n.id); const copy=JSON.parse(JSON.stringify(n));
   if(idx>=0) arr[idx]=copy; else arr.push(copy);
-  save(); toast('Note de frais enregistrée'); closeModal(); render();
+  save(); toast('Note de frais enregistrée'); if(n.statut && n.statut!=='Brouillon'){ const _s=salByMat(n.matricule)||{}; notify('Note de frais N°'+n.numero+' — '+(_s.nom||'')+' '+(_s.prenom||''), '<p><b>'+esc(_s.nom)+' '+esc(_s.prenom)+'</b> a déposé la note de frais <b>N°'+n.numero+'</b> (statut : '+esc(n.statut)+').</p><p>Objet : '+esc(n.objet||'—')+'<br>Montant : <b>'+eur2(nfTotal(n))+'</b></p>'); } closeModal(); render();
   if(thenPdf) exportNoteFraisPDF(n.id);
 }
 function delNoteFrais(id){
@@ -1747,7 +1776,7 @@ function delNoteFrais(id){
 function dupNoteFrais(id){
   const o=notesFrais().find(n=>n.id===id); if(!o) return;
   const c=JSON.parse(JSON.stringify(o));
-  c.id=uid(); c.numero=nextNumNF(); c.statut='Brouillon'; c.dateNote=new Date().toISOString().slice(0,10); c.signature=null;
+  c.id=uid(); c.numero=nextNumNF(); c.statut='Brouillon'; c.dateNote=ymd(new Date()); c.signature=null;
   notesFrais().push(c); save(); toast('Note dupliquée — N°'+c.numero); render();
 }
 function loadJsPDF(){
@@ -1823,7 +1852,7 @@ document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeModal(); });
 function openMouvement(id){
   const m = id ? state.mouvements.find(x=>x.id===id) : null;
   const lockMat = (typeof movAccess!=='undefined' && movAccess && movAccess!=='admin') ? movAccess : null;
-  const today=new Date().toISOString().slice(0,10);
+  const today=ymd(new Date());
   modal(`
     <div class="modal-head"><h3>${m?'Modifier le mouvement':'Nouveau mouvement'}</h3></div>
     <div class="modal-body">
@@ -1849,7 +1878,7 @@ function saveMouvement(id){
   if(!date||!mat||!type){ toast('Date, salarié et type sont requis'); return; }
   if(!(qte>0)){ toast('Saisissez une quantité positive'); return; }
   if(id){ const m=state.mouvements.find(x=>x.id===id); Object.assign(m,{date,matricule:mat,type,qte,statut,commentaire:comm}); }
-  else { state.mouvements.push({id:uid(),date,matricule:mat,type,qte,statut,commentaire:comm}); movSort={key:'date',dir:'desc'}; }
+  else { state.mouvements.push({id:uid(),date,matricule:mat,type,qte,statut,commentaire:comm}); movSort={key:'date',dir:'desc'}; const _t=typeByCode(type); if(_t && _t.categorie==='Utilisation'){ const _s=salByMat(mat)||{}; notify('Utilisation CET — '+(_s.nom||'')+' '+(_s.prenom||''), '<p><b>'+esc(_s.nom)+' '+esc(_s.prenom)+'</b> a saisi une utilisation CET :</p><p>'+esc(_t.libelle)+' : <b>'+qte+' j</b> le '+dateFR(date)+(comm?'<br>Commentaire : '+esc(comm):'')+'</p>'); } }
   save(); closeModal(); toast(id?'Mouvement modifié':'Mouvement ajouté'); render();
 }
 function delMouvement(id){
@@ -2069,7 +2098,7 @@ function exportMouvCSV(){
   toast('Mouvements exportés');
 }
 function backupJSON(){
-  dl(`CET_CDInnov_sauvegarde_${new Date().toISOString().slice(0,10)}.json`, JSON.stringify(state,null,2), 'application/json');
+  dl(`CET_CDInnov_sauvegarde_${ymd(new Date())}.json`, JSON.stringify(state,null,2), 'application/json');
   toast('Sauvegarde téléchargée');
 }
 function importJSON(ev){
