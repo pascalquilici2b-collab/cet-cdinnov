@@ -344,6 +344,7 @@
       Paramètres & données
     </div>
     <div class="spacer"></div>
+    <div id="userChip" class="user-chip"></div>
   </aside>
 
   <!-- ======= MAIN ======= -->
@@ -365,6 +366,64 @@
       </button>
     </div>
     <div class="content" id="content"></div>
+  </div>
+</div>
+
+<style id="authStyles">
+.auth-gate{position:fixed;inset:0;z-index:9999;background:linear-gradient(160deg,#f7f8fa 0%,#e9f4fc 100%);display:flex;align-items:center;justify-content:center;padding:20px;font-family:var(--font)}
+body.authed .auth-gate{display:none}
+.auth-card{width:100%;max-width:384px;background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow-lg);padding:34px 30px;text-align:center}
+.auth-logo{height:54px;width:auto;display:block;margin:0 auto 6px}
+.auth-brand-sub{font-size:11.5px;letter-spacing:.05em;color:var(--muted);text-transform:uppercase;margin-bottom:22px}
+.auth-h{font-family:var(--font-head);font-size:21px;color:var(--ink);margin:0 0 4px}
+.auth-p{font-size:13.5px;color:var(--muted);margin:0 0 18px;line-height:1.5}
+.auth-label{display:block;text-align:left;font-size:12.5px;font-weight:600;color:var(--ink);margin:12px 0 5px}
+.auth-inp{width:100%;box-sizing:border-box}
+.auth-btn{width:100%;justify-content:center;margin-top:18px;padding:11px 14px}
+.auth-link{display:block;width:100%;margin-top:12px;background:none;border:none;color:var(--accent-strong);font-size:13px;cursor:pointer}
+.auth-msg{font-size:13px;border-radius:10px;padding:10px 12px;margin-bottom:16px;text-align:left;line-height:1.45}
+.auth-msg.err{background:var(--warn-soft);color:var(--warn);border:1px solid #f0d3d7}
+.auth-msg.ok{background:var(--ok-soft);color:var(--ok);border:1px solid #cfe6db}
+.auth-foot{margin-top:24px;font-size:11px;color:var(--muted-2)}
+.user-chip{padding:12px 12px 4px;border-top:1px solid var(--line);margin-top:8px}
+.uc-name{font-size:12.5px;font-weight:600;color:var(--ink);margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.uc-logout{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--warn);background:none;border:none;cursor:pointer;padding:0}
+.uc-logout svg{width:14px;height:14px}
+</style>
+<div id="authGate" class="auth-gate">
+  <div class="auth-card">
+    <img class="auth-logo" src="" alt="cdinnov" />
+    <div class="auth-brand-sub">Gestion interne CET &middot; CP</div>
+    <div id="authMsg" class="auth-msg" style="display:none"></div>
+    <div id="authStepLoading"><p class="auth-p">Chargement&hellip;</p></div>
+    <div id="authStepEmail" style="display:none">
+      <h2 class="auth-h">Connexion</h2>
+      <p class="auth-p">Saisissez votre adresse e-mail professionnelle pour continuer.</p>
+      <label class="auth-label">Adresse e-mail</label>
+      <input id="authEmail" class="inp auth-inp" type="email" autocomplete="username" placeholder="prenom@cdinnov.com">
+      <button id="authContinue" class="btn btn-primary auth-btn">Continuer</button>
+    </div>
+    <div id="authStepLogin" style="display:none">
+      <h2 class="auth-h">Bon retour</h2>
+      <p class="auth-p" id="authLoginWho"></p>
+      <label class="auth-label">Mot de passe</label>
+      <input id="authPw" class="inp auth-inp" type="password" autocomplete="current-password">
+      <button id="authLogin" class="btn btn-primary auth-btn">Se connecter</button>
+      <button type="button" class="auth-link" onclick="authBack()">&larr; Changer d'adresse</button>
+    </div>
+    <div id="authStepCreate" style="display:none">
+      <h2 class="auth-h">Premi&egrave;re connexion</h2>
+      <p class="auth-p">Cr&eacute;ez votre mot de passe personnel. Il vous servira pour toutes vos prochaines connexions.</p>
+      <label class="auth-label">Votre nom (affich&eacute;)</label>
+      <input id="authName" class="inp auth-inp" type="text" placeholder="Pr&eacute;nom Nom">
+      <label class="auth-label">Mot de passe (8 caract&egrave;res min.)</label>
+      <input id="authPw1" class="inp auth-inp" type="password" autocomplete="new-password">
+      <label class="auth-label">Confirmer le mot de passe</label>
+      <input id="authPw2" class="inp auth-inp" type="password" autocomplete="new-password">
+      <button id="authCreate" class="btn btn-primary auth-btn">Cr&eacute;er mon compte</button>
+      <button type="button" class="auth-link" onclick="authBack()">&larr; Changer d'adresse</button>
+    </div>
+    <div class="auth-foot">Acc&egrave;s r&eacute;serv&eacute; aux collaborateurs autoris&eacute;s &middot; CDInnov</div>
   </div>
 </div>
 
@@ -743,7 +802,7 @@ function setSort(key){ if(movSort.key===key) movSort.dir=movSort.dir==='asc'?'de
 function sortArrow(key){ if(movSort.key!==key) return '<span class="car" style="opacity:.28">↕</span>'; return '<span class="car">'+(movSort.dir==='asc'?'▲':'▼')+'</span>'; }
 function sortMovs(list){ const k=movSort.key, s=movSort.dir==='asc'?1:-1; const val=m=>{ switch(k){ case 'sal': return m.sal?(m.sal.nom+' '+m.sal.prenom):'zzz'; case 'type': return m.libelle||m.type||''; case 'qte': return m.qteSignee; case 'statut': return m.statut||''; case 'montant': return m.montant==null?-Infinity:m.montant; default: return m.date||''; } }; return list.sort((a,b)=>{ let va=val(a),vb=val(b); if(typeof va==='number'&&typeof vb==='number') return (va-vb)*s; va=String(va).toLowerCase(); vb=String(vb).toLowerCase(); return (va<vb?-1:va>vb?1:0)*s; }); }
 function renderMouvements(){
-  if(!movAccess) return renderMouvementsLock();
+  if(!movAccess) return renderMouvementsNoAccess();
   const admin = movAccess==='admin';
   const me = admin?null:salByMat(movAccess);
   const c=$('#content');
@@ -758,9 +817,8 @@ function renderMouvements(){
 
   c.innerHTML=`
     ${admin?'':`
-    <div class="help-banner" style="justify-content:space-between;align-items:center">
+    <div class="help-banner" style="align-items:center">
       <div style="display:flex;gap:10px;align-items:center">${ic('lock')}<div>Connecté : <b>${esc(me.nom)} ${esc(me.prenom)}</b> — vous voyez uniquement vos mouvements et montants.</div></div>
-      <button class="btn btn-ghost btn-sm no-print" onclick="logoutMouvements()">Changer d'accès</button>
     </div>`}
     <div class="card">
       <div class="card-head"><h2>Heures supplémentaires → CET</h2><div class="desc">${HEURES_PAR_JOUR_CET} h supp = 1 jour d'alimentation CET</div></div>
@@ -822,47 +880,18 @@ function renderMouvements(){
   $('#fcat').addEventListener('change', e=>{movFilter.cat=e.target.value; renderMouvements();});
   $('#ftype').addEventListener('change', e=>{movFilter.type=e.target.value; renderMouvements();});
 }
-function renderMouvementsLock(){
+function renderMouvementsNoAccess(){
   const ta=$('#topAction'); if(ta) ta.style.display='none';
   const cont=$('#content');
-  if(!movLockProfile){
-    cont.innerHTML=`
-      <div class="card" style="max-width:480px;margin:46px auto">
-        <div class="card-pad">
-          <div style="text-align:center;margin-bottom:8px"><span style="width:46px;height:46px;border-radius:13px;background:var(--accent-soft);display:inline-flex;align-items:center;justify-content:center;color:var(--accent-strong)">${ic('lock')}</span></div>
-          <h2 style="margin:0 0 4px;text-align:center">Accès aux mouvements</h2>
-          <div class="profile-grid">
-            <button class="profile-btn" onclick="selectMovProfile('admin')"><span class="avatar" style="background:var(--navy);color:#fff">AD</span><span class="pgrow">Administrateur</span>${ic('chevR')}</button>
-            ${state.salaries.map(s=>`<button class="profile-btn" onclick="selectMovProfile('${s.matricule}')"><span class="avatar">${avInner(s)}</span><span class="pgrow">${esc(s.nom)} ${esc(s.prenom)}</span>${ic('chevR')}</button>`).join('')}
-          </div>
-        </div>
-      </div>`;
-    return;
-  }
-  const isAdmin=movLockProfile==='admin'; const s=isAdmin?null:salByMat(movLockProfile);
-  if(!isAdmin && !s){ movLockProfile=null; return renderMouvementsLock(); }
   cont.innerHTML=`
-    <div class="card" style="max-width:440px;margin:46px auto">
+    <div class="card" style="max-width:480px;margin:46px auto">
       <div class="card-pad" style="text-align:center">
-        <div class="avatar" style="width:50px;height:50px;font-size:16px;margin:0 auto 12px;${isAdmin?'background:var(--navy);color:#fff':''}">${isAdmin?'AD':avInner(s)}</div>
-        <h2 style="margin:0 0 4px">${isAdmin?'Administrateur':esc(s.nom)+' '+esc(s.prenom)}</h2>
-        <div style="font-size:13px;color:var(--muted);margin-bottom:16px">${isAdmin?'Accès à tous les mouvements.':'Accès à vos mouvements et montants.'}</div>
-        <input class="inp" type="password" id="movPwd" placeholder="Mot de passe" style="text-align:center" onkeydown="if(event.key==='Enter')tryUnlockMouvements()">
-        <button class="btn btn-primary" style="margin-top:12px;width:100%;justify-content:center" onclick="tryUnlockMouvements()">${ic('check')} Accéder</button>
-        <button class="btn btn-ghost btn-sm" style="margin-top:8px;width:100%;justify-content:center" onclick="backMovProfile()">${ic('chevL')} Changer de profil</button>
+        <div style="margin-bottom:8px"><span style="width:46px;height:46px;border-radius:13px;background:var(--accent-soft);display:inline-flex;align-items:center;justify-content:center;color:var(--accent-strong)">${ic('lock')}</span></div>
+        <h2 style="margin:0 0 6px">Accès non rattaché</h2>
+        <div style="font-size:13px;color:var(--muted)">Votre compte n'est rattaché à aucun salarié. Contactez l'administrateur pour qu'il vous associe à votre dossier.</div>
       </div>
     </div>`;
-  setTimeout(()=>{ const e=$('#movPwd'); if(e) e.focus(); },60);
 }
-function selectMovProfile(p){ movLockProfile=p; renderMouvementsLock(); }
-function backMovProfile(){ movLockProfile=null; renderMouvementsLock(); }
-function tryUnlockMouvements(){
-  const e=$('#movPwd'); const v=(e?e.value:''); const p=movLockProfile;
-  if(p==='admin' && v===SALARIES_PWD){ movAccess='admin'; movLockProfile=null; movFilter={sal:'',type:'',cat:'',q:''}; toast('Accès administrateur'); renderMouvements(); return; }
-  if(p && p!=='admin'){ const mat=MOV_USER_PWD[(v||'').toLowerCase().trim()]; if(mat===p){ movAccess=p; movLockProfile=null; movFilter={sal:'',type:'',cat:'',q:''}; toast('Connecté : '+salByMat(p).prenom); renderMouvements(); return; } }
-  toast('Mot de passe incorrect'); if(e){ e.value=''; e.focus(); }
-}
-function logoutMouvements(){ movAccess=null; movLockProfile=null; movFilter={sal:'',type:'',cat:'',q:''}; renderMouvements(); }
 function statutBadge(s){
   if(s==='Validé') return `<span class="badge b-valid"><span class="dot"></span>Validé</span>`;
   return `<span class="badge b-pending"><span class="dot"></span>En attente</span>`;
@@ -887,8 +916,19 @@ function tryUnlockSalaries(){
   if(e && e.value===SALARIES_PWD){ salariesUnlocked=true; toast('Accès autorisé'); renderSalaries(); }
   else { toast('Mot de passe incorrect'); if(e){ e.value=''; e.focus(); } }
 }
+function renderSalariesAdminOnly(){
+  const ta=$('#topAction'); if(ta) ta.style.display='none';
+  $('#content').innerHTML=`
+    <div class="card" style="max-width:480px;margin:46px auto">
+      <div class="card-pad" style="text-align:center">
+        <div style="margin-bottom:8px"><span style="width:46px;height:46px;border-radius:13px;background:var(--accent-soft);display:inline-flex;align-items:center;justify-content:center;color:var(--accent-strong)">${ic('lock')}</span></div>
+        <h2 style="margin:0 0 6px">Réservé aux administrateurs</h2>
+        <div style="font-size:13px;color:var(--muted)">La gestion des salariés est accessible uniquement aux comptes administrateurs.</div>
+      </div>
+    </div>`;
+}
 function renderSalaries(){
-  if(!salariesUnlocked) return renderSalariesLock();
+  if(!isAdmin(AUTH_USER)) return renderSalariesAdminOnly();
   const rows=computeYear(currentYear);
   const byMat=Object.fromEntries(rows.map(r=>[r.sal.matricule,r]));
   const c=$('#content');
@@ -980,7 +1020,8 @@ function renderParametres(){
           <button class="btn btn-danger" onclick="resetAll()">${ic('refresh')} Réinitialiser</button>
         </div>
       </div>
-    </div>`;
+    </div>
+    ${renderAuthAdminCard()}`;
 }
 function saveParams(){
   state.params.entreprise=$('#pEnt').value.trim();
@@ -2155,9 +2196,191 @@ function ic(name){
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
 }
 
+/* ===================== AUTHENTIFICATION ===================== */
+const AUTH_ADMINS = ['quilici.pascal@cdinnov.com','pasqualini.david@cdinnov.com','boulanger.albert@cdinnov.com']; // droits admin : voient TOUS les mouvements
+const AUTH_USER_MAT = { 'calendini.matthieu@cdinnov.com':'004', 'vincenti.paulmichel@cdinnov.com':'005' };           // acces restreint : voient uniquement leur dossier
+const AUTH_SEED_EMAILS = [...AUTH_ADMINS, ...Object.keys(AUTH_USER_MAT)];                                            // adresses pre-autorisees
+const AUTH_SESSION_KEY = 'cet_auth_session';
+const AUTH_SESSION_MAX = 8*3600*1000;                   // session valable 8 h
+let AUTH_USER = null;
+
+function normEmail(e){ return String(e||'').trim().toLowerCase(); }
+function authState(){
+  if(!state.auth || typeof state.auth!=='object') state.auth={accounts:{},allowed:[]};
+  if(!state.auth.accounts || typeof state.auth.accounts!=='object') state.auth.accounts={};
+  if(!Array.isArray(state.auth.allowed)) state.auth.allowed=[];
+  return state.auth;
+}
+function ensureAuthSeed(){ const a=authState(); AUTH_SEED_EMAILS.forEach(e=>{ e=normEmail(e); if(!a.allowed.includes(e)) a.allowed.push(e); }); }
+function isAdmin(email){ return AUTH_ADMINS.includes(normEmail(email)); }
+function isAllowed(email){ email=normEmail(email); return isAdmin(email) || authState().allowed.includes(email); }
+
+/* hachage PBKDF2 (Web Crypto) */
+function _hex(buf){ return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join(''); }
+function _bytes(hex){ const a=new Uint8Array(hex.length/2); for(let i=0;i<a.length;i++) a[i]=parseInt(hex.substr(i*2,2),16); return a; }
+async function pbkdf2(pw, saltHex, iter){
+  const enc=new TextEncoder();
+  const km=await crypto.subtle.importKey('raw', enc.encode(pw), 'PBKDF2', false, ['deriveBits']);
+  const bits=await crypto.subtle.deriveBits({name:'PBKDF2', salt:_bytes(saltHex), iterations:iter, hash:'SHA-256'}, km, 256);
+  return _hex(bits);
+}
+function randHex(n){ const a=new Uint8Array(n); crypto.getRandomValues(a); return _hex(a.buffer); }
+async function authCreateAccount(email, name, pw){
+  email=normEmail(email);
+  const salt=randHex(16), iter=150000;
+  const hash=await pbkdf2(pw, salt, iter);
+  authState().accounts[email]={ salt, iter, hash, name:(name||'').trim()||email, created:new Date().toISOString() };
+  save();
+}
+async function authVerify(email, pw){
+  email=normEmail(email);
+  const acc=authState().accounts[email]; if(!acc) return false;
+  const h=await pbkdf2(pw, acc.salt, acc.iter||150000);
+  return h===acc.hash;
+}
+
+/* session locale */
+function setSession(email){ try{ localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify({email:normEmail(email), t:Date.now()})); }catch(e){} }
+function getSession(){ try{ const x=JSON.parse(localStorage.getItem(AUTH_SESSION_KEY)||'null'); if(x && (Date.now()-x.t)<AUTH_SESSION_MAX) return x; }catch(e){} return null; }
+function clearSession(){ try{ localStorage.removeItem(AUTH_SESSION_KEY); }catch(e){} }
+async function authSaveCredential(email, pw, name){
+  try{ if(window.PasswordCredential){ const cred=new PasswordCredential({ id:email, password:pw, name:name||email }); await navigator.credentials.store(cred); } }catch(e){}
+}
+
+/* UI de l'ecran de connexion */
+function authMsg(t, kind){ const m=$('#authMsg'); if(!m) return; if(!t){ m.style.display='none'; return; } m.textContent=t; m.className='auth-msg '+(kind||'err'); m.style.display='block'; }
+function authShowStep(step){ ['Loading','Email','Login','Create'].forEach(x=>{ const el=$('#authStep'+x); if(el) el.style.display=(x===step?'':'none'); }); }
+function authBack(){ authMsg(''); ['#authPw','#authPw1','#authPw2'].forEach(id=>{const e=$(id); if(e) e.value='';}); authShowStep('Email'); setTimeout(()=>{const e=$('#authEmail'); if(e) e.focus();},30); }
+let _authEmailPending='';
+function authContinue(){
+  authMsg('');
+  const email=normEmail($('#authEmail').value);
+  if(!email || email.indexOf('@')<1){ authMsg('Entrez une adresse e-mail valide.'); return; }
+  _authEmailPending=email;
+  const acc=authState().accounts[email];
+  if(acc){ $('#authLoginWho').textContent=acc.name+' · '+email; authShowStep('Login'); setTimeout(()=>$('#authPw').focus(),30); return; }
+  if(isAllowed(email)){ $('#authName').value=''; authShowStep('Create'); setTimeout(()=>$('#authName').focus(),30); return; }
+  authMsg("Cette adresse n'est pas autorisée à accéder à l'outil. Contactez l'administrateur (Pascal).");
+}
+async function authDoLogin(){
+  authMsg('');
+  const pw=$('#authPw').value;
+  if(!pw){ authMsg('Entrez votre mot de passe.'); return; }
+  try{
+    const ok=await authVerify(_authEmailPending, pw);
+    if(!ok){ authMsg('Mot de passe incorrect.'); return; }
+    setSession(_authEmailPending); await authSaveCredential(_authEmailPending, pw); unlockApp(_authEmailPending);
+  }catch(e){ authMsg("Erreur technique (chiffrement indisponible). Ouvrez l'application via son adresse https, pas en fichier local."); }
+}
+async function authDoCreate(){
+  authMsg('');
+  if(!isAllowed(_authEmailPending)){ authMsg("Adresse non autorisée."); return; }
+  const name=$('#authName').value.trim();
+  const p1=$('#authPw1').value, p2=$('#authPw2').value;
+  if(!name){ authMsg('Indiquez votre nom.'); return; }
+  if(p1.length<8){ authMsg('Le mot de passe doit faire au moins 8 caractères.'); return; }
+  if(p1!==p2){ authMsg('Les deux mots de passe ne correspondent pas.'); return; }
+  try{
+    await authCreateAccount(_authEmailPending, name, p1);
+    setSession(_authEmailPending); await authSaveCredential(_authEmailPending, p1, name); unlockApp(_authEmailPending);
+  }catch(e){ authMsg("Erreur technique (chiffrement indisponible). Ouvrez l'application via son adresse https, pas en fichier local."); }
+}
+function unlockApp(email){
+  AUTH_USER=normEmail(email);
+  movAccess = isAdmin(AUTH_USER) ? 'admin' : (AUTH_USER_MAT[AUTH_USER] || null);
+  movLockProfile=null; movFilter={sal:'',type:'',cat:'',q:''};
+  salariesUnlocked = isAdmin(AUTH_USER);
+  document.body.classList.add('authed');
+  renderUserChip();
+  render();
+}
+function authLogout(){
+  clearSession(); AUTH_USER=null; movAccess=null; salariesUnlocked=false;
+  document.body.classList.remove('authed');
+  const e=$('#authEmail'); if(e) e.value='';
+  authBack();
+}
+function renderUserChip(){
+  const el=$('#userChip'); if(!el) return;
+  if(!AUTH_USER){ el.innerHTML=''; return; }
+  const acc=authState().accounts[AUTH_USER]; const nm=acc?acc.name:AUTH_USER;
+  el.innerHTML=`<div class="uc-name" title="${esc(AUTH_USER)}">${esc(nm)}${isAdmin(AUTH_USER)?' · admin':''}</div><button class="uc-logout" onclick="authLogout()">${ic('lock')} Déconnexion</button>`;
+}
+
+/* gestion des acces (Reglages, admin seulement) */
+function renderAuthAdminCard(){
+  if(!isAdmin(AUTH_USER)) return '';
+  const a=authState();
+  const emails=[...new Set([...a.allowed, ...Object.keys(a.accounts)])].sort();
+  const rows=emails.map(e=>{
+    const acc=a.accounts[e]; const admin=isAdmin(e);
+    const statut = acc ? '<span class="badge b-valid"><span class="dot"></span>Compte actif</span>' : '<span class="badge b-util"><span class="dot"></span>En attente 1re connexion</span>';
+    return `<tr>
+      <td>${esc(acc?acc.name:'—')}</td>
+      <td>${esc(e)}${admin?' <span class="chip">admin</span>':''}</td>
+      <td>${statut}</td>
+      <td class="num" style="white-space:nowrap">
+        ${acc?`<button class="icon-btn" title="Réinitialiser le mot de passe" onclick="authResetAccount('${esc(e)}')">${ic('refresh')}</button>`:''}
+        ${admin?'':`<button class="icon-btn" title="Retirer l'accès" onclick="authRemoveAllowed('${esc(e)}')">${ic('trash')}</button>`}
+      </td></tr>`;
+  }).join('');
+  return `<div class="card">
+    <div class="card-head"><h2>Comptes &amp; accès</h2></div>
+    <div class="card-pad">
+      <div class="help-banner">${ic('info')}<div>Ajoutez les adresses e-mail autorisées à se connecter. Chaque collaborateur <b>crée son mot de passe</b> à sa première connexion. Vous seul (admin) gérez cette liste.</div></div>
+      <div class="filters" style="margin-bottom:14px">
+        <input class="inp" id="newAllowedEmail" type="email" placeholder="prenom@cdinnov.com" style="max-width:280px">
+        <button class="btn btn-primary btn-sm" onclick="authAddAllowed()">${ic('plus')} Autoriser cette adresse</button>
+      </div>
+      <table><thead><tr><th>Nom</th><th>E-mail</th><th>Statut</th><th></th></tr></thead>
+      <tbody>${rows||'<tr><td colspan="4" style="color:var(--muted)">Aucune adresse autorisée.</td></tr>'}</tbody></table>
+    </div></div>`;
+}
+function authAddAllowed(){
+  const e=normEmail($('#newAllowedEmail').value);
+  if(!e || e.indexOf('@')<1){ toast('Adresse invalide'); return; }
+  const a=authState(); if(!a.allowed.includes(e)) a.allowed.push(e);
+  save(); toast('Adresse autorisée'); render();
+}
+function authRemoveAllowed(email){
+  email=normEmail(email);
+  if(isAdmin(email)){ toast('Impossible de retirer un admin'); return; }
+  if(!confirm("Retirer l'accès de "+email+" ? Son compte et son mot de passe seront supprimés.")) return;
+  const a=authState(); a.allowed=a.allowed.filter(x=>x!==email); delete a.accounts[email];
+  save(); render();
+}
+function authResetAccount(email){
+  email=normEmail(email);
+  if(!confirm("Réinitialiser le mot de passe de "+email+" ? La personne devra le recréer à sa prochaine connexion.")) return;
+  const a=authState(); delete a.accounts[email];
+  save(); toast('Mot de passe réinitialisé'); render();
+}
+
+/* cablage ecran de connexion */
+(function(){
+  const b=document.querySelector('.brand-logo'), a=document.querySelector('.auth-logo'); if(b&&a) a.src=b.src;
+  const c=$('#authContinue'); if(c) c.onclick=authContinue;
+  const l=$('#authLogin'); if(l) l.onclick=authDoLogin;
+  const cr=$('#authCreate'); if(cr) cr.onclick=authDoCreate;
+  const em=$('#authEmail'); if(em) em.addEventListener('keydown',e=>{ if(e.key==='Enter') authContinue(); });
+  const pw=$('#authPw'); if(pw) pw.addEventListener('keydown',e=>{ if(e.key==='Enter') authDoLogin(); });
+  const p2=$('#authPw2'); if(p2) p2.addEventListener('keydown',e=>{ if(e.key==='Enter') authDoCreate(); });
+})();
+
 /* ===================== boot ===================== */
 setView('dashboard');
-if(cloudEnabled()) cloudLoad(); else setSync('local','Local');
+function bootAuth(){
+  ensureAuthSeed();
+  const proceed=()=>{
+    ensureAuthSeed();
+    const sx=getSession();
+    if(sx && authState().accounts[sx.email]){ unlockApp(sx.email); }
+    else { authShowStep('Email'); setTimeout(()=>{ const e=$('#authEmail'); if(e) e.focus(); },50); }
+  };
+  if(cloudEnabled()){ cloudLoad().then(proceed).catch(proceed); }
+  else { setSync('local','Local'); proceed(); }
+}
+bootAuth();
 </script>
 </body>
 </html>
