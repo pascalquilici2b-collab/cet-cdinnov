@@ -1044,6 +1044,10 @@ const CONGES_TYPE_COLOR={'Congés payés':'#1786c9','Maladie':'#c0455b','Autre':
 let congesSal=null, congesMonth=new Date().getMonth(), congesType='Congés payés', congesStatut='Validé';
 
 function conges(){ return state.conges || (state.conges=[]); }
+function congesAdmin(){ return (typeof isAdmin==='function' && typeof AUTH_USER!=='undefined') ? isAdmin(AUTH_USER) : true; }
+function congesMyMat(){ return congesAdmin()?null:((typeof AUTH_USER_MAT!=='undefined' && AUTH_USER_MAT[AUTH_USER])||null); }
+function congesSalList(){ return congesAdmin()? state.salaries : state.salaries.filter(s=>s.matricule===congesMyMat()); }
+function congesEffStatut(){ return congesAdmin()? congesStatut : 'En attente'; }
 function joursOuvres(d1,d2){
   if(!d1||!d2) return 0;
   const a=new Date(d1+'T00:00:00'), b=new Date(d2+'T00:00:00');
@@ -1069,13 +1073,13 @@ function congeAt(mat,date,half){ return conges().find(c=>c.matricule===mat && c.
 function toggleHalf(mat,date,half){
   const ex=congeAt(mat,date,half);
   if(ex) state.conges=conges().filter(c=>c!==ex);
-  else { conges().push({id:uid(),matricule:mat,date,half,type:congesType,statut:congesStatut}); if(congesStatut!=='Validé') scheduleCongesNotify(mat); }
+  else { const st=congesEffStatut(); conges().push({id:uid(),matricule:mat,date,half,type:congesType,statut:st}); if(st!=='Validé') scheduleCongesNotify(mat); }
   save(); renderConges();
 }
 function toggleDay(mat,date){
   const am=congeAt(mat,date,'AM'), pm=congeAt(mat,date,'PM');
   if(am&&pm) state.conges=conges().filter(c=>!(c.matricule===mat&&c.date===date));
-  else { ['AM','PM'].forEach(hf=>{ if(!congeAt(mat,date,hf)) conges().push({id:uid(),matricule:mat,date,half:hf,type:congesType,statut:congesStatut}); }); if(congesStatut!=='Validé') scheduleCongesNotify(mat); }
+  else { const st=congesEffStatut(); ['AM','PM'].forEach(hf=>{ if(!congeAt(mat,date,hf)) conges().push({id:uid(),matricule:mat,date,half:hf,type:congesType,statut:st}); }); if(st!=='Validé') scheduleCongesNotify(mat); }
   save(); renderConges();
 }
 function setCongesSal(m){ congesSal=m; renderConges(); }
@@ -1133,10 +1137,11 @@ function joursValideAnnee(mat,Y){
 function renderConges(){
   migrateConges();
   const Y=currentYear; const cont=$('#content');
-  if(!congesSal || !salByMat(congesSal)) congesSal = state.salaries[0] ? state.salaries[0].matricule : null;
-  const list=conges().filter(c=>yearOf(c.date)===Y);
+  if(!congesAdmin()){ congesSal = congesMyMat(); }
+  else if(!congesSal || !salByMat(congesSal)) congesSal = state.salaries[0] ? state.salaries[0].matricule : null;
+  const list=conges().filter(c=>yearOf(c.date)===Y && (congesAdmin()||c.matricule===congesMyMat()));
   let satV=0, satA=0;
-  state.salaries.forEach(s=>{ autoSamedisList(s.matricule).forEach(x=>{ if(yearOf(x.date)===Y){ if(x.statut==='Validé') satV++; else satA++; } }); });
+  congesSalList().forEach(s=>{ autoSamedisList(s.matricule).forEach(x=>{ if(yearOf(x.date)===Y){ if(x.statut==='Validé') satV++; else satA++; } }); });
   const totalValide=list.filter(c=>c.statut==='Validé').length*0.5 + satV;
   const totalAttente=list.filter(c=>c.statut!=='Validé').length*0.5 + satA;
   const nbSal=new Set(list.map(c=>c.matricule)).size;
@@ -1148,9 +1153,9 @@ function renderConges(){
   cont.innerHTML=`
     <div class="help-banner">${ic('info')}<div>Cliquez les demi-journées : <b>haut = matin</b>, <b>bas = après-midi</b> (n° du jour = journée entière).</div></div>
     <div class="stat-grid">
-      <div class="stat accent"><div class="k">${ic('sun')} Congés validés ${Y}</div><div class="v">${nbJours(totalValide)}<span class="u">jours</span></div><div class="sub">tous salariés</div></div>
+      <div class="stat accent"><div class="k">${ic('sun')} Congés validés ${Y}</div><div class="v">${nbJours(totalValide)}<span class="u">jours</span></div><div class="sub">${congesAdmin()?'tous salariés':'vos congés'}</div></div>
       <div class="stat"><div class="k">${ic('clock')} En attente ${Y}</div><div class="v">${nbJours(totalAttente)}<span class="u">j</span></div><div class="sub">à valider</div></div>
-      <div class="stat"><div class="k">${ic('calendar')} Salariés concernés ${Y}</div><div class="v">${nbSal}</div><div class="sub">sur ${state.salaries.length}</div></div>
+      <div class="stat"><div class="k">${ic('calendar')} Salariés concernés ${Y}</div><div class="v">${nbSal}</div><div class="sub">sur ${congesSalList().length}</div></div>
     </div>
 
     <div class="card">
@@ -1162,7 +1167,7 @@ function renderConges(){
       </div>
       <div class="card-pad">
         <div class="emp-tabs" style="margin-bottom:14px">
-          ${state.salaries.map(s=>`<div class="emp-tab ${s.matricule===congesSal?'act':''}" onclick="setCongesSal('${s.matricule}')"><span class="avatar" style="width:22px;height:22px;font-size:10px">${avInner(s)}</span>${esc(s.nom)} ${esc(s.prenom)}</div>`).join('')}
+          ${congesSalList().map(s=>`<div class="emp-tab ${s.matricule===congesSal?'act':''}" onclick="setCongesSal('${s.matricule}')"><span class="avatar" style="width:22px;height:22px;font-size:10px">${avInner(s)}</span>${esc(s.nom)} ${esc(s.prenom)}</div>`).join('')}
         </div>
         ${sal?`
         <div class="cal-toolbar">
@@ -1172,7 +1177,7 @@ function renderConges(){
             <button class="icon-btn" onclick="congesShiftMonth(1)" title="Mois suivant">${ic('chevR')}</button>
           </div>
           <div class="field"><select class="inp slim" onchange="setCongesType(this.value)" style="width:auto">${CONGES_TYPES.map(t=>`<option ${t===congesType?'selected':''}>${t}</option>`).join('')}</select></div>
-          <div class="field"><select class="inp slim" onchange="setCongesStatut(this.value)" style="width:auto"><option ${congesStatut==='Validé'?'selected':''}>Validé</option><option ${congesStatut!=='Validé'?'selected':''}>En attente</option></select></div>
+          ${congesAdmin()?`<div class="field"><select class="inp slim" onchange="setCongesStatut(this.value)" style="width:auto"><option ${congesStatut==='Validé'?'selected':''}>Validé</option><option ${congesStatut!=='Validé'?'selected':''}>En attente</option></select></div>`:`<span class="chip" style="background:var(--pending-soft);color:var(--pending)">${ic('clock')} Posé en attente de validation</span>`}
           <span class="chip">${nbJours(joursValideAnnee(congesSal,Y))} j validés en ${Y}</span>
         </div>
         ${calendarHTML(congesSal,Y,congesMonth)}
@@ -1191,12 +1196,12 @@ function renderConges(){
   `;
 }
 function congesPendingCard(Y){
-  const pend=state.salaries.map(s=>{ const days=conges().filter(c=>c.matricule===s.matricule && yearOf(c.date)===Y && c.statut!=='Validé').length*0.5; return {s,days}; }).filter(x=>x.days>0);
+  const pend=congesSalList().map(s=>{ const days=conges().filter(c=>c.matricule===s.matricule && yearOf(c.date)===Y && c.statut!=='Validé').length*0.5; return {s,days}; }).filter(x=>x.days>0);
   const maxP=Math.max(1,...pend.map(x=>x.days));
   return `<div class="card">
-    <div class="card-head"><h2>${ic('clock')} Congés en attente de validation — ${Y}</h2><div class="grow"></div>${pend.length?`<button class="btn btn-primary btn-sm no-print" onclick="validerCongesAll(${Y})">${ic('check')} Tout valider</button>`:''}</div>
+    <div class="card-head"><h2>${ic('clock')} Congés en attente de validation — ${Y}</h2><div class="grow"></div>${pend.length&&congesAdmin()?`<button class="btn btn-primary btn-sm no-print" onclick="validerCongesAll(${Y})">${ic('check')} Tout valider</button>`:''}</div>
     <div class="card-pad">
-      ${pend.length? pend.map(x=>`<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:12.5px;margin-bottom:4px"><span class="name-cell"><span class="avatar" style="width:24px;height:24px;font-size:10px">${avInner(x.s)}</span><b>${esc(x.s.nom)} ${esc(x.s.prenom)}</b> — <span style="color:var(--pending);font-weight:700">${nbJours(x.days)} j en attente</span></span><button class="btn btn-ghost btn-sm no-print" onclick="validerCongesSal('${x.s.matricule}',${Y})">${ic('check')} Valider</button></div><div class="gauge" style="background:var(--pending-soft)"><i style="width:${Math.min(100,x.days/maxP*100)}%;background:var(--pending)"></i></div></div>`).join('') : `<div style="color:var(--muted);font-size:13px">Aucun congé en attente pour ${Y}.</div>`}
+      ${pend.length? pend.map(x=>`<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:12.5px;margin-bottom:4px"><span class="name-cell"><span class="avatar" style="width:24px;height:24px;font-size:10px">${avInner(x.s)}</span><b>${esc(x.s.nom)} ${esc(x.s.prenom)}</b> — <span style="color:var(--pending);font-weight:700">${nbJours(x.days)} j en attente</span></span>${congesAdmin()?`<button class="btn btn-ghost btn-sm no-print" onclick="validerCongesSal('${x.s.matricule}',${Y})">${ic('check')} Valider</button>`:`<span class="chip" style="background:var(--pending-soft);color:var(--pending)">En attente</span>`}</div><div class="gauge" style="background:var(--pending-soft)"><i style="width:${Math.min(100,x.days/maxP*100)}%;background:var(--pending)"></i></div></div>`).join('') : `<div style="color:var(--muted);font-size:13px">Aucun congé en attente pour ${Y}.</div>`}
     </div>
   </div>`;
 }
@@ -1206,7 +1211,7 @@ function congesRecapTable(Y){
   return `<table>
     <thead><tr><th>Salarié</th>${MOIS_ABBR.map(m=>`<th class="num">${m}</th>`).join('')}<th class="num">Total</th></tr></thead>
     <tbody>
-    ${state.salaries.map(s=>{
+    ${congesSalList().map(s=>{
       const pm=Array(12).fill(0);
       conges().filter(c=>c.matricule===s.matricule && yearOf(c.date)===Y && c.statut==='Validé').forEach(c=>{ pm[new Date(c.date+'T00:00:00').getMonth()]+=0.5; });
       autoSamedisList(s.matricule).forEach(x=>{ if(yearOf(x.date)===Y && x.statut==='Validé') pm[new Date(x.date+'T00:00:00').getMonth()]+=1; });
@@ -1221,11 +1226,11 @@ function openConge(matPre){
     <div class="modal-head"><h3>Poser une période de congés</h3></div>
     <div class="modal-body">
       <div class="form-grid">
-        <div class="form-row"><label>Salarié</label><select class="inp" id="cgSal">${state.salaries.map(s=>`<option value="${s.matricule}" ${matPre===s.matricule?'selected':''}>${esc(s.nom)} ${esc(s.prenom)} (${s.matricule})</option>`).join('')}</select></div>
+        <div class="form-row"><label>Salarié</label><select class="inp" id="cgSal" ${congesAdmin()?'':'disabled'}>${(congesAdmin()?state.salaries:state.salaries.filter(s=>s.matricule===congesMyMat())).map(s=>`<option value="${s.matricule}" ${(congesAdmin()?matPre:congesMyMat())===s.matricule?'selected':''}>${esc(s.nom)} ${esc(s.prenom)} (${s.matricule})</option>`).join('')}</select></div>
         <div class="form-row"><label>Type</label><select class="inp" id="cgType">${CONGES_TYPES.map(t=>`<option>${t}</option>`).join('')}</select></div>
         <div class="form-row"><label>Date de début</label><input class="inp" type="date" id="cgD1" value="${today}"></div>
         <div class="form-row"><label>Date de fin</label><input class="inp" type="date" id="cgD2" value="${today}"></div>
-        <div class="form-row"><label>Statut</label><select class="inp" id="cgStatut"><option>Validé</option><option>En attente</option></select></div>
+        ${congesAdmin()?`<div class="form-row"><label>Statut</label><select class="inp" id="cgStatut"><option>Validé</option><option>En attente</option></select></div>`:`<div class="form-row"><label>Statut</label><input class="inp" value="En attente (à valider)" disabled></div>`}
         <div class="form-row"></div>
         <div class="form-row full"><div class="preview" id="cgPrev"></div></div>
       </div>
@@ -1239,7 +1244,7 @@ function openConge(matPre){
   $('#cgD1').addEventListener('input',upd); $('#cgD2').addEventListener('input',upd); upd();
 }
 function saveConge(){
-  const mat=$('#cgSal').value, type=$('#cgType').value, statut=$('#cgStatut').value;
+  const mat=congesAdmin()?$('#cgSal').value:congesMyMat(), type=$('#cgType').value, statut=congesAdmin()?($('#cgStatut')?$('#cgStatut').value:'Validé'):'En attente';
   const d1=$('#cgD1').value, d2=$('#cgD2').value;
   if(!mat||!d1||!d2){ toast('Salarié et dates requis'); return; }
   if(d2<d1){ toast('La date de fin précède le début'); return; }
@@ -2294,6 +2299,7 @@ function unlockApp(email){
   movAccess = isAdmin(AUTH_USER) ? 'admin' : (AUTH_USER_MAT[AUTH_USER] || null);
   movLockProfile=null; movFilter={sal:'',type:'',cat:'',q:''};
   salariesUnlocked = isAdmin(AUTH_USER);
+  const salNav=document.querySelector('.nav-item[data-view="salaries"]'); if(salNav) salNav.style.display = isAdmin(AUTH_USER)?'':'none';
   document.body.classList.add('authed');
   renderUserChip();
   render();
