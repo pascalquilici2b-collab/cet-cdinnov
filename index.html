@@ -511,7 +511,8 @@ function freshState(){
     salaries: structuredClone(SALARIES_DEFAULT),
     mouvements: structuredClone(MOUVEMENTS_DEFAULT),
     conges: [],
-    notesFrais: []
+    notesFrais: [],
+    auth: {accounts:{},allowed:[]}
   };
 }
 function load(){
@@ -525,7 +526,8 @@ function load(){
       salaries: d.salaries || [],
       mouvements: d.mouvements || [],
       conges: d.conges || [],
-      notesFrais: d.notesFrais || []
+      notesFrais: d.notesFrais || [],
+      auth: (d.auth && typeof d.auth==='object') ? d.auth : {accounts:{},allowed:[]}
     };
   }catch(e){ STORAGE_OK=false; return freshState(); }
 }
@@ -548,7 +550,8 @@ async function cloudLoad(){
       if(d && d.params){
         state={ params:Object.assign(structuredClone(PARAMS_DEFAULT), d.params),
                 types:(d.types&&d.types.length)?d.types:structuredClone(TYPES_DEFAULT),
-                salaries:d.salaries||[], mouvements:d.mouvements||[], conges:d.conges||[], notesFrais:d.notesFrais||[] };
+                salaries:d.salaries||[], mouvements:d.mouvements||[], conges:d.conges||[], notesFrais:d.notesFrais||[],
+                auth:(d.auth&&typeof d.auth==='object')?d.auth:(state.auth||{accounts:{},allowed:[]}) };
         try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){}
         currentYear=Number(state.params.anneeSuivi)||currentYear;
       }
@@ -2231,6 +2234,7 @@ async function authCreateAccount(email, name, pw){
   const hash=await pbkdf2(pw, salt, iter);
   authState().accounts[email]={ salt, iter, hash, name:(name||'').trim()||email, created:new Date().toISOString() };
   save();
+  try{ await cloudPush(); }catch(e){}   // pousse immediatement dans le cloud (pas d'attente du debounce)
 }
 async function authVerify(email, pw){
   email=normEmail(email);
