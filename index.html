@@ -320,11 +320,11 @@
     <div class="nav-label">Pilotage</div>
     <div class="nav-item active" data-view="dashboard">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
-      Tableau de bord
+      Tableau de bord CET
     </div>
     <div class="nav-item" data-view="mouvements">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h13M7 7l3-3M7 7l3 3"/><path d="M17 17H4m13 0l-3 3m3-3l-3-3"/></svg>
-      Mouvements
+      Mouvements CET
     </div>
     <div class="nav-item" data-view="salaries">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
@@ -338,7 +338,7 @@
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h11l5 5v15a0 0 0 0 1 0 0H4z"/><path d="M15 2v5h5"/><path d="M8 13h8M8 17h6M8 9h3"/></svg>
       Note de frais
     </div>
-    <div class="nav-label">Réglages</div>
+    <div class="nav-label" id="navLabelReglages">Réglages</div>
     <div class="nav-item" data-view="parametres">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
       Paramètres & données
@@ -696,8 +696,8 @@ function availableYears(){
 /* logo cdinnov intégré directement dans la sidebar (PNG base64) */
 
 const VIEW_META = {
-  dashboard:{title:'Tableau de bord', sub:"Vue d'ensemble du Compte Épargne-Temps", action:'Nouveau mouvement', actFn:()=>openMouvement()},
-  mouvements:{title:'Mouvements', sub:'Historique des alimentations et utilisations', action:'Nouveau mouvement', actFn:()=>openMouvement()},
+  dashboard:{title:'Tableau de bord CET', sub:"Vue d'ensemble du Compte Épargne-Temps", action:'Nouveau mouvement', actFn:()=>openMouvement()},
+  mouvements:{title:'Mouvements CET', sub:'Historique des alimentations et utilisations', action:'Nouveau mouvement', actFn:()=>openMouvement()},
   salaries:{title:'Salariés', sub:'Bénéficiaires du dispositif CET', action:'Nouveau salarié', actFn:()=>openSalarie()},
   conges:{title:'Congés payés', sub:'Calendrier des congés — demi-journées incluses', action:'Poser une période', actFn:()=>openConge()},
   notesfrais:{title:'Note de frais', sub:'Création, suivi et archivage des notes de frais', action:'Créer une note de frais', actFn:()=>openNoteFrais()},
@@ -783,7 +783,7 @@ function renderDashboard(){
 
     <div class="card">
       <div class="card-head">
-        <div><h2>Synthèse par salarié — ${currentYear}</h2></div>
+        <div style="display:flex;align-items:center;gap:12px"><h2>Synthèse par salarié</h2><select class="inp slim" style="width:auto" onchange="currentYear=Number(this.value);render()">${availableYears().map(y=>`<option value="${y}" ${y===currentYear?'selected':''}>${y}</option>`).join('')}</select></div>
         <div class="grow"></div>
         <button class="btn btn-ghost btn-sm no-print" onclick="exportCSV()">${ic('download')} Export Excel/CSV</button>
         <button class="btn btn-ghost btn-sm no-print" onclick="window.print()">${ic('print')} Imprimer</button>
@@ -1721,6 +1721,7 @@ let nfFilter={sal:'',statut:'',q:''};
 function renderNotesFrais(){
   const c=$('#content');
   let list=notesFrais().slice();
+  if(typeof movAccess!=='undefined' && movAccess && movAccess!=='admin') list=list.filter(n=>n.matricule===movAccess);
   if(nfFilter.sal) list=list.filter(n=>n.matricule===nfFilter.sal);
   if(nfFilter.statut) list=list.filter(n=>(n.statut||'Brouillon')===nfFilter.statut);
   if(nfFilter.q){ const q=nfFilter.q.toLowerCase(); list=list.filter(n=>{const s=salByMat(n.matricule)||{}; return ((n.objet||'')+' '+(n.lieu||'')+' N'+(n.numero||'')+' '+(s.nom||'')+' '+(s.prenom||'')).toLowerCase().includes(q);}); }
@@ -1908,7 +1909,8 @@ function dupNoteFrais(id){
   const o=notesFrais().find(n=>n.id===id); if(!o) return;
   const c=JSON.parse(JSON.stringify(o));
   c.id=uid(); c.numero=nextNumNF(); c.statut='Brouillon'; c.dateNote=ymd(new Date()); c.signature=null;
-  notesFrais().push(c); save(); toast('Note dupliquée — N°'+c.numero); render();
+  if(typeof movAccess!=='undefined' && movAccess && movAccess!=='admin') c.matricule=movAccess; // compte restreint : la copie lui est attribuée
+  notesFrais().push(c); save(); toast('Note dupliquée — N°'+c.numero); openNoteFrais(c.id);
 }
 function loadJsPDF(){
   if(window.jspdf && window.jspdf.jsPDF) return Promise.resolve(window.jspdf);
@@ -2392,6 +2394,7 @@ function unlockApp(email){
   salariesUnlocked = isAdmin(AUTH_USER);
   const salNav=document.querySelector('.nav-item[data-view="salaries"]'); if(salNav) salNav.style.display = isAdmin(AUTH_USER)?'':'none';
   const parNav=document.querySelector('.nav-item[data-view="parametres"]'); if(parNav) parNav.style.display = isAdmin(AUTH_USER)?'':'none';
+  const regLbl=document.getElementById('navLabelReglages'); if(regLbl) regLbl.style.display = isAdmin(AUTH_USER)?'':'none';
   document.body.classList.add('authed');
   renderUserChip();
   render();
