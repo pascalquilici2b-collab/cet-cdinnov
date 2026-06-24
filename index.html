@@ -413,6 +413,18 @@ body.authed .auth-gate{display:none}
 .card-pending{background:var(--pending-soft);border-color:#ecdca6}
 .card-pending .card-head h2{color:#6b520b}
 .card-pending .card-head h2 svg{stroke:var(--pending)}
+.nf-badge{display:inline-flex;align-items:center;gap:5px}
+.badge svg,.nf-badge svg{width:13px;height:13px;flex:0 0 13px}
+.salpick{position:relative}
+.salpick-btn{display:flex;align-items:center;gap:8px;width:100%;background:#fff;border:1px solid var(--line-strong);border-radius:var(--radius-sm);padding:7px 10px;cursor:pointer;font:inherit;text-align:left;min-height:38px}
+.salpick-btn:disabled{cursor:default;opacity:.9}
+.salpick-av{width:24px;height:24px;font-size:10px;flex:0 0 24px}
+.salpick-name{flex:1;font-size:13px;color:var(--ink)}
+.salpick-btn>svg{width:14px;height:14px;stroke:var(--muted)}
+.salpick-list{position:absolute;top:calc(100% + 4px);left:0;right:0;background:#fff;border:1px solid var(--line-strong);border-radius:var(--radius-sm);box-shadow:var(--shadow-lg);z-index:60;max-height:240px;overflow:auto;padding:4px}
+.salpick-item{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:8px;cursor:pointer;font-size:13px}
+.salpick-item:hover{background:var(--panel-2)}
+.nfcat-ic svg{width:18px;height:18px;stroke:var(--accent-strong);flex:0 0 18px}
 </style>
 <div id="authGate" class="auth-gate">
   <div class="auth-card">
@@ -1609,7 +1621,7 @@ function applyCoutCalc(mat){
 
 /* ===================== NOTES DE FRAIS ===================== */
 const NF_CATS=['Repas','Restaurant','Hébergement','Transport (train/avion/bateau)','Bus/Car/Métro','Parking','Péage','Carburant','Taxi','Location véhicule','Fournitures','Frais kilométriques','Invitation client','Taxe de séjour','Autres frais professionnels'];
-const NF_STATUTS=['Brouillon','Soumise','Validée','Payée'];
+const NF_STATUTS=['Brouillon','Envoyé','Payée'];
 /* Barème kilométrique 2026 (identique 2025, non revalorisé) — [seuil km, coef, constante] */
 const BAREME_KM={
   voiture:{label:'Voiture', cv:{
@@ -1714,12 +1726,38 @@ function notesFrais(){ return state.notesFrais || (state.notesFrais=[]); }
 function nextNumNF(){ const ns=notesFrais().map(n=>Number(n.numero)||0); return (ns.length?Math.max(...ns):0)+1; }
 function nfTotal(n){ return Math.round((n.lignes||[]).reduce((a,l)=>a+(Number(l.montant)||0),0)*100)/100; }
 function nfRembourse(n){ return Math.round((nfTotal(n)-(Number(n.avance)||0))*100)/100; }
-function nfStatutBadge(st){ const m={'Brouillon':'b-gray','Soumise':'b-pending','Validée':'b-green','Payée':'b-valid'}; return `<span class="badge ${m[st]||'b-gray'}"><span class="dot"></span>${esc(st||'Brouillon')}</span>`; }
+function isAlbert(){ return typeof AUTH_USER!=='undefined' && typeof normEmail==='function' && normEmail(AUTH_USER)==='boulanger.albert@cdinnov.com'; }
+function nfStatutNorm(st){ if(st==='Soumise'||st==='Soumis') return 'Envoyé'; if(st==='Validée'||st==='Validé') return 'Envoyé'; return st||'Brouillon'; }
+function nfStatutOptions(cur){ const base=isAlbert()?['Brouillon','Envoyé','Payée']:['Brouillon','Envoyé']; cur=nfStatutNorm(cur); if(cur && base.indexOf(cur)<0) base.push(cur); return base; }
+function nfStatutBadge(st){ st=nfStatutNorm(st); const map={'Brouillon':['edit','var(--muted)','var(--panel-2)'],'Envoyé':['mail','#1369a3','#e9f4fc'],'Payée':['cash','#2e6f56','#e7f3ee']}; const m=map[st]||map['Brouillon']; return `<span class="badge nf-badge" style="background:${m[2]};color:${m[1]}">${ic(m[0])}${esc(st)}</span>`; }
+function migrateNF(){ let ch=false; notesFrais().forEach(n=>{ const ns=nfStatutNorm(n.statut); if(ns!==n.statut){ n.statut=ns; ch=true; } }); if(ch) save(); }
+function salPickerHTML(curMat, lock){
+  const eff=lock||curMat; const list=lock?state.salaries.filter(s=>s.matricule===lock):state.salaries;
+  const cur=salByMat(eff)||list[0]||{nom:'',prenom:'',matricule:''};
+  return `<div class="salpick" id="salpick">
+    <button type="button" class="salpick-btn" ${lock?'disabled':''} onclick="salPickToggle(event)"><span class="avatar salpick-av">${avInner(cur)}</span><span class="salpick-name">${esc(cur.nom||'')} ${esc(cur.prenom||'')}</span>${lock?'':ic('chevR')}</button>
+    <input type="hidden" id="nfSal" value="${esc(cur.matricule||'')}">
+    <div class="salpick-list" id="salpickList" style="display:none">${list.map(s=>`<div class="salpick-item" onclick="salPickSelect('${s.matricule}')"><span class="avatar salpick-av">${avInner(s)}</span><span>${esc(s.nom)} ${esc(s.prenom)}</span></div>`).join('')}</div>
+  </div>`;
+}
+function salPickToggle(e){ e.stopPropagation(); const l=$('#salpickList'); if(l) l.style.display=l.style.display==='none'?'block':'none'; }
+function salPickSelect(mat){ const h=$('#nfSal'); if(h) h.value=mat; const s=salByMat(mat)||{}; const b=$('#salpick .salpick-btn'); if(b){ const av=b.querySelector('.salpick-av'); if(av) av.innerHTML=avInner(s); const nm=b.querySelector('.salpick-name'); if(nm) nm.textContent=(s.nom||'')+' '+(s.prenom||''); } const l=$('#salpickList'); if(l) l.style.display='none'; }
+function nfStatutPickerHTML(cur){ cur=nfStatutNorm(cur); const opts=nfStatutOptions(cur); const locked=(!isAlbert() && cur==='Payée');
+  return `<div class="salpick" id="stpick">
+    <button type="button" class="salpick-btn" ${locked?'disabled':''} onclick="stPickToggle(event)">${nfStatutBadge(cur)}<span style="flex:1"></span>${locked?'':ic('chevR')}</button>
+    <input type="hidden" id="nfStatut" value="${esc(cur)}">
+    <div class="salpick-list" id="stpickList" style="display:none">${opts.map(st=>`<div class="salpick-item" onclick="stPickSelect('${st}')">${nfStatutBadge(st)}</div>`).join('')}</div>
+  </div>`;
+}
+function stPickToggle(e){ e.stopPropagation(); const l=$('#stpickList'); if(l) l.style.display=l.style.display==='none'?'block':'none'; }
+function stPickSelect(st){ const h=$('#nfStatut'); if(h) h.value=st; const b=$('#stpick .salpick-btn'); if(b) b.innerHTML=nfStatutBadge(st)+'<span style="flex:1"></span>'+ic('chevR'); const l=$('#stpickList'); if(l) l.style.display='none'; }
+const NF_CAT_ICON={'Repas':'meal','Restaurant':'meal','Hébergement':'bed','Transport (train/avion/bateau)':'plane','Bus/Car/Métro':'bus','Parking':'parking','Péage':'road','Carburant':'fuel','Taxi':'car','Location véhicule':'car','Fournitures':'inbox','Frais kilométriques':'car','Invitation client':'wallet','Taxe de séjour':'bed','Autres frais professionnels':'file'};
+function nfCatIcon(cat){ return ic(NF_CAT_ICON[cat]||'file'); }
 function nfCalcDuree(d1,d2){ if(!d1||!d2) return ''; const a=new Date(d1+'T00:00:00'),b=new Date(d2+'T00:00:00'); if(isNaN(a)||isNaN(b)||b<a) return ''; return Math.round((b-a)/86400000)+1; }
 
 let nfFilter={sal:'',statut:'',q:''};
 function renderNotesFrais(){
-  const c=$('#content');
+  const c=$('#content'); migrateNF();
   let list=notesFrais().slice();
   if(typeof movAccess!=='undefined' && movAccess && movAccess!=='admin') list=list.filter(n=>n.matricule===movAccess);
   if(nfFilter.sal) list=list.filter(n=>n.matricule===nfFilter.sal);
@@ -1780,8 +1818,8 @@ function renderNoteEditor(){
     <div class="modal-head"><h3>Note de frais — N°${esc(n.numero)}</h3><div class="grow"></div><button class="icon-btn" onclick="closeModal()">${ic('close')}</button></div>
     <div class="modal-body">
       <div class="form-grid">
-        <div class="form-row"><label>Salarié</label><select class="inp" id="nfSal" ${lockMat?'disabled':''}>${state.salaries.filter(s=>!lockMat||s.matricule===lockMat).map(s=>`<option value="${s.matricule}" ${n.matricule===s.matricule?'selected':''}>${esc(s.nom)} ${esc(s.prenom)} (${s.matricule})</option>`).join('')}</select></div>
-        <div class="form-row"><label>Statut</label><select class="inp" id="nfStatut">${NF_STATUTS.map(st=>`<option ${n.statut===st?'selected':''}>${st}</option>`).join('')}</select></div>
+        <div class="form-row"><label>Salarié</label>${salPickerHTML(n.matricule, lockMat)}</div>
+        <div class="form-row"><label>Statut</label>${nfStatutPickerHTML(n.statut)}</div>
         <div class="form-row full"><label>Objet de la mission</label><input class="inp" id="nfObjet" value="${esc(n.objet||'')}" placeholder="ex. Mission Livorno"></div>
         <div class="form-row"><label>Affaire / SG</label><input class="inp" id="nfAffaire" value="${esc(n.affaire||'')}"></div>
         <div class="form-row"><label>Code affaire / SG</label><input class="inp" id="nfCodeA" value="${esc(n.codeAffaire||'')}"></div>
@@ -1821,7 +1859,7 @@ function nfLineHTML(l,i){
   return `<div class="nf-line">
     <div class="nf-line-top">
       <div class="form-row" style="flex:0 0 135px"><label>Date</label><input class="inp slim" type="date" id="nfl-date-${i}" value="${l.date||''}"></div>
-      <div class="form-row" style="flex:1 1 180px"><label>Catégorie</label><select class="inp slim" id="nfl-cat-${i}" onchange="nfLineChanged(${i})">${NF_CATS.map(cc=>`<option ${l.categorie===cc?'selected':''}>${cc}</option>`).join('')}</select></div>
+      <div class="form-row" style="flex:1 1 180px"><label>Catégorie</label><div style="display:flex;align-items:center;gap:7px"><span class="nfcat-ic">${nfCatIcon(l.categorie)}</span><select class="inp slim" id="nfl-cat-${i}" onchange="nfLineChanged(${i})" style="flex:1">${NF_CATS.map(cc=>`<option ${l.categorie===cc?'selected':''}>${cc}</option>`).join('')}</select></div></div>
       <div class="form-row" style="flex:0 0 120px"><label>Montant €</label><input class="inp slim" type="number" step="0.01" id="nfl-montant-${i}" value="${l.montant!=null&&l.montant!==''?l.montant:''}" ${km?'readonly style="background:var(--panel)"':''} oninput="nfTot()"></div>
       <div class="form-row" style="flex:0 0 auto"><label>Justif.</label><div style="display:flex;gap:3px;align-items:center">${nfJustifHTML(l,i)}<button class="icon-btn" title="Supprimer la ligne" onclick="nfRemoveLine(${i})">${ic('trash')}</button></div></div>
     </div>
@@ -1980,6 +2018,7 @@ function modal(html,wide){
 }
 function closeModal(){ $('#overlay').classList.remove('show'); $('#overlay').innerHTML=''; }
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeModal(); });
+document.addEventListener('click', ()=>{ if(typeof $$==='function') $$('.salpick-list').forEach(l=>l.style.display='none'); });
 
 /* --- Mouvement form --- */
 function openMouvement(id){
@@ -2292,7 +2331,17 @@ function ic(name){
     file:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>',
     map:'<path d="M9 20l-5.5 2.7A1 1 0 0 1 2 22V6l7-3 6 3 5.5-2.7A1 1 0 0 1 22 4v16l-7 3-6-3z"/><path d="M9 3v17M15 6v17"/>',
     copy:'<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
-    lock:'<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>'
+    lock:'<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+    mail:'<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 6 10-6"/>',
+    cash:'<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/>',
+    meal:'<path d="M6 2v7a2 2 0 0 0 4 0V2M8 9v13"/><path d="M16 2c-2 0-3 2-3 5s1 4 3 4v11"/>',
+    bed:'<path d="M2 4v16M2 12h20v8M2 12V8h13a3 3 0 0 1 3 3v1"/><circle cx="7" cy="9" r="1.4"/>',
+    plane:'<path d="M10.2 9 3 11l2 2 3-.6 3 3-1 4 2 1 2.5-5 5-1.2a1.6 1.6 0 1 0-1.5-2.7L18 11l1-6-2-.5-3.5 4.5z"/>',
+    bus:'<rect x="3" y="5" width="18" height="11" rx="2"/><path d="M3 11h18M7 16v2M17 16v2"/><circle cx="7.5" cy="13.5" r="1"/><circle cx="16.5" cy="13.5" r="1"/>',
+    parking:'<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 17V7h4a3 3 0 0 1 0 6H9"/>',
+    road:'<path d="M5 20 8 4M19 20 16 4M12 5v2M12 11v2M12 17v2"/>',
+    fuel:'<path d="M3 22V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v17M2 22h14M3 12h10"/><path d="M14 9h2.5L19 11v6a1.5 1.5 0 0 0 3 0V9l-3-3"/>',
+    car:'<path d="M3 13l2-5.2A2 2 0 0 1 6.9 6.5h10.2A2 2 0 0 1 19 7.8L21 13v5h-2M3 18v-5m0 5h2m14 0H7"/><circle cx="7.5" cy="16.5" r="1.6"/><circle cx="16.5" cy="16.5" r="1.6"/>'
   }[name]||'';
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
 }
