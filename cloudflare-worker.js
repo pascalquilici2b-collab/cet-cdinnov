@@ -1,40 +1,30 @@
 /* ============================================================================
-   CET · CDInnov — Worker Cloudflare (stockage des données dans Cloudflare KV)
+   CET · CDInnov — Worker Cloudflare : stockage KV + notifications e-mail (Brevo)
    ============================================================================
 
-   RÔLE
-   Ce Worker expose deux opérations utilisées par l'application (index.html) :
-     • GET  /<uuid>   → renvoie le JSON des données stockées sous la clé <uuid>
-     • PUT  /<uuid>   → enregistre le corps JSON sous la clé <uuid>
-   L'<uuid> est la valeur CLOUD_TOKEN renseignée dans index.html. Il joue le
-   rôle de clé KV ET de "mot de passe" : sans connaître cet UUID, impossible de
-   lire ou écrire les données.
+   RÔLES
+   - GET  /<uuid>   -> renvoie le JSON stocké sous la clé <uuid> (données de l'appli)
+   - PUT  /<uuid>   -> enregistre le corps JSON sous la clé <uuid>
+   - POST /notify   -> envoie un e-mail via Brevo (alertes congés / CET / note de frais)
 
    ----------------------------------------------------------------------------
-   INSTALLATION (5 minutes, depuis le tableau de bord Cloudflare)
+   INSTALLATION DES NOTIFICATIONS (Brevo)
    ----------------------------------------------------------------------------
-   1. Workers & Pages → Create application → Create Worker. Donnez-lui un nom
-      (ex. "cet-cdinnov"). Déployez le worker vide une première fois.
-   2. KV : Workers & Pages → KV → Create a namespace (ex. "CET_DATA").
-   3. Liez le namespace au Worker :
-      Worker → Settings → Variables and Secrets → KV Namespace Bindings →
-      Add binding.  Variable name = CET_KV   |   KV namespace = CET_DATA
-      (Le nom de variable DOIT être exactement CET_KV — voir le code ci-dessous.)
-   4. Worker → Edit code → collez tout le contenu de ce fichier → Save and Deploy.
-   5. Copiez l'URL du Worker (ex. https://cet-cdinnov.VOTRE-COMPTE.workers.dev)
-      et collez-la dans index.html à la ligne :  const CLOUD_ENDPOINT = "...";
-      (CLOUD_TOKEN est déjà pré-rempli avec votre UUID.)
-
-   SÉCURITÉ
-   • Le CORS est ouvert (*) pour simplifier. Pour restreindre à votre site
-     GitHub Pages, remplacez "*" par "https://VOTRE-COMPTE.github.io".
-   • Pour une couche d'authentification supplémentaire, décommentez le bloc
-     AUTH ci-dessous et définissez un secret API_SECRET dans le Worker
-     (Settings → Variables and Secrets → Add → Secret), puis ajoutez l'en-tête
-     correspondant côté application.
+   1) Dans Brevo :
+      - Settings -> SMTP & API -> API Keys -> "Generate a new API key" -> copiez-la.
+      - Senders, Domains... -> Senders -> ajoutez et VÉRIFIEZ une adresse expéditrice
+        (ex. notifications@cdinnov.com ou votre e-mail). C'est l'adresse "from".
+   2) Dans Cloudflare (Worker "cet-data") -> Settings -> Variables and Secrets :
+      - Secret  : BREVO_API_KEY      = votre clé API Brevo
+      - Variable: NOTIFY_FROM        = l'adresse expéditrice vérifiée dans Brevo
+      - Variable: NOTIFY_FROM_NAME   = "Gestion interne CDInnov"   (facultatif)
+      - Variable: NOTIFY_TO          = destinataire(s), séparés par des virgules
+                                       (ex. pascalquilici2b@gmail.com)
+   3) Edit code -> collez ce fichier -> Save and Deploy.
+   (Le binding KV "CET_KV" reste nécessaire pour le stockage des données.)
    ========================================================================== */
 
-const ALLOW_ORIGIN = "*"; // ex. "https://votre-compte.github.io" pour restreindre
+const ALLOW_ORIGIN = "*"; // remplacez par votre domaine GitHub Pages pour restreindre
 
 function cors() {
   return {
@@ -45,58 +35,60 @@ function cors() {
   };
 }
 
+async function sendBrevo(env, subject, html, toOverride) {
+  const toRaw = (toOverride && String(toOverride).trim()) ? String(toOverride) : env.NOTIFY_TO;
+  if (!env.BREVO_API_KEY || !env.NOTIFY_FROM || !toRaw) {
+    return { ok: false, error: "Configuration e-mail manquante (BREVO_API_KEY / NOTIFY_FROM / destinataire)." };
+  }
+  const to = String(toRaw).split(",").map(e => ({ email: e.trim() })).filter(x => x.email);
+  const r = await fetch("https://api.brevo.com/v3/smtp/email", {
+    method: "POST",
+    headers: { "api-key": env.BREVO_API_KEY, "Content-Type": "application/json", "accept": "application/json" },
+    body: JSON.stringify({
+      sender: { email: env.NOTIFY_FROM, name: env.NOTIFY_FROM_NAME || "Gestion interne CDInnov" },
+      to,
+      subject: subject,
+      htmlContent: html,
+    }),
+  });
+  if (!r.ok) { const t = await r.text(); return { ok: false, error: "Brevo " + r.status + ": " + t.slice(0, 300) }; }
+  return { ok: true };
+}
+
 export default {
   async fetch(request, env) {
-    // Pré-vol CORS
-    if (request.method === "OPTIONS") {
-      return new Response(null, { headers: cors() });
-    }
-
-    // ---- AUTH optionnelle (décommenter pour activer) -----------------------
-    // if (env.API_SECRET) {
-    //   const auth = request.headers.get("Authorization") || "";
-    //   if (auth !== "Bearer " + env.API_SECRET) {
-    //     return new Response("Unauthorized", { status: 401, headers: cors() });
-    //   }
-    // }
-    // ------------------------------------------------------------------------
+    if (request.method === "OPTIONS") return new Response(null, { headers: cors() });
 
     const url = new URL(request.url);
-    const key = decodeURIComponent(url.pathname.replace(/^\/+/, "")); // tout après le "/"
+    const path = decodeURIComponent(url.pathname.replace(/^\/+/, ""));
 
-    if (!key) {
-      return new Response("Clé (UUID) manquante dans l'URL.", { status: 400, headers: cors() });
-    }
-    if (!env.CET_KV) {
-      return new Response("Binding KV 'CET_KV' absent. Voir l'étape 3 de l'installation.", {
-        status: 500, headers: cors(),
-      });
+    // ---- Notification e-mail ----
+    if (path === "notify") {
+      if (request.method !== "POST") return new Response("Méthode non autorisée", { status: 405, headers: cors() });
+      let body = {}; try { body = await request.json(); } catch (e) {}
+      const subject = String(body.subject || "Notification — Gestion interne CDInnov").slice(0, 200);
+      const html = body.html || ("<p>" + String(body.text || "Notification") + "</p>");
+      const res = await sendBrevo(env, subject, html, body.to);
+      return new Response(JSON.stringify(res), { status: res.ok ? 200 : 500, headers: { ...cors(), "Content-Type": "application/json" } });
     }
 
-    // Lecture
+    // ---- Données KV ----
+    const key = path;
+    if (!key) return new Response("Clé (UUID) manquante dans l'URL.", { status: 400, headers: cors() });
+    if (!env.CET_KV) return new Response("Binding KV 'CET_KV' absent.", { status: 500, headers: cors() });
+
     if (request.method === "GET") {
       const data = await env.CET_KV.get(key);
-      return new Response(data ?? "", {
-        headers: { ...cors(), "Content-Type": "application/json; charset=utf-8" },
-      });
+      return new Response(data ?? "", { headers: { ...cors(), "Content-Type": "application/json; charset=utf-8" } });
     }
-
-    // Écriture
     if (request.method === "PUT" || request.method === "POST") {
-      const body = await request.text();
-      // garde-fou : on n'enregistre que du JSON valide
-      try { JSON.parse(body); }
-      catch (e) {
-        return new Response(JSON.stringify({ ok: false, error: "JSON invalide" }), {
-          status: 400, headers: { ...cors(), "Content-Type": "application/json" },
-        });
+      const b = await request.text();
+      try { JSON.parse(b); } catch (e) {
+        return new Response(JSON.stringify({ ok: false, error: "JSON invalide" }), { status: 400, headers: { ...cors(), "Content-Type": "application/json" } });
       }
-      await env.CET_KV.put(key, body);
-      return new Response(JSON.stringify({ ok: true, bytes: body.length }), {
-        headers: { ...cors(), "Content-Type": "application/json" },
-      });
+      await env.CET_KV.put(key, b);
+      return new Response(JSON.stringify({ ok: true, bytes: b.length }), { headers: { ...cors(), "Content-Type": "application/json" } });
     }
-
     return new Response("Méthode non autorisée.", { status: 405, headers: cors() });
   },
 };
