@@ -389,6 +389,19 @@ body.authed .auth-gate{display:none}
 .uc-name{font-size:12.5px;font-weight:600;color:var(--ink);margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .uc-logout{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--warn);background:none;border:none;cursor:pointer;padding:0}
 .uc-logout svg{width:14px;height:14px}
+.card-head h2 svg{width:17px;height:17px;vertical-align:-3px;stroke:var(--accent-strong)}
+.chip svg{width:12px;height:12px;vertical-align:-2px}
+.cal-wrap{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap}
+.cal-main{flex:1 1 360px;min-width:300px}
+.cal-side{flex:0 0 244px;max-width:100%}
+.cp-card{border:1px solid var(--line);border-radius:12px;padding:14px;background:var(--panel)}
+.cp-h{display:flex;align-items:center;gap:6px;font-family:var(--font-head);font-size:13px;font-weight:700;color:var(--ink);margin-bottom:6px}
+.cp-h svg{width:15px;height:15px;stroke:var(--accent-strong)}
+.cp-name{font-size:12px;color:var(--muted);margin-bottom:10px}
+.cp-row{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;padding:6px 0;border-top:1px solid var(--line);gap:8px}
+.cp-row b{font-size:14px}
+.cp-row.sub{color:var(--muted)}
+.cp-note{font-size:10.5px;color:var(--muted-2);margin-top:10px;line-height:1.4}
 </style>
 <div id="authGate" class="auth-gate">
   <div class="auth-card">
@@ -563,15 +576,16 @@ async function cloudLoad(){
 }
 function cloudSave(){ if(!cloudEnabled()) return; clearTimeout(cloudTimer); cloudTimer=setTimeout(cloudPush, 700); }
 /* ---- Notifications e-mail (via Worker /notify -> Brevo) ---- */
-function notify(subject, html){
+function notify(subject, html, to){
   if(!cloudEnabled()) return;
   const u=CLOUD_ENDPOINT.replace(/\/+$/,'')+'/notify';
-  try{ fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({subject:subject,html:html})}).catch(()=>{}); }catch(e){}
+  const payload={subject:subject,html:html}; if(to) payload.to=to;
+  try{ fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).catch(()=>{}); }catch(e){}
 }
 let _cgNotifyTimer=null;
 function scheduleCongesNotify(mat){
   clearTimeout(_cgNotifyTimer);
-  _cgNotifyTimer=setTimeout(()=>{ const days=conges().filter(c=>c.matricule===mat && c.statut!=='Validé').length*0.5; if(days>0){ const s=salByMat(mat)||{}; notify('Congés en attente — '+(s.nom||'')+' '+(s.prenom||''), '<p><b>'+esc(s.nom)+' '+esc(s.prenom)+'</b> a posé des congés <b>en attente de validation</b> : <b>'+nbJours(days)+' jour(s)</b> au total.</p><p>Connectez-vous à l\'outil pour les valider.</p>'); } }, 4500);
+  _cgNotifyTimer=setTimeout(()=>{ const days=conges().filter(c=>c.matricule===mat && c.statut!=='Validé').length*0.5 + autoSamedisList(mat).filter(x=>x.statut!=='Validé').length; if(days>0){ const s=salByMat(mat)||{}; notify('Congés en attente — '+(s.nom||'')+' '+(s.prenom||''), '<p><b>'+esc(s.nom)+' '+esc(s.prenom)+'</b> a posé des congés <b>en attente de validation</b> : <b>'+nbJours(days)+' jour(s)</b> au total.</p><p>Connectez-vous à l\'outil pour les valider.</p>'); } }, 4500);
 }
 async function cloudPush(){
   if(!cloudEnabled()) return;
@@ -1048,6 +1062,22 @@ function congesAdmin(){ return (typeof isAdmin==='function' && typeof AUTH_USER!
 function congesMyMat(){ return congesAdmin()?null:((typeof AUTH_USER_MAT!=='undefined' && AUTH_USER_MAT[AUTH_USER])||null); }
 function congesSalList(){ return congesAdmin()? state.salaries : state.salaries.filter(s=>s.matricule===congesMyMat()); }
 function congesEffStatut(){ return congesAdmin()? congesStatut : 'En attente'; }
+const SAL_EMAIL = {'001':'quilici.pascal@cdinnov.com','002':'pasqualini.david@cdinnov.com','003':'boulanger.albert@cdinnov.com','004':'calendini.matthieu@cdinnov.com','005':'vincenti.paulmichel@cdinnov.com'};
+function salEmail(mat){ return SAL_EMAIL[mat]||null; }
+function cpPris(mat,Y){ let j=conges().filter(c=>c.matricule===mat && c.type==='Congés payés' && yearOf(c.date)===Y && c.statut==='Validé').length*0.5; j+=autoSamedisList(mat).filter(x=>x.statut==='Validé' && yearOf(x.date)===Y).length; return j; }
+const CP_INIT={'001':{a:21.5,e:32.5},'002':{a:80.5,e:30},'003':{a:9.5,e:30},'004':{a:0,e:10},'005':{a:0.5,e:32.5}};
+function migrateCP(){ let ch=false; state.salaries.forEach(s=>{ if(s.cpAcquis==null){ s.cpAcquis=CP_INIT[s.matricule]?CP_INIT[s.matricule].a:0; ch=true; } if(s.cpEnCours==null){ s.cpEnCours=CP_INIT[s.matricule]?CP_INIT[s.matricule].e:0; ch=true; } }); if(ch) save(); }
+function cpCounterPanel(mat,Y){ const s=salByMat(mat); if(!s) return '';
+  const acq=Number(s.cpAcquis||0), enc=Number(s.cpEnCours||0), pris=cpPris(mat,Y);
+  return `<div class="cp-card">
+    <div class="cp-h">${ic('sun')} Compteur congés payés</div>
+    <div class="cp-name">${esc(s.nom)} ${esc(s.prenom)} — ${Y}</div>
+    <div class="cp-row"><span>Acquis (disponible)</span><b>${nbJours(acq)} j</b></div>
+    <div class="cp-row"><span>En cours d'acquisition</span><b style="color:var(--accent-strong)">${nbJours(enc)} j</b></div>
+    <div class="cp-row sub"><span>Pris (validés ${Y})</span><span>${nbJours(pris)} j</span></div>
+    <div class="cp-note">Acquisition : 2,5 j / mois.${congesAdmin()?" Soldes modifiables dans l'onglet Salariés.":''}</div>
+  </div>`;
+}
 function joursOuvres(d1,d2){
   if(!d1||!d2) return 0;
   const a=new Date(d1+'T00:00:00'), b=new Date(d2+'T00:00:00');
@@ -1092,7 +1122,9 @@ function halfCell(rec,mat,date,half){
   if(!rec) return `<div class="hf" title="${lib} — libre (cliquer pour poser)" onclick="toggleHalf('${mat}','${date}','${half}')"></div>`;
   const col=CONGES_TYPE_COLOR[rec.type]||'#1786c9';
   const pend=rec.statut!=='Validé';
-  return `<div class="hf on ${pend?'pend':''}" style="background:${col}" title="${esc(rec.type)} · ${esc(rec.statut)} · ${lib} (cliquer pour retirer)" onclick="toggleHalf('${mat}','${date}','${half}')"></div>`;
+  const click = pend ? `congeCellMenu('${mat}','${date}','${half}')` : `toggleHalf('${mat}','${date}','${half}')`;
+  const tt = pend ? (esc(rec.type)+' · en attente · '+lib+(congesAdmin()?' (cliquer : valider / rejeter)':' (cliquer pour retirer)')) : (esc(rec.type)+' · validé · '+lib+' (cliquer pour retirer)');
+  return `<div class="hf on ${pend?'pend':''}" style="background:${col}" title="${tt}" onclick="${click}"></div>`;
 }
 function calendarHTML(mat,Y,M){
   const firstDow=(new Date(Y,M,1).getDay()+6)%7;
@@ -1135,7 +1167,7 @@ function joursValideAnnee(mat,Y){
 }
 
 function renderConges(){
-  migrateConges();
+  migrateConges(); migrateCP();
   const Y=currentYear; const cont=$('#content');
   if(!congesAdmin()){ congesSal = congesMyMat(); }
   else if(!congesSal || !salByMat(congesSal)) congesSal = state.salaries[0] ? state.salaries[0].matricule : null;
@@ -1170,6 +1202,7 @@ function renderConges(){
           ${congesSalList().map(s=>`<div class="emp-tab ${s.matricule===congesSal?'act':''}" onclick="setCongesSal('${s.matricule}')"><span class="avatar" style="width:22px;height:22px;font-size:10px">${avInner(s)}</span>${esc(s.nom)} ${esc(s.prenom)}</div>`).join('')}
         </div>
         ${sal?`
+        <div class="cal-wrap"><div class="cal-main">
         <div class="cal-toolbar">
           <div class="mnav">
             <button class="icon-btn" onclick="congesShiftMonth(-1)" title="Mois précédent">${ic('chevL')}</button>
@@ -1182,6 +1215,7 @@ function renderConges(){
         </div>
         ${calendarHTML(congesSal,Y,congesMonth)}
         <div class="legend" style="margin-top:14px">${legend}</div>
+        </div><div class="cal-side">${cpCounterPanel(congesSal,Y)}</div></div>
         `:`<div class="empty">${ic('inbox')}<div style="font-weight:600;color:var(--ink)">Aucun salarié</div><div>Ajoutez des salariés pour saisir leurs congés.</div></div>`}
       </div>
     </div>
@@ -1205,8 +1239,25 @@ function congesPendingCard(Y){
     </div>
   </div>`;
 }
-function validerCongesSal(mat,Y){ let n=0; conges().forEach(c=>{ if(c.matricule===mat && yearOf(c.date)===Y && c.statut!=='Validé'){ c.statut='Validé'; n++; } }); save(); toast(n?(n*0.5)+' j validés':'Rien à valider'); render(); }
-function validerCongesAll(Y){ let n=0; conges().forEach(c=>{ if(yearOf(c.date)===Y && c.statut!=='Validé'){ c.statut='Validé'; n++; } }); save(); toast(n?'Congés validés ('+(n*0.5)+' j)':'Rien à valider'); render(); }
+function validerCongesSal(mat,Y){ let n=0; conges().forEach(c=>{ if(c.matricule===mat && yearOf(c.date)===Y && c.statut!=='Validé'){ c.statut='Validé'; n++; } }); save(); if(n>0){ const em=salEmail(mat); const s=salByMat(mat)||{}; if(em) notify('Vos congés ont été validés', '<p>Bonjour '+esc(s.prenom)+',</p><p>Vos congés (<b>'+nbJours(n*0.5)+' jour(s)</b>) ont été <b>validés</b>.</p>', em); } toast(n?(n*0.5)+' j validés':'Rien à valider'); render(); }
+function validerCongesAll(Y){ const byMat={}; conges().forEach(c=>{ if(yearOf(c.date)===Y && c.statut!=='Validé'){ c.statut='Validé'; byMat[c.matricule]=(byMat[c.matricule]||0)+1; } }); const n=Object.values(byMat).reduce((a,b)=>a+b,0); save(); Object.keys(byMat).forEach(mat=>{ const em=salEmail(mat); const s=salByMat(mat)||{}; if(em) notify('Vos congés ont été validés', '<p>Bonjour '+esc(s.prenom)+',</p><p>Vos congés (<b>'+nbJours(byMat[mat]*0.5)+' jour(s)</b>) ont été <b>validés</b>.</p>', em); }); toast(n?'Congés validés ('+(n*0.5)+' j)':'Rien à valider'); render(); }
+function congeCellMenu(mat,date,half){
+  const rec=congeAt(mat,date,half);
+  if(!rec || !congesAdmin()){ toggleHalf(mat,date,half); return; }
+  const s=salByMat(mat)||{}; const lib=half==='AM'?'matin':'après-midi';
+  modal(`<div class="modal-head"><h3>Demi-journée en attente</h3></div>
+    <div class="modal-body">
+      <p style="font-size:13.5px;color:var(--ink);margin:0 0 6px"><b>${esc(s.nom||'')} ${esc(s.prenom||'')}</b></p>
+      <p style="font-size:13px;color:var(--muted);margin:0">${dateFR(date)} · ${lib}<br>${esc(rec.type)} — statut : <b>en attente</b></p>
+    </div>
+    <div class="modal-foot" style="flex-wrap:wrap;gap:8px">
+      <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+      <button class="btn btn-danger" onclick="rejeterCongeHalf('${mat}','${date}','${half}')">${ic('trash')} Rejeter</button>
+      <button class="btn btn-primary" onclick="validerCongeHalf('${mat}','${date}','${half}')">${ic('check')} Valider</button>
+    </div>`);
+}
+function validerCongeHalf(mat,date,half){ const rec=congeAt(mat,date,half); if(rec){ rec.statut='Validé'; save(); const em=salEmail(mat); const s=salByMat(mat)||{}; if(em) notify('Un congé a été validé', '<p>Bonjour '+esc(s.prenom)+',</p><p>Votre congé du <b>'+dateFR(date)+'</b> ('+(half==='AM'?'matin':'après-midi')+') a été <b>validé</b>.</p>', em); } closeModal(); renderConges(); }
+function rejeterCongeHalf(mat,date,half){ const rec=congeAt(mat,date,half); if(rec){ state.conges=conges().filter(c=>c!==rec); save(); const em=salEmail(mat); const s=salByMat(mat)||{}; if(em) notify('Un congé a été refusé', '<p>Bonjour '+esc(s.prenom)+',</p><p>Votre demande de congé du <b>'+dateFR(date)+'</b> ('+(half==='AM'?'matin':'après-midi')+') a été <b>refusée</b>. Rapprochez-vous de votre responsable si besoin.</p>', em); } closeModal(); renderConges(); }
 function congesRecapTable(Y){
   return `<table>
     <thead><tr><th>Salarié</th>${MOIS_ABBR.map(m=>`<th class="num">${m}</th>`).join('')}<th class="num">Total</th></tr></thead>
@@ -1812,9 +1863,14 @@ function nfJustifPreview(i){
 }
 function saveNoteFrais(thenPdf){
   nfSync(); const n=nfDraft; if(!n.matricule){ toast('Salarié requis'); return; }
-  const arr=notesFrais(); const idx=arr.findIndex(x=>x.id===n.id); const copy=JSON.parse(JSON.stringify(n));
+  const arr=notesFrais(); const idx=arr.findIndex(x=>x.id===n.id);
+  const prevPaid = idx>=0 && arr[idx] && arr[idx].statut==='Payée';
+  const copy=JSON.parse(JSON.stringify(n));
   if(idx>=0) arr[idx]=copy; else arr.push(copy);
-  save(); toast('Note de frais enregistrée'); if(n.statut && n.statut!=='Brouillon'){ const _s=salByMat(n.matricule)||{}; notify('Note de frais N°'+n.numero+' — '+(_s.nom||'')+' '+(_s.prenom||''), '<p><b>'+esc(_s.nom)+' '+esc(_s.prenom)+'</b> a déposé la note de frais <b>N°'+n.numero+'</b> (statut : '+esc(n.statut)+').</p><p>Objet : '+esc(n.objet||'—')+'<br>Montant : <b>'+eur2(nfTotal(n))+'</b></p>'); } closeModal(); render();
+  save(); toast('Note de frais enregistrée');
+  if(n.statut && n.statut!=='Brouillon'){ const _s=salByMat(n.matricule)||{}; notify('Note de frais N°'+n.numero+' — '+(_s.nom||'')+' '+(_s.prenom||''), '<p><b>'+esc(_s.nom)+' '+esc(_s.prenom)+'</b> a déposé la note de frais <b>N°'+n.numero+'</b> (statut : '+esc(n.statut)+').</p><p>Objet : '+esc(n.objet||'—')+'<br>Montant : <b>'+eur2(nfTotal(n))+'</b></p>'); }
+  if(n.statut==='Payée' && !prevPaid){ const em=salEmail(n.matricule); const _s2=salByMat(n.matricule)||{}; if(em) notify('Votre note de frais N°'+n.numero+' a été payée', '<p>Bonjour '+esc(_s2.prenom)+',</p><p>Votre note de frais <b>N°'+n.numero+'</b> ('+eur2(nfTotal(n))+') a été <b>payée</b>.</p>', em); }
+  closeModal(); render();
   if(thenPdf) exportNoteFraisPDF(n.id);
 }
 function delNoteFrais(id){
@@ -1955,6 +2011,8 @@ function openSalarie(mat){
         <div class="form-row"><label>Coût / jour manuel (€) <span class="hint">si pas de brut</span></label><input class="inp" type="number" step="0.01" id="sCout" value="${s&&s.coutJour!=null&&!(s&&s.brutAnnuel)?s.coutJour:''}" placeholder="optionnel" oninput="salCoutPreview()"></div>
         <div class="form-row"><label>Coût / jour retenu</label><input class="inp" id="sCoutCalc" value="" disabled style="font-weight:700;color:var(--accent-strong)"></div>
         <div class="form-row full"><div class="preview" id="sCoutDetail"></div></div>
+        <div class="form-row"><label>Congés acquis — solde (j)</label><input class="inp" type="number" step="0.5" id="sCpAcq" value="${s&&s.cpAcquis!=null?s.cpAcquis:''}" placeholder="ex. 21.5"></div>
+        <div class="form-row"><label>Congés en cours d'acquisition (j)</label><input class="inp" type="number" step="0.5" id="sCpEnc" value="${s&&s.cpEnCours!=null?s.cpEnCours:''}" placeholder="ex. 32.5"></div>
         <div class="form-row full"><label>Commentaire</label><input class="inp" id="sComm" value="${s?esc(s.commentaire||''):''}"></div>
         <div class="form-row full"><label>Photo de profil</label>
           <div style="display:flex;align-items:center;gap:12px">
@@ -2001,6 +2059,7 @@ function salCoutPreview(){
 function saveSalarie(mat){
   const isNew=!mat;
   const matricule = isNew ? $('#sMat').value.trim() : mat;
+  const cur = isNew ? null : salByMat(mat);
   const nom=$('#sNom').value.trim(), prenom=$('#sPrenom').value.trim();
   if(!matricule){ toast('Matricule requis'); return; }
   if(!nom){ toast('Nom requis'); return; }
@@ -2012,7 +2071,9 @@ function saveSalarie(mat){
   else { coutJour = $('#sCout').value===''?null:Number($('#sCout').value); }
   const data={matricule, nom, prenom, dateEntree:$('#sDate').value,
     tempsPartiel:Number($('#sTps').value)||100, statut:$('#sStatut').value,
-    coutJour, brutAnnuel:brut, brutRefYear:brutY, photo:_salPhoto, commentaire:$('#sComm').value.trim()};
+    coutJour, brutAnnuel:brut, brutRefYear:brutY, photo:_salPhoto, commentaire:$('#sComm').value.trim(),
+    cpAcquis: $('#sCpAcq').value===''?(cur?cur.cpAcquis:0):Number($('#sCpAcq').value),
+    cpEnCours: $('#sCpEnc').value===''?(cur?cur.cpEnCours:0):Number($('#sCpEnc').value)};
   if(isNew) state.salaries.push(data);
   else Object.assign(salByMat(mat), data);
   save(); closeModal(); toast(isNew?'Salarié ajouté':'Salarié modifié'); render();
