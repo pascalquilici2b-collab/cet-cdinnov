@@ -747,7 +747,7 @@ const VIEW_META = {
   dashboard:{title:'Tableau de bord CET', sub:"Vue d'ensemble du Compte Épargne-Temps", action:'Nouveau mouvement', actFn:()=>openMouvement()},
   mouvements:{title:'Mouvements CET', sub:'Historique des alimentations et utilisations', action:'Nouveau mouvement', actFn:()=>openMouvement()},
   salaries:{title:'Salariés', sub:'Bénéficiaires du dispositif CET', action:'Nouveau salarié', actFn:()=>openSalarie()},
-  conges:{title:'Congés payés', sub:'Calendrier des congés — demi-journées incluses', action:'Poser une période', actFn:()=>openConge()},
+  conges:{title:'Congés payés', sub:'', action:'Poser une période', actFn:()=>openConge()},
   notesfrais:{title:'Note de frais', sub:'Création, suivi et archivage des notes de frais', action:'Créer une note de frais', actFn:()=>openNoteFrais()},
   parametres:{title:'Paramètres & données', sub:'Plafonds, types de mouvements, sauvegardes', action:null}
 };
@@ -1253,7 +1253,6 @@ function renderConges(){
   const mm=myMat();
   const legend = state.salaries.map(s=>`<span class="lg"><span class="agdot" style="background:${congesAgentColor(s.matricule)}"></span>${esc(s.prenom||s.nom)}</span>`).join('') + `<span class="lg"><span class="agdot" style="background:var(--muted-2);opacity:.45;border:1px dashed var(--muted)"></span>plus clair = en attente</span>`;
   cont.innerHTML=`
-    <div class="help-banner">${ic('info')}<div>Calendrier <b>d'équipe</b> : chaque agent a sa couleur, une teinte <b>plus claire</b> = congé <b>en attente</b>. Cliquez un jour pour le détail${congesAdmin()?' et la validation':''}.</div></div>
     <div class="stat-grid">
       <div class="stat"><div class="k">${ic('clock')} En attente ${Y}</div><div class="v">${nbJours(totalAttente)}<span class="u">j</span></div><div class="sub">à valider</div></div>
       ${mm?cpCounterWidget(mm,Y):''}
@@ -1318,12 +1317,12 @@ function congeDayMenu(date){
   const rows = ags.length ? ags.map(a=>{
     const period = a.autoSat?'samedi (convention)':(a.halves.length>=2?'journée entière':(a.halves[0]&&a.halves[0].half==='AM'?'matin':'après-midi'));
     const st = a.pending?'<span style="color:var(--pending);font-weight:700">en attente</span>':'<span style="color:var(--ok);font-weight:700">validé</span>';
-    return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line)">${agAvatar(a.s,a.pending)}<div style="flex:1"><b>${esc(a.s.nom)} ${esc(a.s.prenom)}</b><div style="font-size:12px;color:var(--muted)">${esc(a.type||'')} · ${period} · ${st}</div></div>${(admin && a.pending && !a.autoSat)?`<button class="btn btn-primary btn-sm" onclick="validerCongeDay('${a.s.matricule}','${date}')">${ic('check')}</button><button class="icon-btn" title="Rejeter" onclick="rejeterCongeDay('${a.s.matricule}','${date}')">${ic('trash')}</button>`:''}</div>`;
+    return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line)">${agAvatar(a.s,a.pending)}<div style="flex:1"><b>${esc(a.s.nom)} ${esc(a.s.prenom)}</b><div style="font-size:12px;color:var(--muted)">${esc(a.type||'')} · ${period} · ${st}</div></div>${(admin && a.pending && !a.autoSat)?`<button class="btn btn-primary btn-sm" onclick="validerCongeDay('${a.s.matricule}','${date}')">${ic('check')}</button>`:''}${((admin || mm===a.s.matricule) && !a.autoSat)?`<button class="icon-btn" title="${a.pending?'Rejeter le congé':'Retirer ce congé'}" onclick="rejeterCongeDay('${a.s.matricule}','${date}')">${ic('trash')}</button>`:''}</div>`;
   }).join('') : '<div style="font-size:13px;color:var(--muted);padding:6px 0">Aucun congé posé ce jour.</div>';
   modal(`<div class="modal-head"><h3>${dateFR(date)}</h3></div><div class="modal-body">${rows}</div><div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal()">Fermer</button>${mm?`<button class="btn btn-primary" onclick="closeModal();openConge('${mm}')">${ic('plus')} Poser une période</button>`:''}</div>`);
 }
 function validerCongeDay(mat,date){ let n=0; conges().forEach(c=>{ if(c.matricule===mat && c.date===date && c.statut!=='Validé'){ c.statut='Validé'; n++; } }); save(); if(n>0){ const em=salEmail(mat); const s=salByMat(mat)||{}; if(em) notify('Congé validé','<p>Bonjour '+esc(s.prenom)+', votre congé du <b>'+dateFR(date)+'</b> a été <b>validé</b>.</p>',em); } closeModal(); renderConges(); }
-function rejeterCongeDay(mat,date){ state.conges=conges().filter(c=>!(c.matricule===mat && c.date===date)); save(); const em=salEmail(mat); const s=salByMat(mat)||{}; if(em) notify('Congé refusé','<p>Bonjour '+esc(s.prenom)+', votre congé du <b>'+dateFR(date)+'</b> a été <b>refusé</b>.</p>',em); closeModal(); renderConges(); }
+function rejeterCongeDay(mat,date){ state.conges=conges().filter(c=>!(c.matricule===mat && c.date===date)); save(); const em=salEmail(mat); const s=salByMat(mat)||{}; if(em && myMat()!==mat) notify('Congé annulé','<p>Bonjour '+esc(s.prenom)+', votre congé du <b>'+dateFR(date)+'</b> a été <b>annulé</b>.</p>',em); toast('Congé retiré'); closeModal(); renderConges(); }
 function congesPendingSide(Y){
   const pend=state.salaries.map(s=>{ const days=conges().filter(c=>c.matricule===s.matricule && yearOf(c.date)===Y && c.statut!=='Validé').length*0.5; return {s,days}; }).filter(x=>x.days>0);
   return `<div class="cp-card" style="background:var(--pending-soft);border:1px solid #ecdca6">
