@@ -323,6 +323,7 @@
     .filters{flex-wrap:wrap}
     .cal-toolbar{flex-wrap:wrap;gap:8px}
     .salpick-list{max-height:200px}
+    .gday{min-height:58px} .gcal{gap:4px} .agchip{width:19px;height:19px} .cal-side{flex:1 1 100%}
   }
   @media print{
     .sidebar,.topbar .year-pick,.no-print{display:none!important}
@@ -448,6 +449,18 @@ body.authed .auth-gate{display:none}
 .salpick-item{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:8px;cursor:pointer;font-size:13px}
 .salpick-item:hover{background:var(--panel-2)}
 .nfcat-ic svg{width:18px;height:18px;stroke:var(--accent-strong);flex:0 0 18px}
+.gcal{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.gday{min-height:72px;border:1px solid var(--line);border-radius:9px;padding:4px 4px 6px;cursor:pointer;background:#fff;transition:background .1s,border-color .1s}
+.gday:hover{background:var(--panel-2);border-color:var(--line-strong)}
+.gday.blank{border:none;background:transparent;cursor:default}
+.gday.we{background:var(--panel)}
+.gdn{font-size:11px;color:var(--muted);font-weight:600;text-align:right;padding:0 2px 2px}
+.agwrap{display:flex;flex-wrap:wrap;gap:3px}
+.agchip{display:inline-flex;width:22px;height:22px;border-radius:50%;overflow:hidden;border:2px solid var(--agc,#1786c9);box-shadow:0 0 0 1px #fff;background:#fff;flex:0 0 auto}
+.agchip.pend{opacity:.4;border-style:dashed}
+.agchip img{width:100%;height:100%;object-fit:cover;display:block}
+.agini{display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-size:8px;font-weight:700;color:var(--agc,#1786c9);background:#fff}
+.agdot{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:5px;vertical-align:-1px}
 </style>
 <div id="authGate" class="auth-gate">
   <div class="auth-card">
@@ -1234,71 +1247,88 @@ function joursValideAnnee(mat,Y){
 function renderConges(){
   migrateConges(); migrateCP();
   const Y=currentYear; const cont=$('#content');
-  if(!congesAdmin()){ congesSal = congesMyMat(); }
-  else if(!congesSal || !salByMat(congesSal)) congesSal = state.salaries[0] ? state.salaries[0].matricule : null;
-  const list=conges().filter(c=>yearOf(c.date)===Y && (congesAdmin()||c.matricule===congesMyMat()));
-  let satV=0, satA=0;
-  congesSalList().forEach(s=>{ autoSamedisList(s.matricule).forEach(x=>{ if(yearOf(x.date)===Y){ if(x.statut==='Validé') satV++; else satA++; } }); });
-  const totalValide=list.filter(c=>c.statut==='Validé').length*0.5 + satV;
+  const list=conges().filter(c=>yearOf(c.date)===Y);
+  let satA=0; state.salaries.forEach(s=>{ autoSamedisList(s.matricule).forEach(x=>{ if(yearOf(x.date)===Y && x.statut!=='Validé') satA++; }); });
   const totalAttente=list.filter(c=>c.statut!=='Validé').length*0.5 + satA;
-  const nbSal=new Set(list.map(c=>c.matricule)).size;
-  const sal=salByMat(congesSal);
-
-  const legend = Object.entries(CONGES_TYPE_COLOR).map(([t,c])=>`<span class="lg"><span class="sw" style="background:${c}"></span>${t}</span>`).join('')
-    + `<span class="lg"><span class="sw pendsw" style="background:#c9ced6"></span>En attente (hachuré)</span>`;
-
+  const mm=myMat();
+  const legend = state.salaries.map(s=>`<span class="lg"><span class="agdot" style="background:${congesAgentColor(s.matricule)}"></span>${esc(s.prenom||s.nom)}</span>`).join('') + `<span class="lg"><span class="agdot" style="background:var(--muted-2);opacity:.45;border:1px dashed var(--muted)"></span>plus clair = en attente</span>`;
   cont.innerHTML=`
-    <div class="help-banner">${ic('info')}<div>Cliquez les demi-journées : <b>haut = matin</b>, <b>bas = après-midi</b> (n° du jour = journée entière).</div></div>
+    <div class="help-banner">${ic('info')}<div>Calendrier <b>d'équipe</b> : chaque agent a sa couleur, une teinte <b>plus claire</b> = congé <b>en attente</b>. Cliquez un jour pour le détail${congesAdmin()?' et la validation':''}.</div></div>
     <div class="stat-grid">
       <div class="stat"><div class="k">${ic('clock')} En attente ${Y}</div><div class="v">${nbJours(totalAttente)}<span class="u">j</span></div><div class="sub">à valider</div></div>
-      ${cpCounterWidget(congesSal,Y)}
+      ${mm?cpCounterWidget(mm,Y):''}
     </div>
-
     <div class="card">
       <div class="card-head">
-        <h2>Calendrier des congés</h2><div class="grow"></div>
+        <h2>Calendrier des congés — équipe</h2><div class="grow"></div>
         <button class="btn btn-ghost btn-sm no-print" onclick="exportCongesCSV()">${ic('download')} Export (CSV)</button>
-        <button class="btn btn-ghost btn-sm no-print" onclick="exportCongesMensuelCSV()">${ic('download')} Récap mensuel</button>
-        <button class="btn btn-primary btn-sm no-print" onclick="openConge('${congesSal||''}')">${ic('plus')} Poser une période</button>
+        <button class="btn btn-primary btn-sm no-print" onclick="openConge('${mm||''}')">${ic('plus')} Poser une période</button>
       </div>
       <div class="card-pad">
-        <div class="emp-tabs" style="margin-bottom:14px">
-          ${congesSalList().map(s=>`<div class="emp-tab ${s.matricule===congesSal?'act':''}" onclick="setCongesSal('${s.matricule}')"><span class="avatar" style="width:22px;height:22px;font-size:10px">${avInner(s)}</span>${esc(s.nom)} ${esc(s.prenom)}</div>`).join('')}
-        </div>
-        ${sal?`
-        <div class="cal-toolbar">
-          <div class="mnav">
-            <button class="icon-btn" onclick="congesShiftMonth(-1)" title="Mois précédent">${ic('chevL')}</button>
-            <span class="mlabel">${MOIS_FR[congesMonth]} ${Y}</span>
-            <button class="icon-btn" onclick="congesShiftMonth(1)" title="Mois suivant">${ic('chevR')}</button>
+        <div class="cal-wrap">
+          <div class="cal-main">
+            <div class="cal-toolbar">
+              <div class="mnav">
+                <button class="icon-btn" onclick="congesShiftMonth(-1)" title="Mois précédent">${ic('chevL')}</button>
+                <span class="mlabel">${MOIS_FR[congesMonth]} ${Y}</span>
+                <button class="icon-btn" onclick="congesShiftMonth(1)" title="Mois suivant">${ic('chevR')}</button>
+              </div>
+            </div>
+            ${calendarGlobalHTML(Y,congesMonth)}
+            <div class="legend" style="margin-top:14px">${legend}</div>
           </div>
-          <div class="field"><select class="inp slim" onchange="setCongesType(this.value)" style="width:auto">${CONGES_TYPES.map(t=>`<option ${t===congesType?'selected':''}>${t}</option>`).join('')}</select></div>
-          ${congesAdmin()?`<div class="field"><select class="inp slim" onchange="setCongesStatut(this.value)" style="width:auto"><option ${congesStatut==='Validé'?'selected':''}>Validé</option><option ${congesStatut!=='Validé'?'selected':''}>En attente</option></select></div>`:`<span class="chip" style="background:var(--pending-soft);color:var(--pending)">${ic('clock')} Posé en attente de validation</span>`}
-          <span class="chip">${nbJours(joursValideAnnee(congesSal,Y))} j validés en ${Y}</span>
+          ${congesAdmin()?`<div class="cal-side">${congesPendingSide(Y)}</div>`:''}
         </div>
-        ${calendarHTML(congesSal,Y,congesMonth)}
-        <div class="legend" style="margin-top:14px">${legend}</div>
-        `:`<div class="empty">${ic('inbox')}<div style="font-weight:600;color:var(--ink)">Aucun salarié</div><div>Ajoutez des salariés pour saisir leurs congés.</div></div>`}
       </div>
     </div>
-
     <div class="card">
       <div class="card-head"><h2>Récapitulatif mensuel</h2><select class="inp slim" style="width:auto;margin-left:12px" onchange="currentYear=Number(this.value);render()">${availableYears().map(y=>`<option value="${y}" ${y===Y?'selected':''}>${y}</option>`).join('')}</select><div class="grow"></div></div>
       <div class="card-body">
         ${congesRecapTable(Y)}
       </div>
     </div>
-    ${congesPendingCard(Y)}
   `;
 }
-function congesPendingCard(Y){
-  const pend=congesSalList().map(s=>{ const days=conges().filter(c=>c.matricule===s.matricule && yearOf(c.date)===Y && c.statut!=='Validé').length*0.5; return {s,days}; }).filter(x=>x.days>0);
-  const maxP=Math.max(1,...pend.map(x=>x.days));
-  return `<div class="card card-pending">
-    <div class="card-head"><h2>${ic('clock')} Congés en attente de validation</h2><div class="grow"></div>${pend.length&&congesAdmin()?`<button class="btn btn-primary btn-sm no-print" onclick="validerCongesAll(${Y})">${ic('check')} Tout valider</button>`:''}</div>
-    <div class="card-pad">
-      ${pend.length? pend.map(x=>`<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:12.5px;margin-bottom:4px"><span class="name-cell"><span class="avatar" style="width:24px;height:24px;font-size:10px">${avInner(x.s)}</span><b>${esc(x.s.nom)} ${esc(x.s.prenom)}</b> — <span style="color:var(--pending);font-weight:700">${nbJours(x.days)} j en attente</span></span>${congesAdmin()?`<button class="btn btn-ghost btn-sm no-print" onclick="validerCongesSal('${x.s.matricule}',${Y})">${ic('check')} Valider</button>`:`<span class="chip" style="background:var(--pending-soft);color:var(--pending)">En attente</span>`}</div><div class="gauge" style="background:var(--pending-soft)"><i style="width:${Math.min(100,x.days/maxP*100)}%;background:var(--pending)"></i></div></div>`).join('') : `<div style="color:var(--muted);font-size:13px">Aucun congé en attente pour ${Y}.</div>`}
-    </div>
+function congesAgentColor(mat){ return ({'001':'#1786c9','002':'#2e9e5b','003':'#7c5cbf','004':'#e0892b','005':'#0d9488'})[mat] || '#1786c9'; }
+function myMat(){ if(typeof AUTH_USER==='undefined'||!AUTH_USER) return null; const e=normEmail(AUTH_USER); if(typeof AUTH_USER_MAT!=='undefined' && AUTH_USER_MAT[e]) return AUTH_USER_MAT[e]; const hit=Object.keys(SAL_EMAIL||{}).find(m=>SAL_EMAIL[m]===e); return hit||null; }
+function agAvatar(s,pend){ const col=congesAgentColor(s.matricule); return `<span class="agchip ${pend?'pend':''}" style="--agc:${col}" title="${esc(s.nom)} ${esc(s.prenom)}${pend?' (en attente)':''}">${s.photo?'<img src="'+s.photo+'">':'<span class="agini">'+esc(initials(s))+'</span>'}</span>`; }
+function congesDayAgents(date){
+  const dd=new Date(date+'T00:00:00'); const out=[];
+  state.salaries.forEach(s=>{
+    const halves=conges().filter(c=>c.matricule===s.matricule && c.date===date);
+    let autoSat=null; if(dd.getDay()===6){ const ai=autoSamediInfo(s.matricule,date); if(ai) autoSat=ai; }
+    if(halves.length||autoSat){ const allValid=halves.every(h=>h.statut==='Validé') && (!autoSat||autoSat.statut==='Validé'); out.push({s,halves,autoSat,pending:!allValid,type:(halves[0]||autoSat||{}).type}); }
+  });
+  return out;
+}
+function calendarGlobalHTML(Y,M){
+  const firstDow=(new Date(Y,M,1).getDay()+6)%7; const dim=new Date(Y,M+1,0).getDate();
+  const heads=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'].map(d=>`<div class="cah">${d}</div>`).join('');
+  let cells=''; for(let i=0;i<firstDow;i++) cells+='<div class="gday blank"></div>';
+  for(let day=1;day<=dim;day++){
+    const date=`${Y}-${String(M+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    const dow=new Date(Y,M,day).getDay(); const we=dow===0||dow===6;
+    const chips=congesDayAgents(date).map(a=>agAvatar(a.s,a.pending)).join('');
+    cells+=`<div class="gday ${we?'we':''}" onclick="congeDayMenu('${date}')"><div class="gdn">${day}</div><div class="agwrap">${chips}</div></div>`;
+  }
+  return `<div class="gcal">${heads}${cells}</div>`;
+}
+function congeDayMenu(date){
+  const ags=congesDayAgents(date); const admin=congesAdmin(); const mm=myMat();
+  const rows = ags.length ? ags.map(a=>{
+    const period = a.autoSat?'samedi (convention)':(a.halves.length>=2?'journée entière':(a.halves[0]&&a.halves[0].half==='AM'?'matin':'après-midi'));
+    const st = a.pending?'<span style="color:var(--pending);font-weight:700">en attente</span>':'<span style="color:var(--ok);font-weight:700">validé</span>';
+    return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line)">${agAvatar(a.s,a.pending)}<div style="flex:1"><b>${esc(a.s.nom)} ${esc(a.s.prenom)}</b><div style="font-size:12px;color:var(--muted)">${esc(a.type||'')} · ${period} · ${st}</div></div>${(admin && a.pending && !a.autoSat)?`<button class="btn btn-primary btn-sm" onclick="validerCongeDay('${a.s.matricule}','${date}')">${ic('check')}</button><button class="icon-btn" title="Rejeter" onclick="rejeterCongeDay('${a.s.matricule}','${date}')">${ic('trash')}</button>`:''}</div>`;
+  }).join('') : '<div style="font-size:13px;color:var(--muted);padding:6px 0">Aucun congé posé ce jour.</div>';
+  modal(`<div class="modal-head"><h3>${dateFR(date)}</h3></div><div class="modal-body">${rows}</div><div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal()">Fermer</button>${mm?`<button class="btn btn-primary" onclick="closeModal();openConge('${mm}')">${ic('plus')} Poser une période</button>`:''}</div>`);
+}
+function validerCongeDay(mat,date){ let n=0; conges().forEach(c=>{ if(c.matricule===mat && c.date===date && c.statut!=='Validé'){ c.statut='Validé'; n++; } }); save(); if(n>0){ const em=salEmail(mat); const s=salByMat(mat)||{}; if(em) notify('Congé validé','<p>Bonjour '+esc(s.prenom)+', votre congé du <b>'+dateFR(date)+'</b> a été <b>validé</b>.</p>',em); } closeModal(); renderConges(); }
+function rejeterCongeDay(mat,date){ state.conges=conges().filter(c=>!(c.matricule===mat && c.date===date)); save(); const em=salEmail(mat); const s=salByMat(mat)||{}; if(em) notify('Congé refusé','<p>Bonjour '+esc(s.prenom)+', votre congé du <b>'+dateFR(date)+'</b> a été <b>refusé</b>.</p>',em); closeModal(); renderConges(); }
+function congesPendingSide(Y){
+  const pend=state.salaries.map(s=>{ const days=conges().filter(c=>c.matricule===s.matricule && yearOf(c.date)===Y && c.statut!=='Validé').length*0.5; return {s,days}; }).filter(x=>x.days>0);
+  return `<div class="cp-card" style="background:var(--pending-soft);border:1px solid #ecdca6">
+    <div class="cp-h" style="color:#6b520b">${ic('clock')} Congés en attente de validation</div>
+    ${pend.length? pend.map(x=>`<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-top:1px solid #ecdca6">${agAvatar(x.s,true)}<div style="flex:1;font-size:12.5px"><b>${esc(x.s.prenom)} ${esc(x.s.nom)}</b><div style="color:var(--pending);font-weight:600">${nbJours(x.days)} j</div></div><button class="btn btn-primary btn-sm" style="padding:6px 9px" title="Valider" onclick="validerCongesSal('${x.s.matricule}',${Y})">${ic('check')}</button></div>`).join('') + `<button class="btn btn-ghost btn-sm no-print" style="width:100%;justify-content:center;margin-top:12px" onclick="validerCongesAll(${Y})">${ic('check')} Tout valider</button>` : `<div style="font-size:12.5px;color:var(--muted);padding-top:10px">Aucun congé en attente.</div>`}
   </div>`;
 }
 function validerCongesSal(mat,Y){ let n=0; conges().forEach(c=>{ if(c.matricule===mat && yearOf(c.date)===Y && c.statut!=='Validé'){ c.statut='Validé'; n++; } }); save(); if(n>0){ const em=salEmail(mat); const s=salByMat(mat)||{}; if(em) notify('Vos congés ont été validés', '<p>Bonjour '+esc(s.prenom)+',</p><p>Vos congés (<b>'+nbJours(n*0.5)+' jour(s)</b>) ont été <b>validés</b>.</p>', em); } toast(n?(n*0.5)+' j validés':'Rien à valider'); render(); }
@@ -1343,7 +1373,7 @@ function openConge(matPre){
         <div class="form-row"><label>Type</label><select class="inp" id="cgType">${CONGES_TYPES.map(t=>`<option>${t}</option>`).join('')}</select></div>
         <div class="form-row"><label>Date de début</label><input class="inp" type="date" id="cgD1" value="${today}"></div>
         <div class="form-row"><label>Date de fin</label><input class="inp" type="date" id="cgD2" value="${today}"></div>
-        ${congesAdmin()?`<div class="form-row"><label>Statut</label><select class="inp" id="cgStatut"><option>Validé</option><option>En attente</option></select></div>`:`<div class="form-row"><label>Statut</label><input class="inp" value="En attente (à valider)" disabled></div>`}
+        <div class="form-row"><label>Statut</label><input class="inp" value="En attente (à valider par un responsable)" disabled></div>
         <div class="form-row"></div>
         <div class="form-row full"><div class="preview" id="cgPrev"></div></div>
       </div>
@@ -1357,7 +1387,7 @@ function openConge(matPre){
   $('#cgD1').addEventListener('input',upd); $('#cgD2').addEventListener('input',upd); upd();
 }
 function saveConge(){
-  const mat=congesAdmin()?$('#cgSal').value:congesMyMat(), type=$('#cgType').value, statut=congesAdmin()?($('#cgStatut')?$('#cgStatut').value:'Validé'):'En attente';
+  const mat=congesAdmin()?$('#cgSal').value:congesMyMat(), type=$('#cgType').value, statut='En attente';
   const d1=$('#cgD1').value, d2=$('#cgD2').value;
   if(!mat||!d1||!d2){ toast('Salarié et dates requis'); return; }
   if(d2<d1){ toast('La date de fin précède le début'); return; }
