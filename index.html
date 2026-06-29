@@ -529,6 +529,7 @@ const LOGO_SVG = `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" 
 
 const TYPES_DEFAULT = [
   {code:'ALIM_CP',      libelle:'Alimentation – Congés payés (part éligible)', categorie:'Alimentation', signe:1,  compteCP:'Oui', epargne:'Oui', monetisation:'Oui'},
+  {code:'ALIM_TRANSFO_CP',libelle:'Alimentation – Transformation CP en CET',     categorie:'Alimentation', signe:1,  compteCP:'Non', epargne:'Oui', monetisation:'Oui'},
   {code:'ALIM_AJUST',   libelle:'Ajustement positif (régularisation)',         categorie:'Alimentation', signe:1,  compteCP:'Non', epargne:'Non', monetisation:'Non'},
   {code:'UTIL_CP',      libelle:'Utilisation – Congé CET',                     categorie:'Utilisation',  signe:-1, compteCP:'Oui', epargne:'Oui', monetisation:'Non'},
   {code:'UTIL_MONET',   libelle:'Utilisation – Monétisation (paiement)',       categorie:'Utilisation',  signe:-1, compteCP:'Non', epargne:'Non', monetisation:'Oui'},
@@ -777,6 +778,7 @@ $('#yearSelect').addEventListener('change', e=>{ currentYear=Number(e.target.val
 
 /* ---------- render dispatch ---------- */
 function render(){
+  migrateTypes();
   refreshYearPicker();
   if(currentView==='dashboard') renderDashboard();
   else if(currentView==='mouvements') renderMouvements();
@@ -2095,6 +2097,9 @@ function openMouvement(id){
       <button class="btn btn-primary" onclick="saveMouvement('${m?m.id:''}')">${ic('check')} ${m?'Enregistrer':'Ajouter'}</button>
     </div>`);
 }
+function migrateTypes(){ if(!state.types) state.types=[]; if(!state.types.some(t=>t.code==='ALIM_TRANSFO_CP')){ const nt={code:'ALIM_TRANSFO_CP',libelle:'Alimentation – Transformation CP en CET',categorie:'Alimentation',signe:1,compteCP:'Non',epargne:'Oui',monetisation:'Oui'}; const i=state.types.findIndex(t=>t.code==='ALIM_CP'); if(i>=0) state.types.splice(i+1,0,nt); else state.types.push(nt); save(); } }
+function transfoDeduct(m){ const s=salByMat(m.matricule); if(!s) return; const qte=Number(m.qte)||0; const acq=Number(s.cpAcquis)||0; const fromAcq=Math.max(0,Math.min(qte,acq)); const fromEnc=qte-fromAcq; s.cpAcquis=acq-fromAcq; s.cpEnCours=(Number(s.cpEnCours)||0)-fromEnc; m.transfoAcq=fromAcq; m.transfoEnc=fromEnc; }
+function transfoRestore(m){ const s=salByMat(m.matricule); if(!s){ m.transfoAcq=0; m.transfoEnc=0; return; } if(m.transfoAcq==null && m.transfoEnc==null){ s.cpAcquis=(Number(s.cpAcquis)||0)+(Number(m.qte)||0); } else { s.cpAcquis=(Number(s.cpAcquis)||0)+(Number(m.transfoAcq)||0); s.cpEnCours=(Number(s.cpEnCours)||0)+(Number(m.transfoEnc)||0); } m.transfoAcq=0; m.transfoEnc=0; }
 function saveMouvement(id){
   const date=$('#mDate').value, type=$('#mType').value;
   let mat=$('#mSal').value;
@@ -2102,16 +2107,18 @@ function saveMouvement(id){
   const qte=Number($('#mQte').value), statut=$('#mStatut').value, comm=$('#mComm').value.trim();
   if(!date||!mat||!type){ toast('Date, salarié et type sont requis'); return; }
   if(!(qte>0)){ toast('Saisissez une quantité positive'); return; }
-  if(id){ const m=state.mouvements.find(x=>x.id===id); Object.assign(m,{date,matricule:mat,type,qte,statut,commentaire:comm}); }
-  else { state.mouvements.push({id:uid(),date,matricule:mat,type,qte,statut,commentaire:comm}); movSort={key:'date',dir:'desc'}; const _t=typeByCode(type); if(_t && _t.categorie==='Utilisation'){ const _s=salByMat(mat)||{}; notify('Utilisation CET — '+(_s.nom||'')+' '+(_s.prenom||''), '<p><b>'+esc(_s.nom)+' '+esc(_s.prenom)+'</b> a saisi une utilisation CET :</p><p>'+esc(_t.libelle)+' : <b>'+qte+' j</b> le '+dateFR(date)+(comm?'<br>Commentaire : '+esc(comm):'')+'</p>'); } }
+  if(id){ const m=state.mouvements.find(x=>x.id===id); if(m.type==='ALIM_TRANSFO_CP') transfoRestore(m); Object.assign(m,{date,matricule:mat,type,qte,statut,commentaire:comm}); if(type==='ALIM_TRANSFO_CP') transfoDeduct(m); }
+  else { const _nm={id:uid(),date,matricule:mat,type,qte,statut,commentaire:comm}; state.mouvements.push(_nm); movSort={key:'date',dir:'desc'}; if(type==='ALIM_TRANSFO_CP') transfoDeduct(_nm); const _t=typeByCode(type); if(_t && _t.categorie==='Utilisation'){ const _s=salByMat(mat)||{}; notify('Utilisation CET — '+(_s.nom||'')+' '+(_s.prenom||''), '<p><b>'+esc(_s.nom)+' '+esc(_s.prenom)+'</b> a saisi une utilisation CET :</p><p>'+esc(_t.libelle)+' : <b>'+qte+' j</b> le '+dateFR(date)+(comm?'<br>Commentaire : '+esc(comm):'')+'</p>'); } }
   save(); closeModal(); toast(id?'Mouvement modifié':'Mouvement ajouté'); render();
 }
 function delMouvement(id){
   const m=state.mouvements.find(x=>x.id===id);
   const isCet = !!(m && m.src==='cetconge');
-  const msg = isCet ? "Ce mouvement provient d'un Jour CET validé : le jour de congé correspondant sera également retiré." : 'Cette écriture sera retirée du calcul des soldes.';
+  const isTransfo = !!(m && m.type==='ALIM_TRANSFO_CP');
+  const msg = isCet ? "Ce mouvement provient d'un Jour CET validé : le jour de congé correspondant sera également retiré." : (isTransfo ? "Transformation CP→CET : les jours seront recrédités sur les congés acquis du salarié." : 'Cette écriture sera retirée du calcul des soldes.');
   confirmModal('Supprimer ce mouvement ?', msg, ()=>{
     if(isCet && m.srcConge){ state.conges=conges().filter(c=>c.id!==m.srcConge); }
+    if(isTransfo) transfoRestore(m);
     state.mouvements=state.mouvements.filter(x=>x.id!==id); save(); closeModal(); toast('Mouvement supprimé'); render();
   });
 }
@@ -2129,7 +2136,8 @@ function openSalarie(mat){
         <div class="form-row"><label>Nom</label><input class="inp" id="sNom" value="${s?esc(s.nom):''}"></div>
         <div class="form-row"><label>Prénom</label><input class="inp" id="sPrenom" value="${s?esc(s.prenom):''}"></div>
         <div class="form-row"><label>Date d'entrée</label><input class="inp" type="date" id="sDate" value="${s?s.dateEntree:''}"></div>
-        <div class="form-row"><label>Temps de travail (%)</label><input class="inp" type="number" id="sTps" value="${s?s.tempsPartiel:100}"></div>
+        <div class="form-row"><label>Régime de travail</label><select class="inp" id="sRegime" onchange="salRegimeChanged();salCoutPreview()"><option ${(!s||s.regime!=='Temps partiel')?'selected':''}>Temps plein</option><option ${s&&s.regime==='Temps partiel'?'selected':''}>Temps partiel</option></select></div>
+        <div class="form-row" id="sJoursAnRow" style="${s&&s.regime==='Temps partiel'?'':'display:none'}"><label>Jours travaillés / an (temps partiel)</label><input class="inp" type="number" id="sJoursAn" value="${s&&s.joursAnPartiel!=null?s.joursAnPartiel:''}" placeholder="ex. 130" oninput="salCoutPreview()"></div>
         <div class="form-row"><label>Brut chargé annuel (€) <span class="hint">N-1 ou estimé</span></label><input class="inp" type="number" step="0.01" id="sBrut" value="${s&&s.brutAnnuel!=null?s.brutAnnuel:''}" placeholder="ex. 40000" oninput="salCoutPreview()"></div>
         <div class="form-row"><label>Année de réf. (jours ouvrés)</label><input class="inp" type="number" id="sBrutY" value="${s&&s.brutRefYear?s.brutRefYear:Number(state.params.anneeSuivi)}" oninput="salCoutPreview()"></div>
         <div class="form-row"><label>Coût / jour manuel (€) <span class="hint">si pas de brut</span></label><input class="inp" type="number" step="0.01" id="sCout" value="${s&&s.coutJour!=null&&!(s&&s.brutAnnuel)?s.coutJour:''}" placeholder="optionnel" oninput="salCoutPreview()"></div>
@@ -2166,9 +2174,13 @@ function salPhotoUpload(input){
   rd.readAsDataURL(f);
 }
 function salPhotoRemove(){ _salPhoto=null; const p=$('#salPhotoPrev'); if(p) p.innerHTML=esc(initials({nom:(($('#sNom')||{}).value||''),prenom:(($('#sPrenom')||{}).value||'')})); }
+function salRegimeChanged(){ const r=$('#sRegime'), row=$('#sJoursAnRow'); if(r&&row) row.style.display=(r.value==='Temps partiel')?'':'none'; }
 function salCoutPreview(){
   const brut=Number($('#sBrut').value)||0; const Y=Number($('#sBrutY').value)||Number(state.params.anneeSuivi);
-  const o=joursOuvresAnnee(Y); const jt=o.weekdays-o.feries;
+  const o=joursOuvresAnnee(Y); let jt=o.weekdays-o.feries;
+  const regime=$('#sRegime')?$('#sRegime').value:'Temps plein';
+  const joursAn=Number($('#sJoursAn')?$('#sJoursAn').value:0)||0;
+  const partiel = regime==='Temps partiel' && joursAn>0; if(partiel) jt=joursAn;
   const manuel=Number($('#sCout').value)||0;
   let cout = (brut>0&&jt>0)?Math.round(brut/jt*100)/100 : (manuel>0?manuel:null);
   const el=$('#sCoutCalc'); if(el) el.value = cout? (cout.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €') : '—';
@@ -2177,7 +2189,10 @@ function salCoutPreview(){
       ? `Coût/jour = ${eur2(brut)} ÷ ${jt} = <b style="color:var(--accent-strong)">${cout?eur2(cout):'—'}</b>`
       : (manuel>0 ? `Coût/jour manuel retenu : <b style="color:var(--accent-strong)">${eur2(manuel)}</b>`
                   : `Renseignez le <b>brut chargé annuel</b> ci-dessus pour le calcul automatique.`);
-    det.innerHTML = `${ic('calendar')}<span><b>Année ${Y}</b> : ${o.weekdays} jours ouvrés (lun→ven) − ${o.feries} jours fériés = <b>${jt} jours ouvrés</b> <span style="color:var(--muted-2)">(les congés payés ne sont pas déduits)</span>.<br>${calc}</span>`;
+    const base = partiel
+      ? `<b>Temps partiel</b> : ${jt} jours travaillés/an (saisis).`
+      : `<b>Année ${Y}</b> : ${o.weekdays} jours ouvrés − ${o.feries} fériés = <b>${jt} jours ouvrés</b> <span style="color:var(--muted-2)">(CP non déduits)</span>.`;
+    det.innerHTML = `${ic('calendar')}<span>${base}<br>${calc}</span>`;
   }
 }
 function saveSalarie(mat){
@@ -2190,11 +2205,15 @@ function saveSalarie(mat){
   if(isNew && salByMat(matricule)){ toast('Ce matricule existe déjà'); return; }
   const brut = $('#sBrut').value===''?null:Number($('#sBrut').value);
   const brutY = Number($('#sBrutY').value)||Number(state.params.anneeSuivi);
+  const regime = $('#sRegime') ? $('#sRegime').value : 'Temps plein';
+  const joursAn = Number($('#sJoursAn') ? $('#sJoursAn').value : 0) || 0;
+  const _oref=joursOuvresAnnee(brutY); const _jtref=_oref.weekdays-_oref.feries;
   let coutJour;
-  if(brut!=null && brut>0){ const o=joursOuvresAnnee(brutY); const jt=o.weekdays-o.feries; coutJour = jt>0?Math.round(brut/jt*100)/100:null; }
+  if(brut!=null && brut>0){ let jt=_jtref; if(regime==='Temps partiel' && joursAn>0) jt=joursAn; coutJour = jt>0?Math.round(brut/jt*100)/100:null; }
   else { coutJour = $('#sCout').value===''?null:Number($('#sCout').value); }
   const data={matricule, nom, prenom, dateEntree:$('#sDate').value,
-    tempsPartiel:Number($('#sTps').value)||100, statut:$('#sStatut').value,
+    regime, joursAnPartiel:(regime==='Temps partiel'&&joursAn>0)?joursAn:null,
+    tempsPartiel:(regime==='Temps partiel'&&joursAn>0&&_jtref>0)?Math.round(joursAn/_jtref*100):100, statut:$('#sStatut').value,
     coutJour, brutAnnuel:brut, brutRefYear:brutY, photo:_salPhoto, commentaire:$('#sComm').value.trim(),
     cpAcquis: $('#sCpAcq').value===''?(cur?cur.cpAcquis:0):Number($('#sCpAcq').value),
     cpEnCours: $('#sCpEnc').value===''?(cur?cur.cpEnCours:0):Number($('#sCpEnc').value)};
