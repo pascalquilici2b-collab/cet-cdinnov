@@ -1097,6 +1097,7 @@ function renderParametres(){
           <button class="btn btn-ghost" onclick="backupJSON()">${ic('save')} Sauvegarde (JSON)</button>
           <button class="btn btn-ghost" onclick="$('#importFile').click()">${ic('upload')} Importer (JSON)</button>
           <input type="file" id="importFile" accept="application/json" style="display:none" onchange="importJSON(event)">
+          <button class="btn btn-ghost" onclick="migrateAttachmentsToR2()">${ic('upload')} Déplacer les pièces jointes vers R2</button>
           <button class="btn btn-danger" onclick="resetAll()">${ic('refresh')} Réinitialiser</button>
         </div>
       </div>
@@ -1467,8 +1468,65 @@ async function pdfTextFromData(data){
 async function pdfText(file){ return pdfTextFromData(await file.arrayBuffer()); }
 function fileToDataURL(f){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=()=>rej(r.error||new Error('Lecture fichier impossible')); r.readAsDataURL(f); }); }
 function dataURLtoU8(d){ const b=atob(String(d).split(',')[1]||''); const u=new Uint8Array(b.length); for(let i=0;i<b.length;i++) u[i]=b.charCodeAt(i); return u; }
+
+/* ---- Pièces jointes volumineuses (R2, via Worker /files/<key>) — évite de saturer le quota KV (25 Mo/valeur) ---- */
+function filesBase(){ return CLOUD_ENDPOINT.replace(/\/+$/,'')+'/files/'; }
+function isRemoteFileURL(s){ return typeof s==='string' && /^https?:\/\//.test(s) && s.indexOf('/files/')>-1; }
+async function uploadFileToR2(file, keyPrefix){
+  const ext=(file.name||'').split('.').pop().toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,10);
+  const key=(keyPrefix||'f')+'-'+Date.now().toString(36)+Math.random().toString(36).slice(2,7)+(ext?('.'+ext):'');
+  const r=await fetch(filesBase()+encodeURIComponent(key),{method:'PUT',headers:{'Content-Type':file.type||'application/octet-stream'},body:file});
+  if(!r.ok) throw new Error("Échec de l'envoi du fichier (HTTP "+r.status+")");
+  return filesBase()+encodeURIComponent(key);
+}
+function deleteFileFromR2(url){
+  if(!isRemoteFileURL(url)) return;
+  try{ fetch(url,{method:'DELETE'}).catch(()=>{}); }catch(e){}
+}
+async function toU8Async(src){
+  if(!src) return new Uint8Array();
+  if(String(src).startsWith('data:')) return dataURLtoU8(src);
+  const r=await fetch(src); const buf=await r.arrayBuffer(); return new Uint8Array(buf);
+}
+async function toDataURLAsync(src){
+  if(!src) return null;
+  if(String(src).startsWith('data:')) return src;
+  const r=await fetch(src); const blob=await r.blob();
+  return await new Promise((res,rej)=>{ const fr=new FileReader(); fr.onload=()=>res(fr.result); fr.onerror=()=>rej(fr.error||new Error('Lecture impossible')); fr.readAsDataURL(blob); });
+}
+async function migrateAttachmentsToR2(){
+  if(!cloudEnabled()){ toast('Synchronisation cloud désactivée'); return; }
+  toast('Migration des pièces jointes en cours…');
+  let n=0, errs=0;
+  try{
+    for(const s of state.salaries){
+      if(s.payslip && String(s.payslip).startsWith('data:')){
+        try{ const f=new File([await (await fetch(s.payslip)).blob()], s.payslipName||'fiche.pdf', {type:'application/pdf'}); s.payslip=await uploadFileToR2(f,'payslip-'+s.matricule); n++; }catch(e){ errs++; }
+      }
+      if(s.photo && String(s.photo).startsWith('data:') && s.photo.length>200000){
+        try{ const f=new File([await (await fetch(s.photo)).blob()], 'photo.jpg', {type:'image/jpeg'}); s.photo=await uploadFileToR2(f,'photo-'+s.matricule); n++; }catch(e){ errs++; }
+      }
+    }
+    for(const nf of notesFrais()){
+      for(const l of (nf.lignes||[])){
+        if(l.justificatif && String(l.justificatif).startsWith('data:')){
+          try{
+            const blob=await (await fetch(l.justificatif)).blob();
+            const f=new File([blob], l.justName||'justificatif', {type:blob.type||''});
+            l.justType=f.type||l.justType||'';
+            l.justificatif=await uploadFileToR2(f,'justif-'+nf.id);
+            n++;
+          }catch(e){ errs++; }
+        }
+      }
+    }
+    save(); await cloudPush();
+    toast(n+' pièce(s) jointe(s) déplacée(s) vers R2'+(errs?(' — '+errs+' erreur(s)'):''));
+    render();
+  }catch(e){ toast(e.message||'Erreur pendant la migration'); }
+}
 function normNum(s){
-  s=String(s).replace(/[\s  ]/g,'');
+  s=String(s).replace(/[\s  ]/g,'');
   const dec=Math.max(s.lastIndexOf(','),s.lastIndexOf('.'));
   if(dec>-1 && s.length-dec===3) s=s.slice(0,dec).replace(/[.,]/g,'')+'.'+s.slice(dec+1);
   else s=s.replace(/[.,]/g,'');
@@ -1476,7 +1534,7 @@ function normNum(s){
 }
 function parseBrutAnnuel(text){
   const t=text||'';
-  const NUMG='([0-9][0-9 .  ]*[.,][0-9]{2})';
+  const NUMG='([0-9][0-9 .  ]*[.,][0-9]{2})';
   // 1) Format bulletin : recap colonnes "Brut Plafond Net Imposable ..." -> 1ere ligne "Annee : <brut>"
   let m=t.match(new RegExp('Brut\\s+Plafond\\s+Net\\s+Imposable[\\s\\S]*?Ann(?:é|e)e\\s*:\\s*'+NUMG,'i'));
   if(m){ const v=normNum(m[1]); if(v) return {brut:v, via:'Brut annee (recap du bulletin)'}; }
@@ -1494,11 +1552,14 @@ async function onPayslip(mat, input){
   const f=input&&input.files&&input.files[0]; input.value='';
   if(!f) return;
   if(f.type && f.type.indexOf('pdf')<0){ toast('Veuillez choisir un fichier PDF'); return; }
-  toast('Lecture de la fiche de paie…');
+  toast('Envoi de la fiche de paie…');
   try{
-    const dataUrl=await fileToDataURL(f);
-    const s=salByMat(mat); if(s){ s.payslip=dataUrl; s.payslipName=f.name; save(); render(); }
-    const txt=await pdfTextFromData(dataURLtoU8(dataUrl));
+    const s=salByMat(mat); if(!s) return;
+    const oldUrl=s.payslip;
+    const url=await uploadFileToR2(f,'payslip-'+mat);
+    s.payslip=url; s.payslipName=f.name; save(); render();
+    if(oldUrl && oldUrl!==url) deleteFileFromR2(oldUrl);
+    const txt=await pdfTextFromData(await toU8Async(url));
     const {brut,via}=parseBrutAnnuel(txt);
     openCoutCalc(mat, brut, via);
   }catch(e){ toast(e.message||'Impossible de lire ce PDF'); }
@@ -1523,7 +1584,7 @@ async function renderPayslipThumb(s){
   const wrap=$('#psThumb'); if(!wrap) return;
   try{
     const pdfjs=await loadPdfJs();
-    const doc=await pdfjs.getDocument({data:dataURLtoU8(s.payslip)}).promise;
+    const doc=await pdfjs.getDocument({data:await toU8Async(s.payslip)}).promise;
     const page=await doc.getPage(1);
     const base=page.getViewport({scale:1});
     const scale=Math.min(1.5, 440/base.width);
@@ -1536,12 +1597,13 @@ async function renderPayslipThumb(s){
 }
 function removePayslip(mat){
   const s=salByMat(mat); if(!s) return;
+  deleteFileFromR2(s.payslip);
   delete s.payslip; delete s.payslipName; s.coutJour=null; save(); closeModal(); toast('Fiche de paie et coût/jour retirés'); render();
 }
 async function recalcPayslip(mat){
   const s=salByMat(mat); if(!s||!s.payslip) return;
   toast('Lecture de la fiche de paie…');
-  try{ const txt=await pdfTextFromData(dataURLtoU8(s.payslip)); const {brut,via}=parseBrutAnnuel(txt); closeModal(); openCoutCalc(mat, brut, via); }
+  try{ const txt=await pdfTextFromData(await toU8Async(s.payslip)); const {brut,via}=parseBrutAnnuel(txt); closeModal(); openCoutCalc(mat, brut, via); }
   catch(e){ toast(e.message||'Impossible de lire ce PDF'); }
 }
 
@@ -1971,11 +2033,21 @@ function nfLineChanged(i){ nfSync(); const l=nfDraft.lignes[i]; if(l&&l.categori
 function nfDureeUpd(){ const e=$('#nfDuree'); if(e) e.value=nfCalcDuree($('#nfD1').value,$('#nfD2').value); }
 function nfAddLine(){ nfSync(); nfDraft.lignes.push({id:uid(),date:ymd(new Date()),categorie:NF_CATS[0],description:'',montant:0}); renderNoteEditor(); }
 function nfRemoveLine(i){ nfSync(); nfDraft.lignes.splice(i,1); renderNoteEditor(); }
-function nfJustif(i,input){ const f=input&&input.files&&input.files[0]; if(!f) return; nfSync(); fileToDataURL(f).then(d=>{ nfDraft.lignes[i].justificatif=d; nfDraft.lignes[i].justName=f.name; renderNoteEditor(); }).catch(()=>toast('Lecture du justificatif impossible')); }
-function nfJustifRemove(i){ nfSync(); delete nfDraft.lignes[i].justificatif; delete nfDraft.lignes[i].justName; renderNoteEditor(); }
+function nfJustif(i,input){
+  const f=input&&input.files&&input.files[0]; if(!f) return; input.value='';
+  nfSync();
+  const oldUrl=nfDraft.lignes[i] && nfDraft.lignes[i].justificatif;
+  toast('Envoi du justificatif…');
+  uploadFileToR2(f,'justif-'+(nfDraft.id||'note')+'-'+i).then(url=>{
+    nfDraft.lignes[i].justificatif=url; nfDraft.lignes[i].justName=f.name; nfDraft.lignes[i].justType=f.type||'';
+    renderNoteEditor();
+    if(oldUrl && oldUrl!==url) deleteFileFromR2(oldUrl);
+  }).catch(()=>toast('Envoi du justificatif impossible'));
+}
+function nfJustifRemove(i){ nfSync(); const l=nfDraft.lignes[i]; if(l&&l.justificatif) deleteFileFromR2(l.justificatif); delete nfDraft.lignes[i].justificatif; delete nfDraft.lignes[i].justName; delete nfDraft.lignes[i].justType; renderNoteEditor(); }
 function nfJustifPreview(i){
   const l=nfDraft.lignes[i]; if(!l||!l.justificatif) return;
-  const isImg=/^data:image\//.test(l.justificatif);
+  const isImg=l.justType ? l.justType.indexOf('image/')===0 : /^data:image\//.test(l.justificatif);
   modal(`<div class="modal-head"><h3>Justificatif — ${esc(l.categorie||'')}</h3><div class="grow"></div><button class="icon-btn" onclick="renderNoteEditor()">${ic('close')}</button></div>
     <div class="modal-body"><div style="font-size:12px;color:var(--muted);margin-bottom:10px">${esc(l.justName||'')} <a class="link" href="${l.justificatif}" download="${esc(l.justName||'justificatif')}">Télécharger</a></div>
     ${isImg?`<img src="${l.justificatif}" style="max-width:100%;border:1px solid var(--line);border-radius:8px">`:`<iframe src="${l.justificatif}" style="width:100%;height:60vh;border:1px solid var(--line);border-radius:8px"></iframe>`}</div>
@@ -1995,6 +2067,8 @@ function saveNoteFrais(thenPdf){
 }
 function delNoteFrais(id){
   confirmModal('Supprimer cette note de frais ?','Cette action est définitive (justificatifs inclus).',()=>{
+    const n=notesFrais().find(x=>x.id===id);
+    if(n) (n.lignes||[]).forEach(l=>{ if(l.justificatif) deleteFileFromR2(l.justificatif); });
     state.notesFrais=notesFrais().filter(n=>n.id!==id); save(); closeModal(); toast('Note supprimée'); render();
   });
 }
@@ -2058,7 +2132,16 @@ async function exportNoteFraisPDF(id){
     doc.text("Signature de l'intéressé(e) :",16,y+5); doc.text('Visa contrôle / Accord du directeur :',14+bw+gap+2,y+5);
     doc.setTextColor(0);
     if(n.signature){ try{ doc.addImage(n.signature,'PNG',16,y+8,bw-4,bh-12); }catch(e){} }
-    (n.lignes||[]).forEach(l=>{ if(l.justificatif && /^data:image\//.test(l.justificatif)){ try{ doc.addPage(); doc.setFont(F,'bold'); doc.setFontSize(10); doc.text('Justificatif - '+(l.categorie||'')+(l.date?' du '+dateFR(l.date):''),14,14); const p=doc.getImageProperties(l.justificatif); const w=180, hh=Math.min(p.height*w/p.width,255); doc.addImage(l.justificatif,p.fileType||'JPEG',14,20,w,hh); }catch(e){} } });
+    for(const l of (n.lignes||[])){
+      const isImgJust = l.justType ? l.justType.indexOf('image/')===0 : /^data:image\//.test(l.justificatif||'');
+      if(l.justificatif && isImgJust){
+        try{
+          const durl=await toDataURLAsync(l.justificatif);
+          doc.addPage(); doc.setFont(F,'bold'); doc.setFontSize(10); doc.text('Justificatif - '+(l.categorie||'')+(l.date?' du '+dateFR(l.date):''),14,14);
+          const p=doc.getImageProperties(durl); const w=180, hh=Math.min(p.height*w/p.width,255); doc.addImage(durl,p.fileType||'JPEG',14,20,w,hh);
+        }catch(e){}
+      }
+    }
     doc.save('Note_de_frais_N'+(n.numero||'')+'_'+(s.nom||'').replace(/\s+/g,'')+'.pdf');
     toast('PDF généré');
   }catch(e){ toast(e.message||'Erreur lors de la génération du PDF'); }
