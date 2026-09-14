@@ -1315,14 +1315,69 @@ function calendarGlobalHTML(Y,M){
   }
   return `<div class="gcal">${heads}${cells}</div>`;
 }
+function congeHalfChip(mat,date,half,rec,can){
+  const lib=half==='AM'?'Matin':'Après-midi';
+  const on=!!rec, pend=on && rec.statut!=='Validé';
+  const col=on?(CONGES_TYPE_COLOR[rec.type]||'#1786c9'):'';
+  const base='display:inline-block;padding:4px 11px;border-radius:999px;font-size:11px;font-weight:700;border:1px solid var(--line);';
+  const style= on ? base+`background:${col};border-color:${col};color:#fff;${pend?'opacity:.55;':''}` : base+'background:var(--panel);color:var(--muted-2)';
+  const cur = can?'cursor:pointer;':'cursor:default;';
+  const tt = lib+(on?(pend?' — en attente (cliquer pour retirer)':' — validé (cliquer pour retirer)'):(' — libre'+(can?' (cliquer pour poser)':'')));
+  return `<span style="${style}${cur}" title="${esc(tt)}" ${can?`onclick="congeToggleHalfDay('${mat}','${date}','${half}')"`:''}>${lib}</span>`;
+}
 function congeDayMenu(date){
   const ags=congesDayAgents(date); const admin=congesAdmin(); const mm=myMat();
+  const dow=new Date(date+'T00:00:00').getDay(); const we=(dow===0||dow===6);
   const rows = ags.length ? ags.map(a=>{
-    const period = a.autoSat?'samedi (convention)':(a.halves.length>=2?'journée entière':(a.halves[0]&&a.halves[0].half==='AM'?'matin':'après-midi'));
     const st = a.pending?'<span style="color:var(--pending);font-weight:700">en attente</span>':'<span style="color:var(--ok);font-weight:700">validé</span>';
-    return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line)">${agAvatar(a.s,a.pending)}<div style="flex:1"><b>${esc(a.s.nom)} ${esc(a.s.prenom)}</b><div style="font-size:12px;color:var(--muted)">${esc(a.type||'')} · ${period} · ${st}</div></div>${(admin && a.pending && !a.autoSat)?`<button class="btn btn-primary btn-sm" onclick="validerCongeDay('${a.s.matricule}','${date}')">${ic('check')}</button>`:''}${((admin || mm===a.s.matricule) && !a.autoSat)?`<button class="icon-btn" title="${a.pending?'Rejeter le congé':'Retirer ce congé'}" onclick="rejeterCongeDay('${a.s.matricule}','${date}')">${ic('trash')}</button>`:''}</div>`;
+    const can = (admin || mm===a.s.matricule) && !a.autoSat && !we;
+    const detail = a.autoSat
+      ? `<div style="font-size:12px;color:var(--muted)">${esc(a.type||'')} · samedi (convention) · ${st}</div>`
+      : `<div style="font-size:12px;color:var(--muted);margin-bottom:5px">${esc(a.type||'')} · ${st}</div>
+         <div style="display:flex;gap:6px">${congeHalfChip(a.s.matricule,date,'AM',congeAt(a.s.matricule,date,'AM'),can)}${congeHalfChip(a.s.matricule,date,'PM',congeAt(a.s.matricule,date,'PM'),can)}</div>`;
+    return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)">${agAvatar(a.s,a.pending)}<div style="flex:1"><b>${esc(a.s.nom)} ${esc(a.s.prenom)}</b>${detail}</div>${(admin && a.pending && !a.autoSat)?`<button class="btn btn-primary btn-sm" title="Valider la journée" onclick="validerCongeDay('${a.s.matricule}','${date}')">${ic('check')}</button>`:''}${((admin || mm===a.s.matricule) && !a.autoSat)?`<button class="icon-btn" title="${a.pending?'Rejeter le congé':'Retirer ce congé'}" onclick="rejeterCongeDay('${a.s.matricule}','${date}')">${ic('trash')}</button>`:''}</div>`;
   }).join('') : '<div style="font-size:13px;color:var(--muted);padding:6px 0">Aucun congé posé ce jour.</div>';
-  modal(`<div class="modal-head"><h3>${dateFR(date)}</h3></div><div class="modal-body">${rows}</div><div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal()">Fermer</button>${mm?`<button class="btn btn-primary" onclick="closeModal();openConge('${mm}')">${ic('plus')} Poser une période</button>`:''}</div>`);
+  const posteurs = admin ? state.salaries : state.salaries.filter(s=>s.matricule===mm);
+  const poser = (!we && posteurs.length) ? `
+    <div style="margin-top:16px;padding-top:14px;border-top:2px solid var(--line-strong)">
+      <div style="font-size:12.5px;font-weight:700;color:var(--ink);margin-bottom:9px">Poser ce jour</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+        <select class="inp slim" id="cgdMat" style="flex:1;min-width:150px" ${admin?'':'disabled'}>${posteurs.map(s=>`<option value="${s.matricule}" ${s.matricule===mm?'selected':''}>${esc(s.nom)} ${esc(s.prenom)}</option>`).join('')}</select>
+        <select class="inp slim" id="cgdType" style="flex:1;min-width:130px">${CONGES_TYPES.map(t=>`<option>${t}</option>`).join('')}</select>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-primary btn-sm" style="flex:1" onclick="congePostDay('${date}','FULL')">Journée entière</button>
+        <button class="btn btn-ghost btn-sm" style="flex:1" onclick="congePostDay('${date}','AM')">Matin</button>
+        <button class="btn btn-ghost btn-sm" style="flex:1" onclick="congePostDay('${date}','PM')">Après-midi</button>
+      </div>
+    </div>` : '';
+  modal(`<div class="modal-head"><h3>${dateFR(date)}</h3></div><div class="modal-body">${rows}${poser}</div><div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal()">Fermer</button>${mm?`<button class="btn btn-primary" onclick="closeModal();openConge('${mm}')">${ic('plus')} Poser une période</button>`:''}</div>`);
+}
+function congePostDay(date, period){
+  const selMat=$('#cgdMat'), selType=$('#cgdType');
+  const mat = (congesAdmin() && selMat) ? selMat.value : myMat();
+  const type = selType ? selType.value : 'Congés payés';
+  if(!mat){ toast('Salarié introuvable'); return; }
+  const halves = period==='FULL' ? ['AM','PM'] : [period];
+  const st=congesEffStatut(); let added=0;
+  halves.forEach(hf=>{ if(!congeAt(mat,date,hf)){ conges().push({id:uid(),matricule:mat,date,half:hf,type,statut:st}); added++; } });
+  if(!added){ toast('Déjà posé sur cette période'); return; }
+  save(); if(st!=='Validé') scheduleCongesNotify(mat);
+  toast(nbJours(added*0.5)+' j posé(s)');
+  renderConges(); congeDayMenu(date);
+}
+function congeToggleHalfDay(mat,date,half){
+  if(!(congesAdmin() || myMat()===mat)){ toast('Action non autorisée'); return; }
+  const ex=congeAt(mat,date,half);
+  if(ex){ state.conges=conges().filter(c=>c!==ex); toast((half==='AM'?'Matin':'Après-midi')+' retiré'); }
+  else {
+    const st=congesEffStatut();
+    const ref=conges().find(c=>c.matricule===mat && c.date===date);
+    conges().push({id:uid(),matricule:mat,date,half,type:(ref&&ref.type)||'Congés payés',statut:st});
+    if(st!=='Validé') scheduleCongesNotify(mat);
+    toast((half==='AM'?'Matin':'Après-midi')+' posé');
+  }
+  save(); renderConges(); congeDayMenu(date);
 }
 function validerCongeDay(mat,date){ let n=0; conges().forEach(c=>{ if(c.matricule===mat && c.date===date && c.statut!=='Validé'){ c.statut='Validé'; n++; } }); save(); if(n>0){ const em=salEmail(mat); const s=salByMat(mat)||{}; if(em) notify('Congé validé','<p>Bonjour '+esc(s.prenom)+', votre congé du <b>'+dateFR(date)+'</b> a été <b>validé</b>.</p>',em); } closeModal(); renderConges(); }
 function rejeterCongeDay(mat,date){ state.conges=conges().filter(c=>!(c.matricule===mat && c.date===date)); save(); const em=salEmail(mat); const s=salByMat(mat)||{}; if(em && myMat()!==mat) notify('Congé annulé','<p>Bonjour '+esc(s.prenom)+', votre congé du <b>'+dateFR(date)+'</b> a été <b>annulé</b>.</p>',em); toast('Congé retiré'); closeModal(); renderConges(); }
@@ -1374,7 +1429,9 @@ function openConge(matPre){
         <div class="form-row"><label>Salarié</label><select class="inp" id="cgSal" ${congesAdmin()?'':'disabled'}>${(congesAdmin()?state.salaries:state.salaries.filter(s=>s.matricule===congesMyMat())).map(s=>`<option value="${s.matricule}" ${(congesAdmin()?matPre:congesMyMat())===s.matricule?'selected':''}>${esc(s.nom)} ${esc(s.prenom)} (${s.matricule})</option>`).join('')}</select></div>
         <div class="form-row"><label>Type</label><select class="inp" id="cgType">${CONGES_TYPES.map(t=>`<option>${t}</option>`).join('')}</select></div>
         <div class="form-row"><label>Date de début</label><input class="inp" type="date" id="cgD1" value="${today}"></div>
+        <div class="form-row"><label id="cgH1Lab">Début</label><select class="inp" id="cgH1"><option value="FULL">Journée entière</option><option value="AM">Matin seulement</option><option value="PM">Après-midi seulement</option></select></div>
         <div class="form-row"><label>Date de fin</label><input class="inp" type="date" id="cgD2" value="${today}"></div>
+        <div class="form-row" id="cgH2Row"><label>Fin</label><select class="inp" id="cgH2"><option value="FULL">Journée entière</option><option value="AM">Matin seulement</option></select></div>
         <div class="form-row"><label>Statut</label><input class="inp" value="En attente (à valider par un responsable)" disabled></div>
         <div class="form-row"></div>
         <div class="form-row full"><div class="preview" id="cgPrev"></div></div>
@@ -1382,20 +1439,42 @@ function openConge(matPre){
     </div>
     <div class="modal-foot">
       <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>
-      <button class="btn btn-primary" onclick="saveConge()">${ic('check')} Ajouter en journées entières</button>
+      <button class="btn btn-primary" onclick="saveConge()">${ic('check')} Ajouter</button>
     </div>`);
-  const upd=()=>{ const n=joursOuvres($('#cgD1').value,$('#cgD2').value);
-    $('#cgPrev').innerHTML=`${ic('info')}<span><b>${nbJours(n)}</b> jour(s) ouvré(s) seront ajoutés en <b>journées entières</b>.</span> <span>· ajustez ensuite les demi-journées d'un clic dans le calendrier.</span>`; };
-  $('#cgD1').addEventListener('input',upd); $('#cgD2').addEventListener('input',upd); upd();
+  const upd=()=>{
+    const d1=$('#cgD1').value, d2=$('#cgD2').value;
+    const single = d1 && d2 && d1===d2;
+    $('#cgH2Row').style.display = single ? 'none' : '';
+    $('#cgH1Lab').textContent = single ? 'Durée' : 'Premier jour';
+    const n=congePeriodeJours(d1,d2,$('#cgH1').value,$('#cgH2').value);
+    $('#cgPrev').innerHTML=`${ic('info')}<span><b>${nbJours(n)}</b> jour(s) ouvré(s) seront posés.</span> <span>· demi-journées ajustables ensuite en cliquant le jour dans le calendrier.</span>`;
+  };
+  ['#cgD1','#cgD2','#cgH1','#cgH2'].forEach(s=>{ const e=$(s); if(e){ e.addEventListener('input',upd); e.addEventListener('change',upd); } });
+  upd();
+}
+/* Demi-journées d'une date dans une période : 'FULL' | 'AM' | 'PM' sur le 1er et le dernier jour */
+function congePeriodeHalves(ds, d1, d2, h1, h2){
+  if(d1===d2) return (h1==='FULL'||!h1) ? ['AM','PM'] : [h1];
+  if(ds===d1) return (h1==='FULL'||!h1) ? ['AM','PM'] : [h1];
+  if(ds===d2) return (h2==='FULL'||!h2) ? ['AM','PM'] : [h2];
+  return ['AM','PM'];
+}
+function congePeriodeJours(d1,d2,h1,h2){
+  if(!d1||!d2||d2<d1) return 0;
+  const a=new Date(d1+'T00:00:00'), b=new Date(d2+'T00:00:00'); let n=0;
+  for(let d=new Date(a); d<=b; d.setDate(d.getDate()+1)){ const j=d.getDay(); if(j===0||j===6) continue;
+    n += congePeriodeHalves(ymd(d),d1,d2,h1,h2).length*0.5; }
+  return n;
 }
 function saveConge(){
   const mat=congesAdmin()?$('#cgSal').value:congesMyMat(), type=$('#cgType').value, statut='En attente';
   const d1=$('#cgD1').value, d2=$('#cgD2').value;
   if(!mat||!d1||!d2){ toast('Salarié et dates requis'); return; }
   if(d2<d1){ toast('La date de fin précède le début'); return; }
+  const h1=($('#cgH1')||{}).value||'FULL', h2=($('#cgH2')||{}).value||'FULL';
   const a=new Date(d1+'T00:00:00'), b=new Date(d2+'T00:00:00'); let added=0;
   for(let d=new Date(a); d<=b; d.setDate(d.getDate()+1)){ const j=d.getDay(); if(j===0||j===6) continue;
-    const ds=ymd(d); ['AM','PM'].forEach(hf=>{ if(!congeAt(mat,ds,hf)){ conges().push({id:uid(),matricule:mat,date:ds,half:hf,type,statut}); added++; } }); }
+    const ds=ymd(d); congePeriodeHalves(ds,d1,d2,h1,h2).forEach(hf=>{ if(!congeAt(mat,ds,hf)){ conges().push({id:uid(),matricule:mat,date:ds,half:hf,type,statut}); added++; } }); }
   save(); closeModal(); toast(added? `${added/2} jour(s) ajouté(s)` : 'Aucun jour ouvré dans la période');
   if(statut!=='Validé' && added) scheduleCongesNotify(mat);
   congesSal=mat; congesMonth=a.getMonth(); currentYear=a.getFullYear(); render();
@@ -1526,7 +1605,7 @@ async function migrateAttachmentsToR2(){
   }catch(e){ toast(e.message||'Erreur pendant la migration'); }
 }
 function normNum(s){
-  s=String(s).replace(/[\s  ]/g,'');
+  s=String(s).replace(/[\s  ]/g,'');
   const dec=Math.max(s.lastIndexOf(','),s.lastIndexOf('.'));
   if(dec>-1 && s.length-dec===3) s=s.slice(0,dec).replace(/[.,]/g,'')+'.'+s.slice(dec+1);
   else s=s.replace(/[.,]/g,'');
@@ -1534,7 +1613,7 @@ function normNum(s){
 }
 function parseBrutAnnuel(text){
   const t=text||'';
-  const NUMG='([0-9][0-9 .  ]*[.,][0-9]{2})';
+  const NUMG='([0-9][0-9 .  ]*[.,][0-9]{2})';
   // 1) Format bulletin : recap colonnes "Brut Plafond Net Imposable ..." -> 1ere ligne "Annee : <brut>"
   let m=t.match(new RegExp('Brut\\s+Plafond\\s+Net\\s+Imposable[\\s\\S]*?Ann(?:é|e)e\\s*:\\s*'+NUMG,'i'));
   if(m){ const v=normNum(m[1]); if(v) return {brut:v, via:'Brut annee (recap du bulletin)'}; }
