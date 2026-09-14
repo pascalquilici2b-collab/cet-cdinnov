@@ -323,7 +323,7 @@
     .filters{flex-wrap:wrap}
     .cal-toolbar{flex-wrap:wrap;gap:8px}
     .salpick-list{max-height:200px}
-    .gday{min-height:58px} .gcal{gap:4px} .agchip{width:19px;height:19px} .cal-side{flex:1 1 100%}
+    .gday{min-height:58px} .gcal{gap:4px} .agchip{width:19px;height:19px} .aghalf{min-width:11px;height:11px;font-size:7px} .cal-side{flex:1 1 100%}
   }
   @media print{
     .sidebar,.topbar .year-pick,.no-print{display:none!important}
@@ -460,6 +460,9 @@ body.authed .auth-gate{display:none}
 .agchip.pend{opacity:.4;border-style:dashed}
 .agchip img{width:100%;height:100%;object-fit:cover;display:block}
 .agini{display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-size:8px;font-weight:700;color:var(--agc,#1786c9);background:#fff}
+.agslot{position:relative;display:inline-flex;flex:0 0 auto}
+.aghalf{position:absolute;right:-3px;bottom:-3px;min-width:12px;height:12px;padding:0 2px;border-radius:7px;background:var(--agc,#1786c9);color:#fff;font-size:7.5px;font-weight:800;display:flex;align-items:center;justify-content:center;border:1.5px solid #fff;line-height:1;letter-spacing:.2px}
+.agslot.pend .aghalf{opacity:.55}
 .agdot{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:5px;vertical-align:-1px}
 </style>
 <div id="authGate" class="auth-gate">
@@ -1254,7 +1257,10 @@ function renderConges(){
   let satA=0; state.salaries.forEach(s=>{ autoSamedisList(s.matricule).forEach(x=>{ if(yearOf(x.date)===Y && x.statut!=='Validé') satA++; }); });
   const totalAttente=list.filter(c=>c.statut!=='Validé').length*0.5 + satA;
   const mm=myMat();
-  const legend = state.salaries.map(s=>`<span class="lg"><span class="agdot" style="background:${congesAgentColor(s.matricule)}"></span>${esc(s.prenom||s.nom)}</span>`).join('') + `<span class="lg"><span class="agdot" style="background:var(--muted-2);opacity:.45;border:1px dashed var(--muted)"></span>plus clair = en attente</span>`;
+  const legend = state.salaries.map(s=>`<span class="lg"><span class="agdot" style="background:${congesAgentColor(s.matricule)}"></span>${esc(s.prenom||s.nom)}</span>`).join('')
+    + `<span class="lg"><span class="agdot" style="background:var(--muted-2);opacity:.45;border:1px dashed var(--muted)"></span>plus clair = en attente</span>`
+    + `<span class="lg"><span style="display:inline-flex;align-items:center;justify-content:center;min-width:14px;height:14px;padding:0 3px;border-radius:7px;background:var(--muted);color:#fff;font-size:8px;font-weight:800;margin-right:5px">M</span>matin seul</span>`
+    + `<span class="lg"><span style="display:inline-flex;align-items:center;justify-content:center;min-width:14px;height:14px;padding:0 3px;border-radius:7px;background:var(--muted);color:#fff;font-size:8px;font-weight:800;margin-right:5px">A-M</span>après-midi seul</span>`;
   cont.innerHTML=`
     <div class="stat-grid">
       <div class="stat"><div class="k">${ic('clock')} En attente ${Y}</div><div class="v">${nbJours(totalAttente)}<span class="u">j</span></div><div class="sub">à valider</div></div>
@@ -1293,7 +1299,14 @@ function renderConges(){
 }
 function congesAgentColor(mat){ return ({'001':'#1786c9','002':'#2e9e5b','003':'#7c5cbf','004':'#e0892b','005':'#0d9488'})[mat] || '#1786c9'; }
 function myMat(){ if(typeof AUTH_USER==='undefined'||!AUTH_USER) return null; const e=normEmail(AUTH_USER); if(typeof AUTH_USER_MAT!=='undefined' && AUTH_USER_MAT[e]) return AUTH_USER_MAT[e]; const hit=Object.keys(SAL_EMAIL||{}).find(m=>SAL_EMAIL[m]===e); return hit||null; }
-function agAvatar(s,pend){ const col=congesAgentColor(s.matricule); return `<span class="agchip ${pend?'pend':''}" style="--agc:${col}" title="${esc(s.nom)} ${esc(s.prenom)}${pend?' (en attente)':''}">${s.photo?'<img src="'+s.photo+'">':'<span class="agini">'+esc(initials(s))+'</span>'}</span>`; }
+function agAvatar(s,pend,half){
+  const col=congesAgentColor(s.matricule);
+  const lib = half==='AM' ? 'matin uniquement' : (half==='PM' ? 'après-midi uniquement' : 'journée entière');
+  const tt = `${esc(s.nom)} ${esc(s.prenom)} — ${lib}${pend?' (en attente)':''}`;
+  const chip = `<span class="agchip ${pend?'pend':''}" style="--agc:${col}" title="${tt}">${s.photo?'<img src="'+s.photo+'">':'<span class="agini">'+esc(initials(s))+'</span>'}</span>`;
+  if(half!=='AM' && half!=='PM') return chip;
+  return `<span class="agslot ${pend?'pend':''}" style="--agc:${col}" title="${tt}">${chip}<span class="aghalf">${half==='AM'?'M':'A-M'}</span></span>`;
+}
 function congesDayAgents(date){
   const dd=new Date(date+'T00:00:00'); const out=[];
   state.salaries.forEach(s=>{
@@ -1310,7 +1323,7 @@ function calendarGlobalHTML(Y,M){
   for(let day=1;day<=dim;day++){
     const date=`${Y}-${String(M+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
     const dow=new Date(Y,M,day).getDay(); const we=dow===0||dow===6;
-    const chips=congesDayAgents(date).map(a=>agAvatar(a.s,a.pending)).join('');
+    const chips=congesDayAgents(date).map(a=>agAvatar(a.s,a.pending,(!a.autoSat && a.halves && a.halves.length===1)?a.halves[0].half:null)).join('');
     cells+=`<div class="gday ${we?'we':''}" onclick="congeDayMenu('${date}')"><div class="gdn">${day}</div><div class="agwrap">${chips}</div></div>`;
   }
   return `<div class="gcal">${heads}${cells}</div>`;
