@@ -123,9 +123,15 @@ def verify_attachment(data: bytes, xml: bytes, profile: str):
             raise ConversionError('embedding', f'Métadonnée Factur-X incorrecte : {field}.')
 
 
-def generate(data: bytes, request: GenerationRequest):
+def generate(data: bytes, request: GenerationRequest, progress=None):
+    # Completed milestones, not an estimate of elapsed processing time.
+    def advance(completed, label):
+        if progress:
+            progress({'completed': completed, 'total': 6, 'label': label})
+
     stage = 'source'
     try:
+        advance(0, 'Vérification de la facture')
         extracted = extract_pdf(data)
         if request.source_sha256 != extracted['source_sha256']:
             raise ValueError('Le PDF a changé depuis sa vérification. Réimportez-le.')
@@ -140,19 +146,24 @@ def generate(data: bytes, request: GenerationRequest):
         with tempfile.TemporaryDirectory(prefix='cdi-facturx-') as tmp:
             folder = Path(tmp)
             stage = 'xsd'
+            advance(1, 'Préparation des données Factur-X')
             xml = create_xml(request.invoice, request.profile)
             stage = 'schematron'
+            advance(2, 'Contrôle des données')
             xml_report = schematron(xml, request.profile, folder)
             stage = 'pdfa'
+            advance(3, 'Conversion du PDF')
             archived = convert_pdfa(data, folder, cfg)
             final = folder / 'final.pdf'
             stage = 'embedding'
+            advance(4, 'Assemblage du Factur-X')
             generate_from_file(str(archived), xml, output_pdf_file=str(final), flavor='factur-x',
                                level=request.profile, check_xsd=True, check_schematron=False,
                                afrelationship='data' if request.profile == 'basicwl' else 'alternative', lang='fr-FR')
             final_bytes = final.read_bytes()
             verify_attachment(final_bytes, xml, request.profile)
             stage = 'pdfa'
+            advance(5, 'Vérification finale du fichier')
             vera_report = validate_pdfa(final, folder, cfg)
             if len(PdfReader(io.BytesIO(final_bytes)).pages) != extracted['pages']:
                 raise ConversionError('pdfa', 'Le nombre de pages a changé pendant la conversion.')

@@ -1,8 +1,10 @@
+import asyncio
 import base64
 import io
 import json
 import logging
 import os
+import queue
 import secrets
 import threading
 import zipfile
@@ -10,7 +12,7 @@ from typing import Annotated
 from urllib.parse import urlsplit
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.cors import CORSMiddleware
 from starlette.datastructures import Headers
@@ -84,7 +86,7 @@ async def access(request: Request, call_next):
             response.headers['Access-Control-Allow-Private-Network'] = 'true'
     else:
         response = await call_next(request)
-    response.headers['Cache-Control'] = 'no-store'
+    response.headers.setdefault('Cache-Control', 'no-store')
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['Referrer-Policy'] = 'no-referrer'
     response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; frame-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
@@ -192,10 +194,60 @@ def preview(pdf: Annotated[UploadFile, File()], page: int = 0):
         SLOTS.release()
 
 
+def json_result(result):
+    return {**result['report'], 'filename': result['filename'],
+            'pdf_base64': base64.b64encode(result['pdf']).decode(), 'xml': result['xml'].decode('utf-8'),
+            'verapdf_report': result['verapdf'].decode('utf-8')}
+
+
+def conversion_stream(data, request):
+    """The caller owns a slot; the worker retains it even after disconnection."""
+    events = queue.Queue()
+    disconnected = threading.Event()
+
+    def emit(event):
+        if not disconnected.is_set():
+            events.put(event)
+
+    def work():
+        try:
+            result = generate(data, request, progress=lambda value: emit({'type': 'progress', **value}))
+            emit({'type': 'result', 'result': json_result(result)})
+        except ConversionError as exc:
+            emit({'type': 'error', 'valid': False, 'stage': exc.stage,
+                  'message': exc.message, 'errors': exc.details})
+        except Exception as exc:
+            logging.getLogger('cdi_facturx').warning('conversion_stream_failed error_type=%s', type(exc).__name__)
+            emit({'type': 'error', 'valid': False, 'message': 'La conversion a échoué. Réessayez.'})
+        finally:
+            SLOTS.release()
+
+    async def body():
+        try:
+            while True:
+                try:
+                    event = await asyncio.to_thread(events.get, True, 10)
+                except queue.Empty:
+                    event = {'type': 'heartbeat'}
+                yield json.dumps(event, ensure_ascii=False) + '\n'
+                if event['type'] in ('result', 'error'):
+                    break
+        finally:
+            disconnected.set()
+
+    try:
+        threading.Thread(target=work, name='facturx-conversion', daemon=True).start()
+    except BaseException:
+        SLOTS.release()
+        raise
+    return StreamingResponse(body(), media_type='application/x-ndjson',
+                             headers={'Cache-Control': 'no-store, no-transform', 'X-Accel-Buffering': 'no'})
+
+
 @app.post('/api/facturx/generate')
 def convert(pdf: Annotated[UploadFile, File()], payload: Annotated[str, Form()], output: str = 'json'):
-    if output not in ('json', 'pdf', 'zip'):
-        raise HTTPException(422, 'output doit être json, pdf ou zip.')
+    if output not in ('json', 'pdf', 'zip', 'stream'):
+        raise HTTPException(422, 'output doit être json, pdf, zip ou stream.')
     try:
         request = GenerationRequest.model_validate_json(payload)
     except ValidationError as exc:
@@ -203,6 +255,13 @@ def convert(pdf: Annotated[UploadFile, File()], payload: Annotated[str, Form()],
                              'errors': [{'field': '.'.join(map(str, e['loc'])), 'message': e['msg']} for e in exc.errors()]}, status_code=422)
     if not SLOTS.acquire(blocking=False):
         raise HTTPException(503, 'Le service traite un autre document. Réessayez dans un instant.')
+    if output == 'stream':
+        try:
+            data = read_pdf(pdf)
+        except BaseException:
+            SLOTS.release()
+            raise
+        return conversion_stream(data, request)
     try:
         result = generate(read_pdf(pdf), request)
         if output == 'pdf':
@@ -215,9 +274,7 @@ def convert(pdf: Annotated[UploadFile, File()], payload: Annotated[str, Form()],
                 archive.writestr('validation.json', json.dumps(result['report'], ensure_ascii=False, indent=2))
                 archive.writestr('verapdf.xml', result['verapdf'])
             return Response(buffer.getvalue(), media_type='application/zip', headers={'Content-Disposition': 'attachment; filename="factur-x.zip"'})
-        return {**result['report'], 'filename': result['filename'],
-                'pdf_base64': base64.b64encode(result['pdf']).decode(), 'xml': result['xml'].decode('utf-8'),
-                'verapdf_report': result['verapdf'].decode('utf-8')}
+        return json_result(result)
     except ConversionError as exc:
         return JSONResponse({'valid': False, 'stage': exc.stage, 'message': exc.message, 'errors': exc.details},
                             status_code=503 if exc.unavailable else 422)

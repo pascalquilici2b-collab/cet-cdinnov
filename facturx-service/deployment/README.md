@@ -42,3 +42,16 @@ du dossier serveur.
 Le paquet est produit par `scripts/build_server_bundle.py` avec une liste explicite
 de fichiers autorisés. `Dockerfile` installe les versions verrouillées Python,
 Ghostscript, Java 17 et veraPDF 1.30.2 avec vérification SHA-256 de l'installateur.
+
+
+## Suivi de conversion
+
+POST /api/facturx/generate?output=stream accepte les mêmes PDF, données et
+sessions que la réponse JSON habituelle. La réponse application/x-ndjson émet
+six événements progress (completed 0 à 5, total 6), puis result avec le fichier
+validé, ou error sans fichier. Les battements heartbeat ne changent pas la barre.
+Le navigateur n'affiche 6/6 qu'après réception du résultat et des sept contrôles
+réussis. Une coupure conserve la saisie et n'affiche aucun téléchargement.
+Une déconnexion n'autorise pas une seconde conversion tant que le traitement
+précédent n'a pas libéré son emplacement. Aucun identifiant de tâche public,
+stockage persistant ou point d'accès de suivi anonyme n'est ajouté.

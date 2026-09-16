@@ -1,9 +1,9 @@
 <!doctype html>
 <html lang="fr">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Atelier Factur-X · CDI</title><link rel="stylesheet" href="/static/style.css"><script src="/static/party-memory.js" defer></script><script src="/static/allowance.js" defer></script><script src="/static/app.js" defer></script></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Atelier Factur-X · CDI</title><link rel="stylesheet" href="/static/style.css"><script src="/static/party-memory.js" defer></script><script src="/static/allowance.js" defer></script><script src="/static/progress.js" defer></script><script src="/static/app.js" defer></script></head>
 <body>
-<aside class="rail"><a class="brand" href="/" aria-label="Atelier Factur-X, accueil">cdi<span>outils de gestion</span></a><div class="rail-label">FACTURATION</div><div class="rail-active">↗ &nbsp; Atelier Factur-X</div><p class="rail-note">Vos documents restent<br>sur cet ordinateur.<br><span id="health">Connexion au moteur…</span></p><a class="api-link" href="/docs" target="_blank" rel="noopener">Documentation API ↗</a></aside>
-<main><header><span>CONSEIL DÉVELOPPEMENT INNOVATION</span><span class="local-tag">● &nbsp; Espace local</span></header>
+<aside class="rail"><a class="brand" href="/" aria-label="Atelier Factur-X, accueil">cdi<span>outils de gestion</span></a><div class="rail-label">FACTURATION</div><div class="rail-active">↗ &nbsp; Atelier Factur-X</div><p class="rail-note"><span id="health">Connexion au moteur…</span></p><a class="api-link" href="/docs" target="_blank" rel="noopener">Documentation API ↗</a></aside>
+<main><header><span>CONSEIL DÉVELOPPEMENT INNOVATION</span><span class="local-tag">● &nbsp; Conversion Factur-X</span></header>
 <section class="intro"><div><p class="eyebrow">DU PDF À LA FACTURE STRUCTURÉE</p><h1>Le même document.<br><em>Un format prêt à circuler.</em></h1><p>Importez votre facture, vérifiez ses données, puis générez un Factur-X contrôlé.</p></div><div class="format-stamp">PDF<span>+</span>XML<small>FACTUR-X / 1.0</small></div></section>
 <nav class="steps" aria-label="Étapes de conversion"><span class="current">01 <b>Importer</b></span><span>02 <b>Vérifier les données</b></span><span>03 <b>Contrôler & télécharger</b></span></nav>
 <div class="workspace"><section class="editor">
@@ -11,7 +11,7 @@
 <label class="dropzone" id="dropzone"><input id="pdf" type="file" accept="application/pdf,.pdf"><span class="upload-icon">↑</span><strong id="file-label">Choisir une facture PDF</strong><span>ou la glisser ici · 20 Mo maximum · 50 pages</span></label>
 <div id="import-status" role="status" class="notice" hidden></div>
 <p id="record-warning" role="status" class="notice" hidden></p>
-<p class="help">Le PDF est lu automatiquement. Vérifiez le récapitulatif ; seuls les compléments nécessaires sont demandés.</p>
+
 <div class="import-actions"></div>
 
 
@@ -19,7 +19,7 @@
 <section id="quick-review" hidden>
 <div class="section-head"><h2>Vérifier la facture</h2><span>AVANT CONVERSION</span></div>
 <div id="invoice-recap" class="invoice-recap"></div>
-<p id="number-note" class="help" hidden></p>
+
 <section id="allowance-panel" class="allowance-panel">
 <label class="remember-option"><input type="checkbox" id="use-allowance"><span>Appliquer une remise commerciale</span></label>
 <div id="allowance-settings" hidden><div class="form-grid">
@@ -28,15 +28,15 @@
 <label class="wide">Motif de la remise<input id="allowance-reason" value="Remise commerciale" maxlength="2000"></label>
 </div><button id="apply-allowance" class="secondary" type="button">Calculer la remise</button>
 <p id="allowance-status" class="help" role="status"></p>
-<p class="help">La remise HT et la TVA sont recalculées. Le PDF d’origine et la fiche du Facturier restent inchangés.</p></div>
+</div>
 <div id="allowance-differences" class="notice allowance-warning" hidden></div>
 </section>
 <label id="issuer-contact" hidden>E-mail de contact de l’émetteur<select id="issuer-email"><option value="cdi@cdinnov.com">cdi@cdinnov.com</option><option value="boulanger.albert@cdinnov.com">boulanger.albert@cdinnov.com</option></select></label>
 <p id="read-summary" class="notice" aria-live="polite"></p>
 <section id="missing-panel" hidden><h3 id="missing-title">À compléter</h3><div id="quick-fields" class="form-grid"></div></section>
-<p id="memory-status" class="help" hidden></p>
-<p id="correction-status" class="notice" hidden></p>
-<label class="remember-option"><input type="checkbox" id="remember-parties" checked><span>Retenir les coordonnées de ces entreprises après validation pour les prochaines factures.</span></label>
+
+
+<label class="remember-option"><input type="checkbox" id="remember-parties" checked><span>Retenir les coordonnées pour les prochaines factures</span></label>
 </section>
 <details id="full-data"><summary>Voir ou modifier toutes les données</summary>
 <div class="section-head"><h2>Données de facturation</h2><span>02 / À VÉRIFIER</span></div>
@@ -53,19 +53,26 @@
 <label class="wide">IBAN<input name="payment.iban" placeholder="FR…"></label><label>BIC<input name="payment.bic"></label><label>Montant déjà payé<input name="payment.prepaid" type="number" min="0" step="0.01" value="0"></label>
 <label>Référence client<input name="buyer_reference"></label><label>Bon de commande<input name="order_reference"></label><label class="wide">Référence de contrat / marché<input name="contract_reference"></label>
 </div></details>
-<details><summary>Mentions figurant sur le PDF</summary><p class="help">Mentions lues dans le PDF. Complétez uniquement celles qui manquent.</p><div class="form-grid">
+<details><summary>Mentions figurant sur le PDF</summary><div class="form-grid">
 <label class="wide">Frais de recouvrement<textarea name="notes.recovery" required rows="2"></textarea></label>
 <label class="wide">Pénalités de retard<textarea name="notes.penalties" required rows="2"></textarea></label>
 <label class="wide">Escompte ou absence d’escompte<textarea name="notes.discount" required rows="2"></textarea></label>
 <label class="wide">Description / objet complémentaire<textarea name="notes.description" rows="2"></textarea></label>
 </div></details>
-<div class="totals"><p>Totaux figurant sur votre PDF <small>La concordance avec les lignes sera contrôlée.</small></p><div class="form-grid"><label>Total HT<input name="totals.net" type="number" min="0" step="0.01" required></label><label>TVA<input name="totals.vat" type="number" min="0" step="0.01" required></label><label>Total TTC<input name="totals.gross" type="number" min="0" step="0.01" required></label><label>Arrondi du règlement<input name="totals.rounding" type="number" step="0.01" value="0"></label><label>Reste à payer<input name="totals.due" type="number" min="0" step="0.01" required></label></div></div>
+<div class="totals"><p>Totaux de la facture</p><div class="form-grid"><label>Total HT<input name="totals.net" type="number" min="0" step="0.01" required></label><label>TVA<input name="totals.vat" type="number" min="0" step="0.01" required></label><label>Total TTC<input name="totals.gross" type="number" min="0" step="0.01" required></label><label>Arrondi du règlement<input name="totals.rounding" type="number" step="0.01" value="0"></label><label>Reste à payer<input name="totals.due" type="number" min="0" step="0.01" required></label></div></div>
 </details>
-<label class="review"><input type="checkbox" id="reviewed" required><span id="review-label">J’ai vérifié les informations préremplies et mes corrections en les comparant au PDF.</span></label>
+<label class="review"><input type="checkbox" id="reviewed" required><span id="review-label">J’ai vérifié les informations avec le PDF.</span></label>
 <button type="submit" id="generate" class="primary">Convertir en Factur-X <span>↗</span></button>
+<div id="conversion-progress" class="conversion-progress" hidden>
+<div class="progress-heading"><strong id="progress-label" role="status" aria-live="polite">Envoi de la facture…</strong><span id="progress-count"></span></div>
+<progress id="progress-bar" max="6" aria-labelledby="progress-label"></progress>
+</div>
+<div class="validation" id="conversion-output" hidden><div class="section-head"><h2>Conversion</h2><span id="result-label">EN ATTENTE</span></div>
+<div id="result" role="status" aria-live="polite"></div>
+<div id="downloads" hidden><button type="button" id="download-pdf" class="primary">Télécharger le Factur-X ↓</button></div>
+<details id="validation-details"><summary>Détails techniques</summary><ul id="checks"><li data-check="source_review">Correspondance avec le PDF</li><li data-check="amounts">Identifiants & montants</li><li data-check="xsd">Structure XML du profil choisi</li><li data-check="schematron">Règles Factur-X</li><li data-check="france">Règles françaises</li><li data-check="embedding">XML embarqué & métadonnées</li><li data-check="pdfa_3b">PDF/A-3b · veraPDF</li></ul><div id="technical-warnings" class="help"></div><div id="technical-downloads" class="download-row" hidden><button id="download-xml" type="button" class="text-button">XML</button><button id="download-report" type="button" class="text-button">Rapport</button><button id="download-vera" type="button" class="text-button">Rapport PDF/A</button></div></details></div>
 </form></section>
 <aside class="inspector"><div class="sticky"><div class="section-head"><h2>Aperçu du document</h2><span>PDF ORIGINAL</span></div><div class="preview-empty" id="preview-empty"><div class="page-icon">PDF</div><p>Votre facture apparaîtra ici.</p><small>Son apparence sera conservée lors de la conversion.</small></div><div id="preview-controls" class="preview-controls" hidden><button type="button" id="preview-prev" aria-label="Page précédente du PDF">←</button><span id="preview-page"></span><button type="button" id="preview-next" aria-label="Page suivante du PDF">→</button></div><img id="preview" alt="Aperçu de la facture originale" hidden>
-<div class="validation"><div class="section-head"><h2>Contrôles avant export</h2><span id="result-label">EN ATTENTE</span></div><ul id="checks"><li data-check="source_review">Correspondance avec le PDF</li><li data-check="amounts">Identifiants & montants</li><li data-check="xsd">Structure XML du profil choisi</li><li data-check="schematron">Règles Factur-X</li><li data-check="france">Règles françaises</li><li data-check="embedding">XML embarqué & métadonnées</li><li data-check="pdfa_3b">PDF/A-3b · veraPDF</li></ul><div id="result" role="status" aria-live="polite"></div><div id="downloads" hidden><button type="button" id="download-pdf" class="primary">Télécharger le Factur-X ↓</button><div class="download-row"><button id="download-xml" type="button" class="text-button">XML</button><button id="download-report" type="button" class="text-button">Rapport</button><button id="download-vera" type="button" class="text-button">Rapport PDF/A</button></div></div><p class="help">Un fichier est proposé seulement si tous les contrôles passent. L’acceptation par AGIRIS reste à vérifier lors du dépôt.</p></div>
 <details class="extracted"><summary>Texte extrait du PDF</summary><pre id="extracted-text">Aucun document importé.</pre></details>
 </div></aside></div><footer>CDI · Atelier Factur-X <span>EN16931 / BASIC / BASIC WL</span></footer></main>
 </body></html>

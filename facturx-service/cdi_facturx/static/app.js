@@ -72,15 +72,10 @@ function updateQuickReview(inputs,missing){
   }
   $('#missing-panel').hidden=!quickFields.size;
   $('#missing-title').textContent=missing?'À compléter pour cette facture':'Compléments renseignés';
-  $('#memory-status').hidden=!reusedCoordinates.length;
-  $('#memory-status').textContent=reusedCoordinates.length+' coordonnée(s) reprise(s) des entreprises déjà validées. Les valeurs présentes dans le PDF restent prioritaires.';
   const conflicts=recordConflicts(inv),warning=$('#record-warning');
   warning.hidden=!conflicts.length;
-  warning.textContent=conflicts.length?'Écarts avec la fiche du Facturier ('+conflicts.join(', ')+'). Vous pouvez convertir : les données affichées ci-dessous seront utilisées. La fiche conserve ses valeurs. Vérifiez le PDF puis confirmez la relecture.':'';
+  warning.textContent=conflicts.length?'Écarts avec la fiche : '+conflicts.join(', ')+'. Conversion avec les données ci-dessous.':'';
   $('#generate').disabled=busy;
-  const numberNote=$('#number-note'),printed=extractedInvoice.number;
-  numberNote.hidden=!(printed&&printed!==inv.number&&printed.replace(/\s/g,'')===inv.number);
-  numberNote.textContent='Numéro transmis : '+inv.number+' ; numéro imprimé : '+printed+'. Les espaces sont retirés pour le format électronique. Vérifiez cette proposition avant de convertir.';
   const contact=$('#issuer-email'),email=inv.seller?.contact_email||'';
   $('#issuer-contact').hidden=(inv.seller?.siren||inv.seller?.siret?.slice(0,9))!=='322556580';
   setInput(contact,email);
@@ -169,12 +164,9 @@ function readingSummary(mark=false) {
     detail.querySelector('summary').textContent=(key==='seller'?'Émetteur':'Client')+(name?' · '+name:'');
     if(mark)detail.open=!!detail.querySelector('.is-missing');
   }
-  const info=$('#read-summary');info.hidden=false;
-  info.textContent=missing?missing+' information(s) à compléter ci-dessous. Les autres données sont déjà renseignées.':'Rien à saisir : vérifiez le récapitulatif et le PDF, puis lancez la conversion.';
+  const info=$('#read-summary');info.hidden=!missing;
+  info.textContent=missing?missing+' information(s) à compléter.':'';
   updateQuickReview(inputs,missing);
-  const corrected=sourceCorrections();$('#correction-status').hidden=!corrected.length;
-  $('#correction-status').textContent=corrected.length+' valeur(s) différente(s) de la lecture automatique. Vos corrections seront conservées ; confirmez qu’elles correspondent bien au PDF.';
-  if(currentAllowance&&allowanceDifferences(invoiceData()).length&&!missing)info.textContent='Remise calculée. Vérifiez les écarts affichés avec le PDF conservé avant de convertir.';
   renderAllowance(invoiceData());
 }
 const parties = [ ['seller', 'Émetteur'], ['buyer', 'Client'] ];
@@ -275,18 +267,16 @@ function renderAllowance(inv){
   $('#allowance-settings').hidden=!enabled;
   const current=allowanceIsCurrent(inv),status=$('#allowance-status');
   status.className=current?'help':'help error';
-  status.textContent=current?'Remise appliquée : '+Number(currentAllowance.amount).toLocaleString('fr-FR',{style:'currency',currency:'EUR'})+' HT. Les totaux ci-dessus incluent cette remise.':'Indiquez le TTC souhaité, puis calculez la remise. Après une modification des prestations, recalculez-la.';
+  status.textContent=current?'Remise : '+Number(currentAllowance.amount).toLocaleString('fr-FR',{style:'currency',currency:'EUR'})+' HT.':'Indiquez le TTC souhaité, puis calculez la remise.';
   const warning=$('#allowance-differences');warning.replaceChildren();warning.hidden=!differences.length;
   if(differences.length){
     const heading=document.createElement('strong');heading.textContent='Le PDF est conservé avec ses montants d’origine.';warning.append(heading);
     const table=document.createElement('table'),header=document.createElement('tr');
     for(const value of ['Montant','PDF conservé','Données Factur-X']){const cell=document.createElement('th');cell.textContent=value;header.append(cell);}table.append(header);
     for(const item of differences){const row=document.createElement('tr');for(const value of [item.label,...[item.before,item.after].map(v=>Number(v).toLocaleString('fr-FR',{style:'currency',currency:'EUR'}))]){const cell=document.createElement('td');cell.textContent=value;row.append(cell);}table.append(row);}warning.append(table);
-    const note=document.createElement('p');note.textContent='La remise figure dans le XML. Ces écarts seront indiqués dans le rapport ; leur acceptation par AGIRIS reste à vérifier.';warning.append(note);
   }
-  $('#review-label').textContent=differences.length?'J’ai vérifié la remise et j’accepte les écarts affichés entre le PDF conservé et les données Factur-X.':'J’ai vérifié les informations préremplies et mes corrections en les comparant au PDF.';
+  $('#review-label').textContent=differences.length?'J’ai vérifié la remise et j’accepte les écarts affichés entre le PDF conservé et les données Factur-X.':'J’ai vérifié les informations avec le PDF.';
   document.querySelector('[data-check="source_review"]').textContent=differences.length?'Écarts avec le PDF relus et acceptés':'Correspondance avec le PDF';
-  if(differences.length)$('#correction-status').textContent='Les corrections seront enregistrées dans le XML et le rapport. Le PDF reste inchangé.';
   if(enabled&&!current)$('#generate').disabled=true;
 }
 $('#use-allowance').onchange=()=>{
@@ -319,8 +309,18 @@ function invoiceData() {
 }
 function invalidate() {
   converted = null; $('#reviewed').checked = false; $('#downloads').hidden = true;
+  $('#conversion-progress').hidden=true;$('#conversion-output').hidden=true;$('#technical-downloads').hidden=true;
+  $('#technical-warnings').replaceChildren();$('#validation-details').open=false;
   $('#result').replaceChildren(); $('#result-label').textContent = 'EN ATTENTE';
   document.querySelectorAll('#checks li').forEach(el => el.className = '');
+}
+function showProgress(event, state='running') {
+  const panel=$('#conversion-progress'),bar=$('#progress-bar');
+  panel.hidden=false;panel.dataset.state=state;
+  $('#progress-label').textContent=event.label;
+  if(event.completed==null){bar.removeAttribute('value');$('#progress-count').textContent='';}
+  else{bar.value=event.completed;$('#progress-count').textContent=event.completed+' / 6 étapes';}
+  bar.setAttribute('aria-valuetext',event.label);
 }
 function message(text, error = false) {
   const el = $('#import-status'); el.hidden = false; el.textContent = text; el.className = error ? 'notice error' : 'notice';
@@ -333,7 +333,7 @@ async function request(url, options) {
 }
 async function importPdf(file) {
   if (!file || busy) return;
-  invalidate(); sourceFile = null; sourceHash = null;extractedInvoice={};currentAllowance=null;allowanceRestoreTotals=null;allowanceBasis=null;reusedCoordinates=[];quickFields.clear();$('#quick-fields').replaceChildren();$('#quick-review').hidden=true;$('#read-summary').hidden=true;$('#correction-status').hidden=true;$('#full-data').open=false;
+  invalidate(); sourceFile = null; sourceHash = null;extractedInvoice={};currentAllowance=null;allowanceRestoreTotals=null;allowanceBasis=null;reusedCoordinates=[];quickFields.clear();$('#quick-fields').replaceChildren();$('#quick-review').hidden=true;$('#read-summary').hidden=true;$('#full-data').open=false;
   // A newly selected PDF must never inherit the preceding invoice's entered data.
   form.reset(); $('#lines').replaceChildren(); addLine();
   $('#preview').hidden = true; $('#preview-empty').hidden = false;
@@ -353,7 +353,7 @@ async function importPdf(file) {
     fillInvoice(mergeInvoice({payment:{prepaid:'0'}},imported.invoice));
     applyRememberedParties();
     readingSummary(true);
-    message('PDF lu automatiquement. ' + imported.warnings.join(' '));
+    if(imported.warnings.length)message(imported.warnings.join(' '));else $('#import-status').hidden=true;
     document.querySelectorAll('.steps span')[1].classList.add('current');
   } catch(e) { $('#file-label').textContent='Choisir une facture PDF'; $('#extracted-text').textContent='Aucun document importé.'; message(typeof e.detail==='string'?e.detail:'Impossible de lire ce PDF.',true); }
   finally { busy=false;controls.forEach(el=>el.disabled=false);$('#generate').disabled=false;previewControls();readingSummary(); }
@@ -376,14 +376,18 @@ form.onsubmit = async e => {
     if (!el.checkValidity()) { let parent=el.parentElement; while(parent) { if(parent.tagName==='DETAILS') parent.open=true; parent=parent.parentElement; } el.reportValidity(); return; }
   }
   const payload={profile:$('#profile').value,invoice:invoiceData(),source_sha256:sourceHash,reviewed:$('#reviewed').checked,source_corrections:sourceCorrections(),pdf_differences_acknowledged:!!currentAllowance&&allowanceDifferences(invoiceData()).length>0&&$('#reviewed').checked};
-  busy=true; converted=null; $('#downloads').hidden=true; $('#generate').disabled=true; $('#result-label').textContent='CONTRÔLE EN COURS';
-  $('#result').textContent='Vérification du XML puis du PDF/A-3 final. Cela peut prendre quelques secondes.';
+  busy=true; converted=null; $('#downloads').hidden=true; $('#generate').disabled=true; $('#result-label').textContent='EN COURS';
+  $('#result').replaceChildren();$('#technical-warnings').replaceChildren();$('#technical-downloads').hidden=true;$('#conversion-output').hidden=true;
+  showProgress({label:'Envoi de la facture…'});
+  $('#conversion-progress').scrollIntoView({block:'nearest'});
   document.querySelectorAll('#checks li').forEach(el=>el.className='');
   const data=new FormData();data.append('pdf',sourceFile);data.append('payload',JSON.stringify(payload));
   // Lock data editing so a displayed success cannot refer to an older form state.
   const controls=Array.from(document.querySelectorAll('input,select,textarea,button'));controls.forEach(el=>el.disabled=true);
   try {
-    const result=await request('/api/facturx/generate',{method:'POST',body:data});
+    const response=await apiFetch('/api/facturx/generate?output=stream',{method:'POST',body:data});
+    const result=await CDIConversion.readStream(response,event=>showProgress(event));
+    showProgress({completed:6,label:'Conversion terminée'},'success');
     converted=result;
     if($('#remember-parties').checked){
       partyMemory=CDIPartyMemory.remember(partyMemory,payload.invoice);
@@ -391,13 +395,15 @@ form.onsubmit = async e => {
       else{try{localStorage.setItem(partyMemoryKey,JSON.stringify(partyMemory));}catch{message('Conversion réussie. La mémorisation des coordonnées est indisponible dans ce navigateur.',true);}}
     }
     document.querySelectorAll('#checks li').forEach(el=>el.className=result.checks[el.dataset.check]?'pass':'');
-    $('#result-label').textContent='CONTRÔLES RÉUSSIS'; $('#result').replaceChildren();
-    const p=document.createElement('p'); p.className='success';p.textContent='Le fichier a passé les contrôles XML et PDF/A-3b.';$('#result').append(p);
-    if(result.warnings?.length){const p=document.createElement('p');p.textContent=result.warnings.map(w=>w.message).join(' ');$('#result').append(p);}
-    $('#downloads').hidden=false;
+    $('#result-label').textContent='PRÊT'; $('#result').replaceChildren();
+    if(result.pdf_differences_acknowledged){const p=document.createElement('p');p.textContent='PDF conservé : les écarts de montants figurent dans le rapport.';$('#result').append(p);}
+    for(const warning of result.warnings||[]){const p=document.createElement('p');p.textContent=warning.message;$('#technical-warnings').append(p);}
+    $('#downloads').hidden=false;$('#technical-downloads').hidden=false;$('#conversion-output').hidden=false;
   } catch(error) {
+    showProgress({completed:$('#progress-bar').hasAttribute('value')?$('#progress-bar').value:0,label:'Conversion interrompue'},'error');
+    $('#conversion-output').hidden=false;
     $('#result-label').textContent='À CORRIGER'; $('#result').replaceChildren();
-    const p=document.createElement('p');p.className='error';p.textContent=error.message || (typeof error.detail==='string'?error.detail:'Le contrôle a échoué. Réessayez.');$('#result').append(p);
+    const p=document.createElement('p');p.className='error';p.textContent=error.name==='TimeoutError'?'Le service met trop de temps à répondre. Réessayez.':error instanceof TypeError?'Connexion au service interrompue. Réessayez.':error.message || (typeof error.detail==='string'?error.detail:'Le contrôle a échoué. Réessayez.');$('#result').append(p);
     const list=document.createElement('ul');for(const item of error.errors||[]) { const li=document.createElement('li');li.textContent=(item.field||item.code||'')+' : '+item.message;list.append(li); }$('#result').append(list);
     const check=document.querySelector('[data-check="'+({data:'amounts',source:'source_review',pdfa:'pdfa_3b'}[error.stage]||error.stage)+'"]');if(check)check.className='fail';
   } finally { busy=false;controls.forEach(el=>el.disabled=false);$('#generate').disabled=false;previewControls(); }

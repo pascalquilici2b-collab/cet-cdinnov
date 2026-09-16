@@ -17,9 +17,12 @@ def main():
     assert extract_pdf(pdf)['candidates']['number'] == 'DEMO-2026-001'
     request = GenerationRequest.model_validate({'invoice': INVOICE, 'profile': 'en16931',
         'reviewed': True, 'source_sha256': hashlib.sha256(pdf).hexdigest()})
-    result = generate(pdf, request)
+    milestones = []
+    result = generate(pdf, request, progress=milestones.append)
+    assert [event['completed'] for event in milestones] == list(range(6))
     assert result['report']['valid'] and all(result['report']['checks'].values())
     print('SYNTHETIC CONVERSION PASSED: ' + json.dumps(result['report']['checks']))
+    print('LIVE PROGRESS PASSED: six server milestones before validated result.')
 
     # Also exercise the retained-PDF discount path with an explicit, audited acknowledgment.
     with pymupdf.open(stream=pdf, filetype='pdf') as document:
