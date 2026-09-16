@@ -3374,12 +3374,15 @@ async function facturxSaveSelectedPdf(id){
   const url=await facturxStoreFile(file,'facture-source-'+id);
   return {url,name:file.name,size:file.size,sha256,uploadedAt:new Date().toISOString()};
 }
+function facturxFileIcon(pdf=false){
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"${pdf?' style="color:#bd3530;width:20px;height:20px"':''}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>${pdf?'<text x="12" y="17" fill="currentColor" stroke="none" font-family="Arial,sans-serif" font-size="6" font-weight="700" text-anchor="middle">PDF</text>':'<path d="M8 12h8M8 16h8"/>'}</svg>`;
+}
 function facturxRowActions(f){
   const id=esc(f.id);
   if(!f.pdfSource)return `<button class="btn btn-ghost btn-sm" title="Téléverser un PDF dans cette facture" onclick="openFacturePdf('${id}')">Téléverser</button>`;
-  return `<button class="btn btn-ghost btn-sm" title="Visualiser le PDF original" onclick="facturxOriginal('${id}')">PDF</button>`+
-    `<button class="btn btn-ghost btn-sm" title="Contrôler et convertir en Factur-X" onclick="openFacturX('${id}')">Factur-X</button>`+
-    (f.facturx&&f.facturx.snapshot===facturxSignature(f)?`<button class="icon-btn" title="Télécharger le Factur-X validé" onclick="facturxFinal('${id}')">${ic('download')}</button>`:'')+
+  return `<button class="btn btn-ghost btn-sm" title="Visualiser le PDF original" onclick="facturxOriginal('${id}')">${facturxFileIcon(true)}PDF</button>`+
+    `<button class="btn btn-primary btn-sm" style="--accent:#1d4ed8;--accent-strong:#1e40af" title="Créer un Factur-X à partir du PDF" onclick="openFacturX('${id}')">Créer Factur-X</button>`+
+    (f.facturx&&f.facturx.snapshot===facturxSignature(f)?`<button class="btn btn-ghost btn-sm" title="Télécharger le Factur-X validé" onclick="facturxFinal('${id}')">${facturxFileIcon()}Factur-X</button>`:'')+
     `<button class="btn btn-ghost btn-sm" title="Retirer la pièce jointe en conservant la facture" onclick="facturxRemovePdf('${id}')">Supprimer le PDF</button>`;
 }
 function facturxRemovePdf(id){
