@@ -360,6 +360,10 @@
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h11l5 5v15a0 0 0 0 1 0 0H4z"/><path d="M15 2v5h5"/><path d="M8 13h8M8 17h6M8 9h3"/></svg>
       Note de frais
     </div>
+    <div class="nav-item" data-view="facturier">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v4H3z"/><path d="M5 7v14h14V7"/><path d="M9 11h6M9 15h6M9 19h3"/></svg>
+      Facturier
+    </div>
     <div class="nav-label" id="navLabelReglages">Réglages</div>
     <div class="nav-item" data-view="parametres">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -588,6 +592,8 @@ function freshState(){
     mouvements: structuredClone(MOUVEMENTS_DEFAULT),
     conges: [],
     notesFrais: [],
+    codesAffaires: [],
+    factures: [],
     auth: {accounts:{},allowed:[]}
   };
 }
@@ -603,6 +609,8 @@ function load(){
       mouvements: d.mouvements || [],
       conges: d.conges || [],
       notesFrais: d.notesFrais || [],
+      codesAffaires: d.codesAffaires || [],
+      factures: d.factures || [],
       auth: (d.auth && typeof d.auth==='object') ? d.auth : {accounts:{},allowed:[]}
     };
   }catch(e){ STORAGE_OK=false; return freshState(); }
@@ -627,6 +635,7 @@ async function cloudLoad(){
         state={ params:Object.assign(structuredClone(PARAMS_DEFAULT), d.params),
                 types:(d.types&&d.types.length)?d.types:structuredClone(TYPES_DEFAULT),
                 salaries:d.salaries||[], mouvements:d.mouvements||[], conges:d.conges||[], notesFrais:d.notesFrais||[],
+                codesAffaires:d.codesAffaires||[], factures:d.factures||[],
                 auth:(d.auth&&typeof d.auth==='object')?d.auth:(state.auth||{accounts:{},allowed:[]}) };
         try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){}
         currentYear=Number(state.params.anneeSuivi)||currentYear;
@@ -753,6 +762,7 @@ const VIEW_META = {
   salaries:{title:'Salariés', sub:'Bénéficiaires du dispositif CET', action:'Nouveau salarié', actFn:()=>openSalarie()},
   conges:{title:'Congés payés', sub:'', action:'Poser une période', actFn:()=>openConge()},
   notesfrais:{title:'Note de frais', sub:'Création, suivi et archivage des notes de frais', action:'Créer une note de frais', actFn:()=>openNoteFrais()},
+  facturier:{title:'Facturier', sub:'Codes affaires et suivi de facturation', action:null},
   parametres:{title:'Paramètres & données', sub:'Plafonds, types de mouvements, sauvegardes', action:null}
 };
 
@@ -788,6 +798,7 @@ function render(){
   else if(currentView==='salaries') renderSalaries();
   else if(currentView==='conges') renderConges();
   else if(currentView==='notesfrais') renderNotesFrais();
+  else if(currentView==='facturier') renderFacturier();
   else if(currentView==='parametres') renderParametres();
   injectStorageWarning();
 }
@@ -2239,6 +2250,301 @@ async function exportNoteFraisPDF(id){
   }catch(e){ toast(e.message||'Erreur lors de la génération du PDF'); }
 }
 
+/* ===================== FACTURIER & CODES AFFAIRES (reprise ancien panel cdinnov.eu) ===================== */
+let factTab='codes', codeQ='', factQ='', factYear='all', factMonth='all', _factFocus=null;
+function factSetQ(which,v){ if(which==='codes') codeQ=v; else factQ=v; _factFocus=(which==='codes')?'#caSearch':'#fvSearch'; renderFacturier(); _factFocus=null; }
+function codesAff(){ return state.codesAffaires || (state.codesAffaires=[]); }
+function factures(){ return state.factures || (state.factures=[]); }
+function facturierAdmin(){ return (typeof isAdmin==='function' && typeof AUTH_USER!=='undefined') ? isAdmin(AUTH_USER) : true; }
+function caCode(c){ return [c.code1,c.code2].filter(x=>x!==''&&x!=null).join(' '); }
+function caCodeKey(c){ return String(c.code1==null?'':c.code1)+String(c.code2==null?'':c.code2); }
+function eurHT(n){ return (Number(n)||0).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'; }
+function moisAnnee(d){ if(!d) return '—'; const dd=new Date(String(d).slice(0,10)+'T00:00:00'); if(isNaN(dd)) return '—'; return MOIS_FR[dd.getMonth()]+' '+dd.getFullYear(); }
+function setFactTab(t){ factTab=t; renderFacturier(); }
+function factYears(){
+  const ys=new Set(); factures().forEach(f=>{ const y=yearOf(f.dateFacture); if(y) ys.add(y); });
+  return [...ys].sort((a,b)=>b-a);
+}
+function codesFiltered(){
+  const q=(codeQ||'').toLowerCase().trim();
+  let l=codesAff().slice();
+  if(q) l=l.filter(c=>[caCode(c),c.pilote,c.label,c.client].join(' ').toLowerCase().includes(q));
+  return l.sort((a,b)=>(Number(b.code1)||0)-(Number(a.code1)||0) || (Number(b.code2)||0)-(Number(a.code2)||0));
+}
+function facturesFiltered(){
+  const q=(factQ||'').toLowerCase().trim();
+  let l=factures().slice();
+  if(factYear!=='all') l=l.filter(f=>yearOf(f.dateFacture)===Number(factYear));
+  if(factMonth!=='all') l=l.filter(f=>{ const d=f.dateFacture?new Date(f.dateFacture+'T00:00:00'):null; return d && !isNaN(d) && d.getMonth()===Number(factMonth); });
+  if(q) l=l.filter(f=>[f.code,f.number,f.client].join(' ').toLowerCase().includes(q));
+  return l.sort((a,b)=>(b.dateFacture||'').localeCompare(a.dateFacture||''));
+}
+function renderFacturier(){
+  const cont=$('#content');
+  if(!facturierAdmin()){ cont.innerHTML=emptyState('Accès réservé',"Le facturier est réservé à la direction."); return; }
+  const cds=codesFiltered(), fts=facturesFiltered();
+  const totCodes=cds.reduce((s,c)=>s+(Number(c.montantHT)||0),0);
+  const totHT=fts.reduce((s,f)=>s+(Number(f.ht)||0),0);
+  const totTTC=fts.reduce((s,f)=>s+(Number(f.ttc)||0),0);
+  const nonPayees=fts.filter(f=>!f.datePaiement).length;
+  cont.innerHTML=`
+    <div class="stat-grid">
+      <div class="stat"><div class="k">${ic('file')} Codes affaires</div><div class="v">${codesAff().length}</div><div class="sub">${eurHT(codesAff().reduce((s,c)=>s+(Number(c.montantHT)||0),0))} HT au total</div></div>
+      <div class="stat"><div class="k">${ic('file')} Factures ${factYear==='all'?'(toutes)':factYear}</div><div class="v">${fts.length}</div><div class="sub">${nonPayees} sans date de paiement</div></div>
+      <div class="stat"><div class="k">${ic('cash')} Total HT filtré</div><div class="v" style="font-size:22px">${eurHT(totHT)}</div><div class="sub">${eurHT(totTTC)} TTC</div></div>
+    </div>
+    <div class="card">
+      <div class="card-head">
+        <h2>${factTab==='codes'?'Codes affaires':'Facturier'}</h2>
+        <div class="grow"></div>
+        <button class="btn btn-ghost btn-sm no-print" onclick="setFactTab('codes')" ${factTab==='codes'?'style="background:var(--accent-soft);color:var(--accent-strong)"':''}>Codes affaires</button>
+        <button class="btn btn-ghost btn-sm no-print" onclick="setFactTab('factures')" ${factTab==='factures'?'style="background:var(--accent-soft);color:var(--accent-strong)"':''}>Facturier</button>
+      </div>
+      <div class="card-pad">
+        ${factTab==='codes'? facturierCodesHTML(cds,totCodes) : facturierFacturesHTML(fts,totHT,totTTC)}
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h2>Reprise des données de l'ancien site</h2></div>
+      <div class="card-pad">
+        <div class="help-banner">${ic('info')}<div>Importez le fichier <b>cdinnovesg2021.sql</b> (sauvegarde de l'ancien back-office) pour récupérer les codes affaires et les factures. L'import <b>remplace</b> les données actuelles du facturier.</div></div>
+        <div class="filters">
+          <label class="btn btn-ghost" style="cursor:pointer;margin:0">${ic('upload')} Importer l'ancienne base (.sql)<input type="file" accept=".sql,text/plain" style="display:none" onchange="importSqlBiller(this)"></label>
+          <button class="btn btn-ghost" onclick="exportCodesCSV()">${ic('download')} Export codes affaires (CSV)</button>
+          <button class="btn btn-ghost" onclick="exportFacturesCSV()">${ic('download')} Export facturier (CSV)</button>
+        </div>
+      </div>
+    </div>`;
+  if(_factFocus){ const el=$(_factFocus); if(el){ el.focus(); try{ el.setSelectionRange(el.value.length,el.value.length); }catch(e){} } }
+}
+function facturierCodesHTML(list,total){
+  return `
+    <div class="filters">
+      <input class="inp slim" id="caSearch" style="flex:1;min-width:180px" placeholder="Rechercher (code, pilote, nom, client)…" value="${esc(codeQ)}" oninput="factSetQ('codes',this.value)">
+      <button class="btn btn-primary btn-sm" onclick="openCodeAffaire()">${ic('plus')} Ajouter un code affaire</button>
+    </div>
+    <div style="font-size:13px;color:var(--muted);margin:6px 0 12px"><b style="color:var(--ink)">${list.length}</b> code(s) — total <b style="color:var(--accent-strong)">${eurHT(total)} HT</b></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Code</th><th>Pilotage</th><th>Nom</th><th>Client</th><th class="num">Montant HT</th><th>Avancement</th><th class="num">Actions</th></tr></thead>
+      <tbody>
+      ${list.slice(0,400).map(c=>`<tr>
+        <td><b>${esc(caCode(c))}</b></td>
+        <td>${esc(c.pilote||'—')}</td>
+        <td>${esc(c.label||'')}</td>
+        <td>${esc(c.client||'')}</td>
+        <td class="num">${eurHT(c.montantHT)}</td>
+        <td style="min-width:120px"><div style="display:flex;align-items:center;gap:7px"><div style="flex:1;height:6px;border-radius:4px;background:var(--panel-2);overflow:hidden"><div style="width:${Math.max(0,Math.min(100,Number(c.progress)||0))}%;height:100%;background:var(--accent)"></div></div><span style="font-size:11.5px;color:var(--muted);min-width:32px">${Number(c.progress)||0} %</span></div></td>
+        <td class="num" style="white-space:nowrap">
+          <button class="icon-btn" title="Modifier" onclick="openCodeAffaire('${esc(c.id)}')">${ic('edit')}</button>
+          <button class="icon-btn" title="Supprimer" onclick="delCodeAffaire('${esc(c.id)}')">${ic('trash')}</button>
+        </td></tr>`).join('')}
+      </tbody></table></div>
+    ${list.length>400?`<div class="hint" style="margin-top:10px">Affichage limité aux 400 premiers résultats — affinez la recherche.</div>`:''}
+    ${list.length?'':emptyState('Aucun code affaire',"Importez l'ancienne base ou ajoutez un code affaire.")}`;
+}
+function facturierFacturesHTML(list,totHT,totTTC){
+  const ys=factYears();
+  return `
+    <div class="filters">
+      <select class="inp slim" style="width:auto" onchange="factYear=this.value;renderFacturier()">
+        <option value="all" ${factYear==='all'?'selected':''}>Toutes les années</option>
+        ${ys.map(y=>`<option value="${y}" ${String(factYear)===String(y)?'selected':''}>${y}</option>`).join('')}
+      </select>
+      <select class="inp slim" style="width:auto" onchange="factMonth=this.value;renderFacturier()">
+        <option value="all" ${factMonth==='all'?'selected':''}>Tous les mois</option>
+        ${MOIS_FR.map((m,i)=>`<option value="${i}" ${String(factMonth)===String(i)?'selected':''}>${m}</option>`).join('')}
+      </select>
+      <input class="inp slim" id="fvSearch" style="flex:1;min-width:170px" placeholder="Rechercher (code, n° facture, client)…" value="${esc(factQ)}" oninput="factSetQ('factures',this.value)">
+      <button class="btn btn-primary btn-sm" onclick="openFacture()">${ic('plus')} Ajouter une facture</button>
+    </div>
+    <div style="font-size:13px;color:var(--muted);margin:6px 0 12px"><b style="color:var(--ink)">${list.length}</b> facture(s) — <b style="color:var(--accent-strong)">${eurHT(totHT)} HT</b> · ${eurHT(totTTC)} TTC</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Date</th><th>Code</th><th>N° facture</th><th>Client</th><th class="num">HT</th><th class="num">TTC</th><th>Paiement</th><th class="num">Actions</th></tr></thead>
+      <tbody>
+      ${list.slice(0,400).map(f=>`<tr>
+        <td style="white-space:nowrap">${f.dateFacture?dateFR(f.dateFacture):'—'}</td>
+        <td><b>${esc(f.code||'')}</b></td>
+        <td>${esc(f.number||'')}</td>
+        <td>${esc(f.client||'')}</td>
+        <td class="num">${eurHT(f.ht)}</td>
+        <td class="num">${eurHT(f.ttc)}</td>
+        <td style="white-space:nowrap">${f.datePaiement?`<span class="badge b-valid"><span class="dot"></span>${esc(moisAnnee(f.datePaiement))}</span>`:'<span style="color:var(--warn);font-weight:600">Non payée</span>'}</td>
+        <td class="num" style="white-space:nowrap">
+          <button class="icon-btn" title="Modifier" onclick="openFacture('${esc(f.id)}')">${ic('edit')}</button>
+          <button class="icon-btn" title="Supprimer" onclick="delFacture('${esc(f.id)}')">${ic('trash')}</button>
+        </td></tr>`).join('')}
+      </tbody></table></div>
+    ${list.length>400?`<div class="hint" style="margin-top:10px">Affichage limité aux 400 premiers résultats — affinez les filtres.</div>`:''}
+    ${list.length?'':emptyState('Aucune facture',"Importez l'ancienne base ou ajoutez une facture.")}`;
+}
+/* ---- CRUD codes affaires ---- */
+function openCodeAffaire(id){
+  const c = id? codesAff().find(x=>x.id===id) : null;
+  modal(`
+    <div class="modal-head"><h3>${c?'Modifier le code affaire':'Nouveau code affaire'}</h3></div>
+    <div class="modal-body"><div class="form-grid">
+      <div class="form-row"><label>Code (1re partie)</label><input class="inp" type="number" id="caC1" value="${c&&c.code1!=null?esc(c.code1):''}" placeholder="ex. 23"></div>
+      <div class="form-row"><label>Code (2e partie)</label><input class="inp" type="number" id="caC2" value="${c&&c.code2!=null?esc(c.code2):''}" placeholder="ex. 145"></div>
+      <div class="form-row"><label>Pilotage</label><input class="inp" id="caPil" value="${c?esc(c.pilote||''):''}" placeholder="ex. PQ"></div>
+      <div class="form-row"><label>Avancement (%)</label><input class="inp" type="number" min="0" max="100" id="caProg" value="${c&&c.progress!=null?esc(c.progress):'0'}"></div>
+      <div class="form-row full"><label>Nom de l'affaire</label><input class="inp" id="caLabel" value="${c?esc(c.label||''):''}"></div>
+      <div class="form-row"><label>Client</label><input class="inp" id="caClient" value="${c?esc(c.client||''):''}"></div>
+      <div class="form-row"><label>Montant HT (€)</label><input class="inp" type="number" step="0.01" id="caHT" value="${c&&c.montantHT!=null?esc(c.montantHT):''}"></div>
+    </div></div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+      <button class="btn btn-primary" onclick="saveCodeAffaire('${c?esc(c.id):''}')">${ic('check')} Enregistrer</button>
+    </div>`);
+}
+function saveCodeAffaire(id){
+  const d={
+    code1: $('#caC1').value!==''?Number($('#caC1').value):null,
+    code2: $('#caC2').value!==''?Number($('#caC2').value):null,
+    pilote: $('#caPil').value.trim(),
+    label: $('#caLabel').value.trim(),
+    client: $('#caClient').value.trim(),
+    montantHT: Number($('#caHT').value)||0,
+    progress: Math.max(0,Math.min(100,Number($('#caProg').value)||0))
+  };
+  if(d.code1==null && d.code2==null && !d.label){ toast('Renseignez au moins un code ou un nom'); return; }
+  if(id){ const c=codesAff().find(x=>x.id===id); if(c) Object.assign(c,d); }
+  else codesAff().push(Object.assign({id:uid()},d));
+  save(); closeModal(); toast('Code affaire enregistré'); renderFacturier();
+}
+function delCodeAffaire(id){
+  const c=codesAff().find(x=>x.id===id); if(!c) return;
+  confirmModal('Supprimer ce code affaire ?', caCode(c)+' — '+(c.label||''), ()=>{
+    state.codesAffaires=codesAff().filter(x=>x.id!==id); save(); closeModal(); toast('Code affaire supprimé'); renderFacturier();
+  });
+}
+/* ---- CRUD factures ---- */
+function openFacture(id){
+  const f = id? factures().find(x=>x.id===id) : null;
+  const opts = codesAff().slice().sort((a,b)=>caCodeKey(a).localeCompare(caCodeKey(b))).map(c=>`<option value="${esc(caCodeKey(c))}">${esc(caCode(c))} — ${esc((c.label||'').slice(0,50))}</option>`).join('');
+  modal(`
+    <div class="modal-head"><h3>${f?'Modifier la facture':'Nouvelle facture'}</h3></div>
+    <div class="modal-body"><div class="form-grid">
+      <div class="form-row"><label>Date de facture</label><input class="inp" type="date" id="fvDate" value="${f?esc(f.dateFacture||''):ymd(new Date())}"></div>
+      <div class="form-row"><label>N° de facture</label><input class="inp" id="fvNum" value="${f?esc(f.number||''):''}" placeholder="ex. 26 03 012"></div>
+      <div class="form-row"><label>Code affaire</label><input class="inp" id="fvCode" list="fvCodeList" value="${f?esc(f.code||''):''}" placeholder="ex. 23145"><datalist id="fvCodeList">${opts}</datalist></div>
+      <div class="form-row"><label>Client</label><input class="inp" id="fvClient" value="${f?esc(f.client||''):''}"></div>
+      <div class="form-row"><label>Montant HT (€)</label><input class="inp" type="number" step="0.01" id="fvHT" value="${f&&f.ht!=null?esc(f.ht):''}" oninput="fvTtcAuto()"></div>
+      <div class="form-row"><label>Montant TTC (€)</label><input class="inp" type="number" step="0.01" id="fvTTC" value="${f&&f.ttc!=null?esc(f.ttc):''}"></div>
+      <div class="form-row"><label>Date de paiement</label><input class="inp" type="date" id="fvPay" value="${f?esc(f.datePaiement||''):''}"></div>
+      <div class="form-row"><label></label><div class="hint">Laissez vide tant que la facture n'est pas réglée.</div></div>
+    </div></div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+      <button class="btn btn-primary" onclick="saveFacture('${f?esc(f.id):''}')">${ic('check')} Enregistrer</button>
+    </div>`);
+}
+function fvTtcAuto(){ const ht=Number($('#fvHT').value)||0; const t=$('#fvTTC'); if(t && !t.value) t.value=(Math.round(ht*1.2*100)/100); }
+function saveFacture(id){
+  const d={
+    dateFacture: $('#fvDate').value,
+    number: $('#fvNum').value.trim(),
+    code: $('#fvCode').value.trim(),
+    client: $('#fvClient').value.trim(),
+    ht: Number($('#fvHT').value)||0,
+    ttc: Number($('#fvTTC').value)||0,
+    datePaiement: $('#fvPay').value || null
+  };
+  if(!d.dateFacture && !d.number){ toast('Date ou numéro de facture requis'); return; }
+  if(id){ const f=factures().find(x=>x.id===id); if(f) Object.assign(f,d); }
+  else factures().push(Object.assign({id:uid()},d));
+  save(); closeModal(); toast('Facture enregistrée'); renderFacturier();
+}
+function delFacture(id){
+  const f=factures().find(x=>x.id===id); if(!f) return;
+  confirmModal('Supprimer cette facture ?', (f.number||'')+' — '+(f.client||''), ()=>{
+    state.factures=factures().filter(x=>x.id!==id); save(); closeModal(); toast('Facture supprimée'); renderFacturier();
+  });
+}
+/* ---- Import de l'ancienne base MySQL (.sql) ---- */
+function sqlRows(sql, table){
+  const out=[]; const re=new RegExp("INSERT INTO `?"+table+"`?[^;]*?VALUES\\s*", 'gi'); let m;
+  while((m=re.exec(sql))!==null){
+    let i=m.index+m[0].length;
+    while(i<sql.length){
+      while(i<sql.length && /[\s,]/.test(sql[i])) i++;
+      if(sql[i]!=='(') break;
+      i++; const row=[]; let cur='', inStr=false;
+      while(i<sql.length){
+        const ch=sql[i];
+        if(inStr){
+          if(ch==='\\'){ cur+=sql[i+1]; i+=2; continue; }
+          if(ch==="'"){ if(sql[i+1]==="'"){ cur+="'"; i+=2; continue; } inStr=false; i++; continue; }
+          cur+=ch; i++; continue;
+        }
+        if(ch==="'"){ inStr=true; i++; continue; }
+        if(ch===','){ row.push(cur.trim()); cur=''; i++; continue; }
+        if(ch===')'){ row.push(cur.trim()); i++; break; }
+        cur+=ch; i++;
+      }
+      out.push(row);
+      while(i<sql.length && /\s/.test(sql[i])) i++;
+      if(sql[i]===';'){ i++; break; }
+    }
+    re.lastIndex=i;
+  }
+  return out;
+}
+function sqlVal(v){ return (v==null || v==='' || String(v).toUpperCase()==='NULL') ? null : v; }
+function sqlDate(v){ const s=sqlVal(v); if(!s) return null; const d=String(s).slice(0,10); return /^\d{4}-\d{2}-\d{2}$/.test(d)?d:null; }
+function importSqlBiller(input){
+  const f=input&&input.files&&input.files[0]; if(!f) return; input.value='';
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      const sql=String(r.result);
+      const rawCodes=sqlRows(sql,'wagaia_biller_code');
+      const rawInv=sqlRows(sql,'wagaia_biller_invoice');
+      if(!rawCodes.length && !rawInv.length){ toast('Aucune donnée facturier trouvée dans ce fichier'); return; }
+      const codes=rawCodes.filter(c=>!sqlVal(c[10])).map(c=>({
+        id:'ca'+(sqlVal(c[0])||uid()),
+        code1: sqlVal(c[1])!=null?Number(c[1]):null,
+        code2: sqlVal(c[2])!=null?Number(c[2]):null,
+        pilote: sqlVal(c[3])||'',
+        label: sqlVal(c[4])||'',
+        client: sqlVal(c[5])||'',
+        montantHT: Number(c[6])||0,
+        progress: Number(c[7])||0
+      }));
+      const invs=rawInv.filter(f2=>!sqlVal(f2[10])).map(f2=>({
+        id:'fv'+(sqlVal(f2[0])||uid()),
+        client: sqlVal(f2[1])||'',
+        code: sqlVal(f2[2])||'',
+        number: sqlVal(f2[3])||'',
+        ht: Number(f2[4])||0,
+        ttc: Number(f2[5])||0,
+        dateFacture: sqlDate(f2[6]),
+        datePaiement: sqlDate(f2[7])
+      }));
+      confirmModal('Importer l\'ancienne base ?', codes.length+' code(s) affaire et '+invs.length+' facture(s) vont remplacer les données actuelles du facturier.', ()=>{
+        state.codesAffaires=codes; state.factures=invs;
+        save(); try{ cloudPush(); }catch(e){}
+        closeModal(); toast('Import terminé : '+codes.length+' codes, '+invs.length+' factures');
+        renderFacturier();
+      });
+    }catch(e){ toast('Fichier illisible : '+(e.message||'')); }
+  };
+  r.onerror=()=>toast('Lecture du fichier impossible');
+  r.readAsText(f,'utf-8');
+}
+/* ---- Exports CSV ---- */
+function exportCodesCSV(){
+  const head=['Code','Pilotage','Nom','Client','Montant HT','Avancement %'];
+  const lines=[head.map(csvCell).join(';')];
+  codesFiltered().forEach(c=>lines.push([caCode(c),c.pilote||'',c.label||'',c.client||'',String(Number(c.montantHT)||0).replace('.',','),String(Number(c.progress)||0)].map(csvCell).join(';')));
+  dl('Codes_affaires_CDInnov.csv','﻿'+lines.join('\r\n'),'text/csv;charset=utf-8'); toast('Codes affaires exportés');
+}
+function exportFacturesCSV(){
+  const head=['Date facture','Code affaire','N° facture','Client','Montant HT','Montant TTC','Date paiement'];
+  const lines=[head.map(csvCell).join(';')];
+  facturesFiltered().forEach(f=>lines.push([f.dateFacture||'',f.code||'',f.number||'',f.client||'',String(Number(f.ht)||0).replace('.',','),String(Number(f.ttc)||0).replace('.',','),f.datePaiement||''].map(csvCell).join(';')));
+  dl('Facturier_CDInnov.csv','﻿'+lines.join('\r\n'),'text/csv;charset=utf-8'); toast('Facturier exporté');
+}
+
 /* ===================== MODALS ===================== */
 function modal(html,wide){
   const o=$('#overlay');
@@ -2690,6 +2996,8 @@ function unlockApp(email){
   salariesUnlocked = isAdmin(AUTH_USER);
   const salNav=document.querySelector('.nav-item[data-view="salaries"]'); if(salNav) salNav.style.display = isAdmin(AUTH_USER)?'':'none';
   const parNav=document.querySelector('.nav-item[data-view="parametres"]'); if(parNav) parNav.style.display = isAdmin(AUTH_USER)?'':'none';
+  const facNav=document.querySelector('.nav-item[data-view="facturier"]'); if(facNav) facNav.style.display = isAdmin(AUTH_USER)?'':'none';
+  if(!isAdmin(AUTH_USER) && currentView==='facturier') currentView='dashboard';
   const regLbl=document.getElementById('navLabelReglages'); if(regLbl) regLbl.style.display = isAdmin(AUTH_USER)?'':'none';
   document.body.classList.add('authed');
   renderUserChip();
