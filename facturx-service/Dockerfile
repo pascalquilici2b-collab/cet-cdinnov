@@ -24,9 +24,11 @@ RUN python /tmp/install_verapdf.py && rm /tmp/install_verapdf.py
 
 COPY cdi_facturx ./cdi_facturx
 COPY deployment/start_server.py ./deployment/start_server.py
+COPY deployment/verify_runtime.py ./deployment/verify_runtime.py
 RUN groupadd --gid 10001 facturx \
     && useradd --uid 10001 --gid facturx --no-create-home --shell /usr/sbin/nologin facturx
 USER 10001:10001
+RUN python -m deployment.verify_runtime
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
     CMD python -c "import json,os,urllib.request; r=json.load(urllib.request.urlopen('http://127.0.0.1:'+os.environ.get('PORT','8080')+'/api/health',timeout=4)); assert r['ready']"

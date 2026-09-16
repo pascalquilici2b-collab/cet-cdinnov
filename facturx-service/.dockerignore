@@ -10,3 +10,4 @@
 !deployment/
 !deployment/install_verapdf.py
 !deployment/start_server.py
+!deployment/verify_runtime.py
