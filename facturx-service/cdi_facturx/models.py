@@ -125,6 +125,13 @@ class Totals(Model):
     rounding: SignedMoney = Decimal('0')
 
 
+class Allowance(Model):
+    amount: Annotated[Decimal, Field(gt=0, max_digits=16, decimal_places=2, allow_inf_nan=False)]
+    reason: Text
+    vat_category: Literal['S', 'Z', 'E', 'AE', 'O'] = 'S'
+    vat_rate: Annotated[Decimal, Field(ge=0, le=100, max_digits=5, decimal_places=2)] = Decimal('20')
+
+
 class Notes(Model):
     recovery: Text
     penalties: Text
@@ -142,6 +149,7 @@ class Invoice(Model):
     lines: Annotated[list[Line], Field(min_length=1, max_length=500)]
     payment: Payment
     totals: Totals
+    allowance: Allowance | None = None
     notes: Notes
     buyer_reference: Text | None = None
     order_reference: Text | None = None
@@ -158,6 +166,14 @@ class Invoice(Model):
             if group['reason'] != line.exemption_reason:
                 raise ValueError('Un même groupe de TVA doit avoir un motif d’exonération unique.')
             group['base'] += money(line.quantity * line.unit_price)
+        if self.allowance:
+            allowance = self.allowance
+            group = groups.get((allowance.vat_category, allowance.vat_rate))
+            if group is None:
+                raise ValueError('La remise doit utiliser la catégorie et le taux de TVA d’une prestation de la facture.')
+            if allowance.amount > group['base']:
+                raise ValueError('La remise HT dépasse le montant des prestations au taux de TVA choisi.')
+            group['base'] -= allowance.amount
         net = sum((g['base'] for g in groups.values()), Decimal('0'))
         taxes = sum((money(g['base'] * key[1] / 100) for key, g in groups.items()), Decimal('0'))
         gross = net + taxes
@@ -192,4 +208,5 @@ class GenerationRequest(Model):
     invoice: Invoice
     source_sha256: Annotated[str, Field(pattern=r'^[a-f0-9]{64}$')]
     reviewed: Literal[True]
+    pdf_differences_acknowledged: bool = False
     source_corrections: list[Literal['number','issue_date','totals.net','totals.vat','totals.gross','totals.rounding','totals.due','seller.siret','payment.iban']] = Field(default_factory=list, max_length=9)

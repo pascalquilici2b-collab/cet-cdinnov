@@ -15,7 +15,7 @@ def to_bt(inv: Invoice) -> dict:
          'BT-8': inv.payment.vat_due, 'BT-10': inv.buyer_reference,
          'BT-13': inv.order_reference, 'BT-12': inv.contract_reference,
          'BT-23': inv.business_process,
-         'BT-106': str(totals['net']), 'BT-109': str(totals['net']),
+         'BT-106': str(totals['net'] + (inv.allowance.amount if inv.allowance else 0)), 'BT-109': str(totals['net']),
          'BT-110': str(totals['vat']), 'BT-110-1': inv.currency,
          'BT-112': str(totals['gross']), 'BT-113': str(inv.payment.prepaid), 'BT-115': str(totals['due']),
          'BT-114': str(inv.totals.rounding) if inv.totals.rounding else None,
@@ -24,6 +24,13 @@ def to_bt(inv: Invoice) -> dict:
              ('PMT', inv.notes.recovery), ('PMD', inv.notes.penalties),
              ('AAB', inv.notes.discount), ('AAI', inv.notes.description)) if value],
          'BG-23': [], 'BG-25': []}
+    if inv.allowance:
+        allowance = inv.allowance
+        item = {'BT-92': str(allowance.amount), 'BT-95': allowance.vat_category, 'BT-97': allowance.reason}
+        if allowance.vat_category != 'O':
+            item['BT-96'] = str(allowance.vat_rate)
+        d['BG-20'] = [item]
+        d['BT-107'] = str(allowance.amount)
     if inv.preceding_invoice:
         d['BG-3'] = [{'BT-25': inv.preceding_invoice, 'BT-26': inv.preceding_invoice_date}]
     for party, fields in ((inv.seller, [27, 35, 38, 37, 40, 30, 29, 31, 34]),

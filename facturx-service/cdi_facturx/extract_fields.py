@@ -239,7 +239,7 @@ def extract_fields(text):
     if vat_rate is not None and 'net' in totals and 'vat' in totals:
         expected=(Decimal(totals['net'])*Decimal(vat_rate)/100).quantize(Decimal('.01'),rounding=ROUND_HALF_UP)
         if expected!=Decimal(totals['vat']):
-            warnings.append('TVA incohérente dans le PDF : '+totals['vat'].replace('.',',')+' € imprimés, contre '+str(expected).replace('.',',')+' € calculés à '+vat_rate.replace('.',',')+' % sur le HT. Corrigez la TVA et le TTC de la facture avant de produire un Factur-X conforme.')
+            warnings.append('TVA incohérente dans le PDF : '+totals['vat'].replace('.',',')+' € imprimés, contre '+str(expected).replace('.',',')+' € calculés à '+vat_rate.replace('.',',')+' % sur le HT. Vérifiez cet écart avant la conversion. Les montants retenus seront contrôlés.')
     inv['totals']=totals
     payment={}
     iban=re.search(r'\bIBAN\s*:?\s*([A-Z]{2}\d{2}[A-Z0-9 \t]+)',text,re.I)
@@ -268,7 +268,10 @@ def extract_fields(text):
             totals['due']=str(number(rounded.group(1))-Decimal(payment.get('prepaid','0')))
     if 'gross' in totals and 'due' in totals:
         delta=Decimal(totals['gross'])+Decimal(totals.get('rounding','0'))-Decimal(totals['due'])
-        if delta>=0 and 'prepaid' not in payment: payment['prepaid']=str(delta)
+        if 'prepaid' not in payment:
+            payment['prepaid']='0'
+            if delta>0:
+                warnings.append('Le montant à payer est inférieur au TTC. Aucun acompte n’est indiqué ; vérifiez la remise ou l’arrondi.')
     elif 'gross' in totals:
         totals['due']=str(Decimal(totals['gross'])-Decimal(payment.get('prepaid','0')))
         warnings.append('Le reste à payer est proposé à partir du TTC et des acomptes reconnus ; vérifiez les règlements déjà reçus.')

@@ -16,6 +16,7 @@ form.noValidate = true;
 let sourceFile = null, sourceHash = null, sourceUrl = null, converted = null, busy = false;
 let extractedInvoice = {};
 let facturierRecord = null;
+let currentAllowance=null,allowanceRestoreTotals=null,allowanceBasis=null;
 const partyMemoryKey='cdi_facturx_companies_v1';
 let partyMemory={seller:[],buyer:[]},reusedCoordinates=[];
 if(!embedConfig){try{partyMemory=JSON.parse(localStorage.getItem(partyMemoryKey)||'{}');}catch{}}
@@ -49,10 +50,11 @@ function updateQuickReview(inputs,missing){
   const format=value=>value==null?'À compléter':Number(value).toLocaleString('fr-FR',{style:'currency',currency:'EUR'});
   const date=inv.issue_date?inv.issue_date.split('-').reverse().join('/'):'À compléter';
   const lines=inv.lines.length<=3?inv.lines.map(line=>(line.description||'Prestation à compléter')+' · '+(line.quantity||'?')+' × '+format(line.unit_price)+' HT').join(' ; '):inv.lines.length+' lignes — détail consultable ci-dessous';
-  const amounts=format(inv.totals?.net)+' HT · '+format(inv.totals?.vat)+' TVA · '+format(inv.totals?.gross)+' TTC'+(Number(inv.totals?.rounding)?' · Arrondi '+format(inv.totals.rounding)+' · À payer '+format(inv.totals.due):'');
+  const amounts=format(inv.totals?.net)+' HT · '+format(inv.totals?.vat)+' TVA · '+format(inv.totals?.gross)+' TTC'+(Number(inv.totals?.rounding)?' · Arrondi '+format(inv.totals.rounding):'')+(Number(inv.totals?.rounding)||Number(inv.totals?.due)!==Number(inv.totals?.gross)?' · À payer '+format(inv.totals?.due):'');
   for(const [title,value] of [['Facture',(inv.number||'À compléter')+' · '+date],['Émetteur',inv.seller?.name||'À compléter'],['Client',inv.buyer?.name||'À compléter'],['Prestations',lines],['Montants',amounts]]){
     const row=document.createElement('div'),name=document.createElement('span'),content=document.createElement('strong');name.textContent=title;content.textContent=value;row.append(name,content);recap.append(row);
   }
+  if(inv.allowance){const row=document.createElement('div'),label=document.createElement('span'),value=document.createElement('strong');label.textContent='Remise incluse';value.textContent='− '+format(inv.allowance.amount)+' HT · '+inv.allowance.reason;row.append(label,value);recap.append(row);}
   for(const [original,entry] of quickFields){
     if(!original.isConnected){entry.label.remove();quickFields.delete(original);continue;}
     if(document.activeElement!==entry.input)entry.input.value=original.value;
@@ -74,7 +76,7 @@ function updateQuickReview(inputs,missing){
   $('#memory-status').textContent=reusedCoordinates.length+' coordonnée(s) reprise(s) des entreprises déjà validées. Les valeurs présentes dans le PDF restent prioritaires.';
   const conflicts=recordConflicts(inv),warning=$('#record-warning');
   warning.hidden=!conflicts.length;
-  warning.textContent=conflicts.length?'Écarts avec la fiche du Facturier ('+conflicts.join(', ')+'). Vous pouvez convertir : les données du PDF affichées ci-dessous seront utilisées. La fiche conserve ses valeurs. Vérifiez le PDF puis confirmez la relecture.':'';
+  warning.textContent=conflicts.length?'Écarts avec la fiche du Facturier ('+conflicts.join(', ')+'). Vous pouvez convertir : les données affichées ci-dessous seront utilisées. La fiche conserve ses valeurs. Vérifiez le PDF puis confirmez la relecture.':'';
   $('#generate').disabled=busy;
   const numberNote=$('#number-note'),printed=extractedInvoice.number;
   numberNote.hidden=!(printed&&printed!==inv.number&&printed.replace(/\s/g,'')===inv.number);
@@ -172,6 +174,8 @@ function readingSummary(mark=false) {
   updateQuickReview(inputs,missing);
   const corrected=sourceCorrections();$('#correction-status').hidden=!corrected.length;
   $('#correction-status').textContent=corrected.length+' valeur(s) différente(s) de la lecture automatique. Vos corrections seront conservées ; confirmez qu’elles correspondent bien au PDF.';
+  if(currentAllowance&&allowanceDifferences(invoiceData()).length&&!missing)info.textContent='Remise calculée. Vérifiez les écarts affichés avec le PDF conservé avant de convertir.';
+  renderAllowance(invoiceData());
 }
 const parties = [ ['seller', 'Émetteur'], ['buyer', 'Client'] ];
 const partyFields = [['name','Raison sociale'],['siret','SIRET'],['siren','SIREN'],['vat_number','Numéro de TVA'],['street','Adresse'],['postal_code','Code postal'],['city','Ville'],['country','Pays (ISO)'],['contact_email','E-mail de contact'],['electronic_address','Adresse électronique de facturation'],['electronic_scheme','Type d’adresse (0225 : SIREN ; EM : e-mail)']];
@@ -222,10 +226,81 @@ function setInput(el, value) {
 }
 function setValue(path, value) { const el = form.elements.namedItem(path); if (el) setInput(el, value); }
 function getAt(obj, path) { return path.split('.').reduce((value, key) => value?.[key], obj); }
+function allowanceFingerprint(inv){return JSON.stringify([inv.lines.map(l=>[l.quantity,l.unit_price,l.vat_category,l.vat_rate].map(String)),String(inv.payment?.prepaid||'0')]);}
+function allowanceIsCurrent(inv){
+  return !!currentAllowance&&allowanceBasis===allowanceFingerprint(inv)&&
+    Number($('#allowance-target').value)===Number(inv.totals?.gross)&&
+    $('#allowance-reason').value.trim()===currentAllowance.reason&&
+    $('#allowance-group').value===currentAllowance.vat_category+':'+Math.round(Number(currentAllowance.vat_rate)*100);
+}
+function setupAllowance(inv){
+  currentAllowance=inv.allowance?structuredClone(inv.allowance):null;
+  allowanceBasis=currentAllowance?allowanceFingerprint(invoiceData()):null;
+  $('#use-allowance').checked=!!currentAllowance;$('#allowance-settings').hidden=!currentAllowance;
+  $('#allowance-reason').value=currentAllowance?.reason||'Remise commerciale';
+  const desired=inv.totals?.due!=null?Number(inv.totals.due)+Number(inv.payment?.prepaid||0):Number(inv.totals?.gross);
+  $('#allowance-target').value=currentAllowance?inv.totals.gross:Number.isFinite(desired)?desired.toFixed(2):'';
+  updateAllowanceGroups(inv,currentAllowance?currentAllowance.vat_category+':'+Math.round(Number(currentAllowance.vat_rate)*100):null);
+}
+function updateAllowanceGroups(inv,preferred=null){
+  const select=$('#allowance-group'),previous=preferred??select.value;
+  let groups=[];try{groups=CDIAllowance.groups(inv);}catch{}
+  select.replaceChildren();
+  if(groups.length!==1){const option=document.createElement('option');option.value='';option.textContent='Choisir un taux';select.append(option);}
+  for(const group of groups){const option=document.createElement('option');option.value=group.key;option.textContent=(Number(group.rate)/100).toLocaleString('fr-FR')+' % · '+({S:'TVA standard',Z:'Taux zéro',E:'Exonération',AE:'Autoliquidation',O:'Hors champ'}[group.category]||group.category);select.append(option);}
+  if(groups.some(g=>g.key===previous))select.value=previous;
+}
+function applyAllowance(){
+  if(!$('#use-allowance').checked)return;
+  const inv=invoiceData();
+  try{
+    const proposal=CDIAllowance.propose(inv,$('#allowance-target').value,$('#allowance-group').value,$('#allowance-reason').value);
+    if(!currentAllowance)allowanceRestoreTotals=structuredClone(inv.totals||{});
+    currentAllowance=proposal.allowance;
+    for(const [key,value] of Object.entries(proposal.totals))setValue('totals.'+key,value);
+    allowanceBasis=allowanceFingerprint(invoiceData());
+    invalidate();readingSummary();
+  }catch(error){invalidate();readingSummary();$('#allowance-status').textContent=error.message;$('#allowance-status').className='help error';}
+}
+function allowanceDifferences(inv){
+  if(!currentAllowance)return [];
+  return [['net','Total HT'],['vat','TVA'],['gross','Total TTC'],['rounding','Arrondi'],['due','À payer']].flatMap(([key,label])=>{
+    const before=extractedInvoice.totals?.[key],after=inv.totals?.[key];
+    return before!=null&&after!=null&&Number(before)!==Number(after)?[{key,label,before,after}]:[];
+  });
+}
+function renderAllowance(inv){
+  const enabled=$('#use-allowance').checked,differences=allowanceDifferences(inv);
+  updateAllowanceGroups(inv);
+  $('#allowance-settings').hidden=!enabled;
+  const current=allowanceIsCurrent(inv),status=$('#allowance-status');
+  status.className=current?'help':'help error';
+  status.textContent=current?'Remise appliquée : '+Number(currentAllowance.amount).toLocaleString('fr-FR',{style:'currency',currency:'EUR'})+' HT. Les totaux ci-dessus incluent cette remise.':'Indiquez le TTC souhaité, puis calculez la remise. Après une modification des prestations, recalculez-la.';
+  const warning=$('#allowance-differences');warning.replaceChildren();warning.hidden=!differences.length;
+  if(differences.length){
+    const heading=document.createElement('strong');heading.textContent='Le PDF est conservé avec ses montants d’origine.';warning.append(heading);
+    const table=document.createElement('table'),header=document.createElement('tr');
+    for(const value of ['Montant','PDF conservé','Données Factur-X']){const cell=document.createElement('th');cell.textContent=value;header.append(cell);}table.append(header);
+    for(const item of differences){const row=document.createElement('tr');for(const value of [item.label,...[item.before,item.after].map(v=>Number(v).toLocaleString('fr-FR',{style:'currency',currency:'EUR'}))]){const cell=document.createElement('td');cell.textContent=value;row.append(cell);}table.append(row);}warning.append(table);
+    const note=document.createElement('p');note.textContent='La remise figure dans le XML. Ces écarts seront indiqués dans le rapport ; leur acceptation par AGIRIS reste à vérifier.';warning.append(note);
+  }
+  $('#review-label').textContent=differences.length?'J’ai vérifié la remise et j’accepte les écarts affichés entre le PDF conservé et les données Factur-X.':'J’ai vérifié les informations préremplies et mes corrections en les comparant au PDF.';
+  document.querySelector('[data-check="source_review"]').textContent=differences.length?'Écarts avec le PDF relus et acceptés':'Correspondance avec le PDF';
+  if(differences.length)$('#correction-status').textContent='Les corrections seront enregistrées dans le XML et le rapport. Le PDF reste inchangé.';
+  if(enabled&&!current)$('#generate').disabled=true;
+}
+$('#use-allowance').onchange=()=>{
+  const inv=invoiceData();
+  if($('#use-allowance').checked){updateAllowanceGroups(inv);applyAllowance();}
+  else{currentAllowance=null;allowanceBasis=null;for(const [key,value] of Object.entries(allowanceRestoreTotals||extractedInvoice.totals||{}))setValue('totals.'+key,value);allowanceRestoreTotals=null;invalidate();readingSummary();}
+};
+$('#apply-allowance').onclick=applyAllowance;
+$('#allowance-group').onchange=()=>{invalidate();readingSummary();};
 function fillInvoice(inv) {
   quickFields.clear();$('#quick-fields').replaceChildren();
   for (const input of form.querySelectorAll('[name]')) setInput(input, getAt(inv, input.name));
   $('#lines').replaceChildren(); (inv.lines?.length ? inv.lines : [{}]).forEach(addLine); invalidate();
+  setupAllowance(inv);
 }
 function invoiceData() {
   const inv = { currency: 'EUR', lines: [] };
@@ -239,6 +314,7 @@ function invoiceData() {
     const line = {}; for (const el of box.querySelectorAll('[data-key]')) if (el.value.trim()) line[el.dataset.key] = el.value.trim();
     inv.lines.push(line);
   }
+  if(currentAllowance)inv.allowance=structuredClone(currentAllowance);
   return inv;
 }
 function invalidate() {
@@ -257,7 +333,7 @@ async function request(url, options) {
 }
 async function importPdf(file) {
   if (!file || busy) return;
-  invalidate(); sourceFile = null; sourceHash = null;extractedInvoice={};reusedCoordinates=[];quickFields.clear();$('#quick-fields').replaceChildren();$('#quick-review').hidden=true;$('#read-summary').hidden=true;$('#correction-status').hidden=true;$('#full-data').open=false;
+  invalidate(); sourceFile = null; sourceHash = null;extractedInvoice={};currentAllowance=null;allowanceRestoreTotals=null;allowanceBasis=null;reusedCoordinates=[];quickFields.clear();$('#quick-fields').replaceChildren();$('#quick-review').hidden=true;$('#read-summary').hidden=true;$('#correction-status').hidden=true;$('#full-data').open=false;
   // A newly selected PDF must never inherit the preceding invoice's entered data.
   form.reset(); $('#lines').replaceChildren(); addLine();
   $('#preview').hidden = true; $('#preview-empty').hidden = false;
@@ -295,10 +371,11 @@ function download(blob, name) {
 form.onsubmit = async e => {
   e.preventDefault(); if (busy) return;
   if (!sourceFile || !sourceHash) return message('Importez votre PDF avant de lancer la conversion.',true);
+  if($('#use-allowance').checked&&!allowanceIsCurrent(invoiceData()))return message('Calculez la remise avec les prestations et le TTC actuels avant de convertir.',true);
   for (const el of form.querySelectorAll('input,select,textarea')) {
     if (!el.checkValidity()) { let parent=el.parentElement; while(parent) { if(parent.tagName==='DETAILS') parent.open=true; parent=parent.parentElement; } el.reportValidity(); return; }
   }
-  const payload={profile:$('#profile').value,invoice:invoiceData(),source_sha256:sourceHash,reviewed:$('#reviewed').checked,source_corrections:sourceCorrections()};
+  const payload={profile:$('#profile').value,invoice:invoiceData(),source_sha256:sourceHash,reviewed:$('#reviewed').checked,source_corrections:sourceCorrections(),pdf_differences_acknowledged:!!currentAllowance&&allowanceDifferences(invoiceData()).length>0&&$('#reviewed').checked};
   busy=true; converted=null; $('#downloads').hidden=true; $('#generate').disabled=true; $('#result-label').textContent='CONTRÔLE EN COURS';
   $('#result').textContent='Vérification du XML puis du PDF/A-3 final. Cela peut prendre quelques secondes.';
   document.querySelectorAll('#checks li').forEach(el=>el.className='');

@@ -2,6 +2,8 @@
 import base64
 import hashlib
 import json
+from copy import deepcopy
+import pymupdf
 from cdi_facturx.models import GenerationRequest
 from cdi_facturx.service import generate, health
 from cdi_facturx.pdf_import import extract_pdf
@@ -18,6 +20,31 @@ def main():
     result = generate(pdf, request)
     assert result['report']['valid'] and all(result['report']['checks'].values())
     print('SYNTHETIC CONVERSION PASSED: ' + json.dumps(result['report']['checks']))
+
+    # Also exercise the retained-PDF discount path with an explicit, audited acknowledgment.
+    with pymupdf.open(stream=pdf, filetype='pdf') as document:
+        text = document[0].get_text()
+    text = text.replace('5 jours x 600,00', '4.17 jours x 600,00')
+    text = text.replace('Montant HT : 3 000,00', 'Montant HT : 2 502,00')
+    text = text.replace('TVA 20,00 % : 600,00', 'TVA 20,00 % : 500,04')
+    text = text.replace('Montant TTC : 3 600,00', 'Montant TTC : 3 002,04')
+    text = text.replace('Net a payer : 3 600,00', 'Net a payer : 3 000,00')
+    with pymupdf.open() as document:
+        page = document.new_page()
+        assert page.insert_textbox(pymupdf.Rect(36, 36, 559, 800), text, fontsize=10) >= 0
+        pdf = document.tobytes()
+    invoice = deepcopy(INVOICE)
+    invoice['lines'][0].update(quantity='4.17', description='Prestation de demonstration')
+    invoice['allowance'] = {'amount':'2.00', 'reason':'Remise commerciale', 'vat_category':'S', 'vat_rate':'20'}
+    invoice['totals'] = {'net':'2500.00', 'vat':'500.00', 'gross':'3000.00', 'due':'3000.00', 'rounding':'0.00'}
+    request = GenerationRequest.model_validate({'invoice':invoice, 'profile':'en16931', 'reviewed':True,
+        'source_sha256':hashlib.sha256(pdf).hexdigest(), 'pdf_differences_acknowledged':True,
+        'source_corrections':['totals.net','totals.vat','totals.gross','totals.rounding']})
+    result = generate(pdf, request)
+    assert result['report']['valid'] and all(result['report']['checks'].values())
+    assert result['report']['visual_consistency'] == 'pdf_xml_differences_acknowledged'
+    print('DISCOUNT CONVERSION PASSED: 2.00 HT allowance, 3000.00 TTC; original PDF preserved; differences reported.')
+
 
 if __name__ == '__main__':
     main()

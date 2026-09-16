@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="fr">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Atelier Factur-X · CDI</title><link rel="stylesheet" href="/static/style.css"><script src="/static/party-memory.js" defer></script><script src="/static/app.js" defer></script></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Atelier Factur-X · CDI</title><link rel="stylesheet" href="/static/style.css"><script src="/static/party-memory.js" defer></script><script src="/static/allowance.js" defer></script><script src="/static/app.js" defer></script></head>
 <body>
 <aside class="rail"><a class="brand" href="/" aria-label="Atelier Factur-X, accueil">cdi<span>outils de gestion</span></a><div class="rail-label">FACTURATION</div><div class="rail-active">↗ &nbsp; Atelier Factur-X</div><p class="rail-note">Vos documents restent<br>sur cet ordinateur.<br><span id="health">Connexion au moteur…</span></p><a class="api-link" href="/docs" target="_blank" rel="noopener">Documentation API ↗</a></aside>
 <main><header><span>CONSEIL DÉVELOPPEMENT INNOVATION</span><span class="local-tag">● &nbsp; Espace local</span></header>
@@ -20,6 +20,17 @@
 <div class="section-head"><h2>Vérifier la facture</h2><span>AVANT CONVERSION</span></div>
 <div id="invoice-recap" class="invoice-recap"></div>
 <p id="number-note" class="help" hidden></p>
+<section id="allowance-panel" class="allowance-panel">
+<label class="remember-option"><input type="checkbox" id="use-allowance"><span>Appliquer une remise commerciale</span></label>
+<div id="allowance-settings" hidden><div class="form-grid">
+<label>Total TTC souhaité après remise (€)<input id="allowance-target" type="number" min="0" step="0.01"></label>
+<label>TVA des prestations concernées<select id="allowance-group"></select></label>
+<label class="wide">Motif de la remise<input id="allowance-reason" value="Remise commerciale" maxlength="2000"></label>
+</div><button id="apply-allowance" class="secondary" type="button">Calculer la remise</button>
+<p id="allowance-status" class="help" role="status"></p>
+<p class="help">La remise HT et la TVA sont recalculées. Le PDF d’origine et la fiche du Facturier restent inchangés.</p></div>
+<div id="allowance-differences" class="notice allowance-warning" hidden></div>
+</section>
 <label id="issuer-contact" hidden>E-mail de contact de l’émetteur<select id="issuer-email"><option value="cdi@cdinnov.com">cdi@cdinnov.com</option><option value="boulanger.albert@cdinnov.com">boulanger.albert@cdinnov.com</option></select></label>
 <p id="read-summary" class="notice" aria-live="polite"></p>
 <section id="missing-panel" hidden><h3 id="missing-title">À compléter</h3><div id="quick-fields" class="form-grid"></div></section>
@@ -50,7 +61,7 @@
 </div></details>
 <div class="totals"><p>Totaux figurant sur votre PDF <small>La concordance avec les lignes sera contrôlée.</small></p><div class="form-grid"><label>Total HT<input name="totals.net" type="number" min="0" step="0.01" required></label><label>TVA<input name="totals.vat" type="number" min="0" step="0.01" required></label><label>Total TTC<input name="totals.gross" type="number" min="0" step="0.01" required></label><label>Arrondi du règlement<input name="totals.rounding" type="number" step="0.01" value="0"></label><label>Reste à payer<input name="totals.due" type="number" min="0" step="0.01" required></label></div></div>
 </details>
-<label class="review"><input type="checkbox" id="reviewed" required><span>J’ai vérifié les informations préremplies et mes corrections en les comparant au PDF.</span></label>
+<label class="review"><input type="checkbox" id="reviewed" required><span id="review-label">J’ai vérifié les informations préremplies et mes corrections en les comparant au PDF.</span></label>
 <button type="submit" id="generate" class="primary">Convertir en Factur-X <span>↗</span></button>
 </form></section>
 <aside class="inspector"><div class="sticky"><div class="section-head"><h2>Aperçu du document</h2><span>PDF ORIGINAL</span></div><div class="preview-empty" id="preview-empty"><div class="page-icon">PDF</div><p>Votre facture apparaîtra ici.</p><small>Son apparence sera conservée lors de la conversion.</small></div><div id="preview-controls" class="preview-controls" hidden><button type="button" id="preview-prev" aria-label="Page précédente du PDF">←</button><span id="preview-page"></span><button type="button" id="preview-next" aria-label="Page suivante du PDF">→</button></div><img id="preview" alt="Aperçu de la facture originale" hidden>

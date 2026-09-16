@@ -130,6 +130,10 @@ def generate(data: bytes, request: GenerationRequest):
         if request.source_sha256 != extracted['source_sha256']:
             raise ValueError('Le PDF a changé depuis sa vérification. Réimportez-le.')
         corrections = check_source(request.invoice, extracted, request.source_corrections)
+        amount_differences = [item for item in corrections if item['field'].startswith('totals.')]
+        retained_pdf_differences = bool(request.invoice.allowance and amount_differences)
+        if retained_pdf_differences and not request.pdf_differences_acknowledged:
+            raise ValueError('La remise modifie les montants du XML sans modifier le PDF. Confirmez explicitement les écarts affichés avant de convertir.')
         if not health()['ready']:
             raise ConversionError('configuration', 'Ghostscript, Java ou veraPDF n’est pas configuré.', unavailable=True)
         cfg = runtime()
@@ -156,9 +160,12 @@ def generate(data: bytes, request: GenerationRequest):
                       'checks': {'source_review': True, 'amounts': True, 'xsd': True, **xml_report['checks'], 'embedding': True, 'pdfa_3b': True},
                       'source_sha256': request.source_sha256, 'pdf_sha256': hashlib.sha256(final_bytes).hexdigest(),
                       'xml_sha256': hashlib.sha256(xml).hexdigest(), 'factur_x_version': version('factur-x'),
-                      'warnings': xml_report['warnings'] + ([{'code':'HUMAN_CORRECTION','message':f'{len(corrections)} valeur(s) reconnue(s) ont été corrigées et confirmées lors de la relecture.'}] if corrections else []),
+                      'warnings': xml_report['warnings'] + ([{'code':'HUMAN_CORRECTION','message':f'{len(corrections)} valeur(s) reconnue(s) ont été corrigées et confirmées lors de la relecture.'}] if corrections else []) + ([{'code':'PDF_XML_AMOUNT_DIFFERENCE','message':'La remise est incluse dans le XML. Le PDF original conserve ses montants différents, explicitement acceptés lors de la relecture. Les contrôles techniques ne garantissent pas l’acceptation de cet écart par le destinataire.'}] if retained_pdf_differences else []),
                       'source_corrections': corrections, 'agiris_acceptance': 'not_tested',
-                      'identity_check': 'format_and_checksum_only', 'visual_consistency': 'human_review_required'}
+                      'identity_check': 'format_and_checksum_only',
+                      'visual_consistency': 'pdf_xml_differences_acknowledged' if retained_pdf_differences else 'human_review_required',
+                      'pdf_differences_acknowledged': retained_pdf_differences,
+                      'allowance': request.invoice.allowance.model_dump(mode='json') if request.invoice.allowance else None}
             LOG.info('conversion_success profile=%s', request.profile)
             safe_number = re.sub(r'[^A-Za-z0-9_-]+', '-', request.invoice.number).strip('-') or 'facture'
             return {'pdf': final_bytes, 'xml': xml, 'report': report, 'verapdf': vera_report,
