@@ -337,6 +337,19 @@
     .main{display:block}
   }
 </style>
+<style id="cdi-facturx-actions">
+.facturx-actions{display:inline-flex;align-items:center;gap:8px;vertical-align:middle}
+.facturx-actions .btn{height:32px;padding:0 12px;line-height:1;box-sizing:border-box}
+.facturx-actions .btn svg{flex-shrink:0}
+.facturx-actions~.icon-btn{vertical-align:middle;margin-left:4px}
+.facturx-file{position:relative;display:inline-flex;align-items:center;height:32px}
+.facturx-file-remove{position:absolute;top:-8px;right:-7px;z-index:1;display:flex;align-items:center;justify-content:center;width:22px;height:22px;padding:0;border:1px solid #e0b6b6;border-radius:50%;background:#fff;color:#ae2929;font:20px/1 Arial,sans-serif;cursor:pointer;box-shadow:0 1px 3px #0002;opacity:0;pointer-events:none;transition:opacity .12s}
+.facturx-file:hover .facturx-file-remove,.facturx-file:focus-within .facturx-file-remove{opacity:1;pointer-events:auto}
+.facturx-file-remove:hover{background:#fff0f0;border-color:#ae2929}
+.facturx-file-remove:focus-visible{outline:2px solid #1d4ed8;outline-offset:2px}
+@media(hover:none),(pointer:coarse){.facturx-file-remove{opacity:1;pointer-events:auto}}
+@media(prefers-reduced-motion:reduce){.facturx-file-remove{transition:none}}
+</style>
 </head>
 <body>
 <div class="app">
@@ -3379,11 +3392,16 @@ function facturxFileIcon(pdf=false){
 }
 function facturxRowActions(f){
   const id=esc(f.id);
-  if(!f.pdfSource)return `<button class="btn btn-ghost btn-sm" title="Téléverser un PDF dans cette facture" onclick="openFacturePdf('${id}')">Téléverser</button>`;
-  return `<button class="btn btn-ghost btn-sm" title="Visualiser le PDF original" onclick="facturxOriginal('${id}')">${facturxFileIcon(true)}PDF</button>`+
+  if(!f.pdfSource)return `<span class="facturx-actions"><button class="btn btn-ghost btn-sm" title="Téléverser un PDF dans cette facture" onclick="openFacturePdf('${id}')">Téléverser</button></span>`;
+  return `<span class="facturx-actions"><span class="facturx-file"><button class="btn btn-ghost btn-sm" title="Visualiser le PDF original" onclick="facturxOriginal('${id}')">${facturxFileIcon(true)}PDF</button><button type="button" class="facturx-file-remove" aria-label="Supprimer le PDF" title="${f.facturx?'Supprimer le PDF et son Factur-X associé':'Supprimer le PDF'}" onclick="event.stopPropagation();facturxRemovePdf('${id}')"><span aria-hidden="true">×</span></button></span>`+
     `<button class="btn btn-primary btn-sm" style="--accent:#1d4ed8;--accent-strong:#1e40af" title="Créer un Factur-X à partir du PDF" onclick="openFacturX('${id}')">Créer Factur-X</button>`+
-    (f.facturx&&f.facturx.snapshot===facturxSignature(f)?`<button class="btn btn-ghost btn-sm" title="Télécharger le Factur-X validé" onclick="facturxFinal('${id}')">${facturxFileIcon()}Factur-X</button>`:'')+
-    `<button class="btn btn-ghost btn-sm" title="Retirer la pièce jointe en conservant la facture" onclick="facturxRemovePdf('${id}')">Supprimer le PDF</button>`;
+    (f.facturx&&f.facturx.snapshot===facturxSignature(f)?`<span class="facturx-file"><button class="btn btn-ghost btn-sm" title="Télécharger le Factur-X validé" onclick="facturxFinal('${id}')">${facturxFileIcon()}Factur-X</button><button type="button" class="facturx-file-remove" aria-label="Supprimer le Factur-X" title="Supprimer le Factur-X uniquement" onclick="event.stopPropagation();facturxRemoveFinal('${id}')"><span aria-hidden="true">×</span></button></span>`:'')+'</span>';
+}
+function facturxRemoveFinal(id){
+  if(!facturierAdmin())return;
+  const f=factures().find(x=>x.id===id);if(!f?.facturx)return;
+  delete f.facturx;
+  save();renderFacturier();toast('Factur-X retiré. Le PDF original est conservé.');
 }
 function facturxRemovePdf(id){
   if(!facturierAdmin())return;
