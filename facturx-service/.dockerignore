@@ -1,0 +1,12 @@
+**
+!Dockerfile
+!requirements-lock.txt
+!cdi_facturx/
+!cdi_facturx/*.py
+!cdi_facturx/static/
+!cdi_facturx/static/*.html
+!cdi_facturx/static/*.js
+!cdi_facturx/static/*.css
+!deployment/
+!deployment/install_verapdf.py
+!deployment/start_server.py

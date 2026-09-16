@@ -1,0 +1,13 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>API Factur-X · CDI</title><link rel="stylesheet" href="/static/style.css"></head><body><main><header><a href="/">← Atelier Factur-X</a><a href="/openapi.json">Schéma OpenAPI complet (JSON)</a></header><section class="intro"><div><p class="eyebrow">INTÉGRATION BACKOFFICE</p><h1>Une facture. Une requête.</h1><p>Envoyez le PDF et ses données structurées. Le service ne retourne un fichier qu’après validation complète.</p></div></section><h2>1. Lire le PDF et obtenir son empreinte</h2><pre>POST /api/facturx/import-pdf
+Content-Type: multipart/form-data
+pdf : fichier PDF (20 Mo maximum)</pre><p>Réponse : <code>source_sha256</code>, <code>candidates</code>, <code>text</code>, <code>warnings</code>. Les propositions d’extraction sont à vérifier.</p><h2>2. Générer le Factur-X</h2><pre>POST /api/facturx/generate?output=json
+Content-Type: multipart/form-data
+pdf : le même fichier PDF
+payload : objet JSON sérialisé
+
+{
+  "profile": "en16931",
+  "source_sha256": "empreinte SHA-256 obtenue à l’import",
+  "reviewed": true,
+  "invoice": { ... }
+}</pre><p>Utilisez <code>examples/demonstration.json</code> comme exemple complet de l’objet invoice. Le schéma OpenAPI décrit les entrées multipart ; la définition exacte des données métier figure dans <code>cdi_facturx/models.py</code> et <a href="/api/invoice-schema">dans ce schéma JSON</a>.</p><p><code>output=json</code> : rapport, PDF base64, XML et rapport veraPDF. <code>output=pdf</code> : PDF binaire. <code>output=zip</code> : PDF + XML + rapports.</p><h2>Réponses</h2><ul><li><b>200</b> : tous les contrôles bloquants ont passé.</li><li><b>422</b> : données ou document invalides, détails dans <code>errors</code>.</li><li><b>503</b> : validateur indisponible ou capacité atteinte, aucun PDF.</li><li><b>401 / 403</b> : clé API, origine ou hôte refusés.</li><li><b>413</b> : fichier ou requête trop volumineux.</li></ul><h2>Déploiement</h2><p>Le lanceur écoute sur 127.0.0.1. Pour le backoffice, privilégiez un appel serveur à serveur vers le service privé. Configurez <code>FACTURX_API_KEY</code>, envoyez <code>X-API-Key</code> et limitez les hôtes avec <code>FACTURX_ALLOWED_HOSTS</code>. Ne placez pas la clé dans du JavaScript public.</p><p>Les versions, les dépendances système et les limites fonctionnelles sont détaillées dans le README livré avec le code.</p><footer>CDI · Documentation de l’API locale</footer></main></body></html>
