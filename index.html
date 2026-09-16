@@ -87,6 +87,13 @@
   .topbar h1{font-size:20px;margin:0;font-weight:700;letter-spacing:-.2px}
   .topbar .sub{color:var(--muted);font-size:13px;margin-top:2px}
   .topbar .grow{flex:1}
+  .maj-pill{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:5px 11px;white-space:nowrap}
+  .maj-pill b{color:var(--ink);font-weight:600}
+  .pager{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted)}
+  .pager .pg-btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:5px 10px;cursor:pointer;color:var(--ink);font-size:12.5px;font-weight:600}
+  .pager .pg-btn:hover:not(:disabled){background:var(--panel-2);border-color:var(--line-strong)}
+  .pager .pg-btn:disabled{opacity:.4;cursor:default}
+  .pager select{border:1px solid var(--line);border-radius:8px;padding:5px 8px;font-size:12.5px;background:#fff;color:var(--ink)}
   .year-pick{display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:5px 6px 5px 14px}
   .year-pick label{font-size:12px;color:var(--muted);font-weight:600}
   .year-pick select{border:none;background:#fff;border-radius:999px;padding:5px 10px;font-weight:600;color:var(--navy);font-family:var(--font);cursor:pointer}
@@ -383,6 +390,7 @@
         <div class="sub" id="pageSub">Vue d'ensemble du Compte Épargne-Temps</div>
       </div>
       <div class="grow"></div>
+      <div class="maj-pill no-print" id="majPill" title="Dernière modification enregistrée dans la base"></div>
       <div class="sync-pill" id="syncPill" data-state="local" title="État de la synchronisation Cloudflare — cliquer pour recharger" onclick="cloudSyncNow()"><span class="sdot"></span><span id="syncTxt">Local</span></div>
       <div class="year-pick">
         <label>Année</label>
@@ -594,6 +602,8 @@ function freshState(){
     notesFrais: [],
     codesAffaires: [],
     factures: [],
+    majAt: null,
+    majBy: '',
     auth: {accounts:{},allowed:[]}
   };
 }
@@ -611,11 +621,40 @@ function load(){
       notesFrais: d.notesFrais || [],
       codesAffaires: d.codesAffaires || [],
       factures: d.factures || [],
+      majAt: d.majAt || null,
+      majBy: d.majBy || '',
       auth: (d.auth && typeof d.auth==='object') ? d.auth : {accounts:{},allowed:[]}
     };
   }catch(e){ STORAGE_OK=false; return freshState(); }
 }
-function save(){ try{ reconcileCetMovements(); }catch(e){} try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); STORAGE_OK=true; }catch(e){ STORAGE_OK=false; } cloudSave(); }
+function save(){
+  try{ reconcileCetMovements(); }catch(e){}
+  state.majAt = new Date().toISOString();
+  try{ state.majBy = (typeof AUTH_USER!=='undefined' && AUTH_USER) ? AUTH_USER : ''; }catch(e){}
+  try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); STORAGE_OK=true; }catch(e){ STORAGE_OK=false; }
+  renderMajPill(); cloudSave();
+}
+function majLabel(){
+  if(!state.majAt) return null;
+  const d=new Date(state.majAt); if(isNaN(d)) return null;
+  const j=String(d.getDate()).padStart(2,'0'), m=String(d.getMonth()+1).padStart(2,'0');
+  const hh=String(d.getHours()).padStart(2,'0'), mm=String(d.getMinutes()).padStart(2,'0');
+  return `${j}/${m}/${d.getFullYear()} à ${hh}h${mm}`;
+}
+function majAuteur(){
+  const e=state.majBy||''; if(!e) return '';
+  const mat=(typeof AUTH_USER_MAT!=='undefined' && AUTH_USER_MAT[e])||null;
+  const s=mat?salByMat(mat):null;
+  return s? (s.prenom||s.nom||'') : e.split('@')[0];
+}
+function renderMajPill(){
+  const p=document.getElementById('majPill'); if(!p) return;
+  const lbl=majLabel();
+  if(!lbl){ p.style.display='none'; return; }
+  p.style.display='';
+  const who=majAuteur();
+  p.innerHTML=`${ic('clock')}<span>Base mise à jour : <b>${esc(lbl)}</b>${who?' · '+esc(who):''}</span>`;
+}
 
 /* ===================== SYNCHRO CLOUDFLARE ===================== */
 let cloudTimer=null;
@@ -636,6 +675,7 @@ async function cloudLoad(){
                 types:(d.types&&d.types.length)?d.types:structuredClone(TYPES_DEFAULT),
                 salaries:d.salaries||[], mouvements:d.mouvements||[], conges:d.conges||[], notesFrais:d.notesFrais||[],
                 codesAffaires:d.codesAffaires||[], factures:d.factures||[],
+                majAt:d.majAt||null, majBy:d.majBy||'',
                 auth:(d.auth&&typeof d.auth==='object')?d.auth:(state.auth||{accounts:{},allowed:[]}) };
         try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){}
         currentYear=Number(state.params.anneeSuivi)||currentYear;
@@ -793,6 +833,7 @@ $('#yearSelect').addEventListener('change', e=>{ currentYear=Number(e.target.val
 function render(){
   migrateTypes();
   refreshYearPicker();
+  renderMajPill();
   if(currentView==='dashboard') renderDashboard();
   else if(currentView==='mouvements') renderMouvements();
   else if(currentView==='salaries') renderSalaries();
@@ -2252,7 +2293,34 @@ async function exportNoteFraisPDF(id){
 
 /* ===================== FACTURIER & CODES AFFAIRES (reprise ancien panel cdinnov.eu) ===================== */
 let factTab='codes', codeQ='', factQ='', factYear='all', factMonth='all', _factFocus=null;
-function factSetQ(which,v){ if(which==='codes') codeQ=v; else factQ=v; _factFocus=(which==='codes')?'#caSearch':'#fvSearch'; renderFacturier(); _factFocus=null; }
+let codePage=1, codePer=20, factPage=1, factPer=20;
+function factSetQ(which,v){
+  if(which==='codes'){ codeQ=v; codePage=1; } else { factQ=v; factPage=1; }
+  _factFocus=(which==='codes')?'#caSearch':'#fvSearch'; renderFacturier(); _factFocus=null;
+}
+function setCodePage(p){ codePage=Math.max(1,p); renderFacturier(); }
+function setCodePer(v){ codePer=Number(v)||20; codePage=1; renderFacturier(); }
+function setFactPage(p){ factPage=Math.max(1,p); renderFacturier(); }
+function setFactPer(v){ factPer=Number(v)||20; factPage=1; renderFacturier(); }
+function setFactFilter(k,v){ if(k==='year') factYear=v; else factMonth=v; factPage=1; renderFacturier(); }
+function pagerHTML(total, page, per, fnPage, fnPer){
+  const pages=Math.max(1, Math.ceil(total/per));
+  const from = total? ((page-1)*per+1) : 0;
+  const to = Math.min(total, page*per);
+  return `<div class="pager">
+    <span>${total? `<b style="color:var(--ink)">${from}–${to}</b> sur ${total}` : 'Aucun résultat'}</span>
+    <div class="grow" style="flex:1"></div>
+    <button class="pg-btn" onclick="${fnPage}(1)" ${page<=1?'disabled':''} title="Première page">«</button>
+    <button class="pg-btn" onclick="${fnPage}(${page-1})" ${page<=1?'disabled':''}>‹ Précédent</button>
+    <span>Page <b style="color:var(--ink)">${page}</b> / ${pages}</span>
+    <button class="pg-btn" onclick="${fnPage}(${page+1})" ${page>=pages?'disabled':''}>Suivant ›</button>
+    <button class="pg-btn" onclick="${fnPage}(${pages})" ${page>=pages?'disabled':''} title="Dernière page">»</button>
+    <label style="display:flex;align-items:center;gap:6px;margin-left:6px">Afficher
+      <select onchange="${fnPer}(this.value)">
+        ${[20,50,100].map(n=>`<option value="${n}" ${per===n?'selected':''}>${n}</option>`).join('')}
+      </select> par page</label>
+  </div>`;
+}
 function codesAff(){ return state.codesAffaires || (state.codesAffaires=[]); }
 function factures(){ return state.factures || (state.factures=[]); }
 function facturierAdmin(){ return (typeof isAdmin==='function' && typeof AUTH_USER!=='undefined') ? isAdmin(AUTH_USER) : true; }
@@ -2260,7 +2328,7 @@ function caCode(c){ return [c.code1,c.code2].filter(x=>x!==''&&x!=null).join(' '
 function caCodeKey(c){ return String(c.code1==null?'':c.code1)+String(c.code2==null?'':c.code2); }
 function eurHT(n){ return (Number(n)||0).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'; }
 function moisAnnee(d){ if(!d) return '—'; const dd=new Date(String(d).slice(0,10)+'T00:00:00'); if(isNaN(dd)) return '—'; return MOIS_FR[dd.getMonth()]+' '+dd.getFullYear(); }
-function setFactTab(t){ factTab=t; renderFacturier(); }
+function setFactTab(t){ factTab=t; if(t==='codes') codePage=1; else factPage=1; renderFacturier(); }
 function factYears(){
   const ys=new Set(); factures().forEach(f=>{ const y=yearOf(f.dateFacture); if(y) ys.add(y); });
   return [...ys].sort((a,b)=>b-a);
@@ -2283,6 +2351,8 @@ function renderFacturier(){
   const cont=$('#content');
   if(!facturierAdmin()){ cont.innerHTML=emptyState('Accès réservé',"Le facturier est réservé à la direction."); return; }
   const cds=codesFiltered(), fts=facturesFiltered();
+  codePage=Math.min(Math.max(1,codePage), Math.max(1,Math.ceil(cds.length/codePer)));
+  factPage=Math.min(Math.max(1,factPage), Math.max(1,Math.ceil(fts.length/factPer)));
   const totCodes=cds.reduce((s,c)=>s+(Number(c.montantHT)||0),0);
   const totHT=fts.reduce((s,f)=>s+(Number(f.ht)||0),0);
   const totTTC=fts.reduce((s,f)=>s+(Number(f.ttc)||0),0);
@@ -2327,7 +2397,7 @@ function facturierCodesHTML(list,total){
     <div class="table-wrap"><table>
       <thead><tr><th>Code</th><th>Pilotage</th><th>Nom</th><th>Client</th><th class="num">Montant HT</th><th>Avancement</th><th class="num">Actions</th></tr></thead>
       <tbody>
-      ${list.slice(0,400).map(c=>`<tr>
+      ${list.slice((codePage-1)*codePer, codePage*codePer).map(c=>`<tr>
         <td><b>${esc(caCode(c))}</b></td>
         <td>${esc(c.pilote||'—')}</td>
         <td>${esc(c.label||'')}</td>
@@ -2339,18 +2409,18 @@ function facturierCodesHTML(list,total){
           <button class="icon-btn" title="Supprimer" onclick="delCodeAffaire('${esc(c.id)}')">${ic('trash')}</button>
         </td></tr>`).join('')}
       </tbody></table></div>
-    ${list.length>400?`<div class="hint" style="margin-top:10px">Affichage limité aux 400 premiers résultats — affinez la recherche.</div>`:''}
+    ${pagerHTML(list.length, codePage, codePer, 'setCodePage', 'setCodePer')}
     ${list.length?'':emptyState('Aucun code affaire',"Importez l'ancienne base ou ajoutez un code affaire.")}`;
 }
 function facturierFacturesHTML(list,totHT,totTTC){
   const ys=factYears();
   return `
     <div class="filters">
-      <select class="inp slim" style="width:auto" onchange="factYear=this.value;renderFacturier()">
+      <select class="inp slim" style="width:auto" onchange="setFactFilter('year',this.value)">
         <option value="all" ${factYear==='all'?'selected':''}>Toutes les années</option>
         ${ys.map(y=>`<option value="${y}" ${String(factYear)===String(y)?'selected':''}>${y}</option>`).join('')}
       </select>
-      <select class="inp slim" style="width:auto" onchange="factMonth=this.value;renderFacturier()">
+      <select class="inp slim" style="width:auto" onchange="setFactFilter('month',this.value)">
         <option value="all" ${factMonth==='all'?'selected':''}>Tous les mois</option>
         ${MOIS_FR.map((m,i)=>`<option value="${i}" ${String(factMonth)===String(i)?'selected':''}>${m}</option>`).join('')}
       </select>
@@ -2361,7 +2431,7 @@ function facturierFacturesHTML(list,totHT,totTTC){
     <div class="table-wrap"><table>
       <thead><tr><th>Date</th><th>Code</th><th>N° facture</th><th>Client</th><th class="num">HT</th><th class="num">TTC</th><th>Paiement</th><th class="num">Actions</th></tr></thead>
       <tbody>
-      ${list.slice(0,400).map(f=>`<tr>
+      ${list.slice((factPage-1)*factPer, factPage*factPer).map(f=>`<tr>
         <td style="white-space:nowrap">${f.dateFacture?dateFR(f.dateFacture):'—'}</td>
         <td><b>${esc(f.code||'')}</b></td>
         <td>${esc(f.number||'')}</td>
@@ -2374,7 +2444,7 @@ function facturierFacturesHTML(list,totHT,totTTC){
           <button class="icon-btn" title="Supprimer" onclick="delFacture('${esc(f.id)}')">${ic('trash')}</button>
         </td></tr>`).join('')}
       </tbody></table></div>
-    ${list.length>400?`<div class="hint" style="margin-top:10px">Affichage limité aux 400 premiers résultats — affinez les filtres.</div>`:''}
+    ${pagerHTML(list.length, factPage, factPer, 'setFactPage', 'setFactPer')}
     ${list.length?'':emptyState('Aucune facture',"Importez l'ancienne base ou ajoutez une facture.")}`;
 }
 /* ---- CRUD codes affaires ---- */
@@ -2522,6 +2592,7 @@ function importSqlBiller(input){
       }));
       confirmModal('Importer l\'ancienne base ?', codes.length+' code(s) affaire et '+invs.length+' facture(s) vont remplacer les données actuelles du facturier.', ()=>{
         state.codesAffaires=codes; state.factures=invs;
+        codePage=1; factPage=1; codeQ=''; factQ='';
         save(); try{ cloudPush(); }catch(e){}
         closeModal(); toast('Import terminé : '+codes.length+' codes, '+invs.length+' factures');
         renderFacturier();
