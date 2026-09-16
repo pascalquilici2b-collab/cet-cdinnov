@@ -3314,8 +3314,7 @@ async function facturxSaveSelectedPdf(id){
 }
 function facturxRowActions(f){
   const id=esc(f.id);
-  if(!f.pdfSource)return `<button class="btn btn-ghost btn-sm" title="Téléverser un PDF dans cette facture" onclick="openFacturePdf('${id}')">Téléverser</button>`+
-    (f.pdfRemoved?`<button class="btn btn-ghost btn-sm" onclick="facturxRestorePdf('${id}')">Annuler la suppression</button>`:'');
+  if(!f.pdfSource)return `<button class="btn btn-ghost btn-sm" title="Téléverser un PDF dans cette facture" onclick="openFacturePdf('${id}')">Téléverser</button>`;
   return `<button class="btn btn-ghost btn-sm" title="Visualiser le PDF original" onclick="facturxOriginal('${id}')">PDF</button>`+
     `<button class="btn btn-ghost btn-sm" title="Contrôler et convertir en Factur-X" onclick="openFacturX('${id}')">Factur-X</button>`+
     (f.facturx&&f.facturx.snapshot===facturxSignature(f)?`<button class="icon-btn" title="Télécharger le Factur-X validé" onclick="facturxFinal('${id}')">${ic('download')}</button>`:'')+
@@ -3326,7 +3325,7 @@ function facturxRemovePdf(id){
   const f=factures().find(x=>x.id===id);if(!f?.pdfSource)return;
   f.pdfRemoved={pdfSource:f.pdfSource};
   delete f.pdfSource;delete f.facturx;delete f.facturxDraft;delete f.facturxDraftProfile;
-  save();renderFacturier();toast('PDF retiré. La facture est conservée. Vous pouvez annuler la suppression.');
+  save();renderFacturier();toast('PDF retiré. La facture est conservée.');
 }
 function facturxRestorePdf(id){
   if(!facturierAdmin())return;
