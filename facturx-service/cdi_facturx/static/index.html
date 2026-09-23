@@ -24,17 +24,18 @@
 <button id="complete-recipient" type="button" class="primary" disabled>Compléter automatiquement les informations</button>
 <p class="help">Recherche du client et de ses coordonnées. L’adresse de réception reste à vérifier dans Chorus.</p>
 <div id="recipient-panel" hidden>
-<div class="recipient-search"><label>Nom du client ou SIREN / SIRET<input id="recipient-query" type="search" maxlength="200" autocomplete="off"></label><button id="recipient-search" type="button" class="secondary">Rechercher</button></div>
-<p id="recipient-status" role="status" class="help" aria-live="polite"></p>
+<div class="recipient-search"><label>Structure recherchée<input id="recipient-query" type="search" maxlength="200" autocomplete="off" placeholder="N° SIREN/SIRET ou Dénomination sociale"></label><button id="recipient-search" type="button" class="secondary">Rechercher</button></div>
+<p id="recipient-status" role="status" class="help recipient-feedback" aria-live="polite"></p>
 <div id="recipient-results" class="recipient-results"></div>
-<details id="recipient-routing"><summary>Vérifier l’adresse de réception dans Chorus</summary>
+<details id="recipient-routing"><summary>Vérifier l’adresse de facturation dans Chorus</summary>
 <p id="recipient-routing-status" class="help"></p>
-<p class="help">Ouvrez Chorus, recherchez le SIRET ci-dessous puis copiez son adresse de facturation marquée « active ».</p>
+<p class="help">Dans Chorus, collez le SIRET dans « Structure recherchée ». Copiez la valeur complète de « Adresse de facturation (SIRET) » ou « Adresse de facturation (Code routage) », sur une ligne où « Adresse de facturation active » indique « Oui ».</p>
 <div class="recipient-links"><button type="button" id="recipient-copy" class="secondary">Copier le SIRET</button><a href="https://facturation.chorus-pro.gouv.fr/annuaire/#/" target="_blank" rel="noopener noreferrer">Ouvrir Chorus ↗</a></div>
 <p id="recipient-identifier" class="help"></p>
-<label>Adresse de facturation active dans Chorus<input id="recipient-route" type="text" maxlength="250" autocomplete="off" placeholder="SIREN, SIREN_SIRET ou adresse avec code de service"></label>
+<label>Adresse de facturation<input id="recipient-route" type="text" maxlength="250" autocomplete="off" aria-describedby="recipient-route-help" placeholder="Collez l’adresse complète copiée dans Chorus"></label>
+<p id="recipient-route-help" class="help">Pour une unité légale, utilisez « Adresse de facturation (SIREN) » ou « Adresse de facturation (Suffixe) ». Le « Type d’identifiant » du code routage ne doit pas être recopié : le type 0225 est renseigné automatiquement.</p>
 <button type="button" id="recipient-apply-route" class="secondary">Utiliser cette adresse</button>
-<p id="recipient-route-status" role="status" class="help"></p>
+<p id="recipient-route-status" role="status" class="help recipient-feedback" aria-live="polite"></p>
 </details>
 </div>
 </section>

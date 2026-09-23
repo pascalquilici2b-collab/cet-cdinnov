@@ -23,7 +23,7 @@
   }
   function route(party,value){
     const address=String(value||'').trim(),id=compact(party.siren)||compact(party.siret).slice(0,9);
-    if(!/^\d{9}(?:_[A-Za-z0-9_-]+)?$/.test(address))throw new Error('Copiez l’adresse de facturation active affichée dans Chorus, sans le préfixe 0225:.');
+    if(!/^\d{9}(?:_[A-Za-z0-9_-]+)?$/.test(address))throw new Error('Copiez l’adresse de facturation complète de la ligne où « Adresse de facturation active » indique « Oui », sans le préfixe 0225:.');
     if(!/^\d{9}$/.test(id)||address.slice(0,9)!==id)throw new Error('Cette adresse ne correspond pas au SIREN du client.');
     const site=address.match(/^\d{9}_(\d{14})(?:_|$)/)?.[1];
     if(site&&!site.startsWith(id))throw new Error('Le SIRET contenu dans cette adresse ne correspond pas au client.');

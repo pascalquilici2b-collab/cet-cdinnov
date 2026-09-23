@@ -346,16 +346,32 @@ function invoiceData() {
 }
 
 let recipientSearchEpoch=0,recipientSearchController=null;
+function recipientFeedback(message,state='info',target='#recipient-status'){
+  const status=$(target);status.replaceChildren();status.dataset.state=state;
+  if(!message)return;
+  if(state==='success'||state==='error'){
+    const icon=document.createElement('span');icon.className='recipient-status-icon';
+    icon.textContent=state==='success'?'✓':'×';icon.setAttribute('aria-hidden','true');status.append(icon);
+  }
+  const text=document.createElement('span');text.textContent=message;status.append(text);
+  if(state==='error'){
+    const link=document.createElement('a');link.className='recipient-manual-link';
+    link.href='https://facturation.chorus-pro.gouv.fr/annuaire/#/';link.target='_blank';link.rel='noopener noreferrer';
+    link.textContent='Rechercher manuellement à cette adresse';
+    link.setAttribute('aria-label','Rechercher manuellement à cette adresse — Annuaire de la facturation électronique (nouvel onglet)');
+    status.append(link);
+  }
+}
 function resetRecipientCompletion(){
   recipientSearchEpoch++;recipientSearchController?.abort();recipientSearchController=null;
   $('#recipient-panel').hidden=true;$('#recipient-results').replaceChildren();
-  $('#recipient-status').textContent='';$('#recipient-route-status').textContent='';
+  recipientFeedback('');recipientFeedback('','info','#recipient-route-status');
   $('#recipient-routing').open=false;
   $('#recipient-search').disabled=false;
   $('#complete-recipient').textContent='Compléter automatiquement les informations';
 }
 function refreshRecipientRouting(){
-  $('#recipient-route-status').textContent='';
+  recipientFeedback('','info','#recipient-route-status');
   const buyer=invoiceData().buyer||{},identifier=buyer.siret||buyer.siren||'';
   $('#recipient-identifier').textContent=identifier?(buyer.siret?'SIRET : ':'SIREN : ')+identifier:'Sélectionnez d’abord le client.';
   $('#recipient-copy').disabled=!identifier;
@@ -370,22 +386,22 @@ async function searchRecipient(fromButton=false){
   const buyer=invoiceData().buyer||{};
   if(fromButton)$('#recipient-query').value=CDIRecipient.query(buyer);
   $('#recipient-panel').hidden=false;refreshRecipientRouting();
-  const query=$('#recipient-query').value.trim(),status=$('#recipient-status'),results=$('#recipient-results');
+  const query=$('#recipient-query').value.trim(),results=$('#recipient-results');
   results.replaceChildren();
-  if(query.length<3){status.textContent='Indiquez le nom du client ou son SIREN / SIRET.';$('#recipient-query').focus();return;}
+  if(query.length<3){recipientSearchEpoch++;recipientSearchController?.abort();$('#complete-recipient').disabled=false;$('#recipient-search').disabled=false;recipientFeedback('Indiquez le N° SIREN/SIRET ou la dénomination sociale.','error');$('#recipient-query').focus();return;}
   recipientSearchController?.abort();recipientSearchController=new AbortController();
   const epoch=++recipientSearchEpoch,file=sourceFile,identity=JSON.stringify(buyer);
-  const unchanged=()=>epoch===recipientSearchEpoch&&file===sourceFile&&identity===JSON.stringify(invoiceData().buyer||{})&&!busy;
+  const unchanged=()=>epoch===recipientSearchEpoch&&file===sourceFile&&identity===JSON.stringify(invoiceData().buyer||{})&&$('#recipient-query').value.trim()===query&&!busy;
   $('#complete-recipient').disabled=true;$('#recipient-search').disabled=true;
-  status.textContent='Recherche du destinataire…';
+  recipientFeedback('Recherche du destinataire…');
   try{
     const response=await apiFetch('/api/recipients/search',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({query,country:buyer.country||'FR'}),signal:AbortSignal.any([recipientSearchController.signal,AbortSignal.timeout(20000)])});
     const data=await response.json();
-    if(!unchanged()){if(epoch===recipientSearchEpoch)status.textContent='Les coordonnées ont changé. Relancez la recherche.';return;}
+    if(!unchanged()){if(epoch===recipientSearchEpoch)recipientFeedback('Les coordonnées ont changé. Relancez la recherche.');return;}
     if(!response.ok)throw new Error(typeof data.detail==='string'?data.detail:'Recherche indisponible. Réessayez.');
     function choose(candidate){
-      if(!unchanged()){status.textContent='Les coordonnées ont changé. Relancez la recherche.';results.replaceChildren();return;}
+      if(!unchanged()){recipientFeedback('Les coordonnées ont changé. Relancez la recherche.');results.replaceChildren();return;}
       try{
         const completed=CDIRecipient.applyCandidate(invoiceData().buyer||{},candidate);
         for(const [key,value] of Object.entries(completed.party))setValue('buyer.'+key,value);
@@ -394,15 +410,15 @@ async function searchRecipient(fromButton=false){
         const remembered=CDIPartyMemory.reuse({buyer:completed.party},partyMemory).invoice.buyer;
         for(const [key,value] of Object.entries(remembered))setValue('buyer.'+key,value);
         invalidate();readingSummary();results.replaceChildren();refreshRecipientRouting();
-        status.textContent='Coordonnées complétées depuis l’Annuaire des entreprises.'+(completed.addressPreserved?' Adresse de facturation du PDF conservée.':'');
+        recipientFeedback('Coordonnées complétées depuis l’Annuaire des entreprises.'+(completed.addressPreserved?' Adresse de facturation du PDF conservée.':''),'success');
         $('#recipient-routing').open=!remembered.electronic_address;
         const source=document.createElement('a');source.href=candidate.company_url;source.target='_blank';source.rel='noopener noreferrer';source.textContent='Voir la fiche officielle ↗';results.append(source);
-      }catch(error){status.textContent=error.message;}
+      }catch(error){recipientFeedback(error.message,'error');}
     }
-    if(!data.candidates?.length){status.textContent='Aucun établissement actif trouvé. Essayez le SIRET ou un nom plus précis.';$('#recipient-routing').open=true;return;}
+    if(!data.candidates?.length){recipientFeedback('Aucun établissement actif trouvé. Essayez le SIRET ou un nom plus précis.','error');$('#recipient-routing').open=true;return;}
     const exact=data.exact_match&&query.replace(/\s/g,'')===String(buyer.siret||'').replace(/\s/g,'');
     if(exact&&data.candidates.length===1){choose(data.candidates[0]);return;}
-    status.textContent='Sélectionnez l’établissement qui figure sur la facture.'+(data.has_more?' Affinez avec le SIRET si nécessaire.':'');
+    recipientFeedback('Sélectionnez l’établissement qui figure sur la facture.'+(data.has_more?' Affinez avec le SIRET si nécessaire.':''));
     for(const candidate of data.candidates){
       const card=document.createElement('div');card.className='recipient-card';
       const title=document.createElement('strong'),address=document.createElement('span'),identifier=document.createElement('span'),button=document.createElement('button');
@@ -411,7 +427,7 @@ async function searchRecipient(fromButton=false){
       button.type='button';button.className='secondary';button.textContent='Choisir cet établissement';button.onclick=()=>choose(candidate);
       card.append(title,address,identifier,button);results.append(card);
     }
-  }catch(error){if(epoch===recipientSearchEpoch)status.textContent=error.name==='TimeoutError'?'La recherche prend trop de temps. Réessayez.':error.message||error.detail||'Recherche indisponible. Réessayez.';}
+  }catch(error){if(epoch===recipientSearchEpoch)recipientFeedback(error.name==='TimeoutError'?'La recherche prend trop de temps. Réessayez.':error instanceof TypeError||error instanceof SyntaxError?'La recherche automatique est indisponible. Réessayez ou consultez l’annuaire.':error.message||error.detail||'Recherche indisponible. Réessayez.','error');}
   finally{if(epoch===recipientSearchEpoch){$('#recipient-search').disabled=busy;$('#complete-recipient').disabled=busy||!sourceFile;}}
 }
 $('#complete-recipient').onclick=()=>searchRecipient(true);
@@ -420,8 +436,8 @@ $('#recipient-query').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();searc
 $('#recipient-copy').onclick=async()=>{
   const buyer=invoiceData().buyer||{},identifier=buyer.siret||buyer.siren;
   if(!identifier)return;
-  try{await navigator.clipboard.writeText(identifier);$('#recipient-route-status').textContent='Identifiant copié. Collez-le dans la recherche Chorus.';}
-  catch{$('#recipient-route-status').textContent='Copiez l’identifiant affiché ci-dessus dans la recherche Chorus.';}
+  try{await navigator.clipboard.writeText(identifier);recipientFeedback('Identifiant copié. Collez-le dans « Structure recherchée » dans Chorus.','info','#recipient-route-status');}
+  catch{recipientFeedback('Copiez l’identifiant affiché ci-dessus dans « Structure recherchée » dans Chorus.','info','#recipient-route-status');}
 };
 $('#save-payment-defaults').onclick=()=>{
   if(busy)return;
@@ -444,8 +460,8 @@ $('#recipient-apply-route').onclick=()=>{
     const result=CDIRecipient.route(invoiceData().buyer||{},$('#recipient-route').value);
     for(const [key,value] of Object.entries(result))setValue('buyer.'+key,value);
     invalidate();readingSummary();refreshRecipientRouting();
-    $('#recipient-route-status').textContent='Adresse reportée avec le type 0225. Vérifiez qu’elle est marquée active dans Chorus.';
-  }catch(error){$('#recipient-route-status').textContent=error.message;}
+    recipientFeedback('Adresse reportée avec le type 0225. Vérifiez « Adresse de facturation active : Oui » dans Chorus.','info','#recipient-route-status');
+  }catch(error){recipientFeedback(error.message,'error','#recipient-route-status');}
 };
 $('#recipient-route').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();$('#recipient-apply-route').click();}};
 function invalidate() {
@@ -507,6 +523,9 @@ drop.ondragleave = () => drop.classList.remove('drag');
 drop.ondrop = e => { e.preventDefault();drop.classList.remove('drag');importPdf(e.dataTransfer.files[0]); };
 $('#add-line').onclick = () => { addLine(); invalidate();readingSummary(); };
 form.addEventListener('input', e => { if (!['reviewed','remember-parties'].includes(e.target.id)){invalidate();e.target.classList.remove('is-extracted');readingSummary();} });
+form.addEventListener('input',e=>{
+  if(e.target.name?.startsWith('buyer.')&&$('#recipient-status').dataset.state==='success')recipientFeedback('Coordonnées modifiées. Relancez la recherche pour les vérifier.');
+});
 function download(blob, name) {
   const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(url),30000);
 }
