@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="fr">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Atelier Factur-X · CDI</title><link rel="stylesheet" href="/static/style.css"><script src="/static/party-memory.js" defer></script><script src="/static/allowance.js" defer></script><script src="/static/progress.js" defer></script><script src="/static/app.js" defer></script></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Atelier Factur-X · CDI</title><link rel="stylesheet" href="/static/style.css"><script src="/static/party-memory.js" defer></script><script src="/static/allowance.js" defer></script><script src="/static/progress.js" defer></script><script src="/static/recipient.js" defer></script><script src="/static/app.js" defer></script></head>
 <body>
 <aside class="rail"><a class="brand" href="/" aria-label="Atelier Factur-X, accueil">cdi<span>outils de gestion</span></a><div class="rail-label">FACTURATION</div><div class="rail-active">↗ &nbsp; Atelier Factur-X</div><p class="rail-note"><span id="health">Connexion au moteur…</span></p><a class="api-link" href="/docs" target="_blank" rel="noopener">Documentation API ↗</a></aside>
 <main><header><span>CONSEIL DÉVELOPPEMENT INNOVATION</span><span class="local-tag">● &nbsp; Conversion Factur-X</span></header>
@@ -20,6 +20,24 @@
 <section id="quick-review" hidden>
 <div class="section-head"><h2>Vérifier la facture</h2><span>AVANT CONVERSION</span></div>
 <div id="invoice-recap" class="invoice-recap"></div>
+<section class="recipient-assistant" aria-label="Compléter le destinataire">
+<button id="complete-recipient" type="button" class="primary" disabled>Compléter automatiquement les informations</button>
+<p class="help">Recherche du client et de ses coordonnées. L’adresse de réception reste à vérifier dans Chorus.</p>
+<div id="recipient-panel" hidden>
+<div class="recipient-search"><label>Nom du client ou SIREN / SIRET<input id="recipient-query" type="search" maxlength="200" autocomplete="off"></label><button id="recipient-search" type="button" class="secondary">Rechercher</button></div>
+<p id="recipient-status" role="status" class="help" aria-live="polite"></p>
+<div id="recipient-results" class="recipient-results"></div>
+<details id="recipient-routing"><summary>Vérifier l’adresse de réception dans Chorus</summary>
+<p id="recipient-routing-status" class="help"></p>
+<p class="help">Ouvrez Chorus, recherchez le SIRET ci-dessous puis copiez son adresse de facturation marquée « active ».</p>
+<div class="recipient-links"><button type="button" id="recipient-copy" class="secondary">Copier le SIRET</button><a href="https://facturation.chorus-pro.gouv.fr/annuaire/#/" target="_blank" rel="noopener noreferrer">Ouvrir Chorus ↗</a></div>
+<p id="recipient-identifier" class="help"></p>
+<label>Adresse de facturation active dans Chorus<input id="recipient-route" type="text" maxlength="250" autocomplete="off" placeholder="SIREN, SIREN_SIRET ou adresse avec code de service"></label>
+<button type="button" id="recipient-apply-route" class="secondary">Utiliser cette adresse</button>
+<p id="recipient-route-status" role="status" class="help"></p>
+</details>
+</div>
+</section>
 
 <section id="allowance-panel" class="allowance-panel">
 <label class="remember-option"><input type="checkbox" id="use-allowance"><span>Appliquer une remise commerciale</span></label>

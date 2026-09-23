@@ -81,6 +81,13 @@ def party(block):
                 result['street'] = prefix
             elif i > 1:
                 result['street'] = lines[i-1]
+                # Recipient legal names often wrap before the street line.
+                # Keep only name continuations, never IDs, contact or invoice data.
+                continuations = lines[1:i-1]
+                if continuations and all(re.match(r"^(?:et |de |du |des |d['’]|l['’])", plain(part)) and not re.search(
+                        r'\d|@|\b(?:siret|siren|tva|tel|telephone|fax|facture|objet|rcs|iban)\b', plain(part))
+                        for part in continuations):
+                    result['name'] = clean(' '.join([result['name'], *continuations])).rstrip('.')
             result['country'] = 'FR'
             break
         reverse = re.search(r'^(.+?),\s*([A-ZÀ-Ÿ][A-ZÀ-Ÿ -]+)\s*\((\d{2}\s?\d{3})\)', line)

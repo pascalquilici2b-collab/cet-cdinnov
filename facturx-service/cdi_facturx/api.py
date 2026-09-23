@@ -21,6 +21,7 @@ from . import server_auth
 from .models import GenerationRequest
 from .pdf_import import MAX_BYTES, extract_pdf, preview_pdf
 from .service import ROOT, ConversionError, generate, health
+from .recipient_lookup import RecipientQuery, LookupError, lookup_recipient
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(name)s %(message)s')
 app = FastAPI(title='CDI · Atelier Factur-X', version='1.0.0', docs_url=None, redoc_url=None, description='Conversion locale et contrôles bloquants XSD, Schematron France et PDF/A-3b.')
@@ -156,6 +157,14 @@ def docs():
 @app.get('/api/invoice-schema')
 def invoice_schema():
     return GenerationRequest.model_json_schema()
+
+
+@app.post('/api/recipients/search')
+def search_recipient(query: RecipientQuery):
+    try:
+        return lookup_recipient(query)
+    except LookupError as exc:
+        raise HTTPException(exc.status, str(exc)) from exc
 
 
 def read_pdf(pdf):

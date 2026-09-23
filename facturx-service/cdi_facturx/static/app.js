@@ -161,6 +161,7 @@ function sourceCorrections() {
   });
 }
 function readingSummary(mark=false) {
+  $('#complete-recipient').disabled=!sourceFile||busy;
   const rounded=Number(form.elements.namedItem('totals.rounding').value)!==0;
   for(const option of $('#profile').options)option.disabled=rounded&&option.value!=='en16931';
   if(rounded)$('#profile').value='en16931';
@@ -339,6 +340,95 @@ function invoiceData() {
   if(currentAllowance)inv.allowance=structuredClone(currentAllowance);
   return inv;
 }
+
+let recipientSearchEpoch=0,recipientSearchController=null;
+function resetRecipientCompletion(){
+  recipientSearchEpoch++;recipientSearchController?.abort();recipientSearchController=null;
+  $('#recipient-panel').hidden=true;$('#recipient-results').replaceChildren();
+  $('#recipient-status').textContent='';$('#recipient-route-status').textContent='';
+  $('#recipient-routing').open=false;
+  $('#recipient-search').disabled=false;
+  $('#complete-recipient').textContent='Compléter automatiquement les informations';
+}
+function refreshRecipientRouting(){
+  $('#recipient-route-status').textContent='';
+  const buyer=invoiceData().buyer||{},identifier=buyer.siret||buyer.siren||'';
+  $('#recipient-identifier').textContent=identifier?(buyer.siret?'SIRET : ':'SIREN : ')+identifier:'Sélectionnez d’abord le client.';
+  $('#recipient-copy').disabled=!identifier;
+  $('#recipient-copy').textContent=buyer.siret?'Copier le SIRET':'Copier le SIREN';
+  $('#recipient-route').value=buyer.electronic_address||'';
+  $('#recipient-routing-status').textContent=buyer.electronic_address?
+    'Adresse déjà renseignée. Son activité n’a pas été vérifiée en ligne.':
+    'Adresse de réception à compléter. La recherche d’entreprise ne vérifie pas l’annuaire Chorus.';
+}
+async function searchRecipient(fromButton=false){
+  if(busy||!sourceFile)return;
+  const buyer=invoiceData().buyer||{};
+  if(fromButton)$('#recipient-query').value=CDIRecipient.query(buyer);
+  $('#recipient-panel').hidden=false;refreshRecipientRouting();
+  const query=$('#recipient-query').value.trim(),status=$('#recipient-status'),results=$('#recipient-results');
+  results.replaceChildren();
+  if(query.length<3){status.textContent='Indiquez le nom du client ou son SIREN / SIRET.';$('#recipient-query').focus();return;}
+  recipientSearchController?.abort();recipientSearchController=new AbortController();
+  const epoch=++recipientSearchEpoch,file=sourceFile,identity=JSON.stringify(buyer);
+  const unchanged=()=>epoch===recipientSearchEpoch&&file===sourceFile&&identity===JSON.stringify(invoiceData().buyer||{})&&!busy;
+  $('#complete-recipient').disabled=true;$('#recipient-search').disabled=true;
+  status.textContent='Recherche du destinataire…';
+  try{
+    const response=await apiFetch('/api/recipients/search',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({query,country:buyer.country||'FR'}),signal:AbortSignal.any([recipientSearchController.signal,AbortSignal.timeout(20000)])});
+    const data=await response.json();
+    if(!unchanged()){if(epoch===recipientSearchEpoch)status.textContent='Les coordonnées ont changé. Relancez la recherche.';return;}
+    if(!response.ok)throw new Error(typeof data.detail==='string'?data.detail:'Recherche indisponible. Réessayez.');
+    function choose(candidate){
+      if(!unchanged()){status.textContent='Les coordonnées ont changé. Relancez la recherche.';results.replaceChildren();return;}
+      try{
+        const completed=CDIRecipient.applyCandidate(invoiceData().buyer||{},candidate);
+        for(const [key,value] of Object.entries(completed.party))setValue('buyer.'+key,value);
+        for(const key of ['electronic_address','electronic_scheme'])if(!completed.party[key])setValue('buyer.'+key,'');
+        // Reuse only matching, previously saved coordinates; this is not a Chorus check.
+        const remembered=CDIPartyMemory.reuse({buyer:completed.party},partyMemory).invoice.buyer;
+        for(const [key,value] of Object.entries(remembered))setValue('buyer.'+key,value);
+        invalidate();readingSummary();results.replaceChildren();refreshRecipientRouting();
+        status.textContent='Coordonnées complétées depuis l’Annuaire des entreprises.'+(completed.addressPreserved?' Adresse de facturation du PDF conservée.':'');
+        $('#recipient-routing').open=!remembered.electronic_address;
+        const source=document.createElement('a');source.href=candidate.company_url;source.target='_blank';source.rel='noopener noreferrer';source.textContent='Voir la fiche officielle ↗';results.append(source);
+      }catch(error){status.textContent=error.message;}
+    }
+    if(!data.candidates?.length){status.textContent='Aucun établissement actif trouvé. Essayez le SIRET ou un nom plus précis.';$('#recipient-routing').open=true;return;}
+    const exact=data.exact_match&&query.replace(/\s/g,'')===String(buyer.siret||'').replace(/\s/g,'');
+    if(exact&&data.candidates.length===1){choose(data.candidates[0]);return;}
+    status.textContent='Sélectionnez l’établissement qui figure sur la facture.'+(data.has_more?' Affinez avec le SIRET si nécessaire.':'');
+    for(const candidate of data.candidates){
+      const card=document.createElement('div');card.className='recipient-card';
+      const title=document.createElement('strong'),address=document.createElement('span'),identifier=document.createElement('span'),button=document.createElement('button');
+      title.textContent=candidate.name;address.textContent=[candidate.street,candidate.postal_code,candidate.city].filter(Boolean).join(' ');
+      identifier.textContent='SIRET '+candidate.siret+(candidate.is_headquarters?' · Siège social':'');
+      button.type='button';button.className='secondary';button.textContent='Choisir cet établissement';button.onclick=()=>choose(candidate);
+      card.append(title,address,identifier,button);results.append(card);
+    }
+  }catch(error){if(epoch===recipientSearchEpoch)status.textContent=error.name==='TimeoutError'?'La recherche prend trop de temps. Réessayez.':error.message||error.detail||'Recherche indisponible. Réessayez.';}
+  finally{if(epoch===recipientSearchEpoch){$('#recipient-search').disabled=busy;$('#complete-recipient').disabled=busy||!sourceFile;}}
+}
+$('#complete-recipient').onclick=()=>searchRecipient(true);
+$('#recipient-search').onclick=()=>searchRecipient();
+$('#recipient-query').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();searchRecipient();}};
+$('#recipient-copy').onclick=async()=>{
+  const buyer=invoiceData().buyer||{},identifier=buyer.siret||buyer.siren;
+  if(!identifier)return;
+  try{await navigator.clipboard.writeText(identifier);$('#recipient-route-status').textContent='Identifiant copié. Collez-le dans la recherche Chorus.';}
+  catch{$('#recipient-route-status').textContent='Copiez l’identifiant affiché ci-dessus dans la recherche Chorus.';}
+};
+$('#recipient-apply-route').onclick=()=>{
+  if(busy)return;
+  try{
+    const result=CDIRecipient.route(invoiceData().buyer||{},$('#recipient-route').value);
+    for(const [key,value] of Object.entries(result))setValue('buyer.'+key,value);
+    invalidate();readingSummary();refreshRecipientRouting();
+    $('#recipient-route-status').textContent='Adresse reportée avec le type 0225. Vérifiez qu’elle est marquée active dans Chorus.';
+  }catch(error){$('#recipient-route-status').textContent=error.message;}
+};
+$('#recipient-route').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();$('#recipient-apply-route').click();}};
 function invalidate() {
   converted = null; $('#reviewed').checked = false; $('#downloads').hidden = true;
   $('#conversion-progress').hidden=true;$('#conversion-output').hidden=true;$('#technical-downloads').hidden=true;
@@ -365,6 +455,7 @@ async function request(url, options) {
 }
 async function importPdf(file) {
   if (!file || busy) return;
+  resetRecipientCompletion();
   invalidate(); sourceFile = null; sourceHash = null;extractedInvoice={};currentAllowance=null;allowanceRestoreTotals=null;allowanceBasis=null;reusedCoordinates=[];quickFields.clear();$('#quick-fields').replaceChildren();$('#quick-review').hidden=true;$('#read-summary').hidden=true;$('#full-data').open=false;
   // A newly selected PDF must never inherit the preceding invoice's entered data.
   form.reset(); $('#lines').replaceChildren(); addLine();
@@ -402,6 +493,8 @@ function download(blob, name) {
 }
 form.onsubmit = async e => {
   e.preventDefault(); if (busy) return;
+  recipientSearchEpoch++;recipientSearchController?.abort();
+  $('#recipient-search').disabled=false;$('#complete-recipient').disabled=!sourceFile;
   if (!sourceFile || !sourceHash) return message('Importez votre PDF avant de lancer la conversion.',true);
   if($('#use-allowance').checked&&!allowanceIsCurrent(invoiceData()))return message('Calculez la remise avec les prestations et le TTC actuels avant de convertir.',true);
   for (const el of form.querySelectorAll('input,select,textarea')) {
