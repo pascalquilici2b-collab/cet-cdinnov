@@ -24,7 +24,7 @@ def money(value):
 
 AMOUNT = r'(\d+(?:(?:[ \u00a0\u202f.]\d{3})+)?(?:[,.]\d{1,6})?)'
 MONTHS = 'janvier fevrier mars avril mai juin juillet aout septembre octobre novembre decembre'.split()
-DATE = r'(?:\d{1,2}[/-]\d{1,2}[/-]20\d{2}|20\d{2}-\d{2}-\d{2}|\d{1,2}\s+(?:'+'|'.join(MONTHS)+r')\s+20\d{2})'
+DATE = r'(?:\d{1,2}[./-]\d{1,2}[./-]20\d{2}|20\d{2}-\d{2}-\d{2}|\d{1,2}\s+(?:'+'|'.join(MONTHS)+r')\s+20\d{2})'
 
 
 def read_date(value):
@@ -36,8 +36,8 @@ def read_date(value):
         value = match.group()
         if re.fullmatch(r'20\d{2}-\d{2}-\d{2}', value):
             return date.fromisoformat(value).isoformat()
-        if re.search('[/-]', value):
-            d, m, y = map(int, re.split('[/-]', value))
+        if re.search('[./-]', value):
+            d, m, y = map(int, re.split('[./-]', value))
         else:
             d, m, y = value.split()
             d, m, y = int(d), MONTHS.index(m)+1, int(y)
@@ -190,6 +190,20 @@ def read_lines(text, vat_rate, net):
             quantity,unit_price=number(qty),number(price)
             if (quantity*unit_price).quantize(Decimal('.01'))!=number(amount): continue
             results.append(dict(description=clean(description),quantity=str(quantity),unit_price=str(unit_price),unit='DAY'))
+    # Some CDI invoices print each day's quantity, daily price and subtotal
+    # on separate labelled lines. Require their arithmetic to agree.
+    if not results:
+        block_lines=[clean(line) for line in re.sub(r'\.{2,}', ' ', text.replace('…','...')).splitlines() if line.strip()]
+        for i,line in enumerate(block_lines):
+            qty=re.fullmatch(r'nombre\s+de\s+jours\s*:\s*'+AMOUNT,plain(line))
+            if not qty or i==0 or i+2>=len(block_lines): continue
+            price=re.fullmatch(r'tarif\s+journalier\s*:\s*'+AMOUNT+r'\s*(?:€(?:uros?)?|euros?|eur)\s*h\.?\s*t\.?',plain(block_lines[i+1]))
+            subtotal=re.fullmatch(r'sous[- ]total(?:\s+\d+)?\s*:\s*'+AMOUNT+r'\s*(?:€(?:uros?)?|euros?|eur)\s*h\.?\s*t\.?',plain(block_lines[i+2]))
+            heading=re.fullmatch(r'[-–•]\s*(.+?)\s*[;:]?',block_lines[i-1])
+            if not price or not subtotal or not heading: continue
+            quantity,unit_price=number(qty.group(1)),number(price.group(1))
+            if (quantity*unit_price).quantize(Decimal('.01'),rounding=ROUND_HALF_UP)!=number(subtotal.group(1)): continue
+            results.append(dict(description=heading.group(1).strip(' ;:'),quantity=str(quantity),unit_price=str(unit_price),unit='DAY'))
     for row in results:
         if vat_rate is not None and 'vat_rate' not in row:
             row['vat_rate']=vat_rate
@@ -223,7 +237,7 @@ def extract_fields(text):
     if dated and read_date(dated[0]): inv['issue_date']=read_date(dated[0])
     inv.update(company_blocks(text))
     totals={}
-    labels={'net':r'(?:montant\s+(?:total\s+)?|total\s*)(?:h\.?\s*t\.?|hors\s*taxes)(?:\s+de\s+la\s+situation)?', 'gross':r'(?:montant\s+(?:total\s+)?|total\s*)(?:t\.?\s*t\.?\s*c\.?|toutes\s*taxes)', 'due':r'(?:net\s*[aà]\s*payer|reste\s*[aà]\s*payer|solde\s*(?:[aà]\s*payer)?)'}
+    labels={'net':r'(?:montant\s+(?:(?:total|global)\s+)?|total\s*)(?:h\.?\s*t\.?|hors\s*taxes)(?:\s+de\s+la\s+situation)?', 'gross':r'(?:montant\s+(?:total\s+)?|total\s*)(?:t\.?\s*t\.?\s*c\.?|toutes\s*taxes)', 'due':r'(?:net\s*[aà]\s*payer|reste\s*[aà]\s*payer|solde\s*(?:[aà]\s*payer)?)'}
     for key,label in labels.items():
         found=re.search(label+r'\s*:?\s*'+AMOUNT,p)
         if found: totals[key]=money(found.group(1))
@@ -294,9 +308,11 @@ def extract_fields(text):
     if not inv.get('business_process') and inv['lines'] and all(r['unit'] in ('DAY','HUR','MON') for r in inv['lines']):
         inv['business_process']='S1'
         warnings.append('Le cadre « Prestations de services » est proposé à partir des unités reconnues ; confirmez-le.')
-    code=re.search(r'code\s+affaire\s*:\s*([^\r\n)]+)',text,re.I)
+    code=re.search(r'(?:code\s+affaire|aff\.)\s*:\s*([^\r\n)]+)',text,re.I)
     references={'buyer_reference':r'reference\s+client','order_reference':r'(?:bon\s+de\s+commande|commande\s+n[°o]?)','contract_reference':r'(?:contrat|marche)\s*(?:n[°o]?)?'}
     for key,label in references.items():
         match=re.search(label+r'\s*:\s*([^\r\n]+)',text,re.I)
         if match: inv[key]=clean(match.group(1))
+    order=re.search(r'\bbon\s+de\s+commande\s+n[°ºo]?\s*:?\s*([^\r\n]+)',text,re.I)
+    if order: inv['order_reference']=clean(order.group(1))
     return inv,clean(code.group(1)) if code else None,vat_rate,warnings
