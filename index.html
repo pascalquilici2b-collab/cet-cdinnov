@@ -357,14 +357,8 @@ body.cdi-budget-expanded .sidebar,body.cdi-budget-expanded .topbar{display:none!
 body.cdi-budget-expanded .main{margin:0;width:100vw}
 body.cdi-budget-expanded #content{position:fixed;inset:0;padding:0;max-width:none;z-index:150;background:#f7f8fa}
 body.cdi-budget-expanded .cdi-budget-frame{height:100dvh!important;min-height:0;border-radius:0}
-.cdi-budget-login{max-width:520px;margin:16px auto 24px}
-.cdi-budget-login h2{font-size:21px;margin:0 0 12px}
-.cdi-budget-login p{line-height:1.6;font-size:14px}
-.cdi-budget-login label{display:block;margin:18px 0 6px;font-size:14px}
-.cdi-budget-login input{width:100%}
-.cdi-budget-login [role=alert]{color:var(--warn)}
 @media(max-width:640px){.cdi-budget-frame{height:calc(100vh - 110px);min-height:540px}}
-.nav-item.cdi-budget-subnav{margin-left:18px;padding-left:16px;font-size:13px;gap:8px}.nav-item.cdi-budget-subnav>svg{width:17px;height:17px;flex-shrink:0}.cdi-beta{display:inline-block;background:#e5e7eb;color:#5f6672;border:1px solid #d5d8dc;padding:2px 6px;border-radius:5px;font-size:10px;font-weight:600;line-height:1.4;vertical-align:middle;letter-spacing:0;text-transform:none}.nav-item .cdi-beta{margin-left:auto}#pageTitle .cdi-beta{margin-left:7px}.cdi-clients-toolbar{display:flex;gap:14px;align-items:center;margin-bottom:14px}.cdi-clients-toolbar [role=status]{font-size:12px;color:var(--muted)}.cdi-client-identity{display:inline-flex;align-items:center;gap:8px}.cdi-client-identity img{width:34px;height:28px;object-fit:contain}
+.cdi-beta{display:inline-block;background:#e5e7eb;color:#5f6672;border:1px solid #d5d8dc;padding:2px 6px;border-radius:5px;font-size:10px;font-weight:600;line-height:1.4;vertical-align:middle;letter-spacing:0;text-transform:none}.nav-item .cdi-beta{margin-left:auto}#pageTitle .cdi-beta{margin-left:7px}.cdi-clients-toolbar{display:flex;gap:14px;align-items:center;margin-bottom:14px}.cdi-clients-toolbar [role=status]{font-size:12px;color:var(--muted)}.cdi-client-identity{display:inline-flex;align-items:center;gap:8px}.cdi-client-identity img{width:34px;height:28px;object-fit:contain}
 </style>
 </head>
 <body>
@@ -400,7 +394,7 @@ body.cdi-budget-expanded .cdi-budget-frame{height:100dvh!important;min-height:0;
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v4H3z"/><path d="M5 7v14h14V7"/><path d="M9 11h6M9 15h6M9 19h3"/></svg>
       Facturier
     </div>
-    <div class="nav-item cdi-budget-subnav" data-view="budgetsprojets" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();setView('budgetsprojets');toggleSidebar(false)}">
+    <div class="nav-item" data-view="budgetsprojets" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();setView('budgetsprojets');toggleSidebar(false)}">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h7l2 2h9v14H3z"/><path d="M7 17v-4m5 4v-7m5 7v-5"/></svg>
       <span>Outil budgets</span><span class="cdi-beta">Beta</span>
     </div>
@@ -846,7 +840,7 @@ const VIEW_META = {
 function toggleSidebar(open){ const sb=document.querySelector('.sidebar'); const bd=document.getElementById('sidebarBackdrop'); if(!sb) return; const show=(open===undefined)?!sb.classList.contains('open'):!!open; sb.classList.toggle('open',show); if(bd) bd.classList.toggle('show',show); }
 $$('.nav-item').forEach(n=> n.addEventListener('click', ()=> { setView(n.dataset.view); toggleSidebar(false); }));
 function setView(v){
-  if(typeof budgetsDirty!=='undefined'&&v!==currentView&&(currentView==='budgetsprojets'||budgetsLoginPending)&&!budgetsLeave())return;
+  if(typeof budgetsDirty!=='undefined'&&currentView==='budgetsprojets'&&v!==currentView&&!budgetsLeave())return;
   document.querySelector('.year-pick').style.display=v==='budgetsprojets'?'none':'';
   currentView=v;
   $$('.nav-item').forEach(n=>n.classList.toggle('active', n.dataset.view===v));
@@ -3608,7 +3602,6 @@ window.addEventListener('message',async event=>{
 let budgetsDirty=false;
 let budgetsSession=null;
 let budgetsWarmPromise=null;
-let budgetsLoginPending=null;
 let budgetsClients=[],budgetsClientsPending=null,budgetsClientsTimer=null,budgetsClientsMode=false;
 const budgetsClientKey=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().replace(/\s+/g,' ').toLowerCase();
 function budgetsKnownClient(name){return budgetsClients.find(c=>[c.name,...c.aliases||[]].some(alias=>budgetsClientKey(alias)===budgetsClientKey(name)));}
@@ -3636,7 +3629,7 @@ function budgetsSyncClients(){
   budgetsClientsPending=(async()=>{
     const session=await budgetsEnsureSession();if(AUTH_USER!==user)throw new Error('La session a changé.');
     const response=await fetch(budgetsApi()+'/clients',{method:'POST',headers:{Authorization:'Bearer '+session.token,'Content-Type':'application/json'},body:JSON.stringify({names:budgetsClientNames()}),signal:AbortSignal.timeout(30000)});
-    const result=await response.json();if(!response.ok){if(response.status===401){budgetsSession=null;try{sessionStorage.removeItem('cdi-budgets-session');}catch{}}throw new Error(result.error||'Synchronisation impossible.');}
+    const result=await response.json();if(!response.ok){if(response.status===401)budgetsClearSession();throw new Error(result.error||'Synchronisation impossible.');}
     if(AUTH_USER===user)budgetsRefreshClients(result.clients);
   })().finally(()=>{budgetsClientsPending=null;});
   return budgetsClientsPending;
@@ -3649,24 +3642,40 @@ function budgetsOpenClients(){budgetsClientsMode=true;setView('budgetsprojets');
 function budgetsApi(){return CLOUD_ENDPOINT.replace(/\/+$/,'')+'/budgets';}
 function budgetsForget(){
   document.body.classList.remove('cdi-budget-expanded');
-  budgetsSession=null;budgetsWarmPromise=null;budgetsDirty=false;
+  budgetsClearSession();budgetsWarmPromise=null;budgetsDirty=false;
   clearTimeout(budgetsClientsTimer);budgetsClients=[];document.getElementById('cdiClientsList')?.remove();
-  if(budgetsLoginPending){budgetsLoginPending.reject(new Error('Connexion annulée.'));budgetsLoginPending=null;}
-  try{sessionStorage.removeItem('cdi-budgets-session');}catch{}
   document.getElementById('cdiBudgetsFrame')?.remove();
 }
-function budgetsCurrentSession(){
-  if(!AUTH_USER)return null;
-  if(!budgetsSession){try{budgetsSession=JSON.parse(sessionStorage.getItem('cdi-budgets-session')||'null');}catch{}}
-  return budgetsSession&&budgetsSession.email===AUTH_USER&&budgetsSession.expiresAt>Date.now()+5000?budgetsSession:null;
+function budgetsClearSession(){
+  budgetsSession=null;
+  try{sessionStorage.removeItem('cdi-budgets-session');const portal=getSession();if(portal?.budgets){delete portal.budgets;localStorage.setItem(AUTH_SESSION_KEY,JSON.stringify(portal));}}catch{}
+}
+function budgetsCurrentSession(email=AUTH_USER){
+  const portal=getSession();
+  if(!email||portal?.email!==email)return null;
+  let candidate=portal.budgets;
+  // Reuse an existing signed session when upgrading the former per-tab storage.
+  if(!candidate){try{candidate=JSON.parse(sessionStorage.getItem('cdi-budgets-session')||'null');}catch{}}
+  if(!candidate||candidate.email!==email||candidate.expiresAt<=Date.now()+5000||typeof candidate.token!=='string')return null;
+  budgetsSession=candidate;
+  try{if(!portal.budgets)localStorage.setItem(AUTH_SESSION_KEY,JSON.stringify({...portal,budgets:candidate}));sessionStorage.removeItem('cdi-budgets-session');}catch{}
+  return candidate;
 }
 async function budgetsSignIn(email,password){
-  const response=await fetch(budgetsApi()+'/session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password}),signal:AbortSignal.timeout(30000)});
-  const result=await response.json();
-  if(!response.ok)throw new Error(result.error||'Connexion Budget impossible.');
+  const request=async data=>{
+    const response=await fetch(budgetsApi()+'/session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,...data}),signal:AbortSignal.timeout(30000)});
+    const result=await response.json();if(!response.ok)throw new Error(result.error||'Connexion CDInnov impossible.');return result;
+  };
+  const challenge=await request({action:'challenge'});
+  if(!/^[a-f0-9]{32}$/i.test(challenge.salt)||!Number.isInteger(challenge.iter)||challenge.iter<100000||challenge.iter>1000000)throw new Error('Connexion CDInnov indisponible.');
+  const derived=await pbkdf2(password,challenge.salt,challenge.iter);
+  const key=await crypto.subtle.importKey('raw',_bytes(derived),{name:'HMAC',hash:'SHA-256'},false,['sign']);
+  const proof=_hex(await crypto.subtle.sign('HMAC',key,new TextEncoder().encode(challenge.challenge)));
+  const result=await request({action:'verify',challenge:challenge.challenge,proof});
   if(AUTH_USER!==email)throw new Error('La session utilisateur a changé.');
   budgetsSession={...result,email};
-  try{sessionStorage.setItem('cdi-budgets-session',JSON.stringify(budgetsSession));}catch{}
+  const portal=getSession();if(portal?.email!==email)throw new Error('La session utilisateur a changé.');
+  try{localStorage.setItem(AUTH_SESSION_KEY,JSON.stringify({...portal,budgets:budgetsSession}));}catch{}
   return budgetsSession;
 }
 function budgetsWarmLogin(email,password){
@@ -3676,24 +3685,10 @@ async function budgetsEnsureSession(){
   if(!AUTH_USER)throw new Error('Connectez-vous à votre compte CDInnov.');
   if(budgetsWarmPromise)await budgetsWarmPromise;
   const current=budgetsCurrentSession();if(current)return current;
-  if(budgetsLoginPending)return budgetsLoginPending.promise;
-  let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});
-  budgetsLoginPending={promise,resolve,reject};
-  const card=document.createElement('section');card.id='cdiBudgetsLogin';card.className='cdi-budget-login card';
-  card.innerHTML='<form class="card-pad"><h2>Ouvrir les budgets partagés</h2><p>Confirmez votre mot de passe CDInnov pour cette première connexion ou après expiration de votre session.</p><label for="cdiBudgetsPassword">Mot de passe</label><input id="cdiBudgetsPassword" class="inp" type="password" autocomplete="current-password" required><p role="alert" id="cdiBudgetsLoginError"></p><button class="btn btn-primary" type="submit">Ouvrir les budgets</button></form>';
-  document.getElementById('content').prepend(card);
-  card.querySelector('form').addEventListener('submit',async event=>{
-    event.preventDefault();const input=card.querySelector('input'),button=card.querySelector('button');button.disabled=true;
-    try{const session=await budgetsSignIn(AUTH_USER,input.value);input.value='';card.remove();const p=budgetsLoginPending;budgetsLoginPending=null;p?.resolve(session);}
-    catch(error){card.querySelector('[role="alert"]').textContent=error.message;button.disabled=false;}
-  });
-  card.querySelector('input').focus();
-  return promise;
+  throw new Error('Votre connexion CDInnov doit être renouvelée. Déconnectez-vous puis reconnectez-vous avec le bouton de votre profil.');
 }
 function budgetsLeave(){
   if(budgetsDirty&&!confirm('Des modifications de budget ne sont pas encore enregistrées. Quitter quand même ?'))return false;
-  if(budgetsLoginPending){budgetsLoginPending.reject(new Error('Connexion annulée.'));budgetsLoginPending=null;}
-  document.getElementById('cdiBudgetsLogin')?.remove();
   document.body.classList.remove('cdi-budget-expanded');budgetsDirty=false;return true;
 }
 function renderBudgetsProjets(){
@@ -3733,7 +3728,7 @@ window.addEventListener('message',async event=>{
     if(message.method==='PUT')Object.assign(headers,{'Content-Type':'application/json','If-Match':String(message.version)});
     const response=await fetch(budgetsApi()+'/workspace',{method:message.method,headers,body:message.method==='PUT'?JSON.stringify(message.workspace):undefined,cache:'no-store',signal:AbortSignal.timeout(30000)});
     const result=await response.json();
-    if(response.status===401){budgetsSession=null;try{sessionStorage.removeItem('cdi-budgets-session');}catch{}}
+    if(response.status===401)budgetsClearSession();
     if(!response.ok)throw new Error(result.error||'Enregistrement impossible. Réessayez.');
     budgetsRefreshClients(message.method==='PUT'?message.workspace.clients:result.workspace.clients);
     reply(result);
@@ -3750,7 +3745,7 @@ function bootAuth(){
   const proceed=()=>{
     ensureAuthSeed();
     const sx=getSession();
-    if(sx && authState().accounts[sx.email]){ unlockApp(sx.email); }
+    if(sx && authState().accounts[sx.email] && budgetsCurrentSession(sx.email)){ unlockApp(sx.email); }
     else { authShowStep('Email'); setTimeout(()=>{ const e=$('#authEmail'); if(e) e.focus(); },50); }
   };
   if(cloudEnabled()){ cloudLoad().then(proceed).catch(proceed); }
