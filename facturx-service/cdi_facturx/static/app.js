@@ -26,9 +26,15 @@ function applyRememberedParties(){
   reusedCoordinates=[...new Set([...reusedCoordinates,...result.reused])];fillInvoice(prepareInvoice(result.invoice));
 }
 function prepareInvoice(invoice){
-  const inv=structuredClone(invoice),seller=inv.seller;
+  const inv=structuredClone(invoice),seller=inv.seller||{};
   if(typeof inv.number==='string'&&/^\d{2}\s+\d{2}\s+\d{1,6}$/.test(inv.number))inv.number=inv.number.replace(/\s/g,'');
-  if(seller&&(seller.siren||seller.siret?.slice(0,9))==='322556580'){
+  const identifier=String(seller.siren||seller.siret?.replace(/\s/g,'').slice(0,9)||'').replace(/\s/g,'');
+  const name=String(seller.name||'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+  const isCDI=identifier==='322556580'||(!identifier&&(!seller.country||seller.country==='FR')&&['','CDI','CONSEILDEVELOPPEMENTINNOVATION','CDICONSEILDEVELOPPEMENTINNOVATION'].includes(name));
+  if(isCDI){
+    inv.seller=seller;
+    const defaults={name:'CONSEIL DEVELOPPEMENT INNOVATION',street:'27 Boulevard Paoli',postal_code:'20200',city:'BASTIA',country:'FR',siren:'322556580',vat_number:'FR80322556580'};
+    for(const [key,value] of Object.entries(defaults))if(!String(seller[key]||'').trim())seller[key]=value;
     seller.contact_email||='cdi@cdinnov.com';
     if(!seller.electronic_address){seller.electronic_address='322556580';seller.electronic_scheme='0225';}
     seller.electronic_scheme||=seller.electronic_address.includes('@')?'EM':'0225';
@@ -37,12 +43,33 @@ function prepareInvoice(invoice){
 }
 function fieldCaption(el){
   const label=el.closest('label');
-  let caption=label?[...label.childNodes].filter(n=>n.nodeType===3).map(n=>n.textContent).join('').trim():el.name;
+  const captionNode=label?.querySelector('.field-caption')||label;
+  let caption=captionNode?[...captionNode.childNodes].filter(n=>n.nodeType===3).map(n=>n.textContent).join('').trim():el.name;
   if(el.name?.startsWith('seller.'))caption='Émetteur — '+caption;
   if(el.name?.startsWith('buyer.'))caption='Client — '+caption;
   const line=el.closest('.line-form');
   if(line)caption='Ligne '+([...$('#lines').children].indexOf(line)+1)+' — '+caption;
   return caption;
+}
+function syncRequiredMarkers(){
+  for(const label of form.querySelectorAll('label')){
+    const control=label.querySelector('input,select,textarea');if(!control)continue;
+    let caption=label.querySelector('.field-caption');
+    if(!caption){
+      caption=[...label.children].find(el=>el.tagName==='SPAN');
+      if(!caption){
+        caption=document.createElement('span');
+        const textNodes=[...label.childNodes].filter(n=>n.nodeType===3);
+        caption.textContent=textNodes.map(n=>n.textContent).join('').trim();
+        textNodes.forEach(n=>n.remove());label.insertBefore(caption,control);
+      }
+      caption.classList.add('field-caption');
+    }
+    let marker=caption.querySelector('.required-marker');
+    if(control.required&&!marker){
+      marker=document.createElement('span');marker.className='required-marker';marker.textContent=' *';marker.setAttribute('aria-hidden','true');caption.append(marker);
+    }else if(!control.required&&marker)marker.remove();
+  }
 }
 function updateQuickReview(inputs,missing){
   $('#quick-review').hidden=false;
@@ -56,7 +83,7 @@ function updateQuickReview(inputs,missing){
   }
   if(inv.allowance){const row=document.createElement('div'),label=document.createElement('span'),value=document.createElement('strong');label.textContent='Remise incluse';value.textContent='− '+format(inv.allowance.amount)+' HT · '+inv.allowance.reason;row.append(label,value);recap.append(row);}
   for(const [original,entry] of quickFields){
-    if(!original.isConnected){entry.label.remove();quickFields.delete(original);continue;}
+    if(!original.isConnected||(!original.required&&!original.value&&original.checkValidity())){entry.label.remove();quickFields.delete(original);continue;}
     if(document.activeElement!==entry.input)entry.input.value=original.value;
     entry.input.required=original.required;
     entry.label.classList.toggle('completed',!!original.value&&original.checkValidity());
@@ -134,7 +161,6 @@ function sourceCorrections() {
   });
 }
 function readingSummary(mark=false) {
-  if(!sourceFile)return;
   const rounded=Number(form.elements.namedItem('totals.rounding').value)!==0;
   for(const option of $('#profile').options)option.disabled=rounded&&option.value!=='en16931';
   if(rounded)$('#profile').value='en16931';
@@ -153,6 +179,8 @@ function readingSummary(mark=false) {
   const credit=form.elements.namedItem('type_code').value==='381';
   form.elements.namedItem('preceding_invoice').required=credit;form.elements.namedItem('preceding_invoice_date').required=credit;
   for(const box of document.querySelectorAll('.line-form'))box.querySelector('[data-key="exemption_reason"]').required=['E','AE','O'].includes(box.querySelector('[data-key="vat_category"]').value);
+  for(const id of ['allowance-target','allowance-group','allowance-reason'])$('#'+id).required=$('#use-allowance').checked;
+  if(!sourceFile){syncRequiredMarkers();return;}
   const inputs=[...form.querySelectorAll('input[name],select[name],textarea[name],input[data-key],select[data-key]')];
   let filled=0,missing=0;
   for(const el of inputs){
@@ -168,9 +196,10 @@ function readingSummary(mark=false) {
   info.textContent=missing?missing+' information(s) à compléter.':'';
   updateQuickReview(inputs,missing);
   renderAllowance(invoiceData());
+  syncRequiredMarkers();
 }
 const parties = [ ['seller', 'Émetteur'], ['buyer', 'Client'] ];
-const partyFields = [['name','Raison sociale'],['siret','SIRET'],['siren','SIREN'],['vat_number','Numéro de TVA'],['street','Adresse'],['postal_code','Code postal'],['city','Ville'],['country','Pays (ISO)'],['contact_email','E-mail de contact'],['electronic_address','Adresse électronique de facturation'],['electronic_scheme','Type d’adresse (0225 : SIREN ; EM : e-mail)']];
+const partyFields = [['name','Raison sociale'],['siret','SIRET'],['siren','SIREN'],['vat_number','Numéro de TVA'],['street','Adresse postale'],['postal_code','Code postal'],['city','Ville'],['country','Pays (ISO)'],['contact_email','E-mail de contact'],['electronic_address','Adresse électronique de facturation'],['electronic_scheme','Type d’adresse (0225 : SIREN ; EM : e-mail)']];
 for (const [key, label] of parties) {
   const details = document.createElement('details');details.dataset.party=key;
   const summary = document.createElement('summary'); summary.textContent = label; details.append(summary);
@@ -182,6 +211,7 @@ for (const [key, label] of parties) {
     input.required = ['name','street','postal_code','city','country','electronic_address','electronic_scheme'].includes(field);
     if (field === 'country') { input.value = 'FR'; input.maxLength = 2; }
     if (field === 'contact_email') input.type='email';
+    if (field === 'street'&&key==='buyer') input.placeholder='Adresse du client ou adresse de facturation si différente';
     if (field === 'electronic_address') input.placeholder = 'Adresse confirmée dans l’annuaire de facturation';
     if (field === 'electronic_scheme') input.placeholder = '0225 pour un SIREN français, EM pour un e-mail';
     labelEl.append(input); grid.append(labelEl);
@@ -202,10 +232,11 @@ function addLine(data = {}) {
     if (value != null) setInput(input, value);
   }
   if(data.quantity==null)box.querySelector('[data-key="quantity"]').value='';
-  if(data.vat_rate==null)box.querySelector('[data-key="vat_rate"]').value='';
+  if(data.vat_rate==null||String(data.vat_rate).trim()==='')box.querySelector('[data-key="vat_rate"]').value=box.querySelector('[data-key="vat_category"]').value==='S'?'20':'0';
   box.querySelector('.remove-line').onclick = () => { if ($('#lines').children.length > 1) { box.remove(); invalidate();readingSummary(); } };
   box.querySelector('[data-key="vat_category"]').onchange = (e) => {
-    if (e.target.value !== 'S') box.querySelector('[data-key="vat_rate"]').value = '0';
+    box.querySelector('[data-key="vat_rate"]').value=e.target.value==='S'?'20':'0';
+    invalidate();readingSummary();
   };
   $('#lines').append(box);
 }
@@ -287,6 +318,7 @@ $('#use-allowance').onchange=()=>{
 $('#apply-allowance').onclick=applyAllowance;
 $('#allowance-group').onchange=()=>{invalidate();readingSummary();};
 function fillInvoice(inv) {
+  inv=prepareInvoice(inv);
   quickFields.clear();$('#quick-fields').replaceChildren();
   for (const input of form.querySelectorAll('[name]')) setInput(input, getAt(inv, input.name));
   $('#lines').replaceChildren(); (inv.lines?.length ? inv.lines : [{}]).forEach(addLine); invalidate();
@@ -413,6 +445,8 @@ $('#download-xml').onclick=()=>{if(converted)download(new Blob([converted.xml],{
 $('#download-report').onclick=()=>{if(!converted)return;const {pdf_base64,xml,verapdf_report,...report}=converted;download(new Blob([JSON.stringify(report,null,2)],{type:'application/json'}),'validation.json');};
 $('#download-vera').onclick=()=>{if(converted)download(new Blob([converted.verapdf_report],{type:'application/xml'}),'verapdf.xml');};
 addLine();
+for(const [key,value] of Object.entries(prepareInvoice({}).seller))setValue('seller.'+key,value);
+readingSummary();
 apiFetch('/api/health').then(r=>r.json()).then(h=>{$('#health').textContent=h.ready?'● Moteur de conversion prêt':'● Configuration à terminer';}).catch(()=>{$('#health').textContent='● Moteur indisponible'; if(embedConfig) message('Le service de conversion en ligne est indisponible. Réessayez dans une minute ; le premier réveil peut être plus long.',true);});
 
 if (embedConfig) {
