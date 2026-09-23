@@ -350,6 +350,22 @@
 @media(hover:none),(pointer:coarse){.facturx-file-remove{opacity:1;pointer-events:auto}}
 @media(prefers-reduced-motion:reduce){.facturx-file-remove{transition:none}}
 </style>
+<style id="cdi-budgets-styles">.cdi-budget-frame{display:block;border:0;width:100%;height:calc(100vh - 134px);min-height:600px;background:#f7f8fa;border-radius:12px}
+body:has(#cdiBudgetsFrame) .content{max-width:none;padding:12px 16px 24px}
+body.cdi-budget-expanded{overflow:hidden}
+body.cdi-budget-expanded .sidebar,body.cdi-budget-expanded .topbar{display:none!important}
+body.cdi-budget-expanded .main{margin:0;width:100vw}
+body.cdi-budget-expanded #content{position:fixed;inset:0;padding:0;max-width:none;z-index:150;background:#f7f8fa}
+body.cdi-budget-expanded .cdi-budget-frame{height:100dvh!important;min-height:0;border-radius:0}
+.cdi-budget-login{max-width:520px;margin:16px auto 24px}
+.cdi-budget-login h2{font-size:21px;margin:0 0 12px}
+.cdi-budget-login p{line-height:1.6;font-size:14px}
+.cdi-budget-login label{display:block;margin:18px 0 6px;font-size:14px}
+.cdi-budget-login input{width:100%}
+.cdi-budget-login [role=alert]{color:var(--warn)}
+@media(max-width:640px){.cdi-budget-frame{height:calc(100vh - 110px);min-height:540px}}
+.nav-item.cdi-budget-subnav{margin-left:18px;padding-left:16px;font-size:13px;gap:8px}.nav-item.cdi-budget-subnav>svg{width:17px;height:17px;flex-shrink:0}.cdi-beta{display:inline-block;background:#e5e7eb;color:#5f6672;border:1px solid #d5d8dc;padding:2px 6px;border-radius:5px;font-size:10px;font-weight:600;line-height:1.4;vertical-align:middle;letter-spacing:0;text-transform:none}.nav-item .cdi-beta{margin-left:auto}#pageTitle .cdi-beta{margin-left:7px}.cdi-clients-toolbar{display:flex;gap:14px;align-items:center;margin-bottom:14px}.cdi-clients-toolbar [role=status]{font-size:12px;color:var(--muted)}.cdi-client-identity{display:inline-flex;align-items:center;gap:8px}.cdi-client-identity img{width:34px;height:28px;object-fit:contain}
+</style>
 </head>
 <body>
 <div class="app">
@@ -383,6 +399,10 @@
     <div class="nav-item" data-view="facturier">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v4H3z"/><path d="M5 7v14h14V7"/><path d="M9 11h6M9 15h6M9 19h3"/></svg>
       Facturier
+    </div>
+    <div class="nav-item cdi-budget-subnav" data-view="budgetsprojets" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();setView('budgetsprojets');toggleSidebar(false)}">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h7l2 2h9v14H3z"/><path d="M7 17v-4m5 4v-7m5 7v-5"/></svg>
+      <span>Outil budgets</span><span class="cdi-beta">Beta</span>
     </div>
     <div class="nav-label" id="navLabelReglages">Réglages</div>
     <div class="nav-item" data-view="parametres">
@@ -642,6 +662,7 @@ function load(){
   }catch(e){ STORAGE_OK=false; return freshState(); }
 }
 function save(){
+  if(typeof budgetsClientsChanged==='function')budgetsClientsChanged();
   try{ reconcileCetMovements(); }catch(e){}
   state.majAt = new Date().toISOString();
   try{ state.majBy = (typeof AUTH_USER!=='undefined' && AUTH_USER) ? AUTH_USER : ''; }catch(e){}
@@ -812,6 +833,7 @@ function availableYears(){
 /* Symbole CDInnov du 21 septembre 2026 : SVG intégré, PNG pour les exports PDF. */
 
 const VIEW_META = {
+  budgetsprojets:{title:'Outil budgets',sub:'Budgets, dépenses et recettes de vos projets',action:null},
   dashboard:{title:'Tableau de bord CET', sub:"Vue d'ensemble du Compte Épargne-Temps", action:'Nouveau mouvement', actFn:()=>openMouvement()},
   mouvements:{title:'Mouvements CET', sub:'Historique des alimentations et utilisations', action:'Nouveau mouvement', actFn:()=>openMouvement()},
   salaries:{title:'Salariés', sub:'Bénéficiaires du dispositif CET', action:'Nouveau salarié', actFn:()=>openSalarie()},
@@ -824,6 +846,8 @@ const VIEW_META = {
 function toggleSidebar(open){ const sb=document.querySelector('.sidebar'); const bd=document.getElementById('sidebarBackdrop'); if(!sb) return; const show=(open===undefined)?!sb.classList.contains('open'):!!open; sb.classList.toggle('open',show); if(bd) bd.classList.toggle('show',show); }
 $$('.nav-item').forEach(n=> n.addEventListener('click', ()=> { setView(n.dataset.view); toggleSidebar(false); }));
 function setView(v){
+  if(typeof budgetsDirty!=='undefined'&&currentView==='budgetsprojets'&&v!==currentView&&!budgetsLeave())return;
+  document.querySelector('.year-pick').style.display=v==='budgetsprojets'?'none':'';
   currentView=v;
   $$('.nav-item').forEach(n=>n.classList.toggle('active', n.dataset.view===v));
   const meta=VIEW_META[v];
@@ -855,6 +879,7 @@ function render(){
   else if(currentView==='conges') renderConges();
   else if(currentView==='notesfrais') renderNotesFrais();
   else if(currentView==='facturier') renderFacturier();
+  else if(currentView==='budgetsprojets') renderBudgetsProjets();
   else if(currentView==='parametres') renderParametres();
   injectStorageWarning();
 }
@@ -2364,6 +2389,7 @@ function facturesFiltered(){
   return l.sort((a,b)=>(b.dateFacture||'').localeCompare(a.dateFacture||''));
 }
 function renderFacturier(){
+  setTimeout(()=>budgetsSyncClients().catch(budgetsClientsError),0);
   const cont=$('#content');
   if(!facturierAdmin()){ cont.innerHTML=emptyState('Accès réservé',"Le facturier est réservé à la direction."); return; }
   const cds=codesFiltered(), fts=facturesFiltered();
@@ -2387,6 +2413,7 @@ function renderFacturier(){
         <button class="btn btn-ghost btn-sm no-print" onclick="setFactTab('factures')" ${factTab==='factures'?'style="background:var(--accent-soft);color:var(--accent-strong)"':''}>Facturier</button>
       </div>
       <div class="card-pad">
+        <div class="cdi-clients-toolbar"><button class="btn btn-ghost btn-sm" onclick="budgetsOpenClients()">Clients et logos</button><span id="cdiClientsStatus" role="status"></span></div>
         ${factTab==='codes'? facturierCodesHTML(cds,totCodes) : facturierFacturesHTML(fts,totHT,totTTC)}
       </div>
     </div>
@@ -2417,7 +2444,7 @@ function facturierCodesHTML(list,total){
         <td><b>${esc(caCode(c))}</b></td>
         <td>${esc(c.pilote||'—')}</td>
         <td>${esc(c.label||'')}</td>
-        <td>${esc(c.client||'')}</td>
+        <td>${budgetsClientHTML(c.client)}</td>
         <td class="num">${eurHT(c.montantHT)}</td>
         <td style="min-width:120px"><div style="display:flex;align-items:center;gap:7px"><div style="flex:1;height:6px;border-radius:4px;background:var(--panel-2);overflow:hidden"><div style="width:${Math.max(0,Math.min(100,Number(c.progress)||0))}%;height:100%;background:var(--accent)"></div></div><span style="font-size:11.5px;color:var(--muted);min-width:32px">${Number(c.progress)||0} %</span></div></td>
         <td class="num" style="white-space:nowrap">
@@ -2452,7 +2479,7 @@ function facturierFacturesHTML(list,totHT,totTTC){
         <td style="white-space:nowrap">${f.dateFacture?dateFR(f.dateFacture):'—'}</td>
         <td><b>${esc(f.code||'')}</b></td>
         <td>${esc(f.number||'')}</td>
-        <td>${esc(f.client||'')}</td>
+        <td>${budgetsClientHTML(f.client)}</td>
         <td class="num">${eurHT(f.ht)}</td>
         <td class="num">${eurHT(f.ttc)}</td>
         <td style="white-space:nowrap">${f.datePaiement?`<span class="badge b-valid"><span class="dot"></span>${esc(moisAnnee(f.datePaiement))}</span>`:'<span style="color:var(--warn);font-weight:600">Non payée</span>'}</td>
@@ -2476,7 +2503,7 @@ function openCodeAffaire(id){
       <div class="form-row"><label>Pilotage</label><input class="inp" id="caPil" value="${c?esc(c.pilote||''):''}" placeholder="ex. PQ"></div>
       <div class="form-row"><label>Avancement (%)</label><input class="inp" type="number" min="0" max="100" id="caProg" value="${c&&c.progress!=null?esc(c.progress):'0'}"></div>
       <div class="form-row full"><label>Nom de l'affaire</label><input class="inp" id="caLabel" value="${c?esc(c.label||''):''}"></div>
-      <div class="form-row"><label>Client</label><input class="inp" id="caClient" value="${c?esc(c.client||''):''}"></div>
+      <div class="form-row"><label>Client</label><input class="inp" list="cdiClientsList" id="caClient" value="${c?esc(c.client||''):''}"></div>
       <div class="form-row"><label>Montant HT (€)</label><input class="inp" type="number" step="0.01" id="caHT" value="${c&&c.montantHT!=null?esc(c.montantHT):''}"></div>
     </div></div>
     <div class="modal-foot">
@@ -2516,7 +2543,7 @@ function openFacture(id){
       <div class="form-row"><label for="fvDate">Date de facture</label><input class="inp" type="date" id="fvDate" value="${f?esc(f.dateFacture||''):ymd(new Date())}"></div>
       <div class="form-row"><label for="fvNum">N° de facture</label><input class="inp" id="fvNum" value="${f?esc(f.number||''):''}" placeholder="ex. 26 03 012"></div>
       <div class="form-row"><label for="fvCode">Code affaire</label><input class="inp" id="fvCode" list="fvCodeList" value="${f?esc(f.code||''):''}" placeholder="ex. 23145"><datalist id="fvCodeList">${opts}</datalist></div>
-      <div class="form-row"><label for="fvClient">Client</label><input class="inp" id="fvClient" value="${f?esc(f.client||''):''}"></div>
+      <div class="form-row"><label for="fvClient">Client</label><input class="inp" list="cdiClientsList" id="fvClient" value="${f?esc(f.client||''):''}"></div>
       <div class="form-row"><label for="fvHT">Montant HT (€)</label><input class="inp" type="number" step="0.01" id="fvHT" value="${f&&f.ht!=null?esc(f.ht):''}" oninput="fvTtcAuto()"></div>
       <div class="form-row"><label for="fvTTC">Montant TTC (€)</label><input class="inp" type="number" step="0.01" id="fvTTC" value="${f&&f.ttc!=null?esc(f.ttc):''}"></div>
       <div class="form-row"><label for="fvPay">Date de paiement</label><input class="inp" type="date" id="fvPay" value="${f?esc(f.datePaiement||''):''}"></div>
@@ -3075,7 +3102,7 @@ async function authDoLogin(){
   try{
     const ok=await authVerify(_authEmailPending, pw);
     if(!ok){ authMsg('Mot de passe incorrect.'); return; }
-    setSession(_authEmailPending); await authSaveCredential(_authEmailPending, pw); unlockApp(_authEmailPending); facturxWarmLogin(_authEmailPending, pw);
+    setSession(_authEmailPending); await authSaveCredential(_authEmailPending, pw); unlockApp(_authEmailPending); facturxWarmLogin(_authEmailPending, pw); budgetsWarmLogin(_authEmailPending, pw);
   }catch(e){ authMsg("Erreur technique (chiffrement indisponible). Ouvrez l'application via son adresse https, pas en fichier local."); }
 }
 async function authDoCreate(){
@@ -3088,7 +3115,7 @@ async function authDoCreate(){
   if(p1!==p2){ authMsg('Les deux mots de passe ne correspondent pas.'); return; }
   try{
     await authCreateAccount(_authEmailPending, name, p1);
-    setSession(_authEmailPending); await authSaveCredential(_authEmailPending, p1, name); unlockApp(_authEmailPending);
+    setSession(_authEmailPending); await authSaveCredential(_authEmailPending, p1, name); unlockApp(_authEmailPending); budgetsWarmLogin(_authEmailPending, p1);
   }catch(e){ authMsg("Erreur technique (chiffrement indisponible). Ouvrez l'application via son adresse https, pas en fichier local."); }
 }
 function unlockApp(email){
@@ -3106,6 +3133,8 @@ function unlockApp(email){
   render();
 }
 function authLogout(){
+  if(!budgetsLeave())return;
+  budgetsForget();
   facturxForgetAuth();
   clearSession(); AUTH_USER=null; movAccess=null; salariesUnlocked=false;
   document.body.classList.remove('authed');
@@ -3574,6 +3603,145 @@ window.addEventListener('message',async event=>{
 });
 
 /* CDI_FACTURX_INTEGRATION_END */
+
+/* CDI_BUDGETS_INTEGRATION_START */
+let budgetsDirty=false;
+let budgetsSession=null;
+let budgetsWarmPromise=null;
+let budgetsLoginPending=null;
+let budgetsClients=[],budgetsClientsPending=null,budgetsClientsTimer=null,budgetsClientsMode=false;
+const budgetsClientKey=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().replace(/\s+/g,' ').toLowerCase();
+function budgetsKnownClient(name){return budgetsClients.find(c=>[c.name,...c.aliases||[]].some(alias=>budgetsClientKey(alias)===budgetsClientKey(name)));}
+function budgetsClientNames(){return [...new Set([...(state.factures||[]).map(f=>f.client),...(state.codesAffaires||[]).map(c=>c.client),...(state.facturxPartyMemory?.buyer||[]).map(c=>c.name)].filter(name=>typeof name==='string'&&name.trim()).map(name=>name.trim()))];}
+function budgetsClientHTML(name){
+  const client=budgetsKnownClient(name),logo=client?.logo;
+  return '<span class="cdi-client-identity" data-cdi-client="'+esc(name||'')+'">'+(logo&&/^data:image\/(png|jpeg|webp);base64,/.test(logo)?'<img src="'+esc(logo)+'" alt=""/>':'')+esc(name||'')+'</span>';
+}
+function budgetsRefreshClients(clients){
+  budgetsClients=clients||[];
+  let list=document.getElementById('cdiClientsList');if(!list){list=document.createElement('datalist');list.id='cdiClientsList';document.body.append(list);}
+  list.replaceChildren(...budgetsClients.map(c=>{const option=document.createElement('option');option.value=c.name;return option;}));
+  document.querySelectorAll('[data-cdi-client]').forEach(element=>{element.outerHTML=budgetsClientHTML(element.dataset.cdiClient)});
+  const status=document.getElementById('cdiClientsStatus');if(status)status.textContent=budgetsClients.length+' clients · répertoire partagé';
+}
+function budgetsClientsError(error){
+  let status=document.getElementById('cdiClientsStatus');
+  if(!status&&AUTH_USER){status=document.createElement('p');status.id='cdiClientsStatus';document.getElementById('content')?.prepend(status);}
+  if(status){status.textContent='Répertoire clients non synchronisé : '+error.message+' ';const retry=document.createElement('button');retry.className='btn btn-ghost btn-sm';retry.textContent='Réessayer';retry.onclick=()=>budgetsSyncClients().catch(budgetsClientsError);status.append(retry);}
+}
+function budgetsSyncClients(){
+  if(!AUTH_USER)return Promise.resolve();
+  if(budgetsClientsPending)return budgetsClientsPending;
+  const user=AUTH_USER;
+  budgetsClientsPending=(async()=>{
+    const session=await budgetsEnsureSession();if(AUTH_USER!==user)throw new Error('La session a changé.');
+    const response=await fetch(budgetsApi()+'/clients',{method:'POST',headers:{Authorization:'Bearer '+session.token,'Content-Type':'application/json'},body:JSON.stringify({names:budgetsClientNames()}),signal:AbortSignal.timeout(30000)});
+    const result=await response.json();if(!response.ok){if(response.status===401)budgetsSession=null;throw new Error(result.error||'Synchronisation impossible.');}
+    if(AUTH_USER===user)budgetsRefreshClients(result.clients);
+  })().finally(()=>{budgetsClientsPending=null;});
+  return budgetsClientsPending;
+}
+function budgetsClientsChanged(){
+  clearTimeout(budgetsClientsTimer);
+  budgetsClientsTimer=setTimeout(()=>{if(budgetsClientNames().some(name=>!budgetsKnownClient(name)))budgetsSyncClients().then(()=>{if(budgetsClientNames().some(name=>!budgetsKnownClient(name)))budgetsClientsChanged()}).catch(budgetsClientsError)},500);
+}
+function budgetsOpenClients(){budgetsClientsMode=true;setView('budgetsprojets');}
+function budgetsApi(){return CLOUD_ENDPOINT.replace(/\/+$/,'')+'/budgets';}
+function budgetsForget(){
+  document.body.classList.remove('cdi-budget-expanded');
+  budgetsSession=null;budgetsWarmPromise=null;budgetsDirty=false;
+  clearTimeout(budgetsClientsTimer);budgetsClients=[];document.getElementById('cdiClientsList')?.remove();
+  if(budgetsLoginPending){budgetsLoginPending.reject(new Error('Connexion annulée.'));budgetsLoginPending=null;}
+  try{sessionStorage.removeItem('cdi-budgets-session');}catch{}
+  document.getElementById('cdiBudgetsFrame')?.remove();
+}
+function budgetsCurrentSession(){
+  if(!AUTH_USER)return null;
+  if(!budgetsSession){try{budgetsSession=JSON.parse(sessionStorage.getItem('cdi-budgets-session')||'null');}catch{}}
+  return budgetsSession&&budgetsSession.email===AUTH_USER&&budgetsSession.expiresAt>Date.now()+5000?budgetsSession:null;
+}
+async function budgetsSignIn(email,password){
+  const response=await fetch(budgetsApi()+'/session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password}),signal:AbortSignal.timeout(30000)});
+  const result=await response.json();
+  if(!response.ok)throw new Error(result.error||'Connexion Budget impossible.');
+  if(AUTH_USER!==email)throw new Error('La session utilisateur a changé.');
+  budgetsSession={...result,email};
+  try{sessionStorage.setItem('cdi-budgets-session',JSON.stringify(budgetsSession));}catch{}
+  return budgetsSession;
+}
+function budgetsWarmLogin(email,password){
+  budgetsWarmPromise=budgetsSignIn(email,password).catch(()=>null).finally(()=>{budgetsWarmPromise=null;});
+}
+async function budgetsEnsureSession(){
+  if(!AUTH_USER)throw new Error('Connectez-vous à votre compte CDInnov.');
+  if(budgetsWarmPromise)await budgetsWarmPromise;
+  const current=budgetsCurrentSession();if(current)return current;
+  if(budgetsLoginPending)return budgetsLoginPending.promise;
+  let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});
+  budgetsLoginPending={promise,resolve,reject};
+  const card=document.createElement('section');card.id='cdiBudgetsLogin';card.className='cdi-budget-login card';
+  card.innerHTML='<form class="card-pad"><h2>Ouvrir les budgets partagés</h2><p>Confirmez votre mot de passe CDInnov pour cette première connexion ou après expiration de votre session.</p><label for="cdiBudgetsPassword">Mot de passe</label><input id="cdiBudgetsPassword" class="inp" type="password" autocomplete="current-password" required><p role="alert" id="cdiBudgetsLoginError"></p><button class="btn btn-primary" type="submit">Ouvrir les budgets</button></form>';
+  document.getElementById('content').prepend(card);
+  card.querySelector('form').addEventListener('submit',async event=>{
+    event.preventDefault();const input=card.querySelector('input'),button=card.querySelector('button');button.disabled=true;
+    try{const session=await budgetsSignIn(AUTH_USER,input.value);input.value='';card.remove();const p=budgetsLoginPending;budgetsLoginPending=null;p?.resolve(session);}
+    catch(error){card.querySelector('[role="alert"]').textContent=error.message;button.disabled=false;}
+  });
+  card.querySelector('input').focus();
+  return promise;
+}
+function budgetsLeave(){
+  if(budgetsDirty&&!confirm('Des modifications de budget ne sont pas encore enregistrées. Quitter quand même ?'))return false;
+  if(budgetsLoginPending){budgetsLoginPending.reject(new Error('Connexion annulée.'));budgetsLoginPending=null;}
+  document.getElementById('cdiBudgetsLogin')?.remove();
+  document.body.classList.remove('cdi-budget-expanded');budgetsDirty=false;return true;
+}
+function renderBudgetsProjets(){
+  const content=document.getElementById('content');
+  if(!AUTH_USER){content.innerHTML='<div class="card card-pad">Connectez-vous pour ouvrir les budgets projets.</div>';return;}
+  const title=document.getElementById('pageTitle');if(title&&!title.querySelector('.cdi-beta')){const badge=document.createElement('span');badge.className='cdi-beta';badge.textContent='Beta';title.append(' ',badge);}
+  if(document.getElementById('cdiBudgetsFrame'))return;
+  content.innerHTML='<iframe id="cdiBudgetsFrame" title="Outil budgets" src="./budgets-projets/index.html'+(budgetsClientsMode?'?clients=1':'')+'" class="cdi-budget-frame"></iframe>';
+  budgetsClientsMode=false;
+}
+function budgetsViewport(){
+  const frame=document.getElementById('cdiBudgetsFrame');if(!frame||!AUTH_USER)return;
+  const box=frame.getBoundingClientRect();
+  const header=document.querySelector('.topbar')?.getBoundingClientRect();
+  const top=Math.max(0,Math.max(0,header?.bottom||0)-box.top);
+  const bottom=Math.min(box.height,window.innerHeight-box.top);
+  const height=Math.max(160,bottom-top);
+  frame.contentWindow?.postMessage({type:'cdi-budget-viewport',top,height},location.origin);
+}
+window.addEventListener('scroll',budgetsViewport,{passive:true,capture:true});
+window.addEventListener('resize',budgetsViewport,{passive:true});
+window.addEventListener('message',async event=>{
+  const frame=document.getElementById('cdiBudgetsFrame');
+  if(event.origin!==location.origin||event.source!==frame?.contentWindow||!AUTH_USER||currentView!=='budgetsprojets')return;
+  const message=event.data;
+  if(message?.type==='cdi-budget-fullscreen'){document.body.classList.toggle('cdi-budget-expanded',message.active===true);requestAnimationFrame(budgetsViewport);return;}
+  if(message?.type==='cdi-budget-height'&&Number.isFinite(message.height)){frame.style.height=Math.max(620,Math.min(30000,message.height+4))+'px';budgetsViewport();return;}
+  if(message?.type==='cdi-budget-dirty'){budgetsDirty=message.dirty===true;return;}
+  if(message?.type!=='cdi-budget-request'||typeof message.id!=='string'||!['GET','PUT'].includes(message.method))return;
+  const source=event.source,user=AUTH_USER;
+  const reply=(result,error)=>{if(frame.isConnected&&AUTH_USER===user)source.postMessage({type:'cdi-budget-response',id:message.id,result,error},location.origin);};
+  try{
+    if(message.method==='GET')await budgetsSyncClients();
+    const session=await budgetsEnsureSession();
+    if(!frame.isConnected||AUTH_USER!==user)throw new Error('La session a changé.');
+    const headers={Authorization:'Bearer '+session.token};
+    if(message.method==='PUT')Object.assign(headers,{'Content-Type':'application/json','If-Match':String(message.version)});
+    const response=await fetch(budgetsApi()+'/workspace',{method:message.method,headers,body:message.method==='PUT'?JSON.stringify(message.workspace):undefined,cache:'no-store',signal:AbortSignal.timeout(30000)});
+    const result=await response.json();
+    if(response.status===401){budgetsSession=null;try{sessionStorage.removeItem('cdi-budgets-session');}catch{}}
+    if(!response.ok)throw new Error(result.error||'Enregistrement impossible. Réessayez.');
+    budgetsRefreshClients(message.method==='PUT'?message.workspace.clients:result.workspace.clients);
+    reply(result);
+  }catch(error){reply(undefined,error.message||'Service indisponible.');}
+});
+window.addEventListener('beforeunload',event=>{if(budgetsDirty){event.preventDefault();event.returnValue='';}});
+window.addEventListener('keydown',event=>{if(event.key==='Escape'&&document.body.classList.contains('cdi-budget-expanded')){document.body.classList.remove('cdi-budget-expanded');document.getElementById('cdiBudgetsFrame')?.contentWindow?.postMessage({type:'cdi-budget-exit-fullscreen'},location.origin);budgetsViewport();}});
+/* CDI_BUDGETS_INTEGRATION_END */
 
 /* ===================== boot ===================== */
 setView('dashboard');
