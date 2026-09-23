@@ -846,7 +846,7 @@ const VIEW_META = {
 function toggleSidebar(open){ const sb=document.querySelector('.sidebar'); const bd=document.getElementById('sidebarBackdrop'); if(!sb) return; const show=(open===undefined)?!sb.classList.contains('open'):!!open; sb.classList.toggle('open',show); if(bd) bd.classList.toggle('show',show); }
 $$('.nav-item').forEach(n=> n.addEventListener('click', ()=> { setView(n.dataset.view); toggleSidebar(false); }));
 function setView(v){
-  if(typeof budgetsDirty!=='undefined'&&currentView==='budgetsprojets'&&v!==currentView&&!budgetsLeave())return;
+  if(typeof budgetsDirty!=='undefined'&&v!==currentView&&(currentView==='budgetsprojets'||budgetsLoginPending)&&!budgetsLeave())return;
   document.querySelector('.year-pick').style.display=v==='budgetsprojets'?'none':'';
   currentView=v;
   $$('.nav-item').forEach(n=>n.classList.toggle('active', n.dataset.view===v));
@@ -3636,7 +3636,7 @@ function budgetsSyncClients(){
   budgetsClientsPending=(async()=>{
     const session=await budgetsEnsureSession();if(AUTH_USER!==user)throw new Error('La session a changé.');
     const response=await fetch(budgetsApi()+'/clients',{method:'POST',headers:{Authorization:'Bearer '+session.token,'Content-Type':'application/json'},body:JSON.stringify({names:budgetsClientNames()}),signal:AbortSignal.timeout(30000)});
-    const result=await response.json();if(!response.ok){if(response.status===401)budgetsSession=null;throw new Error(result.error||'Synchronisation impossible.');}
+    const result=await response.json();if(!response.ok){if(response.status===401){budgetsSession=null;try{sessionStorage.removeItem('cdi-budgets-session');}catch{}}throw new Error(result.error||'Synchronisation impossible.');}
     if(AUTH_USER===user)budgetsRefreshClients(result.clients);
   })().finally(()=>{budgetsClientsPending=null;});
   return budgetsClientsPending;
