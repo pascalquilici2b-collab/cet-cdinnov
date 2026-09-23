@@ -21,6 +21,8 @@ const partyMemoryKey='cdi_facturx_companies_v1';
 let partyMemory={seller:[],buyer:[]},reusedCoordinates=[];
 if(!embedConfig){try{partyMemory=JSON.parse(localStorage.getItem(partyMemoryKey)||'{}');}catch{}}
 const quickFields=new Map();
+let paymentDefaults={};
+if(!embedConfig){try{paymentDefaults=JSON.parse(localStorage.getItem('cdi_facturx_payment_defaults_v1')||'{}');}catch{}}
 function applyRememberedParties(){
   const result=CDIPartyMemory.reuse(invoiceData(),partyMemory);
   reusedCoordinates=[...new Set([...reusedCoordinates,...result.reused])];fillInvoice(prepareInvoice(result.invoice));
@@ -38,6 +40,7 @@ function prepareInvoice(invoice){
     seller.contact_email||='cdi@cdinnov.com';
     if(!seller.electronic_address){seller.electronic_address='322556580';seller.electronic_scheme='0225';}
     seller.electronic_scheme||=seller.electronic_address.includes('@')?'EM':'0225';
+    inv.payment=CDIPaymentDefaults.apply(inv.payment,paymentDefaults);
   }
   return inv;
 }
@@ -161,6 +164,7 @@ function sourceCorrections() {
   });
 }
 function readingSummary(mark=false) {
+  $('#save-payment-defaults').hidden=!CDIPaymentDefaults.isCDI(invoiceData().seller);
   $('#complete-recipient').disabled=!sourceFile||busy;
   const rounded=Number(form.elements.namedItem('totals.rounding').value)!==0;
   for(const option of $('#profile').options)option.disabled=rounded&&option.value!=='en16931';
@@ -419,6 +423,21 @@ $('#recipient-copy').onclick=async()=>{
   try{await navigator.clipboard.writeText(identifier);$('#recipient-route-status').textContent='Identifiant copié. Collez-le dans la recherche Chorus.';}
   catch{$('#recipient-route-status').textContent='Copiez l’identifiant affiché ci-dessus dans la recherche Chorus.';}
 };
+$('#save-payment-defaults').onclick=()=>{
+  if(busy)return;
+  const invoice=invoiceData(),status=$('#payment-defaults-status');
+  try{
+    if(!CDIPaymentDefaults.isCDI(invoice.seller))throw new Error('Réglages réservés aux factures émises par CDInnov.');
+    const defaults=CDIPaymentDefaults.normalize(invoice.payment);
+    if(embedConfig){
+      $('#save-payment-defaults').disabled=true;status.textContent='Enregistrement des réglages…';
+      window.parent.postMessage({type:'cdi-facturx-payment-defaults',session:embedConfig.session,seller:invoice.seller,payment:defaults},embedConfig.parentOrigin);
+    }else{
+      localStorage.setItem('cdi_facturx_payment_defaults_v1',JSON.stringify(defaults));paymentDefaults=defaults;
+      status.textContent='Réglages par défaut enregistrés dans ce navigateur.';
+    }
+  }catch(error){status.textContent=error.message;}
+};
 $('#recipient-apply-route').onclick=()=>{
   if(busy)return;
   try{
@@ -558,9 +577,12 @@ if (embedConfig) {
     if(event.source!==window.parent || event.origin!==embedConfig.parentOrigin || event.data?.session!==embedConfig.session)return;
     if(event.data.type==='cdi-facturx-init'){
       partyMemory=event.data.partyMemory||{seller:[],buyer:[]};
+      paymentDefaults={};
       facturierRecord=event.data.record||null;
       await importPdf(new File([event.data.pdf],event.data.name,{type:'application/pdf'}));
       if(!sourceFile)return;
+      // Apply organisation defaults after PDF and saved draft have been merged.
+      paymentDefaults=event.data.paymentDefaults||{};
       fillInvoice(initialInvoice(invoiceData(),event.data.invoice,event.data.invoiceIsDraft,event.data.draftMatchesSource));applyRememberedParties();
       if(event.data.profile)setInput($('#profile'),event.data.profile);
       readingSummary(true);
@@ -568,6 +590,11 @@ if (embedConfig) {
     if(event.data.type==='cdi-facturx-saved'){
       saveButton.disabled=false;saveButton.textContent='Enregistrer le Factur-X dans cette facture';
       message(event.data.message,!event.data.ok);
+    }
+    if(event.data.type==='cdi-facturx-payment-defaults-saved'){
+      $('#save-payment-defaults').disabled=false;
+      if(event.data.ok)paymentDefaults=event.data.payment;
+      $('#payment-defaults-status').textContent=event.data.message;
     }
   });
   window.parent.postMessage({type:'cdi-facturx-ready',session:embedConfig.session},embedConfig.parentOrigin);

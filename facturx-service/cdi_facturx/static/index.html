@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="fr">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Atelier Factur-X · CDI</title><link rel="stylesheet" href="/static/style.css"><script src="/static/party-memory.js" defer></script><script src="/static/allowance.js" defer></script><script src="/static/progress.js" defer></script><script src="/static/recipient.js" defer></script><script src="/static/app.js" defer></script></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Atelier Factur-X · CDI</title><link rel="stylesheet" href="/static/style.css"><script src="/static/party-memory.js" defer></script><script src="/static/allowance.js" defer></script><script src="/static/progress.js" defer></script><script src="/static/recipient.js" defer></script><script src="/static/payment-defaults.js" defer></script><script src="/static/app.js" defer></script></head>
 <body>
 <aside class="rail"><a class="brand" href="/" aria-label="Atelier Factur-X, accueil">cdi<span>outils de gestion</span></a><div class="rail-label">FACTURATION</div><div class="rail-active">↗ &nbsp; Atelier Factur-X</div><p class="rail-note"><span id="health">Connexion au moteur…</span></p><a class="api-link" href="/docs" target="_blank" rel="noopener">Documentation API ↗</a></aside>
 <main><header><span>CONSEIL DÉVELOPPEMENT INNOVATION</span><span class="local-tag">● &nbsp; Conversion Factur-X</span></header>
@@ -71,7 +71,7 @@
 <label>Moyen de paiement<select name="payment.means_code" required><option value="30">Virement</option><option value="58">Virement SEPA</option><option value="10">Espèces</option><option value="48">Carte bancaire</option></select></label><label>TVA exigible<select name="payment.vat_due"><option value="">Non renseigné</option><option value="payment">À l’encaissement</option><option value="invoice">Sur les débits</option><option value="delivery">À la livraison</option></select></label>
 <label class="wide">IBAN<input name="payment.iban" placeholder="FR…"></label><label>BIC<input name="payment.bic"></label><label>Montant déjà payé<input name="payment.prepaid" type="number" min="0" step="0.01" value="0"></label>
 <label>Référence client<input name="buyer_reference"></label><label>Bon de commande<input name="order_reference"></label><label class="wide">Référence de contrat / marché<input name="contract_reference"></label>
-</div></details>
+</div><button id="save-payment-defaults" type="button" class="text-button" hidden>Enregistrer ces réglages par défaut pour CDInnov</button><p id="payment-defaults-status" class="help" role="status"></p></details>
 <details><summary>Mentions figurant sur le PDF</summary><div class="form-grid">
 <label class="wide">Frais de recouvrement<textarea name="notes.recovery" required rows="2"></textarea></label>
 <label class="wide">Pénalités de retard<textarea name="notes.penalties" required rows="2"></textarea></label>
