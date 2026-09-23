@@ -3114,6 +3114,7 @@ async function authDoCreate(){
 }
 function unlockApp(email){
   AUTH_USER=normEmail(email);
+  budgetsObserveClients();
   movAccess = isAdmin(AUTH_USER) ? 'admin' : (AUTH_USER_MAT[AUTH_USER] || null);
   movLockProfile=null; movFilter={sal:'',type:'',cat:'',q:''};
   salariesUnlocked = isAdmin(AUTH_USER);
@@ -3603,9 +3604,12 @@ let budgetsDirty=false;
 let budgetsSession=null;
 let budgetsWarmPromise=null;
 let budgetsClients=[],budgetsClientsPending=null,budgetsClientsTimer=null,budgetsClientsMode=false;
+let budgetsObservedClientNames=null;
+const budgetsPendingClientNames=new Set();
 const budgetsClientKey=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().replace(/\s+/g,' ').toLowerCase();
 function budgetsKnownClient(name){return budgetsClients.find(c=>[c.name,...c.aliases||[]].some(alias=>budgetsClientKey(alias)===budgetsClientKey(name)));}
-function budgetsClientNames(){return [...new Set([...(state.factures||[]).map(f=>f.client),...(state.codesAffaires||[]).map(c=>c.client),...(state.facturxPartyMemory?.buyer||[]).map(c=>c.name)].filter(name=>typeof name==='string'&&name.trim()).map(name=>name.trim()))];}
+function budgetsClientNames(){return [...new Set([...(state.factures||[]).map(f=>f.client),...(state.facturxPartyMemory?.buyer||[]).map(c=>c.name)].filter(name=>typeof name==='string'&&name.trim()).map(name=>name.trim()))];}
+function budgetsObserveClients(){budgetsObservedClientNames=new Set(budgetsClientNames().map(budgetsClientKey));}
 function budgetsClientHTML(name){
   const client=budgetsKnownClient(name),logo=client?.logo;
   return '<span class="cdi-client-identity" data-cdi-client="'+esc(name||'')+'">'+(logo&&/^data:image\/(png|jpeg|webp);base64,/.test(logo)?'<img src="'+esc(logo)+'" alt=""/>':'')+esc(name||'')+'</span>';
@@ -3628,15 +3632,23 @@ function budgetsSyncClients(){
   const user=AUTH_USER;
   budgetsClientsPending=(async()=>{
     const session=await budgetsEnsureSession();if(AUTH_USER!==user)throw new Error('La session a changé.');
-    const response=await fetch(budgetsApi()+'/clients',{method:'POST',headers:{Authorization:'Bearer '+session.token,'Content-Type':'application/json'},body:JSON.stringify({names:budgetsClientNames()}),signal:AbortSignal.timeout(30000)});
+    const names=[...budgetsPendingClientNames];
+    const response=await fetch(budgetsApi()+'/clients',{method:'POST',headers:{Authorization:'Bearer '+session.token,'Content-Type':'application/json'},body:JSON.stringify({names}),signal:AbortSignal.timeout(30000)});
     const result=await response.json();if(!response.ok){if(response.status===401)budgetsClearSession();throw new Error(result.error||'Synchronisation impossible.');}
-    if(AUTH_USER===user)budgetsRefreshClients(result.clients);
+    if(AUTH_USER===user){for(const name of names)budgetsPendingClientNames.delete(name);budgetsRefreshClients(result.clients);}
   })().finally(()=>{budgetsClientsPending=null;});
   return budgetsClientsPending;
 }
 function budgetsClientsChanged(){
+  if(!AUTH_USER)return;
+  if(!budgetsObservedClientNames){budgetsObserveClients();return;}
+  for(const name of budgetsClientNames()){
+    const key=budgetsClientKey(name);
+    if(!budgetsObservedClientNames.has(key)&&!budgetsKnownClient(name))budgetsPendingClientNames.add(name);
+    budgetsObservedClientNames.add(key);
+  }
   clearTimeout(budgetsClientsTimer);
-  budgetsClientsTimer=setTimeout(()=>{if(budgetsClientNames().some(name=>!budgetsKnownClient(name)))budgetsSyncClients().then(()=>{if(budgetsClientNames().some(name=>!budgetsKnownClient(name)))budgetsClientsChanged()}).catch(budgetsClientsError)},500);
+  budgetsClientsTimer=setTimeout(()=>{if(budgetsPendingClientNames.size)budgetsSyncClients().then(()=>{if(budgetsPendingClientNames.size)budgetsClientsChanged()}).catch(budgetsClientsError)},500);
 }
 function budgetsOpenClients(){budgetsClientsMode=true;setView('budgetsprojets');}
 function budgetsApi(){return CLOUD_ENDPOINT.replace(/\/+$/,'')+'/budgets';}
@@ -3644,6 +3656,7 @@ function budgetsForget(){
   document.body.classList.remove('cdi-budget-expanded');
   budgetsClearSession();budgetsWarmPromise=null;budgetsDirty=false;
   clearTimeout(budgetsClientsTimer);budgetsClients=[];document.getElementById('cdiClientsList')?.remove();
+  budgetsObservedClientNames=null;budgetsPendingClientNames.clear();
   document.getElementById('cdiBudgetsFrame')?.remove();
 }
 function budgetsClearSession(){
