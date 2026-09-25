@@ -456,6 +456,26 @@ body:has(.agenda-shell) #topAction{background:#087ca7;font-family:'Manrope','Seg
 .agenda-details .wide{grid-column:1/-1}
 .agenda-shell :focus-visible,.agenda-modal :focus-visible{outline:3px solid #49a8df;outline-offset:3px}
 .agenda-modal [hidden]{display:none!important}
+.agenda-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
+.agenda-actions .btn:first-child{margin-right:auto}
+.agenda-actions label{font-size:12px}
+.agenda-toolbar .inp{max-width:190px}
+.agenda-trip.agenda-leave{border-left-width:1px;border-bottom:3px solid var(--trip-color);background:repeating-linear-gradient(135deg,transparent,transparent 5px,#ffffff80 5px,#ffffff80 9px),var(--trip-bg)}
+.agenda-trip.agenda-pending{border-style:dashed;opacity:.8}
+.agenda-legend-kind{padding:3px 8px;border-left:3px solid #087ca7;background:#edf6fc;border-radius:3px}
+.agenda-legend-kind.agenda-leave{border-left-width:1px;border-bottom:3px solid #087ca7;background:repeating-linear-gradient(135deg,#edf6fc,#edf6fc 4px,#fff 4px,#fff 7px)}
+.agenda-combo{position:relative}
+.agenda-combo-control{position:relative}
+.agenda-combo-control .inp{padding-right:40px}
+.agenda-combo-toggle{position:absolute;right:1px;top:1px;bottom:1px;width:36px;border:0;background:transparent;color:var(--ag-navy);font-size:22px;cursor:pointer}
+.agenda-combo-options{position:absolute;left:0;right:0;top:100%;z-index:10;max-height:200px;overflow:auto;background:white;border:1px solid var(--ag-line);border-radius:8px;box-shadow:0 8px 24px #183f7726;padding:5px}
+.agenda-combo-options button{display:block;width:100%;border:0;background:white;color:var(--ag-navy);padding:9px 10px;text-align:left;font:inherit;font-size:12px;border-radius:5px;cursor:pointer}
+.agenda-combo-options button:hover,.agenda-combo-options button[aria-selected=true]{background:#eaf5fb}
+.agenda-combo-options .agenda-combo-custom{color:#087ca7;border-top:1px solid var(--ag-line);border-radius:0;font-weight:600}
+.agenda-counters{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin:20px 0}
+.agenda-balances>.cp-card,.agenda-balances>.card{margin:20px 0}
+.agenda-mail-status{margin-top:18px;padding:12px;background:#edf6fc;border-radius:8px;font-size:12px}
+.agenda-mail-status button{display:block;margin-top:9px}
 @media(min-width:1500px){.agenda-layout{grid-template-columns:minmax(0,1fr) 270px}.agenda-week{min-height:125px}.agenda-trip{font-size:11px}}
 @media(max-width:1200px){.agenda-layout{grid-template-columns:minmax(0,1fr)}.agenda-aside{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:24px}.agenda-aside-head,.agenda-aside-foot,.agenda-upcoming-empty{grid-column:1/-1}}
 @media(max-width:650px){.agenda-toolbar{gap:8px}.agenda-toolbar .inp{max-width:none;flex:1 1 42%;width:42%}.agenda-toolbar .agenda-search{flex-basis:100%;max-width:none}.agenda-segment{margin:3px 0}.agenda-monthbar{padding:12px 8px;gap:3px;flex-wrap:wrap}.agenda-monthbar h3{font-size:14px}.agenda-month-input{display:none}.agenda-list{padding:0 12px}.agenda-list-row{grid-template-columns:65px minmax(0,1fr);gap:9px}.agenda-list-row>.agenda-days{display:none}.agenda-modal .modal-foot{flex-wrap:wrap}.agenda-details{grid-template-columns:1fr}.agenda-details .wide{grid-column:auto}.agenda-aside{display:block}}
@@ -483,10 +503,6 @@ body:has(.agenda-shell) #topAction{background:#087ca7;font-family:'Manrope','Seg
     <div class="nav-item" data-view="salaries">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
       Salariés
-    </div>
-    <div class="nav-item" data-view="conges">
-      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg>
-      Congés payés
     </div>
     <div class="nav-item" data-view="notesfrais">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h11l5 5v15a0 0 0 0 1 0 0H4z"/><path d="M15 2v5h5"/><path d="M8 13h8M8 17h6M8 9h3"/></svg>
@@ -764,6 +780,7 @@ function load(){
 function save(){
   if(typeof budgetsClientsChanged==='function')budgetsClientsChanged();
   try{ reconcileCetMovements(); }catch(e){}
+  /* Agenda leave snapshot */ try{agendaState.leaves=null;}catch{}
   state.majAt = new Date().toISOString();
   try{ state.majBy = (typeof AUTH_USER!=='undefined' && AUTH_USER) ? AUTH_USER : ''; }catch(e){}
   try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); STORAGE_OK=true; }catch(e){ STORAGE_OK=false; }
@@ -933,7 +950,7 @@ function availableYears(){
 /* Symbole CDInnov du 21 septembre 2026 : SVG intégré, PNG pour les exports PDF. */
 
 const VIEW_META = {
-  agenda:{title:'Agenda',sub:'Déplacements et rendez-vous de l’équipe',action:'Nouveau déplacement',actFn:()=>openAgendaTrip()},
+  agenda:{title:'Agenda',sub:'Déplacements et congés de l’équipe',action:'Nouveau déplacement',actFn:()=>openAgendaTrip()},
   budgetsprojets:{title:'Outil budgets',sub:'',action:null},
   dashboard:{title:'Tableau de bord CET', sub:"Vue d'ensemble du Compte Épargne-Temps", action:'Nouveau mouvement', actFn:()=>openMouvement()},
   mouvements:{title:'Mouvements CET', sub:'Historique des alimentations et utilisations', action:'Nouveau mouvement', actFn:()=>openMouvement()},
@@ -947,6 +964,7 @@ const VIEW_META = {
 function toggleSidebar(open){ const sb=document.querySelector('.sidebar'); const bd=document.getElementById('sidebarBackdrop'); if(!sb) return; const show=(open===undefined)?!sb.classList.contains('open'):!!open; sb.classList.toggle('open',show); if(bd) bd.classList.toggle('show',show); }
 $$('.nav-item').forEach(n=> n.addEventListener('click', ()=> { setView(n.dataset.view); toggleSidebar(false); }));
 function setView(v){
+  if(v==='conges')v='agenda';
   if(typeof budgetsDirty!=='undefined'&&currentView==='budgetsprojets'&&v!==currentView&&!budgetsLeave())return;
   document.querySelector('.year-pick').style.display=v==='budgetsprojets'?'none':'';
   if(v!=='agenda'){clearInterval(agendaTimer);agendaTimer=null;}
@@ -1447,6 +1465,7 @@ function joursValideAnnee(mat,Y){
 }
 
 function renderConges(){
+  if(currentView==='agenda'){renderAgenda();return;}
   migrateConges(); migrateCP();
   const Y=currentYear; const cont=$('#content');
   const list=conges().filter(c=>yearOf(c.date)===Y);
@@ -1686,7 +1705,7 @@ function saveConge(){
     const ds=ymd(d); congePeriodeHalves(ds,d1,d2,h1,h2).forEach(hf=>{ if(!congeAt(mat,ds,hf)){ conges().push({id:uid(),matricule:mat,date:ds,half:hf,type,statut}); added++; } }); }
   save(); closeModal(); toast(added? `${added/2} jour(s) ajouté(s)` : 'Aucun jour ouvré dans la période');
   if(statut!=='Validé' && added) scheduleCongesNotify(mat);
-  congesSal=mat; congesMonth=a.getMonth(); currentYear=a.getFullYear(); render();
+  congesSal=mat; congesMonth=a.getMonth(); currentYear=a.getFullYear(); if(currentView==='agenda')agendaState.month=new Date(a.getFullYear(),a.getMonth(),1); render();
 }
 function exportCongesCSV(){
   const head=['Matricule','Nom','Prénom','Date','Demi-journée','Type','Jours','Statut'];
@@ -3236,7 +3255,7 @@ function unlockApp(email){
   document.body.classList.add('authed');
   renderUserChip();
   render();
-  setTimeout(()=>{if(currentView==='agenda')agendaEnter();},0);
+  setTimeout(()=>{if(new URLSearchParams(location.search).get('view')==='agenda'&&currentView!=='agenda')setView('agenda');else if(currentView==='agenda')agendaEnter();},0);
 }
 function authLogout(){
   if(!budgetsLeave())return;
@@ -3864,14 +3883,15 @@ window.addEventListener('keydown',event=>{if(event.key==='Escape'&&document.body
 /* CDI_BUDGETS_INTEGRATION_END */
 
 /* CDI_AGENDA_START */
+const AGENDA_SITE_CATALOG={"source":"https://cdinnov.eu/#nos-references","updated":"2026-09-25","projects":["ADAPTWISE","ALE","ALIEM APOSTROPHE","ALIEM VIGIL","AQUAMAN","BE-STREAM POWER","BLUEHUB","CAP TERRES","CASTOUR","CIIRCLE","CIRCUMVECTIO PLUS","CITRUS","CLEANPORTI","CO-EFFECT","COMMUNITA RESILIENTE","DEVELOP","EASY2LOG","ECCELSI","ECO-CIRCUS","EPIC","FEMMES LIBRES","FRIHUB","GAREible","GREEN BAY","H2MOVE","I-YEP","IMPACT +","INSPIRE","INTENSible","ISOS PLUS","IVC","JASON","MARIN AI","MARITTIMOTECH +","META-DEST","NAUTITECH","NeST4ESG","OLIVEOILMEDNET","OPEN CIRCULAR","OpenRegioCulture","P.Ri.S.Ma. MED2","PROTERINA4FUTURE","QM net","R-ITINERA","REGENERA4MED","RICCO","RomaniCap","SMART COMMUNITAS","SMART TWIN TRANSITION","SPORT-ACT","SUPER-ECO","SVIARE","TRATTEAU","TUR.I.S.I.CO","UNIT-GEOPARKS","UNIT-MAB","VIA PATRIMONIA- ACT","VIA.M.A.R.E.","VIS GEMS"],"clients":[{"id":"adec","name":"Agence de développement économique de la Corse","projects":["EPIC","VIA.M.A.R.E.","CIIRCLE"]},{"id":"cci-corse","name":"EPCI de Corse","projects":["VIA.M.A.R.E.","JASON","BE-STREAM POWER","CIIRCLE","CO-EFFECT","ECCELSI","BLUEHUB","FRIHUB","MARIN AI","H2MOVE","DEVELOP","EASY2LOG","GREEN BAY","IVC","META-DEST","NeST4ESG","OLIVEOILMEDNET","OPEN CIRCULAR","P.Ri.S.Ma. MED2","SMART TWIN TRANSITION","CIRCUMVECTIO PLUS","R-ITINERA","CAP TERRES","MARITTIMOTECH +","CITRUS","ECO-CIRCUS","TUR.I.S.I.CO"]},{"id":"cci-var","name":"CCI du Var","projects":["VIA.M.A.R.E.","CO-EFFECT","OPEN CIRCULAR"]},{"id":"cress","name":"CRESS Corsica","projects":["EPIC"]},{"id":"oec","name":"Office de l’environnement de la Corse","projects":["EPIC","UNIT-MAB","UNIT-GEOPARKS","CLEANPORTI","VIS GEMS","SUPER-ECO","ALIEM VIGIL","ALIEM APOSTROPHE"]},{"id":"atc","name":"Agence du tourisme de la Corse","projects":["SMART COMMUNITAS","REGENERA4MED","INSPIRE","VIA PATRIMONIA- ACT"]},{"id":"cci-nice","name":"CCI Nice Côte d’Azur","projects":["TRATTEAU"]},{"id":"cma","name":"Chambre de métiers et de l’artisanat de Corse","projects":["NAUTITECH","IMPACT +","ALE"]},{"id":"corse","name":"Collectivité de Corse","projects":["RomaniCap","VIA PATRIMONIA- ACT","OpenRegioCulture","CASTOUR"]},{"id":"cab","name":"Communauté d’agglomération de Bastia","projects":["INTENSible","FEMMES LIBRES","TRATTEAU","ADAPTWISE","PROTERINA4FUTURE","SVIARE"]},{"id":"ccirb","name":"Communauté de communes de L’Île-Rousse – Balagne","projects":["GAREible","COMMUNITA RESILIENTE"]},{"id":"var","name":"Département du Var","projects":["UNIT-GEOPARKS","ISOS PLUS"]},{"id":"ot-bastia","name":"Office de tourisme de Bastia","projects":["RICCO"]},{"id":"atemis","name":"ATEMIS · RED SAS","projects":["CO-EFFECT"]},{"id":"ajaccio","name":"Ville d’Ajaccio","projects":["CLEANPORTI"]},{"id":"cci-paca","name":"CCI Provence-Alpes-Côte d’Azur","projects":["H2MOVE"]},{"id":"capa","name":"Communauté d’agglomération du Pays Ajaccien","projects":["ADAPTWISE","SPORT-ACT"]},{"id":"lycee","name":"Lycée maritime de Bastia","projects":["I-YEP"]},{"id":"smilo","name":"SMILO · Small Islands Organisation","projects":["AQUAMAN"]},{"id":"cpme","name":"CGPME / CPME","projects":["QM net"]},{"id":"sud","name":"Région Sud · Provence-Alpes-Côte d’Azur","projects":[]},{"id":"nice-metropole","name":"Métropole Nice Côte d’Azur","projects":[]},{"id":"otc","name":"Office des transports de la Corse","projects":[]},{"id":"littoral","name":"Conservatoire du littoral","projects":[]},{"id":"pnrc","name":"Parc naturel régional de Corse","projects":[]}]};
 const AGENDA_TYPES=['COPIL','Évènement','Réunion projet','Suivi client','Formation','Autre'];
 const AGENDA_PALETTE=[['#186ba1','#e8f3fb'],['#916026','#fcf2df'],['#3f785b','#eaf5ef'],['#8c5375','#f8edf4'],['#5865a1','#edf0fb'],['#a44f46','#fbefec']];
 const AGENDA_PORTRAITS={'quilici.pascal@cdinnov.com':'pascal-quilici','pasqualini.david@cdinnov.com':'david-pasqualini','boulanger.albert@cdinnov.com':'albert-boulanger','calendini.matthieu@cdinnov.com':'matthieu-calendini','vincenti.paulmichel@cdinnov.com':'paul-michel-vincenti'};
-const agendaState={trips:[],projects:[],clients:[],loaded:false,loading:false,error:'',catalogError:'',updated:null,person:'',type:'',query:'',mode:matchMedia('(max-width:650px)').matches?'list':'month',month:new Date(new Date().getFullYear(),new Date().getMonth(),1),day:ymd(new Date()),epoch:0};
+const agendaState={trips:[],leaves:null,loaded:false,loading:false,error:'',notice:'',updated:null,person:'',type:'',kind:'',panel:'calendar',query:'',mode:matchMedia('(max-width:650px)').matches?'list':'month',month:new Date(new Date().getFullYear(),new Date().getMonth(),1),day:ymd(new Date()),epoch:0};
 let agendaTimer=null,agendaSearchTimer=null,agendaEditing=null,agendaFocus=null;
 function agendaForget(){
   clearInterval(agendaTimer);agendaTimer=null;agendaState.epoch++;
-  Object.assign(agendaState,{trips:[],projects:[],clients:[],loaded:false,loading:false,error:'',catalogError:'',updated:null,person:'',type:'',query:''});
+  Object.assign(agendaState,{trips:[],leaves:null,loaded:false,loading:false,error:'',notice:'',updated:null,person:'',type:'',kind:'',panel:'calendar',query:''});
   agendaEditing=null;
   if($('#overlay .agenda-modal'))closeModal();
 }
@@ -3881,7 +3901,7 @@ function agendaDays(start,end){
 }
 function agendaDate(value,options={day:'numeric',month:'short'}){return new Date(value+'T12:00:00').toLocaleDateString('fr-FR',options);}
 function agendaAddDays(value,n){const date=new Date(value+'T12:00:00');date.setDate(date.getDate()+n);return ymd(date);}
-function agendaName(email){return authState().accounts[email]?.name||agendaState.trips.find(t=>t.owner===email)?.ownerName||email;}
+function agendaName(email){const employee=(agendaState.leaves?.employees||state.salaries).find(s=>agendaEmployeeEmail(s)===email);return employee?[employee.prenom,employee.nom].filter(Boolean).join(' '):authState().accounts[email]?.name||agendaState.trips.find(t=>t.owner===email)?.ownerName||email;}
 function agendaInitials(email){return agendaName(email).replace(/@.*/,'').split(/[\s.\-_]+/).filter(Boolean).slice(0,2).map(p=>p[0]).join('').toUpperCase();}
 function agendaPortrait(email){
   const employee=state.salaries.find(s=>salEmail(s.matricule)===email||normEmail(s.email)===email);
@@ -3902,9 +3922,9 @@ function agendaCanEdit(trip){return !!AUTH_USER&&(trip.owner===AUTH_USER||isAdmi
 function agendaTitle(trip){return trip.title||trip.event||trip.project||trip.client||trip.type;}
 function agendaMatches(trip){
   const key=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
-  return (!agendaState.person||trip.owner===agendaState.person)&&(!agendaState.type||trip.type===agendaState.type)&&(!agendaState.query||key([agendaName(trip.owner),trip.type,trip.title,trip.event,trip.project,trip.client,trip.location,trip.notes].join(' ')).includes(key(agendaState.query.trim())));
+  return (!agendaState.person||trip.owner===agendaState.person)&&(!agendaState.kind||(trip.kind||'trip')===agendaState.kind)&&(!agendaState.type||trip.type===agendaState.type)&&(!agendaState.query||key([agendaName(trip.owner),trip.type,trip.title,trip.project,trip.client,trip.location,trip.notes].join(' ')).includes(key(agendaState.query.trim())));
 }
-function agendaTrips(){return agendaState.trips.filter(agendaMatches).sort((a,b)=>a.start.localeCompare(b.start)||a.startTime.localeCompare(b.startTime)||agendaName(a.owner).localeCompare(agendaName(b.owner)));}
+function agendaTrips(){return [...agendaState.trips,...agendaLeaves()].filter(agendaMatches).sort((a,b)=>a.start.localeCompare(b.start)||(a.startTime||'').localeCompare(b.startTime||'')||agendaName(a.owner).localeCompare(agendaName(b.owner)));}
 async function agendaRequest(path='',options={}){
   const user=AUTH_USER,session=await budgetsEnsureSession();
   if(user!==AUTH_USER)throw new Error('La session a changé.');
@@ -3914,19 +3934,17 @@ async function agendaRequest(path='',options={}){
   if(!response.ok){if(response.status===401)budgetsClearSession();throw new Error(data.error||'Impossible de joindre l’agenda partagé.');}
   return data;
 }
-async function agendaRefresh(catalog=true){
+async function agendaRefresh(){
   if(!AUTH_USER||agendaState.loading)return;
   const user=AUTH_USER,epoch=agendaState.epoch;
   agendaState.loading=true;
   if(currentView==='agenda')renderAgenda();
   try{
-    const results=await Promise.allSettled([agendaRequest('/agenda'),...(catalog?[agendaRequest('/workspace')]:[])]);
+    const result=await agendaRequest('/agenda');
     if(user!==AUTH_USER||epoch!==agendaState.epoch)return;
-    if(results[0].status==='rejected')throw results[0].reason;
-    agendaState.trips=results[0].value.trips;agendaState.loaded=true;agendaState.error='';agendaState.updated=new Date();
-    if(results[1]?.status==='fulfilled'){
-      const ws=results[1].value.workspace;agendaState.projects=ws.projects||[];agendaState.clients=ws.clients||[];agendaState.catalogError='';
-    }else if(catalog)agendaState.catalogError='Les listes de projets et clients n’ont pas pu être actualisées. Les valeurs déjà utilisées restent disponibles.';
+    agendaState.trips=result.trips;agendaState.loaded=true;agendaState.error='';agendaState.updated=new Date();
+    // A server snapshot only replaces older reads, never a more recent local leave save.
+    if(result.leaves&&(result.leaves.updatedAt||'')>=(state.majAt||''))agendaState.leaves=result.leaves;
   }catch(error){if(user===AUTH_USER&&epoch===agendaState.epoch)agendaState.error=error.message;}
   finally{if(user===AUTH_USER&&epoch===agendaState.epoch){agendaState.loading=false;if(currentView==='agenda')renderAgenda();}}
 }
@@ -3944,7 +3962,7 @@ function agendaOptions(values,current,placeholder){
 }
 function agendaUnique(values){return [...new Set(values.filter(v=>typeof v==='string'&&v.trim()).map(v=>v.trim()))].sort((a,b)=>a.localeCompare(b,'fr'))}
 function agendaPerson(trip){return `<span class="agenda-person" style="${agendaStyle(trip.owner)}">${agendaAvatar(trip.owner)}<span>${esc(agendaName(trip.owner))}</span></span>`;}
-function agendaSideTrip(trip){return `<button class="agenda-side-trip" data-ag-trip="${esc(trip.id)}" style="${agendaStyle(trip.owner)}">${agendaAvatar(trip.owner)}<span class="agenda-side-copy"><span class="agenda-side-person">${esc(agendaName(trip.owner))}</span><strong>${esc(agendaTitle(trip))}</strong><span>${esc(trip.location)} · ${trip.days} j</span><span class="agenda-side-dates">${agendaDate(trip.start)}${trip.end!==trip.start?' → '+agendaDate(trip.end):''}</span></span></button>`;}
+function agendaSideTrip(trip){return `<button class="agenda-side-trip" data-ag-trip="${esc(trip.id)}" style="${agendaStyle(trip.owner)}">${agendaAvatar(trip.owner)}<span class="agenda-side-copy"><span class="agenda-side-person">${esc(agendaName(trip.owner))}</span><strong>${esc(agendaTitle(trip))}</strong><span>${trip.location?esc(trip.location)+' · ':''}${trip.days} j</span><span class="agenda-side-dates">${agendaDate(trip.start)}${trip.end!==trip.start?' → '+agendaDate(trip.end):''}</span></span></button>`;}
 function agendaCalendar(trips){
   const first=ymd(agendaState.month),offset=(agendaState.month.getDay()+6)%7,start=agendaAddDays(first,-offset);
   const last=ymd(new Date(agendaState.month.getFullYear(),agendaState.month.getMonth()+1,0));
@@ -3954,8 +3972,8 @@ function agendaCalendar(trips){
     const bars=trips.filter(t=>t.start<=we&&t.end>=ws).sort((a,b)=>a.start.localeCompare(b.start)||b.end.localeCompare(a.end)).map(t=>{
       const from=Math.max(0,agendaDays(ws,t.start)-1),to=Math.min(6,agendaDays(ws,t.end)-1);
       let lane=lanes.findIndex(end=>end<from);if(lane<0)lane=lanes.length;lanes[lane]=to;
-      const label=`${agendaName(t.owner)} — ${t.type} : ${agendaTitle(t)} — ${t.location} — ${dateFR(t.start)} au ${dateFR(t.end)}`;
-      return `<button class="agenda-trip ${t.start<ws?'continued':''} ${t.end>we?'continues':''}" data-ag-trip="${esc(t.id)}" style="${agendaStyle(t.owner)};grid-column:${from+1}/${to+2};grid-row:${lane+2}" title="${esc(label)}" aria-label="${esc(label)}">${agendaAvatar(t.owner)}<span class="agenda-trip-title">${esc(agendaTitle(t))}${to>from?' · '+esc(t.location):''}</span></button>`;
+      const label=`${agendaName(t.owner)} — ${t.type} : ${agendaTitle(t)}${t.location?' — '+t.location:''} — ${dateFR(t.start)} au ${dateFR(t.end)}`;
+      return `<button class="agenda-trip ${t.kind==='leave'?'agenda-leave':''} ${t.pending?'agenda-pending':''} ${t.start<ws?'continued':''} ${t.end>we?'continues':''}" ${agendaEntryAttribute(t)} style="${agendaStyle(t.owner)};grid-column:${from+1}/${to+2};grid-row:${lane+2}" title="${esc(label)}" aria-label="${esc(label)}">${agendaAvatar(t.owner)}<span class="agenda-trip-title">${esc(agendaTitle(t))}${to>from&&t.location?' · '+esc(t.location):''}</span></button>`;
     }).join('');
     const cells=Array.from({length:7},(_,i)=>{const day=agendaAddDays(ws,i);return `<button type="button" class="agenda-cell ${i>4?'weekend':''} ${day.slice(0,7)!==first.slice(0,7)?'outside':''} ${day===today?'today':''} ${day===agendaState.day?'selected':''}" style="grid-column:${i+1}" data-ag-day="${day}" aria-label="Créer un évènement le ${esc(agendaDate(day,{weekday:'long',day:'numeric',month:'long',year:'numeric'}))}" ${day===today?'aria-current="date"':''}><span class="agenda-day-number">${Number(day.slice(-2))}</span><span class="agenda-day-add" aria-hidden="true">+</span></button>`;}).join('');
     html+=`<div class="agenda-week" style="--lanes:${Math.max(2,lanes.length)}">${cells}${bars}</div>`;
@@ -3963,22 +3981,25 @@ function agendaCalendar(trips){
   return `<div class="agenda-scroll"><div class="agenda-calendar"><div class="agenda-weekdays">${['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'].map(d=>`<span>${d}</span>`).join('')}</div>${html}</div></div>`;
 }
 function agendaList(trips){
-  if(!trips.length)return `<div class="agenda-empty"><strong>${agendaState.loaded?'Aucun déplacement sur cette période':'Chargement de l’agenda…'}</strong>${agendaState.loaded?'Changez de mois, ajustez les filtres ou ajoutez un déplacement.':''}</div>`;
-  return `<div class="agenda-list">${trips.map(t=>`<button class="agenda-list-row" data-ag-trip="${esc(t.id)}" style="${agendaStyle(t.owner)}"><span class="agenda-list-date">${agendaDate(t.start)}<small>${t.end!==t.start?'au '+agendaDate(t.end):'Journée du '+agendaDate(t.start)}</small></span><span class="agenda-list-text">${agendaPerson(t)}<strong>${esc(agendaTitle(t))}</strong><span>${esc(t.type)} · ${esc(t.location)}${t.client?' · '+esc(t.client):''}</span></span><span class="agenda-days">${t.days} jour${t.days>1?'s':''}</span></button>`).join('')}</div>`;
+  if(!trips.length)return `<div class="agenda-empty"><strong>${agendaState.loaded?'Aucun déplacement ni congé sur cette période':'Chargement de l’agenda…'}</strong>${agendaState.loaded?'Changez de mois, ajustez les filtres ou ajoutez un déplacement.':''}</div>`;
+  return `<div class="agenda-list">${trips.map(t=>`<button class="agenda-list-row ${t.kind==='leave'?'agenda-leave':''} ${t.pending?'agenda-pending':''}" ${agendaEntryAttribute(t)} style="${agendaStyle(t.owner)}"><span class="agenda-list-date">${agendaDate(t.start)}<small>${t.end!==t.start?'au '+agendaDate(t.end):'Journée du '+agendaDate(t.start)}</small></span><span class="agenda-list-text">${agendaPerson(t)}<strong>${esc(agendaTitle(t))}</strong><span>${esc(t.kind==='leave'?(t.pending?'Congé en attente':'Congé validé'):t.type)}${t.location?' · '+esc(t.location):''}${t.client?' · '+esc(t.client):''}</span></span><span class="agenda-days">${String(t.days).replace('.',',')} jour${t.days>1?'s':''}</span></button>`).join('')}</div>`;
 }
 function renderAgenda(){
+  if(agendaState.panel==='balances'){renderAgendaBalances();return;}
   const a=agendaState,first=ymd(a.month),last=ymd(new Date(a.month.getFullYear(),a.month.getMonth()+1,0)),today=ymd(new Date());
-  const trips=agendaTrips(),monthTrips=trips.filter(t=>t.start<=last&&t.end>=first),upcoming=trips.filter(t=>t.start>=today).slice(0,4);
-  const people=agendaUnique([...Object.keys(authState().accounts),...a.trips.map(t=>t.owner)]);
+  const trips=agendaTrips(),monthTrips=trips.filter(t=>t.start<=last&&t.end>=first),travelTrips=monthTrips.filter(t=>t.kind!=='leave'),upcoming=trips.filter(t=>t.kind!=='leave'&&t.start>=today).slice(0,4);
+  const people=agendaUnique([...Object.keys(authState().accounts),...a.trips.map(t=>t.owner),...state.salaries.map(agendaEmployeeEmail)]);
   const monthLabel=a.month.toLocaleDateString('fr-FR',{month:'long',year:'numeric'});
-  $('#content').innerHTML=`<section class="agenda-shell" aria-label="Agenda partagé des déplacements">
+  $('#content').innerHTML=`<section class="agenda-shell" aria-label="Agenda partagé des déplacements et congés">
+    <div class="agenda-actions"><button class="btn btn-ghost btn-sm" id="agendaNewLeave">${ic('sun')} Poser un congé</button><button class="btn btn-ghost btn-sm" id="agendaBalances">Soldes et gestion des congés</button></div>
+    ${a.notice?`<div class="agenda-conflict" role="status">${esc(a.notice)}</div>`:''}
     ${a.error?`<div class="agenda-error" role="alert">${esc(a.error)}${a.loaded?' Les dernières données chargées restent affichées.':''}</div>`:''}
-    <div class="agenda-toolbar"><input class="inp agenda-search" id="agendaSearch" aria-label="Rechercher un déplacement" placeholder="Rechercher un lieu, un projet…" value="${esc(a.query)}"><select class="inp" id="agendaPerson" aria-label="Filtrer par collaborateur"><option value="">Toute l’équipe</option>${people.map(p=>`<option value="${esc(p)}" ${p===a.person?'selected':''}>${esc(agendaName(p))}${p===AUTH_USER?' (moi)':''}</option>`).join('')}</select><select class="inp" id="agendaTypeFilter" aria-label="Filtrer par objet">${agendaOptions(AGENDA_TYPES,a.type,'Tous les objets')}</select><div class="agenda-segment" aria-label="Mode d’affichage"><button data-ag-mode="month" aria-pressed="${a.mode==='month'}">Mois</button><button data-ag-mode="list" aria-pressed="${a.mode==='list'}">Liste</button></div></div>
+    <div class="agenda-toolbar"><input class="inp agenda-search" id="agendaSearch" aria-label="Rechercher un déplacement" placeholder="Rechercher un lieu, un projet…" value="${esc(a.query)}"><select class="inp" id="agendaPerson" aria-label="Filtrer par collaborateur"><option value="">Toute l’équipe</option>${people.map(p=>`<option value="${esc(p)}" ${p===a.person?'selected':''}>${esc(agendaName(p))}${p===AUTH_USER?' (moi)':''}</option>`).join('')}</select><select class="inp" id="agendaKind" aria-label="Afficher les déplacements ou les congés"><option value="">Déplacements et congés</option><option value="trip" ${a.kind==='trip'?'selected':''}>Déplacements</option><option value="leave" ${a.kind==='leave'?'selected':''}>Congés</option></select><select class="inp" id="agendaTypeFilter" aria-label="Filtrer par objet">${agendaOptions([...AGENDA_TYPES,'Congés payés','Maladie','Jour CET'],a.type,'Tous les objets')}</select><div class="agenda-segment" aria-label="Mode d’affichage"><button data-ag-mode="month" aria-pressed="${a.mode==='month'}">Mois</button><button data-ag-mode="list" aria-pressed="${a.mode==='list'}">Liste</button></div></div>
     <div class="agenda-layout"><div><div class="agenda-board"><div class="agenda-monthbar"><button class="icon-btn" id="agendaPrev" aria-label="Mois précédent">${ic('chevL')}</button><h3 aria-live="polite">${esc(monthLabel)}</h3><input type="month" class="agenda-month-input" id="agendaMonth" aria-label="Choisir le mois" min="2000-01" max="2100-12" value="${first.slice(0,7)}"><button class="btn btn-ghost btn-sm" id="agendaToday">Aujourd’hui</button><button class="icon-btn" id="agendaNext" aria-label="Mois suivant">${ic('chevR')}</button></div>${a.mode==='month'?agendaCalendar(trips):agendaList(monthTrips)}</div>
-    <div class="agenda-legend">${agendaUnique(monthTrips.map(t=>t.owner)).map(p=>agendaPerson({owner:p})).join('')}</div>
-    ${a.loaded&&!monthTrips.length&&a.mode==='month'?'<div class="agenda-empty"><strong>Aucun déplacement ce mois-ci</strong>Ajoutez le premier déplacement ou ajustez vos filtres.</div>':''}
+    <div class="agenda-legend"><span class="agenda-legend-kind">Déplacement</span><span class="agenda-legend-kind agenda-leave">Congé</span><span>Pointillés : en attente</span>${agendaUnique(monthTrips.map(t=>t.owner)).map(p=>agendaPerson({owner:p})).join('')}</div>
+    ${a.loaded&&!monthTrips.length&&a.mode==='month'?'<div class="agenda-empty"><strong>Aucun déplacement ni congé ce mois-ci</strong>Ajoutez le premier déplacement ou ajustez vos filtres.</div>':''}
     <div class="agenda-sync" role="status"><span>${a.loading?'Actualisation…':a.updated?'Agenda partagé · actualisé à '+a.updated.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}):'Connexion à l’agenda partagé'}</span><button class="btn btn-ghost btn-sm" id="agendaRefresh" ${a.loading?'disabled':''}>${ic('refresh')} Actualiser</button></div></div>
-    <aside class="agenda-aside" aria-label="Déplacements à venir"><div class="agenda-aside-head">${ic('plane')}<h3>Déplacements à venir</h3></div>${upcoming.length?upcoming.map(agendaSideTrip).join(''):'<p class="agenda-upcoming-empty">Aucun déplacement à venir pour ces filtres.</p>'}<div class="agenda-aside-foot">${monthTrips.length} déplacement${monthTrips.length>1?'s':''} ce mois · ${new Set(monthTrips.map(t=>t.owner)).size} consultant${new Set(monthTrips.map(t=>t.owner)).size>1?'s':''}</div></aside></div><p class="agenda-calendar-tip">Cliquez sur un jour pour créer un évènement.</p>
+    <aside class="agenda-aside" aria-label="Déplacements à venir"><div class="agenda-aside-head">${ic('plane')}<h3>Déplacements à venir</h3></div>${upcoming.length?upcoming.map(agendaSideTrip).join(''):'<p class="agenda-upcoming-empty">Aucun déplacement à venir pour ces filtres.</p>'}<div class="agenda-aside-foot">${travelTrips.length} déplacement${travelTrips.length>1?'s':''} ce mois · ${new Set(travelTrips.map(t=>t.owner)).size} consultant${new Set(travelTrips.map(t=>t.owner)).size>1?'s':''}</div></aside></div><p class="agenda-calendar-tip">Cliquez sur un jour pour créer un évènement.</p>
   </section>`;
   // Use DOM listeners rather than interpolating record identifiers into JavaScript.
   const root=$('.agenda-shell');agendaBindTrips(root);
@@ -3986,10 +4007,12 @@ function renderAgenda(){
   root.querySelectorAll('[data-ag-mode]').forEach(el=>el.onclick=()=>{a.mode=el.dataset.agMode;renderAgenda();});
   $('#agendaPrev').onclick=()=>agendaMonthMove(-1);$('#agendaNext').onclick=()=>agendaMonthMove(1);$('#agendaToday').onclick=agendaToday;
   $('#agendaMonth').onchange=e=>agendaSetMonth(e.target.value);$('#agendaRefresh').onclick=agendaRefresh;
+  $('#agendaNewLeave').onclick=()=>agendaNewLeave();$('#agendaBalances').onclick=()=>agendaOpenBalances();
+  $('#agendaKind').onchange=e=>{a.kind=e.target.value;a.type='';renderAgenda();};
   $('#agendaPerson').onchange=e=>{a.person=e.target.value;renderAgenda();};$('#agendaTypeFilter').onchange=e=>{a.type=e.target.value;renderAgenda();};
   $('#agendaSearch').oninput=e=>{const value=e.target.value,position=e.target.selectionStart;clearTimeout(agendaSearchTimer);agendaSearchTimer=setTimeout(()=>{a.query=value;if(currentView!=='agenda')return;renderAgenda();$('#agendaSearch').focus();$('#agendaSearch').setSelectionRange(position,position);},180);};
 }
-function agendaBindTrips(root){root.querySelectorAll('[data-ag-trip]').forEach(el=>el.onclick=()=>agendaShowTrip(el.dataset.agTrip));}
+function agendaBindTrips(root){root.querySelectorAll('[data-ag-trip]').forEach(el=>el.onclick=()=>agendaShowTrip(el.dataset.agTrip));root.querySelectorAll('[data-ag-leave]').forEach(el=>el.onclick=()=>agendaOpenLeave(el.dataset.agLeave));}
 function agendaModal(html){
   agendaFocus=document.activeElement;modal(html,true);const panel=$('#overlay .modal');panel.classList.add('agenda-modal');panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-labelledby','agendaModalTitle');
   panel.onkeydown=e=>{if(e.key!=='Tab')return;const focusable=[...panel.querySelectorAll('button,input,select,textarea')].filter(el=>!el.disabled&&el.getClientRects().length);if(!focusable.length)return;const first=focusable[0],last=focusable.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}};
@@ -4002,13 +4025,22 @@ function agendaOpenDay(day){
   agendaBindTrips($('#overlay'));$('#agendaDayNew').onclick=()=>openAgendaTrip(null,day);
 }
 function agendaCatalog(field,current){
-  const extras=field==='project'?agendaState.projects.map(p=>p.name):field==='client'?agendaState.clients.map(c=>c.name):[];
-  return agendaUnique([...extras,...agendaState.trips.map(t=>t[field]),current]);
+  const values=field==='project'?AGENDA_SITE_CATALOG.projects:AGENDA_SITE_CATALOG.clients.map(c=>c.name);
+  return agendaUnique([...values,...agendaState.trips.map(t=>t[field]),current]);
 }
 function agendaCatalogField(field,label,value){
-  return `<div class="form-row"><label for="ag-${field}">${label}</label><select class="inp" id="ag-${field}" data-ag-catalog="${field}">${agendaOptions(agendaCatalog(field,value),value,'Non précisé')}<option value="__new__">+ Ajouter une valeur…</option></select><input class="inp" id="ag-${field}-new" aria-label="Nouveau ${label.toLowerCase()}" placeholder="Saisir ${label.toLowerCase()}" maxlength="${field==='client'?300:field==='project'?200:180}" hidden></div>`;
+  return `<div class="form-row agenda-combo"><label for="ag-${field}">${label}</label><div class="agenda-combo-control"><input class="inp" id="ag-${field}" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="ag-${field}-options" autocomplete="off" maxlength="${field==='client'?300:200}" placeholder="Choisir ou spécifier…" value="${esc(value)}"><button type="button" class="agenda-combo-toggle" aria-label="Afficher la liste : ${label}">⌄</button></div><div class="agenda-combo-options" id="ag-${field}-options" role="listbox" aria-label="${label}" hidden></div></div>`;
 }
-function agendaFieldValue(field){const select=$('#ag-'+field);return select.value==='__new__'?$('#ag-'+field+'-new').value.trim():select.value;}
+function agendaFieldValue(field){return $('#ag-'+field).value.trim();}
+function agendaBindCatalog(field){
+  const input=$('#ag-'+field),list=$('#ag-'+field+'-options'),toggle=input.parentElement.querySelector('button');
+  const values=agendaCatalog(field,input.value);let active=-1;
+  const close=()=>{list.hidden=true;input.setAttribute('aria-expanded','false');input.removeAttribute('aria-activedescendant');active=-1;};
+  const choose=value=>{input.value=value;close();input.focus();close();if(field==='project'&&!$('#ag-client').value){const matches=AGENDA_SITE_CATALOG.clients.filter(c=>c.projects.includes(value));if(matches.length===1)$('#ag-client').value=matches[0].name;}};
+  const show=(all=false)=>{const query=all?'':input.value.toLocaleLowerCase('fr');const matches=values.filter(v=>v.toLocaleLowerCase('fr').includes(query));active=-1;input.removeAttribute('aria-activedescendant');list.innerHTML=matches.map((v,i)=>`<button type="button" role="option" tabindex="-1" aria-selected="false" id="ag-${field}-opt-${i}" data-value="${esc(v)}">${esc(v)}</button>`).join('')+`<button type="button" role="option" tabindex="-1" aria-selected="false" id="ag-${field}-custom" class="agenda-combo-custom">${input.value?'Utiliser « '+esc(input.value)+' »':'Spécifiez…'}</button>`;list.hidden=false;input.setAttribute('aria-expanded','true');list.querySelectorAll('button').forEach(button=>{button.onmousedown=e=>e.preventDefault();button.onclick=()=>choose(button.dataset.value??input.value);});};
+  input.onfocus=()=>show();input.oninput=()=>show();input.onblur=()=>setTimeout(close,120);toggle.onclick=()=>{if(list.hidden){input.focus();show(true);}else close();};
+  input.onkeydown=e=>{if(e.key==='Escape'){e.stopPropagation();close();return;}if(['ArrowDown','ArrowUp'].includes(e.key)){e.preventDefault();if(list.hidden)show(true);const options=[...list.querySelectorAll('[role=option]')];active=active<0?(e.key==='ArrowDown'?0:options.length-1):(active+(e.key==='ArrowDown'?1:-1)+options.length)%options.length;options.forEach((o,i)=>o.setAttribute('aria-selected',String(i===active)));input.setAttribute('aria-activedescendant',options[active].id);options[active].scrollIntoView({block:'nearest'});}else if(e.key==='Enter'&&!list.hidden){e.preventDefault();const option=list.querySelectorAll('[role=option]')[active];choose(option?.dataset.value??input.value);}};
+}
 function openAgendaTrip(id=null,day=ymd(new Date())){
   if(!AUTH_USER)return;
   const existing=id?agendaState.trips.find(t=>t.id===id):null;
@@ -4016,19 +4048,13 @@ function openAgendaTrip(id=null,day=ymd(new Date())){
   if(existing&&!agendaCanEdit(existing)){agendaShowTrip(id);return;}
   agendaEditing=existing?structuredClone(existing):null;
   const t=existing||{type:'COPIL',start:day,end:day,startTime:'',endTime:'',title:'',event:'',project:'',client:'',location:'',notes:''};
-  agendaModal(`<form id="agendaForm"><div class="modal-head"><h3 id="agendaModalTitle">${existing?'Modifier le déplacement':'Nouveau déplacement'}</h3><div class="grow"></div><button class="icon-btn" type="button" onclick="agendaClose()" aria-label="Fermer">${ic('close')}</button></div><div class="modal-body"><p class="agenda-form-note">${esc(agendaName(existing?.owner||AUTH_USER))} · Visible par toute l’équipe. Les champs marqués * sont obligatoires.</p>${agendaState.catalogError?`<p class="agenda-conflict">${esc(agendaState.catalogError)}</p>`:''}
-  <div class="form-grid"><div class="form-row"><label for="ag-type">Objet *</label><select class="inp" id="ag-type" required>${AGENDA_TYPES.map(v=>`<option ${v===t.type?'selected':''}>${esc(v)}</option>`).join('')}</select></div><div class="form-row"><label for="ag-title">Intitulé du déplacement</label><input class="inp" id="ag-title" maxlength="180" value="${esc(t.title)}" placeholder="Ex. Comité de pilotage de lancement"></div>
-  ${agendaCatalogField('event','Évènement',t.event)}${agendaCatalogField('project','Projet concerné',t.project)}${agendaCatalogField('client','Client suivi',t.client)}<div class="form-row"><label for="ag-location">Lieu *</label><input class="inp" id="ag-location" required maxlength="240" value="${esc(t.location)}" placeholder="Ville, lieu ou adresse"></div>
+  agendaModal(`<form id="agendaForm"><div class="modal-head"><h3 id="agendaModalTitle">${existing?'Modifier le déplacement':'Nouveau déplacement'}</h3><div class="grow"></div><button class="icon-btn" type="button" onclick="agendaClose()" aria-label="Fermer">${ic('close')}</button></div><div class="modal-body"><p class="agenda-form-note">${esc(agendaName(existing?.owner||AUTH_USER))} · Visible par toute l’équipe. Les champs marqués * sont obligatoires.${existing?'':'<br>Un e-mail récapitulatif sera envoyé à toute l’équipe.'}</p>
+  <div class="form-grid"><div class="form-row"><label for="ag-type">Objet *</label><select class="inp" id="ag-type" required>${AGENDA_TYPES.map(v=>`<option ${v===t.type?'selected':''}>${esc(v)}</option>`).join('')}</select></div><div class="form-row"><label for="ag-title">Intitulé du déplacement *</label><input class="inp" id="ag-title" required maxlength="180" value="${esc(t.title)}" placeholder="Ex. Comité de pilotage de lancement"></div>
+  ${agendaCatalogField('project','Projet concerné',t.project)}${agendaCatalogField('client','Client suivi',t.client)}<div class="form-row full"><label for="ag-location">Lieu</label><input class="inp" id="ag-location" maxlength="240" value="${esc(t.location)}" placeholder="Ville, lieu ou adresse"></div>
   <div class="form-row"><label for="ag-start">Départ *</label><input class="inp" id="ag-start" type="date" min="2000-01-01" max="2100-12-31" required value="${esc(t.start)}"></div><div class="form-row"><label for="ag-end">Retour *</label><input class="inp" id="ag-end" type="date" min="${esc(t.start)}" max="2100-12-31" required value="${esc(t.end)}"></div><div class="form-row"><label for="ag-startTime">Heure de départ (facultatif)</label><input class="inp" id="ag-startTime" type="time" value="${esc(t.startTime)}"></div><div class="form-row"><label for="ag-endTime">Heure de retour (facultatif)</label><input class="inp" id="ag-endTime" type="time" value="${esc(t.endTime)}"></div></div>
   <div class="agenda-duration" role="status"><strong id="agendaDuration"></strong><span>Durée en jours calendaires<br>Départ et retour inclus, week-ends compris.</span></div><div id="agendaOverlap" class="agenda-conflict" hidden></div><div class="form-row"><label for="ag-notes">Informations complémentaires</label><textarea class="inp" id="ag-notes" maxlength="2000" placeholder="Transport, rendez-vous, informations utiles à l’équipe…">${esc(t.notes)}</textarea></div><p class="agenda-error" id="agendaFormError" role="alert" hidden></p></div><div class="modal-foot"><button class="btn btn-ghost" type="button" onclick="agendaClose()">Annuler</button><button class="btn btn-primary" type="submit" id="agendaSave">${ic('check')} Enregistrer le déplacement</button></div></form>`);
   $('#agendaForm').onsubmit=agendaSaveTrip;
-  $('#overlay').querySelectorAll('[data-ag-catalog]').forEach(el=>el.onchange=()=>{
-    const input=$('#ag-'+el.dataset.agCatalog+'-new');input.hidden=el.value!=='__new__';input.required=!input.hidden;if(!input.hidden)input.focus();
-    if(el.dataset.agCatalog==='project'&&!$('#ag-client').value){
-      const project=agendaState.projects.find(p=>p.name===el.value),client=agendaState.clients.find(c=>c.id===project?.clientId);
-      if(client)$('#ag-client').value=client.name;
-    }
-  });
+  agendaBindCatalog('project');agendaBindCatalog('client');
   $('#ag-start').onchange=()=>{$('#ag-end').min=$('#ag-start').value;agendaUpdateDuration();};$('#ag-end').onchange=agendaUpdateDuration;
   $('#ag-startTime').onchange=agendaUpdateDuration;$('#ag-endTime').onchange=agendaUpdateDuration;agendaUpdateDuration();$('#ag-type').focus();
 }
@@ -4042,7 +4068,8 @@ function agendaUpdateDuration(){
 async function agendaSaveTrip(event){
   event.preventDefault();const form=event.currentTarget;if(!form.reportValidity())return;
   const previous=agendaEditing,user=AUTH_USER,trip={};for(const field of ['type','title','location','start','end','startTime','endTime','notes'])trip[field]=$('#ag-'+field).value.trim();
-  for(const field of ['event','project','client'])trip[field]=agendaFieldValue(field);
+  for(const field of ['project','client'])trip[field]=agendaFieldValue(field);
+  trip.event=previous?.event||''; // Preserve legacy data without a redundant input.
   const controls=[...form.querySelectorAll('input,select,textarea,button')];controls.forEach(el=>el.disabled=true);$('#agendaFormError').hidden=true;
   try{
     const result=await agendaRequest('/agenda'+(previous?'/'+encodeURIComponent(previous.id):''),{method:previous?'PUT':'POST',headers:previous?{'If-Match':String(previous.version)}:{},body:JSON.stringify(trip)});
@@ -4050,15 +4077,17 @@ async function agendaSaveTrip(event){
     // Ignore any read started before this write, then fetch the current shared state.
     agendaState.epoch++;agendaState.loading=false;
     agendaState.trips=agendaState.trips.filter(t=>t.id!==result.trip.id).concat(result.trip);agendaState.error='';agendaState.day=trip.start;agendaState.month=new Date(trip.start.slice(0,7)+'-01T12:00:00');agendaState.updated=new Date();
-    agendaState.person='';agendaState.type='';agendaState.query='';agendaState.loaded=true;
+    agendaState.person='';agendaState.type='';agendaState.kind='';agendaState.query='';agendaState.panel='calendar';agendaState.loaded=true;
+    agendaState.notice=!previous?agendaMailMessage(result.trip.notificationStatus):'';
     if(form.isConnected)agendaClose();if(currentView==='agenda')renderAgenda();toast('Déplacement enregistré et partagé');agendaRefresh(false);
   }catch(error){if(form.isConnected){$('#agendaFormError').textContent=error.message;$('#agendaFormError').hidden=false;}}
   finally{controls.forEach(el=>el.disabled=false);}
 }
 function agendaShowTrip(id){
   const t=agendaState.trips.find(x=>x.id===id);if(!t)return;
-  agendaModal(`<div class="modal-head"><h3 id="agendaModalTitle">Détail du déplacement</h3><div class="grow"></div><button class="icon-btn" onclick="agendaClose()" aria-label="Fermer">${ic('close')}</button></div><div class="modal-body"><div class="agenda-detail-head" style="${agendaStyle(t.owner)}"><p>${esc(t.type)} · ${esc(agendaName(t.owner))}</p><h4>${esc(agendaTitle(t))}</h4><p>${esc(t.location)} · ${t.days} jour${t.days>1?'s':''}</p></div><dl class="agenda-details"><div><dt>Départ</dt><dd>${dateFR(t.start)}${t.startTime?' à '+esc(t.startTime):''}</dd></div><div><dt>Retour</dt><dd>${dateFR(t.end)}${t.endTime?' à '+esc(t.endTime):''}</dd></div>${[['event','Évènement'],['project','Projet concerné'],['client','Client suivi'],['notes','Informations complémentaires']].filter(([key])=>t[key]).map(([key,label])=>`<div class="${key==='notes'?'wide':''}"><dt>${label}</dt><dd>${esc(t[key])}</dd></div>`).join('')}<div class="wide"><dt>Durée</dt><dd>${t.days} jour${t.days>1?'s':''} calendaires, départ et retour inclus.</dd></div></dl><p id="agendaDeleteError" class="agenda-error" role="alert" hidden></p><div id="agendaDeleteConfirm" class="agenda-conflict" hidden>Supprimer ce déplacement pour toute l’équipe ? <button class="btn btn-danger btn-sm" id="agendaDeleteYes">Confirmer la suppression</button></div></div><div class="modal-foot">${agendaCanEdit(t)?'<button class="btn btn-danger" id="agendaDelete">Supprimer</button>':''}<button class="btn btn-ghost" onclick="agendaClose()">Fermer</button>${agendaCanEdit(t)?'<button class="btn btn-primary" id="agendaEdit">Modifier</button>':''}</div>`);
+  agendaModal(`<div class="modal-head"><h3 id="agendaModalTitle">Détail du déplacement</h3><div class="grow"></div><button class="icon-btn" onclick="agendaClose()" aria-label="Fermer">${ic('close')}</button></div><div class="modal-body"><div class="agenda-detail-head" style="${agendaStyle(t.owner)}"><p>${esc(t.type)} · ${esc(agendaName(t.owner))}</p><h4>${esc(agendaTitle(t))}</h4><p>${esc(t.location)} · ${t.days} jour${t.days>1?'s':''}</p></div><dl class="agenda-details"><div><dt>Départ</dt><dd>${dateFR(t.start)}${t.startTime?' à '+esc(t.startTime):''}</dd></div><div><dt>Retour</dt><dd>${dateFR(t.end)}${t.endTime?' à '+esc(t.endTime):''}</dd></div>${[['project','Projet concerné'],['client','Client suivi'],['notes','Informations complémentaires']].filter(([key])=>t[key]).map(([key,label])=>`<div class="${key==='notes'?'wide':''}"><dt>${label}</dt><dd>${esc(t[key])}</dd></div>`).join('')}<div class="wide"><dt>Durée</dt><dd>${t.days} jour${t.days>1?'s':''} calendaires, départ et retour inclus.</dd></div></dl>${agendaNotificationHTML(t)}<p id="agendaDeleteError" class="agenda-error" role="alert" hidden></p><div id="agendaDeleteConfirm" class="agenda-conflict" hidden>Supprimer ce déplacement pour toute l’équipe ? <button class="btn btn-danger btn-sm" id="agendaDeleteYes">Confirmer la suppression</button></div></div><div class="modal-foot">${agendaCanEdit(t)?'<button class="btn btn-danger" id="agendaDelete">Supprimer</button>':''}<button class="btn btn-ghost" onclick="agendaClose()">Fermer</button>${agendaCanEdit(t)?'<button class="btn btn-primary" id="agendaEdit">Modifier</button>':''}</div>`);
   if(agendaCanEdit(t)){
+    const retry=$('#agendaRetryMail');if(retry)retry.onclick=async()=>{retry.disabled=true;try{const result=await agendaRequest('/agenda/'+encodeURIComponent(t.id)+'/notify',{method:'POST'});t.notificationStatus=result.notificationStatus;agendaShowTrip(t.id);}catch(error){toast(error.message);retry.disabled=false;}};
     $('#agendaEdit').onclick=()=>openAgendaTrip(id);$('#agendaDelete').onclick=()=>{$('#agendaDeleteConfirm').hidden=false;$('#agendaDeleteYes').focus();};
     $('#agendaDeleteYes').onclick=async()=>{
       const button=$('#agendaDeleteYes'),panel=$('#overlay .agenda-modal'),user=AUTH_USER;button.disabled=true;
@@ -4066,6 +4095,53 @@ function agendaShowTrip(id){
       catch(error){if(panel.isConnected){$('#agendaDeleteError').hidden=false;$('#agendaDeleteError').textContent=error.message;}}finally{button.disabled=false;}
     };
   }
+}
+function agendaEmployeeEmail(employee){return normEmail(employee.email)||salEmail(employee.matricule)||'salarie:'+employee.matricule;}
+function agendaLeaves(){
+  const snapshot=agendaState.leaves,employees=snapshot?.employees||state.salaries,raw=snapshot?.records||state.conges||[],records=[];
+  // Legacy periods are expanded for display without changing stored leave balances.
+  raw.forEach(c=>{if(c.date&&c.half)records.push(c);else if(c.dateDebut&&c.dateFin>=c.dateDebut){for(let day=c.dateDebut;day<=c.dateFin;day=agendaAddDays(day,1)){const dow=new Date(day+'T12:00:00').getDay();if(dow!==0&&dow!==6)['AM','PM'].forEach(half=>records.push({...c,date:day,half}));}}});
+  const groups=new Map();
+  records.forEach(c=>{
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(c.date)||!['AM','PM'].includes(c.half)||['Refusé','Annulé'].includes(c.statut))return;
+    const key=[c.matricule,c.date,c.type,c.statut].join('|');
+    if(!groups.has(key))groups.set(key,{...c,halves:new Set()});groups.get(key).halves.add(c.half);
+  });
+  const result=[...groups.values()].map(c=>{
+    const employee=employees.find(s=>s.matricule===c.matricule)||{matricule:c.matricule};
+    const half=c.halves.size===1?[...c.halves][0]:null,pending=c.statut!=='Validé';
+    return {id:'leave:'+c.matricule+':'+c.date+':'+c.type+':'+c.statut,kind:'leave',owner:agendaEmployeeEmail(employee),matricule:c.matricule,type:c.type,title:(c.type==='Congés payés'?'Congé':c.type)+(half==='AM'?' · matin':half==='PM'?' · après-midi':'')+(pending?' · en attente':''),start:c.date,end:c.date,startTime:half==='PM'?'12:00':'',location:'',days:c.halves.size/2,pending};
+  });
+  // Keep the portal's paid-leave Saturday convention visible and clearly labelled.
+  const fridays=new Map();records.filter(c=>c.type==='Congés payés'&&new Date(c.date+'T12:00:00').getDay()===5).forEach(c=>{const key=c.matricule+'|'+c.date;if(!fridays.has(key))fridays.set(key,[]);fridays.get(key).push(c);});
+  fridays.forEach(items=>{if(new Set(items.map(c=>c.half)).size!==2)return;const c=items[0],day=agendaAddDays(c.date,1);if(result.some(t=>t.matricule===c.matricule&&t.start===day))return;const employee=employees.find(s=>s.matricule===c.matricule)||{matricule:c.matricule};const pending=items.some(x=>x.statut!=='Validé');result.push({id:'leave:'+c.matricule+':'+day,kind:'leave',owner:agendaEmployeeEmail(employee),matricule:c.matricule,type:'Congés payés',title:'Congé · samedi décompté'+(pending?' · en attente':''),start:day,end:day,startTime:'',location:'',days:1,pending});});
+  return result;
+}
+function agendaEntryAttribute(t){return t.kind==='leave'?`data-ag-leave="${esc(t.start)}"`:`data-ag-trip="${esc(t.id)}"`;}
+async function agendaPrepareLeaves(){
+  if(agendaState.leaves?.updatedAt>(state.majAt||'')){
+    await cloudLoad();
+    if(agendaState.leaves?.updatedAt>(state.majAt||'')){toast('Actualisation des congés impossible. Réessayez avant de les modifier.');return false;}
+  }
+  migrateConges();migrateCP();
+  return true;
+}
+async function agendaOpenLeave(day){if(await agendaPrepareLeaves())congeDayMenu(day);}
+async function agendaNewLeave(day=agendaState.day){
+  if(!await agendaPrepareLeaves())return;
+  openConge(myMat()||'');
+  if(day){$('#cgD1').value=day;$('#cgD2').value=day;$('#cgD1').dispatchEvent(new Event('input'));}
+}
+async function agendaOpenBalances(){if(await agendaPrepareLeaves()){agendaState.panel='balances';renderAgenda();}}
+function renderAgendaBalances(){
+  const year=currentYear;
+  $('#content').innerHTML=`<section class="agenda-shell agenda-balances" aria-label="Soldes et gestion des congés"><div class="agenda-actions"><button class="btn btn-ghost" id="agendaBack">${ic('chevL')} Retour au calendrier</button><button class="btn btn-primary btn-sm" id="agendaNewLeave">Poser un congé</button><label for="agendaBalanceYear">Année</label><select class="inp" id="agendaBalanceYear" style="width:auto">${availableYears().map(y=>`<option value="${y}" ${y===year?'selected':''}>${y}</option>`).join('')}</select></div><h2>Soldes et gestion des congés</h2><div class="agenda-counters">${congesSalList().map(s=>cpCounterPanel(s.matricule,year)).join('')}</div>${congesAdmin()?congesPendingSide(year):''}<div class="card"><div class="card-head"><h2>Récapitulatif mensuel</h2><div class="grow"></div><button class="btn btn-ghost btn-sm" onclick="exportCongesCSV()">Export CSV</button></div><div class="card-body">${congesRecapTable(year)}</div></div></section>`;
+  $('#agendaBack').onclick=()=>{agendaState.panel='calendar';renderAgenda();};$('#agendaNewLeave').onclick=()=>agendaNewLeave();$('#agendaBalanceYear').onchange=e=>{currentYear=Number(e.target.value);renderAgenda();};
+}
+function agendaMailMessage(status){return status==='sent'?'Déplacement enregistré. Le récapitulatif a été transmis par e-mail à l’équipe.':status==='failed'?'Déplacement enregistré. L’e-mail n’a pas pu être envoyé ; ouvrez la fiche pour réessayer.':['pending','sending'].includes(status)?'Déplacement enregistré. La notification par e-mail est en cours.':'Déplacement enregistré. L’envoi de l’e-mail n’a pas pu être confirmé. Contactez la direction avant toute relance.';}
+function agendaNotificationHTML(t){
+  if(!agendaCanEdit(t)||!t.notificationStatus||t.notificationStatus==='none')return '';
+  return `<div class="agenda-mail-status" role="status">${esc(agendaMailMessage(t.notificationStatus))}${['failed','pending'].includes(t.notificationStatus)?'<button class="btn btn-ghost btn-sm" id="agendaRetryMail">Réessayer l’envoi</button>':''}</div>`;
 }
 /* CDI_AGENDA_END */
 
