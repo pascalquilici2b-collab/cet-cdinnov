@@ -442,7 +442,6 @@ body:has(.agenda-shell) #topAction{background:#087ca7;font-family:'Manrope','Seg
 .agenda-modal .modal-head h3{color:var(--ag-navy)}
 .agenda-modal .form-row .inp{width:100%}
 .agenda-modal textarea{resize:vertical;min-height:72px;font:inherit}
-.agenda-form-note{font-size:12px;color:var(--muted);margin:0 0 20px}
 .agenda-duration{display:flex;align-items:center;gap:13px;padding:13px 16px;background:#edf6fc;border-radius:9px;color:#1b628d;margin:16px 0}
 .agenda-duration strong{font-size:22px;white-space:nowrap}
 .agenda-duration span{font-size:11px}
@@ -465,12 +464,26 @@ body:has(.agenda-shell) #topAction{background:#087ca7;font-family:'Manrope','Seg
 .agenda-legend-kind{padding:3px 8px;border-left:3px solid #087ca7;background:#edf6fc;border-radius:3px}
 .agenda-legend-kind.agenda-leave{border-left-width:1px;border-bottom:3px solid #087ca7;background:repeating-linear-gradient(135deg,#edf6fc,#edf6fc 4px,#fff 4px,#fff 7px)}
 .agenda-combo{position:relative}
-.agenda-combo-control{position:relative}
-.agenda-combo-control .inp{padding-right:40px}
-.agenda-combo-toggle{position:absolute;right:1px;top:1px;bottom:1px;width:36px;border:0;background:transparent;color:var(--ag-navy);font-size:22px;cursor:pointer}
+.agenda-combo-control{position:relative;display:flex;align-items:center;flex-wrap:wrap;gap:6px;min-height:44px;padding:7px 46px 7px 9px;border:1px solid var(--ag-line);border-radius:8px;background:white}
+.agenda-combo-control:focus-within{border-color:#087ca7;box-shadow:0 0 0 3px #087ca714}
+.agenda-combo-control>input{flex:1 1 115px;width:0;min-width:70px;max-width:100%;padding:4px 0;border:0;background:transparent;color:var(--ag-navy);font:inherit;font-size:12px;outline:none!important;box-shadow:none}
+.agenda-combo-control>input::placeholder{color:var(--ag-muted)}
+.agenda-combo-toggle{position:absolute;right:6px;top:6px;display:grid;place-items:center;width:30px;height:30px;padding:0;border:0;border-radius:50%;background:#087ca7;color:white;cursor:pointer;transition:background .18s ease}
+.agenda-combo-toggle:hover{background:#2453a1}
+.agenda-combo-toggle svg{width:17px;height:17px;transition:transform .2s ease}
+.agenda-combo-toggle[aria-expanded=true] svg{transform:rotate(180deg)}
+.agenda-combo-tags{display:contents}
+.agenda-combo-tag{display:inline-flex;align-items:center;gap:5px;max-width:100%;padding:3px 5px 3px 8px;border-radius:6px;background:#eaf5fb;color:var(--ag-navy);font-size:11px;font-weight:600}
+.agenda-combo-tag>span{overflow-wrap:anywhere;min-width:0}
+.agenda-combo-tag button{display:grid;place-items:center;flex:0 0 20px;width:20px;height:20px;border:0;border-radius:50%;background:transparent;color:#087ca7;font-size:17px;line-height:1;cursor:pointer}
+.agenda-combo-tag button:hover{background:#cce6f3}
 .agenda-combo-options{position:absolute;left:0;right:0;top:100%;z-index:10;max-height:200px;overflow:auto;background:white;border:1px solid var(--ag-line);border-radius:8px;box-shadow:0 8px 24px #183f7726;padding:5px}
-.agenda-combo-options button{display:block;width:100%;border:0;background:white;color:var(--ag-navy);padding:9px 10px;text-align:left;font:inherit;font-size:12px;border-radius:5px;cursor:pointer}
-.agenda-combo-options button:hover,.agenda-combo-options button[aria-selected=true]{background:#eaf5fb}
+.agenda-combo-options button{display:flex;align-items:center;gap:8px;width:100%;border:0;background:white;color:var(--ag-navy);padding:9px 10px;text-align:left;font:inherit;font-size:12px;border-radius:5px;cursor:pointer;overflow-wrap:anywhere}
+.agenda-combo-options button:not(:disabled):hover,.agenda-combo-options button[aria-selected=true],.agenda-combo-options button.is-active{background:#eaf5fb}
+.agenda-combo-options button.is-active{box-shadow:inset 0 0 0 2px #49a8df}
+.agenda-combo-options button:disabled{opacity:.4;cursor:default}
+.agenda-combo-check{display:grid;place-items:center;flex:0 0 16px;width:16px;height:16px;border:1px solid #b2cbdc;border-radius:4px;font-size:12px}
+.agenda-combo-options button[aria-selected=true] .agenda-combo-check{background:#087ca7;border-color:#087ca7;color:white}
 .agenda-combo-options .agenda-combo-custom{color:#087ca7;border-top:1px solid var(--ag-line);border-radius:0;font-weight:600}
 .agenda-counters{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin:20px 0}
 .agenda-balances>.cp-card,.agenda-balances>.card{margin:20px 0}
@@ -479,7 +492,7 @@ body:has(.agenda-shell) #topAction{background:#087ca7;font-family:'Manrope','Seg
 @media(min-width:1500px){.agenda-layout{grid-template-columns:minmax(0,1fr) 270px}.agenda-week{min-height:125px}.agenda-trip{font-size:11px}}
 @media(max-width:1200px){.agenda-layout{grid-template-columns:minmax(0,1fr)}.agenda-aside{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:24px}.agenda-aside-head,.agenda-aside-foot,.agenda-upcoming-empty{grid-column:1/-1}}
 @media(max-width:650px){.agenda-toolbar{gap:8px}.agenda-toolbar .inp{max-width:none;flex:1 1 42%;width:42%}.agenda-toolbar .agenda-search{flex-basis:100%;max-width:none}.agenda-segment{margin:3px 0}.agenda-monthbar{padding:12px 8px;gap:3px;flex-wrap:wrap}.agenda-monthbar h3{font-size:14px}.agenda-month-input{display:none}.agenda-list{padding:0 12px}.agenda-list-row{grid-template-columns:65px minmax(0,1fr);gap:9px}.agenda-list-row>.agenda-days{display:none}.agenda-modal .modal-foot{flex-wrap:wrap}.agenda-details{grid-template-columns:1fr}.agenda-details .wide{grid-column:auto}.agenda-aside{display:block}}
-@media(prefers-reduced-motion:reduce){.agenda-modal{animation:none}}
+@media(prefers-reduced-motion:reduce){.agenda-modal{animation:none}.agenda-combo-toggle,.agenda-combo-toggle svg{transition:none}}
 </style>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
@@ -3889,6 +3902,8 @@ const AGENDA_PALETTE=[['#186ba1','#e8f3fb'],['#916026','#fcf2df'],['#3f785b','#e
 const AGENDA_PORTRAITS={'quilici.pascal@cdinnov.com':'pascal-quilici','pasqualini.david@cdinnov.com':'david-pasqualini','boulanger.albert@cdinnov.com':'albert-boulanger','calendini.matthieu@cdinnov.com':'matthieu-calendini','vincenti.paulmichel@cdinnov.com':'paul-michel-vincenti'};
 const agendaState={trips:[],leaves:null,loaded:false,loading:false,error:'',notice:'',updated:null,person:'',type:'',kind:'',panel:'calendar',query:'',mode:matchMedia('(max-width:650px)').matches?'list':'month',month:new Date(new Date().getFullYear(),new Date().getMonth(),1),day:ymd(new Date()),epoch:0};
 let agendaTimer=null,agendaSearchTimer=null,agendaEditing=null,agendaFocus=null;
+let agendaPickers={};
+function agendaValues(trip,field){return Array.isArray(trip[field+'s'])?trip[field+'s']:trip[field]?[trip[field]]:[];}
 function agendaForget(){
   clearInterval(agendaTimer);agendaTimer=null;agendaState.epoch++;
   Object.assign(agendaState,{trips:[],leaves:null,loaded:false,loading:false,error:'',notice:'',updated:null,person:'',type:'',kind:'',panel:'calendar',query:''});
@@ -3922,7 +3937,7 @@ function agendaCanEdit(trip){return !!AUTH_USER&&(trip.owner===AUTH_USER||isAdmi
 function agendaTitle(trip){return trip.title||trip.event||trip.project||trip.client||trip.type;}
 function agendaMatches(trip){
   const key=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
-  return (!agendaState.person||trip.owner===agendaState.person)&&(!agendaState.kind||(trip.kind||'trip')===agendaState.kind)&&(!agendaState.type||trip.type===agendaState.type)&&(!agendaState.query||key([agendaName(trip.owner),trip.type,trip.title,trip.project,trip.client,trip.location,trip.notes].join(' ')).includes(key(agendaState.query.trim())));
+  return (!agendaState.person||trip.owner===agendaState.person)&&(!agendaState.kind||(trip.kind||'trip')===agendaState.kind)&&(!agendaState.type||agendaValues(trip,'type').includes(agendaState.type))&&(!agendaState.query||key([agendaName(trip.owner),trip.type,trip.title,trip.project,trip.client,trip.location,trip.notes].join(' ')).includes(key(agendaState.query.trim())));
 }
 function agendaTrips(){return [...agendaState.trips,...agendaLeaves()].filter(agendaMatches).sort((a,b)=>a.start.localeCompare(b.start)||(a.startTime||'').localeCompare(b.startTime||'')||agendaName(a.owner).localeCompare(agendaName(b.owner)));}
 async function agendaRequest(path='',options={}){
@@ -4025,21 +4040,58 @@ function agendaOpenDay(day){
   agendaBindTrips($('#overlay'));$('#agendaDayNew').onclick=()=>openAgendaTrip(null,day);
 }
 function agendaCatalog(field,current){
+  if(field==='type')return AGENDA_TYPES;
   const values=field==='project'?AGENDA_SITE_CATALOG.projects:AGENDA_SITE_CATALOG.clients.map(c=>c.name);
-  return agendaUnique([...values,...agendaState.trips.map(t=>t[field]),current]);
+  return agendaUnique([...values,...agendaState.trips.flatMap(t=>agendaValues(t,field)),...current]);
 }
-function agendaCatalogField(field,label,value){
-  return `<div class="form-row agenda-combo"><label for="ag-${field}">${label}</label><div class="agenda-combo-control"><input class="inp" id="ag-${field}" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="ag-${field}-options" autocomplete="off" maxlength="${field==='client'?300:200}" placeholder="Choisir ou spécifier…" value="${esc(value)}"><button type="button" class="agenda-combo-toggle" aria-label="Afficher la liste : ${label}">⌄</button></div><div class="agenda-combo-options" id="ag-${field}-options" role="listbox" aria-label="${label}" hidden></div></div>`;
+function agendaCatalogField(field,label){
+  return `<div class="form-row agenda-combo"><label for="ag-${field}">${label}${field==='type'?' *':''}</label><div class="agenda-combo-control"><div class="agenda-combo-tags" id="ag-${field}-tags"></div><input id="ag-${field}" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="ag-${field}-options" autocomplete="off" maxlength="${field==='client'?300:200}" placeholder="${field==='type'?'Choisir les objets…':'Choisir ou spécifier…'}" ${field==='type'?'aria-required="true"':''}><button type="button" class="agenda-combo-toggle" aria-label="Afficher la liste : ${label}" aria-expanded="false" aria-controls="ag-${field}-options"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button></div><div class="agenda-combo-options" id="ag-${field}-options" role="listbox" aria-label="${label}" aria-multiselectable="true" hidden></div></div>`;
 }
-function agendaFieldValue(field){return $('#ag-'+field).value.trim();}
-function agendaBindCatalog(field){
-  const input=$('#ag-'+field),list=$('#ag-'+field+'-options'),toggle=input.parentElement.querySelector('button');
-  const values=agendaCatalog(field,input.value);let active=-1;
-  const close=()=>{list.hidden=true;input.setAttribute('aria-expanded','false');input.removeAttribute('aria-activedescendant');active=-1;};
-  const choose=value=>{input.value=value;close();input.focus();close();if(field==='project'&&!$('#ag-client').value){const matches=AGENDA_SITE_CATALOG.clients.filter(c=>c.projects.includes(value));if(matches.length===1)$('#ag-client').value=matches[0].name;}};
-  const show=(all=false)=>{const query=all?'':input.value.toLocaleLowerCase('fr');const matches=values.filter(v=>v.toLocaleLowerCase('fr').includes(query));active=-1;input.removeAttribute('aria-activedescendant');list.innerHTML=matches.map((v,i)=>`<button type="button" role="option" tabindex="-1" aria-selected="false" id="ag-${field}-opt-${i}" data-value="${esc(v)}">${esc(v)}</button>`).join('')+`<button type="button" role="option" tabindex="-1" aria-selected="false" id="ag-${field}-custom" class="agenda-combo-custom">${input.value?'Utiliser « '+esc(input.value)+' »':'Spécifiez…'}</button>`;list.hidden=false;input.setAttribute('aria-expanded','true');list.querySelectorAll('button').forEach(button=>{button.onmousedown=e=>e.preventDefault();button.onclick=()=>choose(button.dataset.value??input.value);});};
-  input.onfocus=()=>show();input.oninput=()=>show();input.onblur=()=>setTimeout(close,120);toggle.onclick=()=>{if(list.hidden){input.focus();show(true);}else close();};
-  input.onkeydown=e=>{if(e.key==='Escape'){e.stopPropagation();close();return;}if(['ArrowDown','ArrowUp'].includes(e.key)){e.preventDefault();if(list.hidden)show(true);const options=[...list.querySelectorAll('[role=option]')];active=active<0?(e.key==='ArrowDown'?0:options.length-1):(active+(e.key==='ArrowDown'?1:-1)+options.length)%options.length;options.forEach((o,i)=>o.setAttribute('aria-selected',String(i===active)));input.setAttribute('aria-activedescendant',options[active].id);options[active].scrollIntoView({block:'nearest'});}else if(e.key==='Enter'&&!list.hidden){e.preventDefault();const option=list.querySelectorAll('[role=option]')[active];choose(option?.dataset.value??input.value);}};
+function agendaBindCatalog(field,initial){
+  const input=$('#ag-'+field),root=input.closest('.agenda-combo'),list=$('#ag-'+field+'-options'),toggle=root.querySelector('.agenda-combo-toggle'),tags=$('#ag-'+field+'-tags');
+  const values=agendaCatalog(field,initial),max=field==='type'?AGENDA_TYPES.length:2;let selected=[...initial],active=-1;
+  const expanded=open=>{list.hidden=!open;input.setAttribute('aria-expanded',String(open));toggle.setAttribute('aria-expanded',String(open));};
+  const close=()=>{expanded(false);input.removeAttribute('aria-activedescendant');active=-1;};
+  const renderTags=()=>{
+    tags.innerHTML=selected.map(v=>`<span class="agenda-combo-tag"><span>${esc(v)}</span><button type="button" aria-label="Retirer ${esc(v)}" data-value="${esc(v)}">×</button></span>`).join('');
+    tags.querySelectorAll('button').forEach(button=>button.onclick=()=>{selected=selected.filter(v=>v!==button.dataset.value);input.setCustomValidity('');renderTags();input.focus();show();});
+    input.placeholder=selected.length>=max?'Sélection complète':selected.length?'Ajouter…':field==='type'?'Choisir les objets…':'Choisir ou spécifier…';
+    input.required=field==='type'&&!selected.length;
+  };
+  const choose=value=>{
+    value=value.trim();if(!value){input.focus();return;}
+    if(selected.includes(value))selected=selected.filter(v=>v!==value);
+    else if(selected.length<max)selected.push(value);else return;
+    input.value='';input.setCustomValidity('');renderTags();input.focus();show(true);
+  };
+  const show=(all=false)=>{
+    const query=all?'':input.value.trim().toLocaleLowerCase('fr'),matches=(field==='type'?values:agendaUnique([...values,...selected])).filter(v=>v.toLocaleLowerCase('fr').includes(query));
+    active=-1;input.removeAttribute('aria-activedescendant');
+    list.innerHTML=matches.map((v,i)=>`<button type="button" role="option" tabindex="-1" aria-selected="${selected.includes(v)}" ${selected.length>=max&&!selected.includes(v)?'disabled':''} id="ag-${field}-opt-${i}" data-value="${esc(v)}"><span class="agenda-combo-check" aria-hidden="true">${selected.includes(v)?'✓':''}</span><span>${esc(v)}</span></button>`).join('')+(field!=='type'&&selected.length<max?`<button type="button" role="option" tabindex="-1" aria-selected="false" id="ag-${field}-custom" class="agenda-combo-custom">${input.value.trim()?'Utiliser « '+esc(input.value.trim())+' »':'Spécifiez…'}</button>`:'');
+    expanded(true);list.querySelectorAll('button').forEach(button=>{button.onmousedown=e=>e.preventDefault();button.onclick=()=>choose(button.dataset.value??input.value);});
+  };
+  agendaPickers[field]={close,root,values:()=>[...selected],commit:()=>{
+    const value=input.value.trim();input.setCustomValidity('');
+    if(value&&!selected.includes(value)){
+      const exact=values.find(v=>v.toLocaleLowerCase('fr')===value.toLocaleLowerCase('fr'));
+      if(field==='type'&&!exact){input.setCustomValidity('Choisissez un objet dans la liste.');return false;}
+      if(selected.length>=max){input.setCustomValidity('Deux sélections maximum. Retirez une valeur avant d’en ajouter une autre.');return false;}
+      selected.push(exact||value);
+    }
+    input.value='';renderTags();return true;
+  }};
+  input.onfocus=()=>show();input.oninput=()=>{input.setCustomValidity('');show();};
+  root.addEventListener('focusout',()=>setTimeout(()=>{if(!root.contains(document.activeElement))close();},0));
+  toggle.onmousedown=e=>e.preventDefault();toggle.onclick=()=>{if(list.hidden){input.focus();show(true);}else close();};
+  input.onkeydown=e=>{
+    if(e.key==='Escape'){e.stopPropagation();close();return;}
+    if(['ArrowDown','ArrowUp'].includes(e.key)){
+      e.preventDefault();if(list.hidden)show(true);const options=[...list.querySelectorAll('[role=option]:not(:disabled)')];if(!options.length)return;
+      active=active<0?(e.key==='ArrowDown'?0:options.length-1):(active+(e.key==='ArrowDown'?1:-1)+options.length)%options.length;
+      list.querySelectorAll('button').forEach(o=>o.classList.remove('is-active'));options[active].classList.add('is-active');input.setAttribute('aria-activedescendant',options[active].id);options[active].scrollIntoView({block:'nearest'});
+    }else if(e.key==='Enter'&&!list.hidden){e.preventDefault();const option=list.querySelectorAll('[role=option]:not(:disabled)')[active];if(option)choose(option.dataset.value??input.value);else if(field!=='type'&&selected.length<max)choose(input.value);}
+  };
+  renderTags();
 }
 function openAgendaTrip(id=null,day=ymd(new Date())){
   if(!AUTH_USER)return;
@@ -4047,16 +4099,18 @@ function openAgendaTrip(id=null,day=ymd(new Date())){
   if(id&&!existing){toast('Ce déplacement a été supprimé.');return;}
   if(existing&&!agendaCanEdit(existing)){agendaShowTrip(id);return;}
   agendaEditing=existing?structuredClone(existing):null;
+  agendaPickers={};
   const t=existing||{type:'COPIL',start:day,end:day,startTime:'',endTime:'',title:'',event:'',project:'',client:'',location:'',notes:''};
-  agendaModal(`<form id="agendaForm"><div class="modal-head"><h3 id="agendaModalTitle">${existing?'Modifier le déplacement':'Nouveau déplacement'}</h3><div class="grow"></div><button class="icon-btn" type="button" onclick="agendaClose()" aria-label="Fermer">${ic('close')}</button></div><div class="modal-body"><p class="agenda-form-note">${esc(agendaName(existing?.owner||AUTH_USER))} · Visible par toute l’équipe. Les champs marqués * sont obligatoires.${existing?'':'<br>Un e-mail récapitulatif sera envoyé à toute l’équipe.'}</p>
-  <div class="form-grid"><div class="form-row"><label for="ag-type">Objet *</label><select class="inp" id="ag-type" required>${AGENDA_TYPES.map(v=>`<option ${v===t.type?'selected':''}>${esc(v)}</option>`).join('')}</select></div><div class="form-row"><label for="ag-title">Intitulé du déplacement *</label><input class="inp" id="ag-title" required maxlength="180" value="${esc(t.title)}" placeholder="Ex. Comité de pilotage de lancement"></div>
-  ${agendaCatalogField('project','Projet concerné',t.project)}${agendaCatalogField('client','Client suivi',t.client)}<div class="form-row full"><label for="ag-location">Lieu</label><input class="inp" id="ag-location" maxlength="240" value="${esc(t.location)}" placeholder="Ville, lieu ou adresse"></div>
+  agendaModal(`<form id="agendaForm" novalidate><div class="modal-head"><h3 id="agendaModalTitle">${existing?'Modifier le déplacement':'Nouveau déplacement'}</h3><div class="grow"></div><button class="icon-btn" type="button" onclick="agendaClose()" aria-label="Fermer">${ic('close')}</button></div><div class="modal-body">
+  <div class="form-grid">${agendaCatalogField('type','Objet')}<div class="form-row"><label for="ag-title">Intitulé du déplacement *</label><input class="inp" id="ag-title" required maxlength="180" value="${esc(t.title)}" placeholder="Ex. Comité de pilotage de lancement"></div>
+  ${agendaCatalogField('project','Projet concerné')}${agendaCatalogField('client','Client suivi')}<div class="form-row full"><label for="ag-location">Lieu</label><input class="inp" id="ag-location" maxlength="240" value="${esc(t.location)}" placeholder="Ville, lieu ou adresse"></div>
   <div class="form-row"><label for="ag-start">Départ *</label><input class="inp" id="ag-start" type="date" min="2000-01-01" max="2100-12-31" required value="${esc(t.start)}"></div><div class="form-row"><label for="ag-end">Retour *</label><input class="inp" id="ag-end" type="date" min="${esc(t.start)}" max="2100-12-31" required value="${esc(t.end)}"></div><div class="form-row"><label for="ag-startTime">Heure de départ (facultatif)</label><input class="inp" id="ag-startTime" type="time" value="${esc(t.startTime)}"></div><div class="form-row"><label for="ag-endTime">Heure de retour (facultatif)</label><input class="inp" id="ag-endTime" type="time" value="${esc(t.endTime)}"></div></div>
   <div class="agenda-duration" role="status"><strong id="agendaDuration"></strong><span>Durée en jours calendaires<br>Départ et retour inclus, week-ends compris.</span></div><div id="agendaOverlap" class="agenda-conflict" hidden></div><div class="form-row"><label for="ag-notes">Informations complémentaires</label><textarea class="inp" id="ag-notes" maxlength="2000" placeholder="Transport, rendez-vous, informations utiles à l’équipe…">${esc(t.notes)}</textarea></div><p class="agenda-error" id="agendaFormError" role="alert" hidden></p></div><div class="modal-foot"><button class="btn btn-ghost" type="button" onclick="agendaClose()">Annuler</button><button class="btn btn-primary" type="submit" id="agendaSave">${ic('check')} Enregistrer le déplacement</button></div></form>`);
   $('#agendaForm').onsubmit=agendaSaveTrip;
-  agendaBindCatalog('project');agendaBindCatalog('client');
+  for(const field of ['type','project','client'])agendaBindCatalog(field,agendaValues(t,field));
+  $('#agendaForm').onpointerdown=e=>{for(const picker of Object.values(agendaPickers))if(!picker.root.contains(e.target))picker.close();};
   $('#ag-start').onchange=()=>{$('#ag-end').min=$('#ag-start').value;agendaUpdateDuration();};$('#ag-end').onchange=agendaUpdateDuration;
-  $('#ag-startTime').onchange=agendaUpdateDuration;$('#ag-endTime').onchange=agendaUpdateDuration;agendaUpdateDuration();$('#ag-type').focus();
+  $('#ag-startTime').onchange=agendaUpdateDuration;$('#ag-endTime').onchange=agendaUpdateDuration;agendaUpdateDuration();$('#ag-type').focus();agendaPickers.type.close();
 }
 function agendaUpdateDuration(){
   const start=$('#ag-start').value,end=$('#ag-end').value,days=agendaDays(start,end);
@@ -4066,9 +4120,9 @@ function agendaUpdateDuration(){
   $('#agendaOverlap').hidden=!days||!overlapping.length;$('#agendaOverlap').textContent='Un autre déplacement couvre déjà cette période : '+overlapping.map(t=>agendaTitle(t)+' ('+t.location+')').join(', ')+'. Vous pouvez enregistrer si cela est prévu.';
 }
 async function agendaSaveTrip(event){
-  event.preventDefault();const form=event.currentTarget;if(!form.reportValidity())return;
-  const previous=agendaEditing,user=AUTH_USER,trip={};for(const field of ['type','title','location','start','end','startTime','endTime','notes'])trip[field]=$('#ag-'+field).value.trim();
-  for(const field of ['project','client'])trip[field]=agendaFieldValue(field);
+  event.preventDefault();const form=event.currentTarget;for(const picker of Object.values(agendaPickers))picker.commit();if(!form.reportValidity())return;
+  const previous=agendaEditing,user=AUTH_USER,trip={};for(const field of ['title','location','start','end','startTime','endTime','notes'])trip[field]=$('#ag-'+field).value.trim();
+  for(const field of ['type','project','client']){trip[field+'s']=agendaPickers[field].values();trip[field]=trip[field+'s'].join(' + ');}
   trip.event=previous?.event||''; // Preserve legacy data without a redundant input.
   const controls=[...form.querySelectorAll('input,select,textarea,button')];controls.forEach(el=>el.disabled=true);$('#agendaFormError').hidden=true;
   try{
