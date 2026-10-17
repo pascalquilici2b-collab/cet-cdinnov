@@ -1003,7 +1003,7 @@ const VIEW_META = {
 };
 
 function toggleSidebar(open){ const sb=document.querySelector('.sidebar'); const bd=document.getElementById('sidebarBackdrop'); if(!sb) return; const show=(open===undefined)?!sb.classList.contains('open'):!!open; sb.classList.toggle('open',show); if(bd) bd.classList.toggle('show',show); }
-$('.nav-item[data-view]').forEach(n=> n.addEventListener('click', ()=> { setView(n.dataset.view); toggleSidebar(false); }));
+$$('.nav-item[data-view]').forEach(n=> n.addEventListener('click', ()=> { setView(n.dataset.view); toggleSidebar(false); }));
 function setView(v){
   if(v==='conges')v='agenda';
   if(typeof budgetsDirty!=='undefined'&&currentView==='budgetsprojets'&&v!==currentView&&!budgetsLeave())return;
