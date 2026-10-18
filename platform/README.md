@@ -37,6 +37,18 @@ Le nouveau `GET /api/v1/budget-records` est authentifié avec la même session e
 
 ## Publication et retour arrière
 
+### Interface responsive et agenda
+
+`design-system.css` fournit les couleurs, espacements, contrôles et surfaces communes du portail. Les panneaux clairs, les ombres discrètes et les plages de planning s’inspirent de la référence Dribbble fournie. Le lien Claude fourni renvoyait « Page not found » lors de la consultation : ses tokens n’ont pas été inventés ni présentés comme intégrés. Le logo et les couleurs CDInnov restent utilisés.
+
+Le contenu n’est plus plafonné à 1 180 px. La barre latérale reste lisible sur ordinateur et devient un tiroir avec focus clavier et contenu arrière inerte sur mobile. Le tableau de bord utilise des requêtes de conteneur ; son planning devient une liste par collaborateur sur petit écran. Finance et Personnel conservent leurs tables et toutes leurs actions, avec les intitulés de colonnes répétés en fiches sur téléphone. Les tableaux de comparaison mensuels restent défilables dans leur propre panneau.
+
+`client/agenda.tsx`, `agenda-editor.tsx` et `agenda-domain.ts` reprennent le calendrier, la liste, les soldes/validations et les formulaires congés/déplacements. Les fenêtres de détail par journée/période et le contrôleur des listes de projets restent historiques. Les calculs CP/CET, notifications, écritures avec version et API restent raccordés aux services existants. Les modules React partagent leur runtime et ne sont importés qu’après connexion. Les recherches sont locales ; aucun appel IA ou polling supplémentaire n’est ajouté. Les sessions et montages sont invalidés à la sortie ou à la déconnexion.
+
+Contrôles : `node platform/agenda-browser-test.mjs` avec `PORTAL_QA` privé, puis les suites navigateur dashboard, finance, personnel, agenda et budgets. Sept largeurs sont contrôlées : 320, 390, 768, 1024, 1440, 1920 et 2560 px. Le test agenda utilise un transport local simulé, contrôle les en-têtes de version et les conflits, et neutralise toutes les notifications externes. Les suites plateforme et de calcul vérifient séparément les services conservés. Aucun schéma ou abonnement n’est modifié dans ce lot.
+
+La migration globale reste progressive : marchés, intégrations et services historiques ne sont pas annoncés comme entièrement réécrits. Budgets et Smartsheet gardent leurs écrans embarqués existants. Le retour arrière restaure le frontend précédent, en conservant les données et les chunks déjà publiés pour les onglets encore ouverts.
+
 ### CET, salariés et paramètres
 
 `platform/client/personnel.tsx` reprend la synthèse CET, les mouvements, les salariés et les paramètres (y compris les comptes). `personnel-editor.tsx` reprend les formulaires de mouvement, salarié et type, ainsi que l’historique individuel. `personnel-domain.ts` définit les contrats et les filtres/tris des mouvements. Le module est chargé après connexion et partage React avec la finance et le tableau de bord.
@@ -47,7 +59,7 @@ L’import JSON conserve désormais toutes les rubriques du fichier ainsi que le
 
 Vérification : `node platform/personnel-browser-test.mjs`, avec `PORTAL_QA` privé. Cette suite couvre les transformations et leur annulation, le coût journalier à temps partiel, les créations/modifications/suppressions, l’import incrémental (décodeur Excel simulé, parseur métier réel), le bulletin PDF (transport/extraction simulés), les comptes, les sauvegardes récentes et anciennes, les profils et les écrans mobiles. Les données sont synthétiques et les notifications neutralisées. Une comparaison privée supplémentaire porte sur les résultats des filtres et tris de l’ancien écran avec la copie de production ; aucune donnée réelle n’est commise au dépôt.
 
-Ce lot frontend ne change ni le schéma, ni le Worker, ni les abonnements. Sauvegarder et comparer les données avant/après publication ; le retour arrière restaure seulement les fichiers frontend. Les écrans congés/agenda, marchés et les services historiques restent les prochains lots ; les calculs, imports et autorisations serveur ne sont pas présentés comme intégralement migrés.
+Ce lot frontend ne change ni le schéma, ni le Worker, ni les abonnements. Sauvegarder et comparer les données avant/après publication ; le retour arrière restaure seulement les fichiers frontend. La tranche suivante reprend l’agenda (voir ci-dessus) ; les marchés et les services historiques restent à poursuivre. Les calculs, imports et autorisations serveur ne sont pas présentés comme intégralement migrés.
 
 ### Gestion financière quotidienne
 

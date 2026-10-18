@@ -1,3 +1,4 @@
+import {useResponsiveTables} from './responsive-table';
 import {createRoot} from 'react-dom/client';
 import {flushSync} from 'react-dom';
 import {useMemo} from 'react';
@@ -51,6 +52,6 @@ function Expenses({snapshot:s,filter,act}:FinanceProps){
     <div className="card-body"><div className="table-wrap"><table><thead><tr><th>N°</th><th>Salarié</th><th>Objet</th><th>Période</th><th className="num">Montant</th><th>Statut</th><th className="num">Actions</th></tr></thead><tbody>{page.items.map(n=>{const person=people.find(p=>p.matricule===n.matricule);return <tr key={n.id}><td><button className="btn btn-ghost btn-sm" onClick={()=>act('editExpense',n.id)}>N°{n.numero}</button></td><td><span className="cdi-client-identity">{person?.photo&&<img src={person.photo} alt=""/>}{person?.nom} {person?.prenom}</span></td><td>{n.objet||'—'}</td><td>{n.dateDepart?dateLabel(n.dateDepart):''}{n.dateRetour?' → '+dateLabel(n.dateRetour):''}</td><td className="num"><b>{money(expenseTotal(n))}</b></td><td><span className={'badge '+(expenseStatus(n.statut)==='Payée'?'b-valid':'')}>{expenseStatus(n.statut)}</span></td><td><div className="finance-actions"><Action label="Exporter PDF" onClick={()=>act('expensePdf',n.id)}/><Action label="Dupliquer" onClick={()=>act('duplicateExpense',n.id)}/><Action label="Modifier" onClick={()=>act('editExpense',n.id)}/><Action label="Supprimer" danger onClick={()=>act('deleteExpense',n.id)}/></div></td></tr>;})}</tbody></table></div><Pager {...page} per={f.expensePer} onPage={n=>filter({expensePage:n})} onPer={n=>filter({expensePer:n,expensePage:1})}/>{!list.length&&<Empty>Aucune note de frais. Créez une note pour commencer.</Empty>}</div>
   </section>;
 }
-function Finance(props:FinanceProps){return <div className="cdi-finance" data-react-finance={props.snapshot.view}>{props.snapshot.view==='facturier'?<Billing {...props}/>:<Expenses {...props}/>}</div>;}
+function Finance(props:FinanceProps){const ref=useResponsiveTables();return <div ref={ref} className="cdi-finance" data-react-finance={props.snapshot.view}>{props.snapshot.view==='facturier'?<Billing {...props}/>:<Expenses {...props}/>}</div>;}
 export function mountFinance(element:HTMLElement,props:FinanceProps){const root=createRoot(element);const update=(p:FinanceProps)=>flushSync(()=>root.render(<Finance {...p}/>));update(props);return {update,dispose:()=>root.unmount()};}
 export {mountFinanceEditor} from './finance-editor';

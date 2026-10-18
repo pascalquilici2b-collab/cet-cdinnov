@@ -66,7 +66,7 @@ try{
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'billing overflow '+width);
  }
  await page.setViewportSize({width:1440,height:1000});
- await page.evaluate(()=>setView('agenda'));
+ await page.evaluate(()=>setView('agenda'));await page.locator('[data-react-agenda]').waitFor();
  const bars=page.locator('.agenda-calendar [data-ag-leave-period]');
  assert.equal(await bars.count(),1);
  assert.equal(await bars.first().evaluate(e=>e.style.gridColumn),'1 / 8');
