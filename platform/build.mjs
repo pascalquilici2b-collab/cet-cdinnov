@@ -9,4 +9,5 @@ const output=process.env.CDI_BUILD_OUTPUT||path.join(root,'.build');
 await mkdir(output,{recursive:true});
 await build({entryPoints:[path.join(root,'platform/worker.ts')],outfile:path.join(output,'entry.mjs'),bundle:true,platform:'node',format:'esm',target:'es2022'});
 await build({entryPoints:[path.join(root,'platform/client/workspace-client.ts')],outfile:path.join(root,'platform/workspace-client.js'),bundle:true,platform:'browser',format:'iife',globalName:'CDIPlatform',target:'es2022'});
-console.log('Application Worker and typed browser transport built.');
+await build({entryPoints:[path.join(root,'platform/client/dashboard.tsx')],outfile:path.join(root,'platform/dashboard.js'),bundle:true,platform:'browser',format:'esm',target:'es2022',minify:true,jsx:'automatic',define:{'process.env.NODE_ENV':'"production"'}});
+console.log('Application Worker, typed browser transport and React dashboard built.');

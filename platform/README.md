@@ -1,6 +1,6 @@
 # Migration progressive de l’application CDInnov
 
-Statut : première tranche technique, octobre 2026. La migration de l’ensemble de l’application reste en cours.
+Statut : socle technique et tableau de bord commun, octobre 2026. La migration de l’ensemble de l’application reste en cours.
 
 ## Entrée de production et commandes
 
@@ -13,10 +13,11 @@ pnpm install --frozen-lockfile
 pnpm typecheck
 pnpm build
 pnpm test:platform
+pnpm test:dashboard
 pnpm test:agenda
 ```
 
-Le Worker complet sort dans `.build/entry.mjs`. Le transport navigateur compilé dans `platform/workspace-client.js` est publié avec `index.html`. Les autres écrans, dont les applications React Budgets et Smartsheet, conservent leurs ressources actuelles. Le socle ne réécrit pas leur interface.
+Le Worker complet sort dans `.build/entry.mjs`. Le transport navigateur compilé dans `platform/workspace-client.js` et le tableau de bord React (`platform/dashboard.js` et `.css`) sont publiés avec `index.html`. Les autres écrans, dont les applications React Budgets et SmartSheet, conservent leurs ressources actuelles.
 
 Pour les suites Marchés/IA sur le serveur complet, définir `MARCHES_TEST_WORKER` sur le chemin absolu de `.build/entry.mjs` et `MARCHES_TEST_COMPATIBILITY_DATE=2026-06-09`. Les tests navigateur demandent un répertoire privé `PORTAL_QA` et un Playwright installé (`PLAYWRIGHT_PACKAGE` peut désigner son package.json). `CDI_BUDGET_BACKUP`, facultatif, permet de tester localement une sauvegarde réelle ; toutes les sorties restent hors du dépôt.
 
@@ -33,6 +34,20 @@ Le nouveau `GET /api/v1/budget-records` est authentifié avec la même session e
 `GET /budgets/workspace` renvoie un ETag. Une version inchangée répond 304 après contrôle de session, sans charger le document en SQL. Le cache navigateur reste en mémoire, attaché à la session signée ; il est vidé lors d’une déconnexion, d’un changement de session ou d’une écriture. Aucun cache partagé de données financières n’est ajouté. Le serveur ne parse plus le gros JSON lors d’une simple lecture.
 
 ## Publication et retour arrière
+
+### Tableau de bord commun
+
+Le tableau de bord est un composant React/TypeScript chargé après connexion et démonté à la sortie de l’écran. Son endpoint `GET /api/v1/dashboard?week=YYYY-MM-DD` utilise la session signée existante. L’identité et la synthèse partagent **une seule lecture KV par requête** ; il n’y a pas de cache entre utilisateurs. La sélection des déplacements est limitée à la semaine affichée et au jour courant. Aucun polling ni appel IA n’est ajouté.
+
+La réponse contient uniquement les noms, périodes, déplacements et cinq derniers documents utiles. Les factures sont réservées à la direction, et les notes de frais sont filtrées côté serveur pour chaque collaborateur. Les correspondances matricule/email historiques sont conservées ; un compte sans correspondance ne reçoit aucune note. Aucun bulletin, salaire, justificatif, signature ou donnée d’authentification n’est renvoyé.
+
+Le regroupement des congés réutilise `agenda/leave-periods.mjs`, sans changer les demandes ou les soldes. Le planning montre des périodes continues ; les demandes en attente sont comptées par période. La synthèse CET reste accessible dans Mouvements CET. Les fiches et validations existantes restent utilisées.
+
+Les nouvelles factures et notes de frais enregistrent `createdAt`. Les archives conservent leur date d’origine, utilisée comme date de repli dans le classement et signalée dans l’interface. Aucune date de création historique n’est inventée.
+
+Vérification locale complémentaire : `node platform/dashboard-browser-test.mjs` (répertoire privé `PORTAL_QA` requis). Elle couvre les profils, navigation, regroupement, alignement des badges, mobile, échec d’actualisation et réponse retardée après déconnexion. Ce lot ne modifie aucun schéma ni enregistrement en production : sauvegarder le Worker et les réglages courants, comparer les données avant/après, puis publier le serveur complet avant les fichiers frontend. Le retour arrière remet les précédents fichiers, sans restaurer la base par-dessus les nouvelles saisies.
+
+### Première migration SQL (déjà appliquée)
 
 1. Exporter le Worker réel, ses réglages et bindings, la base D1 et le portail KV dans un dossier privé. Conserver les fichiers R2 existants ; ne pas modifier leur stockage dans cette tranche.
 2. Restaurer l’export SQL localement : `python platform/restore-check.py <dossier-prive>`. Ce contrôle compare toutes les tables aux exports JSON du même dossier, vérifie l’intégrité et la migration répétée.

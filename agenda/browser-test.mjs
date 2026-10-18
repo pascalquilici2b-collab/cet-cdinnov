@@ -44,9 +44,9 @@ try{
  const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
  await page.goto(base+'/?view=marches');await page.locator('[data-action="new"]:enabled').waitFor();
  assert.equal(await page.locator('.sidebar [data-view="marches"]').count(),0);
- assert.equal(await page.locator('.sidebar [data-view="facturier"]').innerText(),'Bêta Logiciel de facturation');
+ assert.equal((await page.locator('.sidebar [data-view="facturier"]').innerText()).replace(/\s+/g,' '),'Logiciel de facturation Bêta');
  assert.match(await page.locator('.sidebar [data-view="facturier"]').getAttribute('class'),/active/);
- assert.equal(await page.locator('#cdiSheetsLink').innerText(),'Bêta Smartsheet');
+ assert.equal((await page.locator('#cdiSheetsLink').innerText()).replace(/\s+/g,' '),'SmartSheet Bêta');
  assert.equal(await page.locator('.billing-nav [aria-current="page"]').innerText(),'Marchés et contrats');
  await page.locator('.billing-nav').getByRole('button',{name:'Factures',exact:true}).click();
  await page.getByRole('heading',{name:'Factures',exact:true}).waitFor();

@@ -745,4 +745,4 @@ export {
   entry_default as default
 };
 
-export {identity, addClientNames, jsonBody};
+export {identity, addClientNames, jsonBody, admins};

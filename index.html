@@ -75,6 +75,12 @@
   }
   .nav-item svg{width:18px;height:18px;stroke:var(--muted);flex:0 0 18px;transition:stroke .12s}
   .cdi-nav-name{min-width:0;line-height:1.5}
+  .nav-label.applications-label{margin-top:15px;border-top:1px solid var(--line);padding-top:20px}
+  .nav-item.cdi-application{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:8px;font-size:12px;border-left:3px solid var(--app-color);padding-left:8px}
+  .nav-item.cdi-application svg{stroke:var(--app-color);width:22px;height:22px;background:var(--app-soft);border-radius:5px;padding:3px}
+  .nav-item.cdi-application.active{color:var(--app-color);background:var(--app-soft)}
+  .app-billing{--app-color:#a96923;--app-soft:#fff3e3}.app-budgets{--app-color:#187db7;--app-soft:#e9f4fc}.app-sheets{--app-color:#2e7c59;--app-soft:#e9f5ee}
+  .nav-item.cdi-application .cdi-beta{justify-self:end;white-space:nowrap;margin:0;font-size:9px;padding:2px 5px}
   .billing-nav{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:22px;padding:8px;background:var(--panel);border:1px solid var(--line);border-radius:12px}
   .billing-nav [aria-current="page"]{background:var(--accent-soft);color:var(--accent-strong);font-weight:700}
   .billing-nav button:focus-visible{outline:3px solid var(--accent-strong);outline-offset:2px}
@@ -553,7 +559,7 @@ body:has(.agenda-shell) .topbar{flex-wrap:wrap;row-gap:12px}
     <div class="nav-label">Pilotage</div>
     <div class="nav-item active" data-view="dashboard">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
-      Tableau de bord CET
+      Tableau de bord
     </div>
     <div class="nav-item" data-view="mouvements">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h13M7 7l3-3M7 7l3 3"/><path d="M17 17H4m13 0l-3 3m3-3l-3-3"/></svg>
@@ -571,15 +577,16 @@ body:has(.agenda-shell) .topbar{flex-wrap:wrap;row-gap:12px}
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M7 14h3M14 17h3"/></svg>
       Congés et déplacements
     </div>
-    <div class="nav-item" data-view="facturier" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();setView('facturier');toggleSidebar(false)}">
+    <div class="nav-label applications-label">Applications</div>
+    <div class="nav-item cdi-application app-billing" data-view="facturier" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();setView('facturier');toggleSidebar(false)}">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v4H3z"/><path d="M5 7v14h14V7"/><path d="M9 11h6M9 15h6M9 19h3"/></svg>
-      <span class="cdi-nav-name"><span class="cdi-beta">Bêta</span> Logiciel de facturation</span>
+      <span class="cdi-nav-name">Logiciel de facturation</span><span class="cdi-beta">Bêta</span>
     </div>
-    <div class="nav-item" data-view="budgetsprojets" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();setView('budgetsprojets');toggleSidebar(false)}">
+    <div class="nav-item cdi-application app-budgets" data-view="budgetsprojets" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();setView('budgetsprojets');toggleSidebar(false)}">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h7l2 2h9v14H3z"/><path d="M7 17v-4m5 4v-7m5 7v-5"/></svg>
-      <span>Outil budgets</span><span class="cdi-beta">Beta</span>
+      <span class="cdi-nav-name">Outil budgets</span><span class="cdi-beta">Bêta</span>
     </div>
-    <a id="cdiSheetsLink" class="nav-item" href="./feuilles/" style="text-decoration:none"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg><span class="cdi-nav-name"><span class="cdi-beta">Bêta</span> Smartsheet</span></a>
+    <a id="cdiSheetsLink" class="nav-item cdi-application app-sheets" href="./feuilles/" style="text-decoration:none"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg><span class="cdi-nav-name">SmartSheet</span><span class="cdi-beta">Bêta</span></a>
     <div class="nav-label" id="navLabelReglages">Réglages</div>
     <div class="nav-item" data-view="parametres">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -596,7 +603,7 @@ body:has(.agenda-shell) .topbar{flex-wrap:wrap;row-gap:12px}
       <button class="menu-btn no-print" onclick="toggleSidebar()" aria-label="Menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
       <div>
         <h1 id="pageTitle">Tableau de bord</h1>
-        <div class="sub" id="pageSub">Vue d'ensemble du Compte Épargne-Temps</div>
+        <div class="sub" id="pageSub">Activité de l’équipe, congés et derniers documents</div>
       </div>
       <div class="grow"></div>
       <div class="maj-pill no-print" id="majPill" title="Dernière modification enregistrée dans la base"></div>
@@ -873,13 +880,15 @@ let cloudTimer=null;
 function cloudEnabled(){ return typeof CLOUD_ENDPOINT==='string' && CLOUD_ENDPOINT.trim()!==''; }
 function cloudURL(){ return CLOUD_ENDPOINT.replace(/\/+$/,'')+'/'+encodeURIComponent(CLOUD_TOKEN); }
 function setSync(kind,txt){ const p=$('#syncPill'); if(!p) return; p.dataset.state=kind; const t=$('#syncTxt'); if(t) t.textContent=txt; }
-async function cloudLoad(){
-  if(!cloudEnabled()){ setSync('local','Local'); return; }
+async function cloudLoad(options={}){
+  if(!cloudEnabled()){ setSync('local','Local'); return true; }
+  const expectedUser=AUTH_USER;
   setSync('busy','Chargement…');
   try{
     const r=await fetch(cloudURL(),{method:'GET',cache:'no-store'});
     if(!r.ok) throw new Error('HTTP '+r.status);
     const txt=await r.text();
+    if(AUTH_USER!==expectedUser)return false;
     if(txt && txt.trim()){
       const d=JSON.parse(txt);
       if(d && d.params){
@@ -895,9 +904,11 @@ async function cloudLoad(){
       }
       setSync('ok','Synchronisé'); render();
     } else {
+      if(options.readOnly)return false;
       await cloudPush(); render();   // aucune donnee distante : on envoie l'etat local
     }
-  }catch(e){ setSync('err','Hors ligne'); }
+    return true;
+  }catch(e){ setSync('err','Hors ligne'); return false; }
 }
 function cloudSave(){ if(!cloudEnabled()) return; clearTimeout(cloudTimer); cloudTimer=setTimeout(cloudPush, 700); }
 /* ---- Notifications e-mail (via Worker /notify -> Brevo) ---- */
@@ -1013,7 +1024,8 @@ const VIEW_META = {
   marches:{title:'Logiciel de facturation',sub:'Marchés et contrats · prix, plafonds et périodes',action:null},
   agenda:{title:'Agenda',sub:'Déplacements et congés de l’équipe',action:'Nouveau déplacement',actFn:()=>openAgendaTrip()},
   budgetsprojets:{title:'Outil budgets',sub:'',action:null},
-  dashboard:{title:'Tableau de bord CET', sub:"Vue d'ensemble du Compte Épargne-Temps", action:'Nouveau mouvement', actFn:()=>openMouvement()},
+  dashboard:{title:'Tableau de bord', sub:'Activité de l’équipe, congés et derniers documents', action:null},
+  cet:{title:'Synthèse CET',sub:'Soldes et suivi du Compte Épargne-Temps',action:'Nouveau mouvement',actFn:()=>openMouvement()},
   mouvements:{title:'Mouvements CET', sub:'Historique des alimentations et utilisations', action:'Nouveau mouvement', actFn:()=>openMouvement()},
   salaries:{title:'Salariés', sub:'Bénéficiaires du dispositif CET', action:'Nouveau salarié', actFn:()=>openSalarie()},
   conges:{title:'Congés payés', sub:'', action:'Poser une période', actFn:()=>openConge()},
@@ -1028,13 +1040,13 @@ function setView(v){
   if(currentView==='marches'&&v!==currentView&&!marchesLeave())return;
   if(v==='conges')v='agenda';
   if(typeof budgetsDirty!=='undefined'&&currentView==='budgetsprojets'&&v!==currentView&&!budgetsLeave())return;
-  document.querySelector('.year-pick').style.display=['budgetsprojets','marches','facturier'].includes(v)?'none':'';
+  document.querySelector('.year-pick').style.display=['dashboard','budgetsprojets','marches','facturier'].includes(v)?'none':'';
   if(v!=='agenda'){clearInterval(agendaTimer);agendaTimer=null;}
   currentView=v;
-  $$('.nav-item').forEach(n=>n.classList.toggle('active', n.dataset.view===v||(v==='marches'&&n.dataset.view==='facturier')));
+  $$('.nav-item').forEach(n=>n.classList.toggle('active', n.dataset.view===v||(v==='marches'&&n.dataset.view==='facturier')||(v==='cet'&&n.dataset.view==='mouvements')));
   const meta=VIEW_META[v];
   $('#pageTitle').textContent=meta.title;
-  if(['marches','facturier'].includes(v)){const badge=document.createElement('span');badge.className='cdi-beta';badge.textContent='Bêta';$('#pageTitle').prepend(badge,' ');}
+  if(['marches','facturier'].includes(v)){const badge=document.createElement('span');badge.className='cdi-beta';badge.textContent='Bêta';$('#pageTitle').append(' ',badge);}
   $('#pageSub').textContent=meta.sub;
   const ta=$('#topAction');
   if(meta.action){ ta.style.display=''; $('#topActionLabel').textContent=meta.action; ta.onclick=meta.actFn; }
@@ -1055,10 +1067,12 @@ $('#yearSelect').addEventListener('change', e=>{ currentYear=Number(e.target.val
 
 /* ---------- render dispatch ---------- */
 function render(){
+  if(currentView!=='dashboard')dashboardForget();
   migrateTypes();
   refreshYearPicker();
   renderMajPill();
   if(currentView==='dashboard') renderDashboard();
+  else if(currentView==='cet') renderCetSummary();
   else if(currentView==='mouvements') renderMouvements();
   else if(currentView==='salaries') renderSalaries();
   else if(currentView==='conges') renderConges();
@@ -1081,13 +1095,69 @@ function injectStorageWarning(){
 }
 
 /* ---------- Dashboard ---------- */
+let dashboardModule=null,dashboardDispose=null,dashboardEpoch=0;
+function dashboardForget(){dashboardEpoch++;if(dashboardDispose){dashboardDispose();dashboardDispose=null;}$('#dashboardRoot')?.remove();}
 function renderDashboard(){
+  $('#pageTitle').textContent=VIEW_META.dashboard.title;$('#pageSub').textContent=VIEW_META.dashboard.sub;
+  $('#topAction').style.display='none';document.querySelector('.year-pick').style.display='none';
+  if(!AUTH_USER){$('#content').innerHTML='';return;}
+  if($('#dashboardRoot'))return;
+  const user=AUTH_USER,epoch=++dashboardEpoch;
+  $('#content').innerHTML='<div id="dashboardRoot"><div class="card card-pad" role="status">Chargement du tableau de bord…</div></div>';
+  const element=$('#dashboardRoot');
+  if(!document.getElementById('dashboardStyle')){const css=document.createElement('link');css.id='dashboardStyle';css.rel='stylesheet';css.href='platform/dashboard.css';document.head.append(css);}
+  dashboardModule ||= import('./platform/dashboard.js').catch(error=>{dashboardModule=null;throw error;});
+  dashboardModule.then(module=>{
+    if(epoch!==dashboardEpoch||AUTH_USER!==user||currentView!=='dashboard'||!element.isConnected)return;
+    dashboardDispose=module.mountDashboard(element,{
+      load:async(week,signal)=>{
+        const session=await budgetsEnsureSession();
+        if(AUTH_USER!==user||signal.aborted)throw new Error('La session a changé.');
+        const response=await fetch(budgetsApi().replace(/\/budgets\/?$/,'')+'/api/v1/dashboard?week='+encodeURIComponent(week),{headers:{Authorization:'Bearer '+session.token},cache:'no-store',signal:AbortSignal.any([signal,AbortSignal.timeout(20000)])});
+        const result=await response.json();
+        if(!response.ok)throw new Error(result.error||'Chargement impossible. Réessayez.');
+        if(AUTH_USER!==user||signal.aborted)throw new Error('La session a changé.');
+        return result;
+      },
+      open:async action=>{
+        if(AUTH_USER!==user||currentView!=='dashboard')return;
+        if(action.kind==='agenda'){
+          Object.assign(agendaState,{panel:'calendar',person:action.memberId?salEmail(action.memberId)||action.memberId.replace(/^email:/,''):'',type:'',kind:'',day:action.date||ymd(new Date()),month:new Date((action.date||ymd(new Date())).slice(0,7)+'-01T12:00:00')});
+          setView('agenda');return;
+        }
+        if(action.kind==='pending'){
+          if(!await cloudLoad({readOnly:true}))throw new Error('Actualisation des congés impossible. Réessayez.');
+          if(AUTH_USER!==user||currentView!=='dashboard')return;
+          agendaState.leaves=null;agendaState.panel='calendar';currentYear=Number(action.date.slice(0,4));
+          agendaState.day=action.date;agendaState.month=new Date(action.date.slice(0,7)+'-01T12:00:00');
+          setView('agenda');
+          if(isAdmin(user))await agendaOpenBalances();else agendaOpenLeavePeriod(action.id);
+          return;
+        }
+        if(action.kind==='invoice'||action.kind==='expense'){
+          if(!await cloudLoad({readOnly:true}))throw new Error('Actualisation du document impossible. Réessayez.');
+          if(AUTH_USER!==user||currentView!=='dashboard')return;
+          const item=(action.kind==='invoice'?factures():notesFrais()).find(x=>x.id===action.id);
+          if(!item)throw new Error('Ce document a été supprimé. Actualisez le tableau de bord.');
+          if(action.kind==='invoice'&&!isAdmin(user))throw new Error('Accès réservé à la direction.');
+          if(action.kind==='expense'&&!isAdmin(user)&&item.matricule!==AUTH_USER_MAT[user])throw new Error('Cette note appartient à un autre collaborateur.');
+        }
+        if(action.kind==='invoice'||action.kind==='invoices'){
+          if(!isAdmin(user))return;factTab='factures';factYear='all';factMonth='all';factQ='';setView('facturier');if(action.id)openFacture(action.id);
+        }else{nfFilter={sal:'',statut:'',q:''};setView('notesfrais');if(action.id)openNoteFrais(action.id);}
+      }
+    });
+  }).catch(()=>{if(epoch===dashboardEpoch&&element.isConnected)element.innerHTML='<div class="card card-pad" role="alert">Le tableau de bord n’a pas pu être chargé. <button class="btn btn-ghost" onclick="dashboardForget();renderDashboard()">Réessayer</button></div>';});
+}
+function renderCetSummary(){
+  if(!isAdmin(AUTH_USER)){setView('mouvements');return;}
   const rows=computeYear(currentYear);
   const g=globalTotals(rows);
   const pg=Number(state.params.plafondGlobal);
   const c=$('#content');
   const anyAlert=g.alertesCP;
   c.innerHTML=`
+    <div style="margin-bottom:16px"><button class="btn btn-ghost btn-sm" onclick="setView('mouvements')">← Retour aux mouvements CET</button></div>
     <div class="stat-grid">
       <div class="stat accent">
         <div class="k">${ic('wallet')} Solde total CET</div>
@@ -1182,7 +1252,7 @@ function renderMouvements(){
       <div style="display:flex;gap:10px;align-items:center">${ic('lock')}<div>Connecté : <b>${esc(me.nom)} ${esc(me.prenom)}</b> — vous voyez uniquement vos mouvements et montants.</div></div>
     </div>`}
     <div class="card">
-      <div class="card-head"><h2>Heures supplémentaires → CET</h2><div class="desc">${HEURES_PAR_JOUR_CET} h supp = 1 jour d'alimentation CET</div></div>
+      <div class="card-head"><h2>Heures supplémentaires → CET</h2><div class="desc">${HEURES_PAR_JOUR_CET} h supp = 1 jour d'alimentation CET</div>${admin?'<button class="btn btn-ghost btn-sm" onclick="setView(\'cet\')">Synthèse CET</button>':''}</div>
       <div class="card-pad" style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between">
         <div style="font-size:13px;color:var(--muted);max-width:520px">${admin?`Chaque salarié remplit le modèle calendrier (heures supp. par jour), puis vous téléversez son fichier ici : l'outil additionne les heures et crédite l'alimentation CET. Import <b>incrémental</b>.`:`Remplissez le modèle (vos heures supp. par jour) puis téléversez-le ici pour créditer votre CET. Import <b>incrémental</b> (pas de double comptage).`}</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap" class="no-print">
@@ -2505,6 +2575,7 @@ function saveNoteFrais(thenPdf){
   const arr=notesFrais(); const idx=arr.findIndex(x=>x.id===n.id);
   const prevPaid = idx>=0 && arr[idx] && arr[idx].statut==='Payée';
   const copy=JSON.parse(JSON.stringify(n));
+  if(idx<0)copy.createdAt=new Date().toISOString();
   if(idx>=0) arr[idx]=copy; else arr.push(copy);
   save(); toast('Note de frais enregistrée');
   if(n.statut && n.statut!=='Brouillon'){ const _s=salByMat(n.matricule)||{}; notify('Note de frais N°'+n.numero+' — '+(_s.nom||'')+' '+(_s.prenom||''), '<p><b>'+esc(_s.nom)+' '+esc(_s.prenom)+'</b> a déposé la note de frais <b>N°'+n.numero+'</b> (statut : '+esc(n.statut)+').</p><p>Objet : '+esc(n.objet||'—')+'<br>Montant : <b>'+eur2(nfTotal(n))+'</b></p>'); }
@@ -2522,7 +2593,7 @@ function delNoteFrais(id){
 function dupNoteFrais(id){
   const o=notesFrais().find(n=>n.id===id); if(!o) return;
   const c=JSON.parse(JSON.stringify(o));
-  c.id=uid(); c.numero=nextNumNF(); c.statut='Brouillon'; c.dateNote=ymd(new Date()); c.signature=null;
+  c.id=uid(); c.createdAt=new Date().toISOString(); c.numero=nextNumNF(); c.statut='Brouillon'; c.dateNote=ymd(new Date()); c.signature=null;
   if(typeof movAccess!=='undefined' && movAccess && movAccess!=='admin') c.matricule=movAccess; // compte restreint : la copie lui est attribuée
   notesFrais().push(c); save(); toast('Note dupliquée — N°'+c.numero); openNoteFrais(c.id);
 }
@@ -2847,7 +2918,7 @@ async function saveFacture(id){
     let f=id?factures().find(x=>x.id===id):null;
     if(id&&!f)throw new Error('La facture a été supprimée. Rouvrez le facturier.');
     const before=f?facturxSignature(f):null;
-    if(f)Object.assign(f,d);else{f=Object.assign({id:recordId},d);factures().push(f);}
+    if(f)Object.assign(f,d);else{f=Object.assign({id:recordId,createdAt:new Date().toISOString()},d);factures().push(f);}
     if(pdfSource){f.pdfSource=pdfSource;delete f.pdfRemoved;}
     if(before!==facturxSignature(f)){delete f.facturx;delete f.facturxDraft;delete f.facturxDraftProfile;delete f.facturxDraftSourceSha;}
     save();closeModal();toast('Facture enregistrée'+(pdfSource?' avec son PDF':''));renderFacturier();
@@ -3409,6 +3480,7 @@ function unlockApp(email){
 function authLogout(){
   if(!marchesLeave())return;
   if(!budgetsLeave())return;
+  dashboardForget();
   marchesForget();
   agendaForget();
   budgetsForget();
@@ -3992,7 +4064,7 @@ function budgetsLeave(){
 function renderBudgetsProjets(){
   const content=document.getElementById('content');
   if(!AUTH_USER){content.innerHTML='<div class="card card-pad">Connectez-vous pour ouvrir les budgets projets.</div>';return;}
-  const title=document.getElementById('pageTitle');if(title&&!title.querySelector('.cdi-beta')){const badge=document.createElement('span');badge.className='cdi-beta';badge.textContent='Beta';title.append(' ',badge);}
+  const title=document.getElementById('pageTitle');if(title&&!title.querySelector('.cdi-beta')){const badge=document.createElement('span');badge.className='cdi-beta';badge.textContent='Bêta';title.append(' ',badge);}
   if(document.getElementById('cdiBudgetsFrame'))return;
   content.innerHTML='<iframe id="cdiBudgetsFrame" title="Outil budgets" src="./budgets-projets/index.html'+(budgetsClientsMode?'?clients=1':'')+'" class="cdi-budget-frame"></iframe>';
   budgetsClientsMode=false;
