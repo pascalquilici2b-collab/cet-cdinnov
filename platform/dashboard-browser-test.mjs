@@ -52,7 +52,7 @@ try{
  assert.equal(badges.length,3);assert.ok(badges.every(b=>b.text==='Bêta'&&Math.abs(b.right-badges[0].right)<1));
  const colors=await page.locator('.cdi-application svg').evaluateAll(nodes=>nodes.map(n=>getComputedStyle(n).stroke));assert.equal(new Set(colors).size,3);
  assert.equal(await page.locator('.applications-label').innerText(),'APPLICATIONS');
- assert.match(await page.locator('#cdiSheetsLink').innerText(),/SmartSheet/);
+ assert.match(await page.locator('#cdiSheetsLink').innerText(),/Smartsheet/);
  await page.screenshot({path:join(out,'tableau-de-bord-desktop.png'),fullPage:true});
  const firstRequests=requests.filter(r=>r.path==='/api/v1/dashboard').length;await page.evaluate(()=>render());
  assert.equal(requests.filter(r=>r.path==='/api/v1/dashboard').length,firstRequests,'Generic repaint must not trigger a summary refetch');

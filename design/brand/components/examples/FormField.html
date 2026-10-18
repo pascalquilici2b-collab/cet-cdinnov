@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="fr" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CDInnov · FormField</title>
+<link rel="stylesheet" href="../../tokens/tokens.css">
+<link rel="stylesheet" href="../components.css">
+<style>body{margin:0;background:var(--paper)}</style>
+</head>
+<body>
+<form class="cdi-root" style="display:grid;grid-template-columns:1fr 1fr;gap:24px;padding:28px" onsubmit="return false">
+  <label class="cdi-field">Nom <span>*</span><input type="text" placeholder="Votre nom" required></label>
+  <label class="cdi-field">Organisation<input type="text" placeholder="Collectivité, entreprise, association"></label>
+  <label class="cdi-field">Votre besoin <span>*</span><select><option>Montage d’une candidature</option><option>Suivi administratif et financier</option><option>Stratégie territoriale</option></select></label>
+  <label class="cdi-field">Courriel <span>*</span><input type="email" placeholder="nom@organisation.fr"></label>
+  <label class="cdi-field" style="grid-column:1/-1">Message<textarea rows="3" placeholder="Programme visé, calendrier, partenaires envisagés"></textarea><small>Les champs marqués d’un astérisque sont obligatoires.</small></label>
+</form>
+</body>
+</html>

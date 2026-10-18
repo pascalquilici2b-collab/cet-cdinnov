@@ -56,6 +56,9 @@ try{
  assert.ok(after.clients.some(c=>c.name==='Vérification migration locale'));
  assert.equal((await ctx.db.prepare("SELECT count(*) n FROM app_budget_records WHERE collection='clients' AND name='Vérification migration locale'").first()).n,1);
  await page.setViewportSize({width:390,height:844});await page.evaluate(()=>toggleSidebar(false));
+ await page.waitForTimeout(250);
+ const dialog=await frame.locator('[data-slot="dialog-content"]').evaluate(el=>{const r=el.getBoundingClientRect();return {x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:innerWidth,height:innerHeight}});
+ assert.ok(dialog.x>=0&&dialog.y>=0&&dialog.right<=dialog.width&&dialog.bottom<=dialog.height,'Client editor stays within the visible budget frame');
  await page.screenshot({path:join(out,'budgets-mobile.png'),fullPage:true});
  assert.deepEqual(errors,[]);
  console.log(JSON.stringify({browser:'React budget directory loaded with existing records; reopen reuses a validated snapshot',requests,errors}));

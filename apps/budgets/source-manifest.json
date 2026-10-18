@@ -1,0 +1,277 @@
+{
+  "origin": "Existing CDInnov budget React/TypeScript application, recovered 2026-10-19",
+  "files": [
+    {
+      "file": "app/account-reference.tsx",
+      "sha256": "880648209662bc43db740305ad377b6a196208393e0f46c2c8ee5ccfdf820ad1"
+    },
+    {
+      "file": "app/account-suggestions.tsx",
+      "sha256": "82b18c4d51eac37cef6de6bc81de38cb7188fdaeb7b6886f2067951f14d7849a"
+    },
+    {
+      "file": "app/assets/jems-logo.png",
+      "sha256": "a631e78d2a3b515803884acaed083b85cd3d50ad32db76caeb2a021b63754437"
+    },
+    {
+      "file": "app/budget-chronogram.tsx",
+      "sha256": "4ebcc82a57aaa6205877870f6f56aa3766766d827e67d595e4e7c1d1788c5d9b"
+    },
+    {
+      "file": "app/budget-export.tsx",
+      "sha256": "b030f198daf0f854ef0c22d141b80e40503ecf4df6e57597587ebfee32c9ae80"
+    },
+    {
+      "file": "app/budget-overview.tsx",
+      "sha256": "bfd8b51057729a3534feb60e44e0575cf708f2e5c686a473d2ca01d1ada97e6f"
+    },
+    {
+      "file": "app/chronogram-canvas.tsx",
+      "sha256": "9663a2cd67ed2738a2b30e61ff93c65d9230167346a1674c344219c67c30c1f2"
+    },
+    {
+      "file": "app/client-directory.tsx",
+      "sha256": "d33fe8f0cffbb5c485ad24ed280cbb1ac69f161b81b5cfe6fa4c57449f2bcbc7"
+    },
+    {
+      "file": "app/dr-receipts.tsx",
+      "sha256": "31ed1b02ba2eded81f3ca252ae18bf921e1c1e88ed1a671f91609b3fdf2c2ffe"
+    },
+    {
+      "file": "app/expense-group.tsx",
+      "sha256": "b61aa072356fcf7fbcc196aa87c822638a8c59eceaca11221ebb5bda007ea41d"
+    },
+    {
+      "file": "app/global-expenditures.tsx",
+      "sha256": "61ccaaa5da389731368721bc058db11e03ea0d5896918ba87a6a7d663cf51c31"
+    },
+    {
+      "file": "app/globals.css",
+      "sha256": "c86a1393ef14f15df7f73891609cac167e71003dd97e67e5e8ac7a9e160a9c25"
+    },
+    {
+      "file": "app/inline-report-allocation.tsx",
+      "sha256": "2d42ed01b539826cc71d9bcebbc2a335fcf1e41c2f4995c1487e0aee77b922cb"
+    },
+    {
+      "file": "app/jems-import.tsx",
+      "sha256": "bc216b73fb20d67ea19895a47a401a677357d2e551d16930ec3656e000185114"
+    },
+    {
+      "file": "app/page.tsx",
+      "sha256": "f9af77e93f03021b27dd64756ab839aa8d41c7f459a18bb2944fed034c3f26ea"
+    },
+    {
+      "file": "app/partner-reports.tsx",
+      "sha256": "c765bd99806a30a0e5a6549853971afe8461418df4376b024d7ba283c5cf7136"
+    },
+    {
+      "file": "app/pending-expenses-badge.tsx",
+      "sha256": "2191a61b2b1d51cfd05c066fc9bd5878e0df3c95c114e6d4a1ea3ef7ff47bf41"
+    },
+    {
+      "file": "app/project-branding.tsx",
+      "sha256": "f1918fb3034ebf7cffbbfcea077bb1e124e8c722cec43b0e565b1ae646d430e7"
+    },
+    {
+      "file": "app/project-dates.tsx",
+      "sha256": "b1a838624cf5de8581f0ed277650c23abf3c6c11ad10e1fc3577e7746280d378"
+    },
+    {
+      "file": "app/project-fullscreen.tsx",
+      "sha256": "86975754202a1669420afb69d5aa7d64deadbaaf2486533ed63e19eb6945ab3a"
+    },
+    {
+      "file": "app/project-funding.tsx",
+      "sha256": "eb7946fdf527cf3bed09a2ccc9121964ebeffe56f1e9677a96293079a56060fb"
+    },
+    {
+      "file": "app/project-picker.tsx",
+      "sha256": "99f454209548e19127a8f57590b8917dc379c3a7a697cd8891163cceb72c61ee"
+    },
+    {
+      "file": "app/receipt-dates.tsx",
+      "sha256": "6f9ba220bdc4d499a610f27082a55525a77be9a0f00085b18b8a13b70a1bf4a9"
+    },
+    {
+      "file": "app/report-capture.tsx",
+      "sha256": "a04943e5d7bc505ab5819b269e9abea2020a342c618e90586a6231b3efd06896"
+    },
+    {
+      "file": "app/report-coverage-settings.tsx",
+      "sha256": "f18f9783edf6634c93ac9fe4ed7140558a0b7a24061830f8b45f5e73b30d7ab9"
+    },
+    {
+      "file": "app/report-workflow.css",
+      "sha256": "921cffeb54a661cc4fb4b7bc9afbcf3a3f49a9657cbe969667604e83ee2e2d34"
+    },
+    {
+      "file": "app/timeline-track.tsx",
+      "sha256": "2cc0585a8fca7f5f05a0804d8717957adc3637dede125f9a46822246935610d4"
+    },
+    {
+      "file": "components/ui/button.tsx",
+      "sha256": "cc36af0f8b5019c33cc039fbf03bb952a513072b15b55b53c592b78af3e5f4c4"
+    },
+    {
+      "file": "components/ui/dialog.tsx",
+      "sha256": "dce39c6adc47d997bd2567f8b7a72f466b0134715105cd42f9194007b8ecdb14"
+    },
+    {
+      "file": "components/ui/select.tsx",
+      "sha256": "0b796a108a4eb5ba52d9ad938b7aea36dc56ae66c703a6d0a23dbc24f96daff3"
+    },
+    {
+      "file": "components/ui/table.tsx",
+      "sha256": "20e5a7f224959c6b75802995706a97e9da171f693d4b6b1b436388fcd9df96f3"
+    },
+    {
+      "file": "components/ui/tabs.tsx",
+      "sha256": "865d0194331b9b2be36723fa79d3575dc83078b4cb941cafee87cb72fc2cff46"
+    },
+    {
+      "file": "components/ui/tooltip.tsx",
+      "sha256": "a0784eb77831a799fad7991df4f1b666f876201565a80175e1aa68733574a2e4"
+    },
+    {
+      "file": "integration/embedded.css",
+      "sha256": "a7d007f8e0c0959f6618c3102c52b06c22f24e5c93727cdf7572f70e1ce2fb63"
+    },
+    {
+      "file": "integration/main.tsx",
+      "sha256": "cee7b102d1510dd8e23441c5149376ecbb06687ff6051ca581bc7195fdb4ab9e"
+    },
+    {
+      "file": "lib/account-suggestions.ts",
+      "sha256": "e489a6d8785fbb01bb3e7994e947d8729e945f68940a2a5bc8eb958f401c21bc"
+    },
+    {
+      "file": "lib/accounting-export.ts",
+      "sha256": "2ada2d538224ac0b6d3c9f43e02e942f09510279bfd9d850a77bd2a980b9177a"
+    },
+    {
+      "file": "lib/advance-recovery.ts",
+      "sha256": "db10e7788338bdf97c753f14c1a33cff61a483c97880e051d1c70c57e2e1c999"
+    },
+    {
+      "file": "lib/budget-actions.ts",
+      "sha256": "6cd5f7dcee6b75c9b792916ce0701760a21d9b8d6aa3b091b306b6e757a7d88e"
+    },
+    {
+      "file": "lib/budget-export.ts",
+      "sha256": "b42f900fed4c1d4cd1aeace20df1cf582d0d15b574cdcc09b56ce9ab441daa55"
+    },
+    {
+      "file": "lib/budget-model.ts",
+      "sha256": "bc1752d33ae0c84da2bdd8b5738cca7af5ad29113b752cd46a47e5878cd6e547"
+    },
+    {
+      "file": "lib/budget-overview.ts",
+      "sha256": "b9c887abae1a93f873333f6b12983df3343bcc968dabbf173519c6bf406a9764"
+    },
+    {
+      "file": "lib/client-directory.ts",
+      "sha256": "4c7310143c7ebcc1b2006027699a2e788b6786399741b0c337b11bfc6d768ac0"
+    },
+    {
+      "file": "lib/client-forecast.ts",
+      "sha256": "fb6a8be0651f5e22b2abc0f98570aae6153cd794c9764ae355c94a148c44970c"
+    },
+    {
+      "file": "lib/client-names.mjs",
+      "sha256": "dcaf7a608492be65f86c8e592d8fb1968135fb1b0aba22142c30df43c684eb04"
+    },
+    {
+      "file": "lib/cost-categories.ts",
+      "sha256": "7972311589e6230a4f05a3e7cf9cd89ec6b15d21a6b9018842d2dbaac5d2a8d5"
+    },
+    {
+      "file": "lib/epcic-accounts.ts",
+      "sha256": "79133b74c68539a8846b8aac457cd523e821ad142c2e8d05cb9080ae79378b5e"
+    },
+    {
+      "file": "lib/epcic-structure.ts",
+      "sha256": "bd03ed685c29d6bfecbb8766eb01d2213c96eae6def9c6ca108291b2cf5b6f7a"
+    },
+    {
+      "file": "lib/global-expenditures-xlsx.ts",
+      "sha256": "23cb0254da3585223fe8676724a75e247576c07f38561e79bf45f70d2c1fb477"
+    },
+    {
+      "file": "lib/global-expenditures.ts",
+      "sha256": "7bbf0179a83f831e07245ee6b50c3b68cc3722b20861a35122b19dfa0316eab2"
+    },
+    {
+      "file": "lib/inline-report-allocation.ts",
+      "sha256": "b2436218f00bf5b3abd3b8291fdaeba904ff928990eb5b6bae189b5a321821aa"
+    },
+    {
+      "file": "lib/jems-import.ts",
+      "sha256": "b031a136293c13d84282b59e37e84b6528d391160689b6ab54ff49d3ec94dbff"
+    },
+    {
+      "file": "lib/jems-labels.ts",
+      "sha256": "d53b8abf882c0fbb0319b00823ac505320d00c968627a7f4fe448a0407931d73"
+    },
+    {
+      "file": "lib/jems-text-repair.ts",
+      "sha256": "e48fced6d3e210d602f0dc31ce16c691da7ae23fe920a0bea475b5bc3b5c6110"
+    },
+    {
+      "file": "lib/partner-report-parser.ts",
+      "sha256": "90592e9ed44273933e38737ecde02b2ef7e11ae6013e3123eea8602277a5fdbb"
+    },
+    {
+      "file": "lib/partner-report-pdf.ts",
+      "sha256": "98f3873b14533f78ecf776df700b42c2871e2c016a0e8213b4a04857536184bd"
+    },
+    {
+      "file": "lib/partner-reports.ts",
+      "sha256": "e2aaebd8c679d988cbda924d7579db2ea0872a1df4333d9d70aa5ebbaf602815"
+    },
+    {
+      "file": "lib/project-dates.ts",
+      "sha256": "9e711d1da6879c44d0f48a95d5bcd767503678567a330da3324a48b879577aa9"
+    },
+    {
+      "file": "lib/project-receipts.ts",
+      "sha256": "38f0d069dc88ff109a16310a182e53045cf6c8b964ad4483340340028e2af05c"
+    },
+    {
+      "file": "lib/receipt-date.ts",
+      "sha256": "da65ecac3854acd70a55e96f1ffc53b04e9bf2e25e86861702e451bb6f322e44"
+    },
+    {
+      "file": "lib/report-allocations.ts",
+      "sha256": "dddafb7b4139f031762032d6d4407a9f725ce6863184c5ba1144d32068b18d78"
+    },
+    {
+      "file": "lib/report-capture-ocr.ts",
+      "sha256": "2cb15c374b365479c4fcf859ef96ec6e0b370f04d6df7da55b593dd7605e72a9"
+    },
+    {
+      "file": "lib/report-capture-parser.ts",
+      "sha256": "577d871a5fc2800ac63061a581b1d2588b6b6d9a4478dbab16682f7e02d7659c"
+    },
+    {
+      "file": "lib/report-periods.ts",
+      "sha256": "6a7925f5c03dbba7b0e2ff0a79bcef03b418a00b4643c8be6c10517c834bbcd6"
+    },
+    {
+      "file": "lib/timeline.ts",
+      "sha256": "f2be12f2d657fb37be467e3d0b707a467dcdb4ecfe3d78ed5060da4486e1ca74"
+    },
+    {
+      "file": "lib/utils.ts",
+      "sha256": "53f3d3d070f0a9082934da25b875f9499855c2b0693868dd28be8c23d8730f68"
+    },
+    {
+      "file": "lib/workspace-storage.ts",
+      "sha256": "4be53886b317ec58d0601ce2260e72f9ed8c8b5ad18b41ee241224740f82cbe2"
+    },
+    {
+      "file": "vendor/shadcn-tailwind-4.13.0.css",
+      "sha256": "bc7d83425702955b4cb67cb14ede9d603f9d912376d57a2d81d661094d2a782a"
+    }
+  ]
+}

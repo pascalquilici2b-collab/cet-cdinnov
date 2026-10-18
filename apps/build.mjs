@@ -1,0 +1,11 @@
+import {build} from 'vite';
+import {readFile,writeFile} from 'node:fs/promises';
+import {fileURLToPath} from 'node:url';
+await build({configFile:fileURLToPath(new URL('./budgets/vite.config.mjs',import.meta.url))});
+const output=new URL('../budgets-projets/index.html',import.meta.url);
+let html=await readFile(output,'utf8');
+const links=html.match(/<link rel="stylesheet" href="\/design\/[^>]+>/g)||[];
+for(const link of links)html=html.replace(link,'');
+html=html.replace('</head>',links.join('\n')+'\n</head>');
+await writeFile(output,html);
+console.log('Budget React/TypeScript sources built; historical assets retained.');

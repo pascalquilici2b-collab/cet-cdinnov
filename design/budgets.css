@@ -1,0 +1,62 @@
+/* Dense application adaptation of the supplied CDInnov brand. Loaded after the build CSS. */
+@import url('./tokens.css?v=20261019');
+:root{--background:var(--paper);--foreground:var(--ink);--card:var(--surface);--card-foreground:var(--ink);--popover:var(--surface);--popover-foreground:var(--ink);--primary:var(--cyan);--primary-foreground:var(--on-cyan);--secondary:var(--paper-tint);--secondary-foreground:var(--ink);--muted:var(--paper-tint);--muted-foreground:var(--cdi-text-muted);--accent:var(--paper-tint);--accent-foreground:var(--ink);--border:var(--line);--input:var(--field-border);--ring:var(--cyan);--radius:3px;--font-sans:'Manrope Variable','Helvetica Neue',sans-serif}
+body.cdi-budget-app{font-family:var(--font-sans);color:var(--ink);background:var(--paper);font-size:14px}
+.cdi-budget-app :is(button,input,select,textarea){font-family:inherit}
+.cdi-budget-app .lucide{width:18px;height:18px;min-width:18px;flex-shrink:0;stroke-width:1.5;vertical-align:middle}
+.cdi-budget-app :is(h1,h2,h3){color:var(--ink)}
+.cdi-budget-app .embedded-budget .app-main{max-width:none;width:100%;padding:0 20px 28px}
+.cdi-budget-app .project-picker{max-width:none;margin:18px 0}
+.cdi-budget-app .page-heading{margin-bottom:26px;padding-bottom:24px;border-bottom:1px solid var(--line)}
+.cdi-budget-app .page-heading h1{font-size:clamp(26px,2.3vw,38px);font-weight:480;letter-spacing:-.045em}
+.cdi-budget-app :is(.project-card,.project-empty,.chrono-panel,.budget-overview,.client-directory-dialog,[data-slot=card],[data-slot=dialog-content]){border-radius:var(--radius-field);box-shadow:none;border-color:var(--line)}
+.cdi-budget-app .project-card{padding:24px;background:var(--surface);transition:border-color .15s}
+.cdi-budget-app .project-card:hover{transform:none;box-shadow:none;border-color:var(--cyan)}
+.cdi-budget-app .project-card-title h2{font-weight:500;letter-spacing:-.035em;font-size:26px}
+.cdi-budget-app .project-arrow{background:transparent;color:var(--cyan);border-radius:0}
+.cdi-budget-app .project-card-footer strong{color:var(--blue);font-size:25px;font-weight:530}
+.cdi-budget-app .project-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,310px),1fr));gap:18px}
+.cdi-budget-app .project-client{margin-bottom:20px}
+.cdi-budget-app :is(.search-field,.client-filter,.jems-import-button,.budget-field input,.client-directory input,[data-slot=input],[data-slot=select-trigger]){border-radius:var(--radius-field);border-color:var(--field-border);box-shadow:none}
+.cdi-budget-app :is([data-slot=button],.chrono-years-nav button){border-radius:var(--radius-button);font-size:12px;font-weight:650;min-height:38px}
+.cdi-budget-app [data-slot=button][data-size^=icon]{min-width:38px;padding:8px}
+.cdi-budget-app [data-slot=dialog-content]{padding:24px;max-width:calc(100vw - 24px)!important;box-shadow:var(--shadow-menu);background:var(--surface)}
+.cdi-budget-app .project-tabs{border-bottom:1px solid var(--line);gap:2px;background:transparent;display:flex;flex-wrap:wrap;overflow:visible;min-width:0}
+.cdi-budget-app .project-tabs [data-slot=tabs-trigger]{height:auto;min-height:44px;border:0;border-bottom:2px solid transparent;border-radius:0;background:transparent;color:var(--cdi-text-muted);box-shadow:none;padding:10px 14px;font-size:12px;white-space:normal}
+.cdi-budget-app .project-tabs [data-state=active]{background:var(--surface);color:var(--ink);border-bottom-color:var(--cyan);box-shadow:none}
+.cdi-budget-app .project-tabs [data-state=active]:after{display:none}
+.cdi-budget-app .project-navigation{display:block;min-width:0}
+.cdi-budget-app .project-title-row h1{font-weight:500;letter-spacing:-.04em}
+.cdi-budget-app .project-title-row,.cdi-budget-app .project-date-summary{flex-wrap:wrap}
+.cdi-budget-app :is(.chrono-toolbar,.chrono-panel-toolbar,.budget-summary,.import-actions,.chrono-legend){gap:12px;flex-wrap:wrap}
+.cdi-budget-app .budget-summary strong{font-weight:530;color:var(--blue)}
+.cdi-budget-app [data-slot=table-container]{max-width:100%;overscroll-behavior-x:contain}
+.cdi-budget-app :is(.workspace-content,.project-context,.project-picker,.chrono-panel,.project-navigation){min-width:0}
+.cdi-budget-app :is(button,input,select,textarea):focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
+@media(min-width:1700px){.cdi-budget-app .embedded-budget .app-main{padding-inline:28px}}
+@media(max-width:700px){
+ .cdi-budget-app .embedded-budget .app-main{padding:0 6px 24px}
+ .cdi-budget-app .page-heading{gap:16px;padding-bottom:18px;margin-bottom:18px}
+ .cdi-budget-app .project-filters{flex-direction:column;align-items:stretch;gap:10px}
+ .cdi-budget-app :is(.search-field,.client-filter){width:100%;max-width:none;min-width:0}
+ .cdi-budget-app .project-card{padding:18px}
+ .cdi-budget-app :is([data-slot=button],.project-tabs [data-slot=tabs-trigger]){min-height:44px}
+ .cdi-budget-app :is(input,select,textarea,[data-slot=select-trigger]){font-size:16px}
+ .cdi-budget-app .project-tabs [data-slot=tabs-trigger]{flex:1 0 40%;padding:10px 8px;font-size:11px}
+ .cdi-budget-app .project-title-row h1{font-size:27px;overflow-wrap:anywhere}
+ .cdi-budget-app :is(.project-date-summary,.budget-summary){gap:12px}
+ .cdi-budget-app .budget-summary strong{font-size:22px}
+ .cdi-budget-app .chrono-panel{--chrono-label-width:180px}
+ .cdi-budget-app .mode-lines .line-actions{position:static;gap:3px;margin-top:8px;background:transparent}
+ .cdi-budget-app .mode-lines .chrono-label .line-actions [data-slot=button]{width:36px;min-width:36px;min-height:38px;height:38px;padding:8px}
+ .cdi-budget-app .mode-lines .line-value strong{overflow-wrap:anywhere}
+ .cdi-budget-app .chrono-legend{font-size:11px}
+ .cdi-budget-app [data-slot=dialog-content]{padding:18px;max-width:calc(100vw - 16px)}
+ .cdi-budget-app .client-directory{grid-template-columns:minmax(0,1fr)}
+ .cdi-budget-app .client-directory-list{max-height:220px;min-height:0;border-right:0;border-bottom:1px solid var(--line);padding:0 0 16px}
+ .cdi-budget-app .client-directory-form{min-width:0;padding:0}
+ .cdi-budget-app .client-directory-form{border-left:0;padding-top:16px}
+ .cdi-budget-app .client-directory-items{max-height:130px;overflow:auto}
+ .cdi-budget-app .project-card-footer{gap:10px;flex-wrap:wrap}
+}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important;scroll-behavior:auto!important}}

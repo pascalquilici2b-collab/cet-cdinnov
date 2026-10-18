@@ -1,1 +1,2 @@
-marches/vendor/* -whitespace
+# Generated libraries may contain intentional whitespace inside string literals.
+budgets-projets/assets/* -whitespace

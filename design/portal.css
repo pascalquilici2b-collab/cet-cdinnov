@@ -1,0 +1,45 @@
+@import url('./tokens.css?v=20261019');
+/* Application density uses smaller headings than the editorial website. */
+:root{--bg:var(--paper);--panel:var(--surface);--panel-2:var(--paper-tint);--muted-2:var(--muted-alt);--line-strong:var(--field-border);--accent:var(--cyan);--accent-strong:var(--cyan-hover);--accent-soft:var(--paper-tint);--font:var(--font-sans);--font-head:var(--font-sans);--radius:3px;--shadow:none;--shadow-lg:var(--shadow-menu)}
+body{font-family:var(--font-sans)}
+body :is(button,input,select,textarea){font-family:var(--font-sans)}
+.sidebar,.topbar{background:var(--surface);border-color:var(--line);border-radius:var(--radius-field);box-shadow:none;backdrop-filter:none}
+.brand{flex-direction:column;align-items:flex-start;gap:10px;padding:6px 6px 24px}
+.sidebar .brand .brand-logo{width:172px;max-width:100%;height:auto}
+.sidebar .brand-sub{color:var(--muted);letter-spacing:.05em}
+.sidebar .brand{border-radius:0}
+.sidebar .nav-item{color:var(--muted);border-radius:var(--radius-button);font-weight:500}
+.sidebar .nav-item:hover{background:var(--paper-tint)}
+.sidebar .nav-item.active{color:var(--ink);background:var(--paper-tint);box-shadow:inset 2px 0 var(--cyan)}
+.sidebar .nav-item>svg{stroke-width:1.25;width:20px;height:20px;flex:0 0 20px;color:var(--cyan);fill:none}
+.sidebar .nav-item.cdi-application{grid-template-columns:20px minmax(0,1fr) 31px}
+.sidebar .nav-item.cdi-application>svg{color:var(--app-color)}
+.sidebar .user-chip,.topbar .year-pick,.topbar .year-pick select{border-radius:var(--radius-field)}
+.sidebar .nav-label{color:var(--muted);font-weight:550;letter-spacing:.13em}
+.topbar h1{color:var(--ink);font-weight:500;letter-spacing:-.035em}
+.card,.stat,.cp-card,.content .db-panel,.content .db-stat,.content .mk-card,.modal{border-radius:var(--radius-field);box-shadow:none;border-color:var(--line)}
+.card-head,.modal-head{background:var(--surface)}
+.btn,.btn-sm,.icon-btn,.pg-btn,.menu-btn,.billing-nav{border-radius:var(--radius-button);box-shadow:none}
+.btn{font-weight:650}.inp,.mk-root input,.mk-root select,.mk-root textarea{border-radius:var(--radius-field);border-color:var(--field-border)}
+.stat .v{color:var(--blue);font-weight:530;letter-spacing:-.045em}
+.billing-nav{border-bottom:1px solid var(--line);background:transparent;padding:0;gap:3px}
+.billing-nav .btn{color:var(--muted);border-bottom:2px solid transparent}
+.billing-nav [aria-current=page]{box-shadow:none;background:var(--surface);border-bottom-color:var(--cyan);color:var(--ink)}
+.content .cdi-dashboard{--db-ink:var(--ink);--db-muted:var(--muted);--db-line:var(--line)}
+.content .db-panel,.content .db-stat{background:var(--surface)}
+.content .db-intro h2{font-weight:480;letter-spacing:-.045em}
+.content .ag-heading h2{font-weight:480;letter-spacing:-.045em}
+.content .agenda-toolbar .inp,.content .agenda-segment{border-radius:var(--radius-field)}
+.content .db-file-icon{border-radius:var(--radius-field);background:var(--paper-tint);color:var(--cyan)}
+.cdi-icon{display:inline-block;width:18px;height:18px;min-width:18px;flex:0 0 18px;stroke-width:1.5;vertical-align:middle;fill:none}
+.cdi-icon-wrap{display:inline-flex;width:18px;height:18px;flex:0 0 18px;align-items:center;justify-content:center;vertical-align:middle}
+.db-update .db-button{display:inline-flex;align-items:center;justify-content:center;gap:7px}
+.content .db-metric{border-radius:var(--radius-field);box-shadow:none;background:var(--surface);border-color:var(--line)}
+.content .db-heading h2{font-weight:480;letter-spacing:-.045em}
+:is(.btn,.btn-sm,.icon-btn,.pg-btn,.menu-btn,.sync-pill,.stat-ico,.help-banner,.auth-icon,.empty-ico)>svg{width:18px;height:18px;flex:0 0 18px;stroke-width:1.5;vertical-align:middle}
+.stat-ico>svg,.empty-ico>svg{width:24px;height:24px;flex-basis:24px}
+.icon-btn{font-size:16px}
+.auth-box{border-radius:var(--radius-field);box-shadow:none;border-color:var(--line);font-family:var(--font-sans)}
+:is(button,a,input,select,textarea):focus-visible{outline-color:var(--cyan)}
+@media(max-width:880px){.sidebar .brand .brand-logo{width:172px}.sidebar{box-shadow:var(--shadow-menu)}}
+@media(max-width:600px){.responsive-table tbody tr{border-radius:var(--radius-field);box-shadow:none}.modal,.card,.topbar{border-radius:var(--radius-field)}}

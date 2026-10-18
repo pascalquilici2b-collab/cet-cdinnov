@@ -1,0 +1,84 @@
+/* CDInnov — tokens générés depuis tokens.json */
+@font-face{font-family:"Manrope Variable";font-style:normal;font-display:swap;font-weight:200 800;src:url("../fonts/Manrope-Variable-latin.woff2") format("woff2-variations")}
+
+:root,[data-theme="light"]{
+  --paper:#f8fbff;
+  --paper-tint:#eef6fd;
+  --surface:#ffffff;
+  --highlight:#dfedf8;
+  --ink:#183f77;
+  --muted:#4e6c8e;
+  --muted-alt:#466d87;
+  --cyan:#087ca7;
+  --copper:var(--cyan);
+  --cyan-hover:#1662a9;
+  --on-cyan:#ffffff;
+  --blue:#2453a1;
+  --indigo:#2c4488;
+  --line:#c9dcea;
+  --field-border:#6c89a3;
+  --switch-off:#dbe6ee;
+  --navy:#113660;
+  --brand-cyan:#00aae3;
+  --logo-cyan:#00aeef;
+  --logo-blue:#0067c8;
+  --logo-navy:#0b335f;
+  --logo-grey:#b6b8ba;
+  --shadow-menu:0 25px 50px #08121a1f;
+  --shadow-portrait:0 12px 35px #2b6c9917;
+  --shadow-glow:0 0 35px #26c2e33a;
+}
+[data-theme="dark"]{
+  --paper:#113660;
+  --paper-tint:#143e6d;
+  --surface:#143e6d;
+  --highlight:var(--paper-tint);
+  --ink:#ffffff;
+  --muted:#a2d8ee;
+  --muted-alt:#a2d8ee;
+  --cyan:#79d6f0;
+  --cyan-hover:#92e3f7;
+  --on-cyan:#113660;
+  --blue:var(--cyan);
+  --line:#ffffff30;
+  --field-border:#aac3d7;
+  --switch-off:#143e6d;
+}
+:root{
+  --gutter-min:24px;
+  --gutter-max:80px;
+  --header-height:88px;
+  --field-y:13px;
+  --field-x:14px;
+  --button-y:17px;
+  --button-x:24px;
+  --stack-sm:18px;
+  --stack-md:30px;
+  --row-y:33px;
+  --stack-lg:60px;
+  --radius-button:2px;
+  --radius-field:3px;
+  --radius-label:4px;
+  --radius-logo:5px;
+  --radius-bubble:18px;
+  --radius-pill:30px;
+  --radius-round:50%;
+  --font-sans:"Manrope Variable", "Helvetica Neue", sans-serif;
+}
+/* Points de rupture (à utiliser en dur dans les media queries) : bp-wide 1700px, bp-desktop 1100px, bp-tablet 900px, bp-mobile 700px, bp-small 360px */
+
+.display{font-family:var(--font-sans);font-size:128px;line-height:1.06;font-weight:480;letter-spacing:-0.065em}
+.chapter{font-family:var(--font-sans);font-size:110px;line-height:1.03;font-weight:500;letter-spacing:-0.06em}
+.evidence{font-family:var(--font-sans);font-size:120px;line-height:1;font-weight:530;letter-spacing:-0.065em}
+.statement{font-family:var(--font-sans);font-size:88px;line-height:1.15;font-weight:480;letter-spacing:-0.052em}
+.section{font-family:var(--font-sans);font-size:55px;line-height:1.15;font-weight:480;letter-spacing:-0.055em}
+.row-title{font-family:var(--font-sans);font-size:39px;line-height:1.2;font-weight:450;letter-spacing:-0.045em}
+.title-sm{font-family:var(--font-sans);font-size:24px;line-height:1.25;font-weight:500;letter-spacing:-0.035em}
+.item-title{font-family:var(--font-sans);font-size:16px;line-height:1.45;font-weight:650}
+.lead{font-family:var(--font-sans);font-size:14px;line-height:1.9;font-weight:400}
+.body{font-family:var(--font-sans);font-size:14px;line-height:1.7;font-weight:400}
+.small{font-family:var(--font-sans);font-size:12px;line-height:1.8;font-weight:400}
+.label{font-family:var(--font-sans);font-size:12px;line-height:1.5;font-weight:650}
+.button{font-family:var(--font-sans);font-size:11px;line-height:1.4;font-weight:650}
+.nav{font-family:var(--font-sans);font-size:11px;line-height:1.4;font-weight:500}
+.micro{font-family:var(--font-sans);font-size:11px;line-height:1.6;font-weight:550;letter-spacing:0.13em;text-transform:uppercase}

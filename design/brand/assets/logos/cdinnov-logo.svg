@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="3532" height="696" viewBox="4 0 3532 696" shape-rendering="geometricPrecision">
+<defs>
+<linearGradient id="gradIcon" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#00B9EF"/><stop offset="0.52" stop-color="#00AEEF"/><stop offset="1" stop-color="#0067C8"/></linearGradient>
+<linearGradient id="gradInner" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#00B9EF"/><stop offset="1" stop-color="#008EDB"/></linearGradient>
+<linearGradient id="gradGrey" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#E3E3E3"/><stop offset="1" stop-color="#B6B8BA"/></linearGradient>
+<linearGradient id="gradCyan" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#02B4EC"/><stop offset="1" stop-color="#00A4E3"/></linearGradient>
+<linearGradient id="gradNavy" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0B335F"/><stop offset="1" stop-color="#08264A"/></linearGradient>
+</defs>
+<metadata>CDInnov — contours lissés d’après le logo fourni, sans image matricielle ni police externe.</metadata>
+<path d="M193 364 4 664H291L331 589H151L239 438Z" fill="url(#gradGrey)" fill-rule="evenodd"/>
+<path d="M439 0 220 314H318L432 151 692 589H480L441 667H838Z" fill="url(#gradIcon)" fill-rule="evenodd"/>
+<path d="M1243 225 1148 276C1126 244 1094 227 1058 227C996 227 947 273 947 333C947 393 995 439 1058 439C1095 439 1126 423 1148 393L1243 438C1204 505 1136 543 1058 543C929 543 832 454 832 334C832 214 929 124 1058 124C1137 124 1205 160 1243 225Z" fill="url(#gradIcon)" fill-rule="evenodd"/>
+<path d="M204 331H518L563 399 405 667H320L472 404H250Z" fill="url(#gradInner)" fill-rule="evenodd"/>
+<path d="M1273 124H1432C1559 124 1647 207 1647 332C1647 457 1559 539 1432 539H1273ZM1387 230V434H1425C1490 434 1532 393 1532 332C1532 271 1490 230 1425 230Z" fill="url(#gradCyan)" fill-rule="evenodd"/>
+<path d="M1683 124H1795V539H1683Z" fill="url(#gradNavy)" fill-rule="evenodd"/>
+<path d="M1832 125 2089 325V128H2205V545L1941 347V539H1832Z" fill="url(#gradNavy)" fill-rule="evenodd"/>
+<path d="M2241 125 2508 328V128H2619V546L2353 347V539H2241Z" fill="url(#gradNavy)" fill-rule="evenodd"/>
+<path d="M2858 120C2980 120 3075 213 3075 336C3075 458 2980 551 2858 551C2735 551 2640 458 2640 336C2640 213 2735 120 2858 120ZM2858 227C2797 227 2751 274 2751 336C2751 398 2797 445 2858 445C2919 445 2965 398 2965 336C2965 274 2919 227 2858 227Z" fill="url(#gradNavy)" fill-rule="evenodd"/>
+<path d="M3032 128H3148L3243 323 3340 128H3462L3241 548Z" fill="url(#gradNavy)" fill-rule="evenodd"/>
+<path d="M3460 396C3503 396 3535 427 3535 470C3535 512 3503 543 3460 543C3417 543 3384 512 3384 470C3384 427 3417 396 3460 396Z" fill="url(#gradCyan)" fill-rule="evenodd"/>
+<path d="M55 9 49 15C42 9 37 7 27.5 7C14 7 8 17 8 31.5C8 46 14 56 27.5 56C37 56 42 54 49 48L55 54C47 61 39 63 27.5 63C10 63 0 50 0 31.5C0 13 10 0 27.5 0C39 0 47 2 55 9Z" transform="translate(924 632)" fill="#233A54" fill-rule="evenodd"/>
+<path d="M31 0C48.120827250000005 0 62 14.103030375 62 31.5C62 48.896969625 48.120827250000005 63 31 63C13.879172749999999 63 0 48.896969625 0 31.5C0 14.103030375 13.879172749999999 0 31 0ZM31 7C43.702549250000004 7 54 17.969023625 54 31.5C54 45.030976375 43.702549250000004 56 31 56C18.29745075 56 8 45.030976375 8 31.5C8 17.969023625 18.29745075 7 31 7Z" transform="translate(1000 632)" fill="#233A54" fill-rule="evenodd"/>
+<path d="M0 63V0H8L43 47V0H51V63H43L8 16V63Z" transform="translate(1088 632)" fill="#233A54" fill-rule="evenodd"/>
+<path d="M42 7 38 14C32 9 28 7 21.5 7C12 7 8 11 8 17C8 23 13 25 24.5 28C38 32 43 36 43 46C43 57 34 63 21.5 63C13 63 5 60 0 55L4 48C10 53 16 56 21.5 56C30 56 35 52 35 46C35 40 30 37 19.5 34C6 30 0 26 0 17C0 6 9 0 21.5 0C32 0 38 3 42 7Z" transform="translate(1171 632)" fill="#233A54" fill-rule="evenodd"/>
+<path d="M0 0H44V7H8V27H39V34H8V56H44V63H0Z" transform="translate(1240 632)" fill="#233A54" fill-rule="evenodd"/>
+<path d="M0 0H10V63H0Z" transform="translate(1313 632)" fill="#233A54" fill-rule="evenodd"/>
+<path d="M0 0H8V56H39V63H0Z" transform="translate(1356 632)" fill="#233A54" fill-rule="evenodd"/>
+<path d="M0 0H24.509999999999998C45.6 0 57 12 57 31.5C57 51 45.6 63 24.509999999999998 63H0ZM8 7V56H24.509999999999998C41.04 56 49 47 49 31.5C49 16 41.04 7 24.509999999999998 7Z" transform="translate(1600 632)" fill="#233A54" fill-rule="evenodd"/>
+<path d="M0 0H44V7H8V27H39V34H8V56H44V63H0ZM15.84 -5 25.08 -14H36.08L23.32 -5Z" transform="translate(1685 632)" fill="#233A54" fill-rule="evenodd"/>
+<path d="M0 0H9L27.5 51 46 0H55L31.5 63H23.5Z" transform="translate(1752 632)" fill="#233A54" fill-rule="evenodd"/>
+<path d="M0 0H43V7H8V27H38V34H8V56H43V63H0Z" transform="translate(1836 632)" fill="#233A54" fill-rule="evenodd"/>
+<path d="M0 0H8V56H39V63H0Z" transform="translate(1912 632)" fill="#233A54" fill-rule="evenodd"/>
+<path d="M30 0C46.5685425 0 60 14.103030375 60 31.5C60 48.896969625 46.5685425 63 30 63C13.4314575 63 0 48.896969625 0 31.5C0 14.103030375 13.4314575 0 30 0ZM30 7C42.1502645 7 52 17.969023625 52 31.5C52 45.030976375 42.1502645 56 30 56C17.8497355 56 8 45.030976375 8 31.5C8 17.969023625 17.8497355 7 30 7Z" transform="translate(1980 632)" fill="#233A54" fill-rule="evenodd"/>
+<path d="M0 63V0H24.44C39.949999999999996 0 47 7 47 20C47 33 39.949999999999996 40 24.44 40H8V63ZM8 7V33H24.44C35.25 33 39 29 39 20C39 11 35.25 7 24.44 7Z" transform="translate(2068 632)" fill="#233A54" fill-rule="evenodd"/>
+<path d="M0 63V0H24.44C39.949999999999996 0 47 7 47 20C47 33 39.949999999999996 40 24.44 40H8V63ZM8 7V33H24.44C35.25 33 39 29 39 20C39 11 35.25 7 24.44 7Z" transform="translate(2144 632)" fill="#233A54" fill-rule="evenodd"/>
+<path d="M0 0H43V7H8V27H38V34H8V56H43V63H0Z" transform="translate(2220 632)" fill="#233A54" fill-rule="evenodd"/>
+<path d="M0 63V0H9L32 38 55 0H64V63H56V16L35 49H29L8 16V63Z" transform="translate(2295 632)" fill="#233A54" fill-rule="evenodd"/>
+<path d="M0 0H43V7H8V27H38V34H8V56H43V63H0Z" transform="translate(2388 632)" fill="#233A54" fill-rule="evenodd"/>
+<path d="M0 63V0H8L42 47V0H50V63H42L8 16V63Z" transform="translate(2461 632)" fill="#233A54" fill-rule="evenodd"/>
+<path d="M0 0H48V7H28V63H20V7H0Z" transform="translate(2543 632)" fill="#233A54" fill-rule="evenodd"/>
+<path d="M0 0H8V63H0Z" transform="translate(2787 632)" fill="#233A54" fill-rule="evenodd"/>
+<path d="M0 63V0H8L42 47V0H50V63H42L8 16V63Z" transform="translate(2828 632)" fill="#233A54" fill-rule="evenodd"/>
+<path d="M0 63V0H8L41 47V0H49V63H41L8 16V63Z" transform="translate(2912 632)" fill="#233A54" fill-rule="evenodd"/>
+<path d="M31.5 0C48.896969625 0 63 14.103030375 63 31.5C63 48.896969625 48.896969625 63 31.5 63C14.103030375 63 0 48.896969625 0 31.5C0 14.103030375 14.103030375 0 31.5 0ZM31.5 7C44.478691624999996 7 55 17.969023625 55 31.5C55 45.030976375 44.478691624999996 56 31.5 56C18.521308375 56 8 45.030976375 8 31.5C8 17.969023625 18.521308375 7 31.5 7Z" transform="translate(2996 632)" fill="#233A54" fill-rule="evenodd"/>
+<path d="M0 0H9L28.5 51 48 0H57L32.5 63H24.5Z" transform="translate(3078 632)" fill="#233A54" fill-rule="evenodd"/>
+<path d="M0 63 25.5 0H33.5L59 63H50L43 45H16L9 63ZM19 38H40L29.5 10Z" transform="translate(3156 632)" fill="#233A54" fill-rule="evenodd"/>
+<path d="M0 0H48V7H28V63H20V7H0Z" transform="translate(3239 632)" fill="#233A54" fill-rule="evenodd"/>
+<path d="M0 0H8V63H0Z" transform="translate(3319 632)" fill="#233A54" fill-rule="evenodd"/>
+<path d="M30 0C46.5685425 0 60 14.103030375 60 31.5C60 48.896969625 46.5685425 63 30 63C13.4314575 63 0 48.896969625 0 31.5C0 14.103030375 13.4314575 0 30 0ZM30 7C42.1502645 7 52 17.969023625 52 31.5C52 45.030976375 42.1502645 56 30 56C17.8497355 56 8 45.030976375 8 31.5C8 17.969023625 17.8497355 7 30 7Z" transform="translate(3364 632)" fill="#233A54" fill-rule="evenodd"/>
+<path d="M0 63V0H8L42 47V0H50V63H42L8 16V63Z" transform="translate(3456 632)" fill="#233A54" fill-rule="evenodd"/>
+<path d="M1496 649C1506.49341025 649 1515 656.387301625 1515 665.5C1515 674.612698375 1506.49341025 682 1496 682C1485.50658975 682 1477 674.612698375 1477 665.5C1477 656.387301625 1485.50658975 649 1496 649Z" fill="#00AEEF" fill-rule="evenodd"/>
+<path d="M2685.5 648C2695.164983125 648 2703 655.835016875 2703 665.5C2703 675.164983125 2695.164983125 683 2685.5 683C2675.835016875 683 2668 675.164983125 2668 665.5C2668 655.835016875 2675.835016875 648 2685.5 648Z" fill="#00AEEF" fill-rule="evenodd"/>
+</svg>

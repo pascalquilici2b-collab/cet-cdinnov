@@ -1,0 +1,108 @@
+@import url('./tokens.css?v=20261019');
+body.cdi-sheets-app{font-family:var(--font-sans);color:var(--ink);background:var(--paper)}
+.cdi-sheets-app :is(button,input,select,textarea){font-family:inherit}
+.cdi-sheets-app :is(.sv-root,.bv-root){font-family:var(--font-sans);color:var(--ink)}
+.cdi-sheets-app .lucide{width:18px;height:18px;min-width:18px;flex-shrink:0;stroke-width:1.5;fill:none;vertical-align:middle}
+.cdi-sheets-app .rail-item .lucide{width:22px;height:22px;stroke-width:1.25;color:var(--cyan)}
+.cdi-sheets-app .rail-item svg.lucide-clock circle{fill:none}
+.cdi-sheets-app .rail-item svg.lucide-clock polyline{stroke:currentColor}
+.cdi-sheets-app :is(.rail,.workspace-sidebar,.document-header,.sv-view-subbar,.sv-query-bar,.bv-sidebar){background:var(--surface);border-color:var(--line)}
+.cdi-sheets-app :is(.rail-item,.rail-item>span,.rail-create>span,.icon-btn,.outline,.primary,.share-button,.sv-tool,.sv-view-button,.bv-tool){border-radius:var(--radius-button);box-shadow:none}
+.cdi-sheets-app .rail-item.active,.cdi-sheets-app .rail-item.active>span{background:var(--paper-tint);color:var(--ink)}
+.cdi-sheets-app :is(.primary,.share-button,.rail-create>span){background:var(--cyan);color:var(--on-cyan)}
+.cdi-sheets-app .home-main{background:var(--paper)}
+.cdi-sheets-app .home-scroll{padding:28px clamp(18px,2.5vw,48px) 0}
+.cdi-sheets-app .home-hero{max-width:none;margin:0 0 28px}
+.cdi-sheets-app .home-hero h1{text-align:left;font-size:clamp(26px,2.4vw,38px);font-weight:480;line-height:1.2;letter-spacing:-.045em;color:var(--ink)}
+.cdi-sheets-app .home-hero h1>span{background:none;color:var(--ink);-webkit-text-fill-color:var(--ink)}
+.cdi-sheets-app .home-hero>p:not(.home-note){text-align:left;color:var(--muted)}
+.cdi-sheets-app .home-search{background:var(--surface);border-color:var(--field-border);border-radius:var(--radius-field);box-shadow:none;color:var(--muted);height:86px}
+.cdi-sheets-app :is(.home-panel,.quick-card,.workspace-card,.sv-card,.modal,.sv-modal,.cloud-login){background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-field);box-shadow:none}
+.cdi-sheets-app .home-panel{max-width:none;padding:22px;margin-bottom:24px}
+.cdi-sheets-app .home-footer{max-width:none;color:var(--muted)}
+.cdi-sheets-app :is(.hero-actions>button,.home-panel .text-button,.home-footer a){border-radius:var(--radius-button);color:var(--cyan);background:transparent;border-color:var(--line)}
+.cdi-sheets-app .home-search>div>svg:last-child{color:var(--cyan)}
+.cdi-sheets-app .home-panel .item-icon{background:var(--paper-tint);color:var(--cyan);border-radius:var(--radius-field)}
+.cdi-sheets-app :is(.quick-card,.workspace-card,.sv-card):hover{box-shadow:none;border-color:var(--cyan)}
+.cdi-sheets-app .quick-grid,.cdi-sheets-app .spaces-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr))}
+.cdi-sheets-app .document-header{min-height:60px;height:auto;padding:10px 18px;flex-wrap:wrap}
+.cdi-sheets-app .document-name{color:var(--ink);font-weight:500;min-width:90px;max-width:min(48%,650px)}
+.cdi-sheets-app .sv-root{margin:0 18px 16px;border:1px solid var(--line);border-radius:var(--radius-field);overflow:hidden}
+.cdi-sheets-app :is(.sv-toolbar,.sv-format-toolbar){border-color:var(--line);background:var(--surface)}
+.cdi-sheets-app .sv-format-toolbar{flex-wrap:wrap;height:auto;row-gap:4px}
+.cdi-sheets-app :is(.sv-tool,.sv-view-button,.sv-add-row){min-height:36px}
+.cdi-sheets-app :is(.sv-tool:hover,.sv-tool.sv-active,.sv-view-button:hover){background:var(--paper-tint);color:var(--ink)}
+.cdi-sheets-app :is(.sv-grid th,.bv-table th){background:var(--paper-tint);color:var(--ink);border-color:var(--line)}
+.cdi-sheets-app .sv-grid-scroll,.cdi-sheets-app .bv-table-scroll{overscroll-behavior:contain}
+.cdi-sheets-app .sv-board{background:var(--paper)}
+.cdi-sheets-app .sv-side-panel{max-width:100%}
+.cdi-sheets-app .sv-query-bar{flex-wrap:wrap}
+.cdi-sheets-app .sv-search{max-width:100%;min-width:0}
+.cdi-sheets-app .cloud-gate{background:var(--paper)}
+.cdi-sheets-app .cloud-login{padding:32px;max-width:100%}
+.cdi-sheets-app .cloud-login h1{color:var(--ink);font-weight:480;letter-spacing:-.045em}
+.cdi-sheets-app .cloud-symbol{background:var(--paper-tint);color:var(--cyan);border-radius:var(--radius-field)}
+.cdi-sheets-app :is(.cloud-login input,.modal input,.modal select,.modal textarea,.sv-modal input,.sv-modal select,.sv-modal textarea){border-radius:var(--radius-field);border-color:var(--field-border)}
+.cdi-sheets-app :is(button,a,input,select,textarea):focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
+.cdi-sheets-app .cdi-app-header{height:64px;background:var(--surface);border-color:var(--line);font-family:var(--font-sans)}
+.cdi-sheets-app .cdi-portal-button{border-radius:var(--radius-button);background:var(--ink);border-color:var(--ink);font-size:12px;font-weight:650;min-height:44px}
+.cdi-sheets-app .cdi-portal-button:hover{background:var(--cyan);border-color:var(--cyan)}
+.cdi-sheets-app .cdi-app-home{color:var(--ink);font-size:13px;font-weight:650;letter-spacing:0}
+.cdi-sheets-app .cdi-app-home img{width:145px;height:auto;max-height:38px;object-fit:contain}
+.cdi-sheets-app .cdi-beta{border-radius:var(--radius-field);color:var(--muted);background:var(--paper-tint);border-color:var(--line);order:3}
+@media(min-width:1700px){.cdi-sheets-app .workspace-sidebar{width:280px}}
+@media(max-width:700px){
+ .cdi-sheets-app .app-shell{flex-direction:column;min-height:0}
+ .cdi-sheets-app .rail{width:100%;height:auto;min-height:60px;flex-direction:row;gap:2px;padding:4px 8px;overflow-x:auto;overflow-y:hidden;border-right:0;border-bottom:1px solid var(--line);flex-shrink:0}
+ .cdi-sheets-app .rail :is(.rail-item,.rail-create){width:58px;min-width:58px;min-height:48px;font-size:9px;gap:2px;padding:3px}
+ .cdi-sheets-app .rail-item>span{min-height:20px}
+ .cdi-sheets-app .rail-item .lucide{width:20px;height:20px}
+ .cdi-sheets-app .rail-create>span{width:22px;height:22px}
+ .cdi-sheets-app .rail-rule{width:1px;min-width:1px;height:30px;margin:0 4px}
+ .cdi-sheets-app .rail-bottom{margin:0 0 0 auto;flex-direction:row;gap:4px}
+ .cdi-sheets-app .navigation-popover{left:8px;top:128px;max-width:calc(100vw - 16px);max-height:calc(100dvh - 145px);overflow:auto}
+ .cdi-sheets-app .home-scroll{padding:18px 12px 0}
+ .cdi-sheets-app .home-panel{padding:16px;margin-bottom:18px}
+ .cdi-sheets-app .home-hero{margin-bottom:22px}
+ .cdi-sheets-app .home-help{flex-wrap:wrap;gap:8px;height:auto;min-height:40px}
+ .cdi-sheets-app .quick-grid,.cdi-sheets-app .spaces-grid{grid-template-columns:minmax(0,1fr)}
+ .cdi-sheets-app .quick-actions .icon-btn{display:inline-flex}
+ .cdi-sheets-app .home-footer{flex-wrap:wrap;gap:10px}
+ .cdi-sheets-app .document-header{gap:6px;padding:8px 10px;min-height:50px}
+ .cdi-sheets-app .document-name{max-width:calc(100% - 95px);font-size:15px;flex:1}
+ .cdi-sheets-app .document-header .save-state{font-size:10px}
+ .cdi-sheets-app .document-header .share-button{font-size:11px;color:var(--on-cyan);min-height:40px}
+ .cdi-sheets-app .document-header .share-button>span{display:inline}
+ .cdi-sheets-app .sv-root{margin:0 6px 6px}
+ .cdi-sheets-app :is(.sv-toolbar,.sv-format-toolbar){padding:4px;gap:2px}
+ .cdi-sheets-app :is(.sv-tool,.sv-view-button,.sv-add-row,.icon-btn){min-height:40px}
+ .cdi-sheets-app .sv-view-subbar{flex-wrap:wrap;gap:8px;padding:8px}
+ .cdi-sheets-app .sv-view-subbar>div{flex-wrap:wrap}
+ .cdi-sheets-app .sv-footer{gap:8px;padding:0 8px;font-size:10px}
+ .cdi-sheets-app .sv-gantt-task,.cdi-sheets-app .sv-gantt-task-head{width:170px;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:28px 28px}
+ .cdi-sheets-app .sv-gantt-head{height:56px}
+ .cdi-sheets-app .sv-gantt-row{height:58px}
+ .cdi-sheets-app .sv-gantt-task>span,.cdi-sheets-app .sv-gantt-task-head>span{height:28px;padding:4px 6px;font-size:10px}
+ .cdi-sheets-app .sv-gantt-task>span:first-child,.cdi-sheets-app .sv-gantt-task-head>span:first-child{grid-column:1/-1;width:100%;border-bottom:1px solid var(--line)}
+ .cdi-sheets-app .sv-gantt-bar{top:19px}
+ .cdi-sheets-app .sv-calendar{min-width:100%}
+ .cdi-sheets-app .sv-calendar-weekdays span{padding:10px 3px;font-size:9px;overflow:hidden;text-overflow:ellipsis}
+ .cdi-sheets-app .sv-calendar-days>section{padding:5px 2px}
+ .cdi-sheets-app .sv-calendar-task{padding:4px 2px;font-size:9px!important;white-space:normal;overflow-wrap:anywhere;line-height:1.4}
+ .cdi-sheets-app .bv-root{flex-direction:column}
+ .cdi-sheets-app .bv-sidebar{width:100%;max-height:190px;flex-shrink:0;border-right:0;border-bottom:1px solid var(--line)}
+ .cdi-sheets-app .bv-content{padding:0 8px;min-height:0}
+ .cdi-sheets-app .bv-toolbar{height:auto;flex-wrap:wrap;padding:8px;gap:8px}
+ .cdi-sheets-app :is(.modal,.sv-modal){max-width:calc(100vw - 16px);max-height:calc(100dvh - 24px)}
+ .cdi-sheets-app :is(.modal-body,.sv-modal-body){padding:16px}
+ .cdi-sheets-app :is(.cloud-login input,.modal input,.modal select,.modal textarea,.sv-modal input,.sv-modal select,.sv-modal textarea){font-size:16px;min-height:44px}
+ .cdi-sheets-app .modal-actions{flex-wrap:wrap}
+ .cdi-sheets-app .cloud-gate{padding:24px 12px}
+ .cdi-sheets-app .cloud-login{padding:24px}
+ .cdi-sheets-app .cdi-app-header{gap:10px;padding-inline:10px}
+ .cdi-sheets-app .cdi-app-home{gap:6px}
+ .cdi-sheets-app .cdi-app-home img{display:none}
+ .cdi-sheets-app .cdi-portal-button{padding-inline:9px}
+}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+@media print{.cdi-sheets-app .rail{display:none}.cdi-sheets-app .app-shell{height:auto;overflow:visible}.cdi-sheets-app .sv-root{border:0}}

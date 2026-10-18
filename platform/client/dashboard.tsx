@@ -2,6 +2,7 @@ import {useEffect, useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import type {DashboardAction, DashboardData, DocumentSummary} from '../dashboard-contracts';
 import './dashboard.css';
+import {Icon} from './icon';
 
 interface Props {load:(week:string,signal:AbortSignal)=>Promise<DashboardData>; open:(action:DashboardAction)=>Promise<void>|void;}
 const add=(day:string,n:number)=>new Date(Date.parse(day+'T12:00:00Z')+n*86400000).toISOString().slice(0,10);
@@ -38,7 +39,7 @@ function Dashboard({load,open}:Props){
     <header className="db-panel-head"><div><span className="db-eyebrow">{kind==='invoice'?'Facturation':data?.admin?'Dépenses de l’équipe':'Mes dépenses'}</span><h2 id={'db-'+kind+'-title'}>{kind==='invoice'?'Dernières factures':'Dernières notes de frais'}</h2></div>
       <button className="db-link" onClick={()=>navigate({kind:kind==='invoice'?'invoices':'expenses'})}>Tout voir <span aria-hidden="true">↗</span></button></header>
     {items.length?<div className="db-document-list">{items.map(item=><button key={item.id} className="db-document" disabled={opening} onClick={()=>navigate({kind,id:item.id})}>
-      <span className="db-file-icon" aria-hidden="true">{kind==='invoice'?'F':'N'}</span><span className="db-document-main"><strong>{item.number||'Sans numéro'}</strong><span>{item.label||'Sans libellé'}</span><small>{item.dateSource==='created'?'Créée le ':'Datée du '}{date(item.date)}</small></span>
+      <span className="db-file-icon" aria-hidden="true"><Icon name={kind==='invoice'?'file':'wallet'}/></span><span className="db-document-main"><strong>{item.number||'Sans numéro'}</strong><span>{item.label||'Sans libellé'}</span><small>{item.dateSource==='created'?'Créée le ':'Datée du '}{date(item.date)}</small></span>
       <span className="db-document-value"><strong>{euro(item.amount)}{kind==='invoice'&&<small> HT</small>}</strong><span className={'db-status '+(item.status==='Payée'?'is-paid':'')}>{item.status}</span></span><span className="db-chevron" aria-hidden="true">›</span>
     </button>)}</div>:<p className="db-empty">{kind==='invoice'?'Aucune facture enregistrée.':'Aucune note de frais enregistrée.'}</p>}
     {items.some(item=>item.dateSource==='document')&&<p className="db-footnote">Pour les anciens documents, le classement utilise la date du document, la date de création n’étant pas disponible.</p>}
@@ -46,7 +47,7 @@ function Dashboard({load,open}:Props){
 
   return <div className="cdi-dashboard" aria-busy={busy}>
     <div className="db-heading"><div><span className="db-eyebrow">CDInnov · Vue d’ensemble</span><h2>L’activité de votre équipe</h2><p>{date(data?.today||parisDay(),{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</p></div>
-      <div className="db-update"><button className="db-button" disabled={busy} onClick={()=>refresh(r=>r+1)}><span aria-hidden="true">↻</span> {busy?'Actualisation…':'Actualiser'}</button>{data&&<small>Mis à jour à {date(data.generatedAt,{hour:'2-digit',minute:'2-digit'})}</small>}</div>
+      <div className="db-update"><button className="db-button" disabled={busy} onClick={()=>refresh(r=>r+1)}><Icon name="refresh"/> {busy?'Actualisation…':'Actualiser'}</button>{data&&<small>Mis à jour à {date(data.generatedAt,{hour:'2-digit',minute:'2-digit'})}</small>}</div>
     </div>
     {error&&<div className="db-error" role="alert"><strong>Actualisation indisponible.</strong> {error} {data&&'Les informations ci-dessous proviennent de la dernière lecture.'}<button onClick={()=>refresh(r=>r+1)}>Réessayer</button></div>}
     {actionError&&<div className="db-error" role="alert">{actionError}</div>}

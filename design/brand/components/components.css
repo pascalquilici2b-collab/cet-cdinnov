@@ -1,0 +1,80 @@
+/* CDInnov — composants (valeurs reprises de www.cdinnov.eu) */
+.cdi-root{font-family:var(--font-sans);color:var(--ink);background:var(--paper);-webkit-font-smoothing:antialiased}
+.cdi-root *{box-sizing:border-box}
+:where(.cdi-root) a{color:inherit;text-decoration:none}
+:where(.cdi-root) :focus-visible{outline:2px solid var(--cyan);outline-offset:6px}
+
+/* Bouton */
+.cdi-button{display:inline-flex;align-items:center;gap:30px;padding:var(--button-y) var(--button-x);border:1px solid var(--cyan);border-radius:var(--radius-button);background:var(--cyan);color:var(--on-cyan);font:inherit;font-size:11px;font-weight:650;cursor:pointer;transition:box-shadow .25s,background .25s,transform .25s}
+.cdi-button svg{width:15px;height:15px;stroke:currentColor;stroke-width:1.4px;fill:none}
+.cdi-button:hover,.cdi-button.is-hover{background:var(--cyan-hover);border-color:var(--cyan-hover);transform:translateY(-2px);box-shadow:var(--shadow-glow)}
+.cdi-button--ink{background:var(--ink);border-color:var(--ink);color:var(--paper);font-size:12px;padding:17px 23px}
+.cdi-button--ink:hover,.cdi-button--ink.is-hover{background:var(--cyan);border-color:var(--cyan);color:var(--on-cyan);transform:none;box-shadow:none}
+
+/* Lien texte */
+.cdi-text-link{display:inline-flex;align-items:center;gap:30px;padding:12px 0;border-bottom:1px solid;font-size:12px;transition:color .2s}
+.cdi-text-link svg{width:15px;height:15px;stroke:currentColor;stroke-width:1.3px;fill:none;transition:transform .25s}
+.cdi-text-link:hover,.cdi-text-link.is-hover{color:var(--cyan)}
+.cdi-text-link:hover svg,.cdi-text-link.is-hover svg{transform:translate(3px,-3px)}
+
+/* Filtres */
+.cdi-filters{display:flex;flex-wrap:wrap;gap:var(--stack-md);padding:20px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.cdi-filter{padding:10px 19px;border:1px solid transparent;border-radius:var(--radius-pill);background:none;color:var(--muted);font:inherit;font-size:11px;cursor:pointer;transition:background .2s,color .2s}
+.cdi-filter:hover{border-color:var(--cyan)}
+.cdi-filter[aria-pressed=true]{background:var(--cyan);color:var(--on-cyan)}
+
+/* Champ de formulaire */
+.cdi-field{display:block;min-width:0;color:var(--ink);font-size:12px;font-weight:650}
+.cdi-field>span{color:var(--cyan)}
+.cdi-field input,.cdi-field select,.cdi-field textarea{display:block;width:100%;min-height:47px;margin-top:10px;padding:var(--field-y) var(--field-x);border:1px solid var(--field-border);border-radius:var(--radius-field);background:var(--surface);color:var(--ink);font:inherit;font-size:16px;font-weight:450;transition:border-color .2s}
+.cdi-field input:focus,.cdi-field select:focus,.cdi-field textarea:focus{outline:2px solid var(--cyan);outline-offset:3px;border-color:var(--cyan)}
+.cdi-field ::placeholder{color:var(--muted);opacity:1}
+.cdi-field small{display:block;margin-top:8px;color:var(--muted);font-size:11px;font-weight:400;line-height:1.7}
+
+/* Interrupteur */
+.cdi-switch{display:flex;align-items:center;justify-content:space-between;gap:20px;font-size:14px;font-weight:650;line-height:1.5}
+.cdi-switch input{appearance:none;position:relative;flex:0 0 44px;width:44px;height:25px;margin:0;border:1px solid var(--field-border);border-radius:20px;background:var(--switch-off);cursor:pointer;transition:background .18s}
+.cdi-switch input:after{content:"";position:absolute;top:3px;left:3px;width:17px;height:17px;border-radius:50%;background:#fff;box-shadow:0 1px 4px #1a416c38;transition:transform .18s}
+.cdi-switch input:checked{background:var(--cyan);border-color:var(--cyan)}
+.cdi-switch input:checked:after{transform:translateX(19px)}
+.cdi-switch input:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
+
+/* Surtitre de section */
+.cdi-kicker{display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:11px;font-weight:550;letter-spacing:.13em;text-transform:uppercase;line-height:1.6}
+.cdi-kicker>span:first-child{display:inline-flex;align-items:center;gap:14px;color:var(--cyan)}
+.cdi-kicker svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.25;stroke-linecap:round;stroke-linejoin:round}
+.cdi-label{display:inline-block;padding:6px 12px;border-left:3px solid var(--cyan);border-radius:0 var(--radius-label) var(--radius-label) 0;background:var(--highlight);color:var(--ink);font-size:11px;font-weight:550;letter-spacing:.07em;text-transform:uppercase}
+
+/* Ligne métier dépliable */
+.cdi-row{border-top:1px solid var(--line)}
+.cdi-row:last-child{border-bottom:1px solid var(--line)}
+.cdi-row summary{display:grid;grid-template-columns:55px 1fr 30px;align-items:center;gap:22px;padding:var(--row-y) 0;list-style:none;cursor:pointer}
+.cdi-row summary::-webkit-details-marker{display:none}
+.cdi-row .cdi-row-icon{width:33px;height:33px;color:var(--cyan);fill:none;stroke:currentColor;stroke-width:1.25;stroke-linecap:round;stroke-linejoin:round}
+.cdi-row h3{margin:0;font-size:39px;font-weight:450;line-height:1.2;letter-spacing:-.045em;transition:color .25s,transform .3s}
+.cdi-row summary:hover h3,.cdi-row[open] h3{color:var(--cyan);transform:translate(5px)}
+.cdi-row .cdi-row-toggle{width:20px;height:20px;position:relative;color:var(--cyan)}
+.cdi-row .cdi-row-toggle:before,.cdi-row .cdi-row-toggle:after{content:"";position:absolute;background:currentColor}
+.cdi-row .cdi-row-toggle:before{left:0;top:9px;width:20px;height:1px}
+.cdi-row .cdi-row-toggle:after{left:9px;top:0;width:1px;height:20px;transition:transform .25s}
+.cdi-row[open] .cdi-row-toggle:after{transform:scaleY(0)}
+.cdi-row-body{display:grid;grid-template-columns:55px 1fr 1fr;gap:22px;align-items:start;padding:0 0 var(--row-y)}
+.cdi-row-copy{grid-column:2}
+.cdi-row-copy .cdi-verb{margin:0 0 8px;color:var(--ink);font-size:16px;font-weight:650;line-height:1.45}
+.cdi-row-copy p{margin:0;color:var(--muted);font-size:14px;line-height:1.9}
+.cdi-row-body ul{grid-column:3;margin:0;padding:0;list-style:none}
+.cdi-row-body li:first-child{padding-top:0}
+.cdi-row-body li{padding:10px 0;border-bottom:1px solid var(--line);font-size:12px;line-height:1.8}
+
+/* Pied de page de marque */
+.cdi-footer{padding:68px var(--gutter-max) 34px;background:var(--navy);color:#fff}
+.cdi-footer-columns{display:grid;grid-template-columns:1.55fr .65fr 1fr;gap:60px;padding-bottom:50px;border-bottom:1px solid #ffffff30}
+.cdi-footer-logo{width:190px;filter:brightness(0) invert()}
+.cdi-footer p{max-width:485px;margin:24px 0;color:#eef6fd;font-size:13px;line-height:1.95}
+.cdi-footer h2{margin:9px 0 25px;color:#a2d8ee;font-size:11px;font-weight:650;letter-spacing:.1em;text-transform:uppercase}
+.cdi-footer nav{display:grid;gap:12px}
+.cdi-footer a{font-size:13px;line-height:1.6}
+.cdi-footer a:hover{color:#92e3f7}
+.cdi-footer h3{margin:0 0 3px;font-size:14px;font-weight:650}
+.cdi-footer address{display:flex;flex-direction:column;gap:6px;margin-bottom:22px;font-style:normal;font-size:13px}
+.cdi-footer-bottom{display:flex;justify-content:space-between;gap:20px;padding-top:24px;font-size:11px}
