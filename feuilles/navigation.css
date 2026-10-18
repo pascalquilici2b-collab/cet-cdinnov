@@ -1,0 +1,68 @@
+/* Shared navigation stays visible on the login, home and sheet screens. */
+:root { --cdi-header-height: 64px; }
+
+.cdi-app-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  height: var(--cdi-header-height);
+  padding: 8px 18px;
+  background: #fff;
+  border-bottom: 1px solid #d9e0eb;
+}
+
+.cdi-portal-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 44px;
+  padding: 10px 16px;
+  border: 1px solid #1e2a6e;
+  border-radius: 8px;
+  background: #1e2a6e;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.cdi-portal-button:hover { background: #1369a3; border-color: #1369a3; }
+.cdi-portal-button svg { stroke-width: 2; }
+
+.cdi-app-home {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 4px;
+  border-radius: 6px;
+  color: #1e2a6e;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: .5px;
+  text-decoration: none;
+}
+
+.cdi-app-home img { display: block; }
+.cdi-app-home:hover { background: #e9f4fc; }
+.cdi-app-header a:focus-visible { outline: 3px solid #1786c9; outline-offset: 3px; }
+
+#root { height: calc(100% - var(--cdi-header-height)); }
+.app-shell { height: calc(100dvh - var(--cdi-header-height)); }
+.cloud-gate { top: var(--cdi-header-height); }
+/* These older links are superseded by the permanent header. */
+.cloud-return, .home-help .cloud-portal-link { display: none; }
+
+@media (max-width: 480px) {
+  .cdi-app-header { gap: 12px; padding-inline: 10px; }
+  .cdi-portal-button { gap: 6px; padding-inline: 10px; font-size: 12px; }
+  .cdi-app-home { gap: 6px; font-size: 12px; letter-spacing: 0; }
+  .cdi-app-home img { width: 26px; height: 26px; }
+}
+
+@media print { .cdi-app-header { display: none; } }
