@@ -1,0 +1,2 @@
+Tesseract tessdata_fast French and English; Apache License 2.0. https://github.com/tesseract-ocr/tessdata_fast
+Downloaded from tessdata.projectnaptha.com/4.0.0_fast/.

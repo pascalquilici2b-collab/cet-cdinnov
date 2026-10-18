@@ -530,6 +530,9 @@ body:has(.agenda-shell) .topbar{flex-wrap:wrap;row-gap:12px}
 @media(max-width:1000px){.mk-overview{grid-template-columns:repeat(3,1fr)}.mk-overview p{grid-column:1/-1;max-width:none}.mk-heading h1{font-size:26px}.mk-tabs button{padding:12px}.mk-panel{padding:22px}}
 @media(max-width:650px){.mk-heading{align-items:flex-start;flex-direction:column;gap:12px}.mk-fields,.mk-source{grid-template-columns:1fr}.mk-wide{grid-column:auto}.mk-panel{padding:18px 14px}.mk-rule{padding:16px 12px}.mk-editbar{align-items:flex-start;flex-direction:column}.mk-editbar>div{width:100%}.mk-editbar button{flex:1}.mk-list-tools{flex-wrap:wrap}.mk-list-tools label{flex-basis:100%}.mk-list-tools input{flex:1;min-width:0}.mk-validation{grid-template-columns:1fr;padding:18px}.mk-doc-list article{flex-direction:column;align-items:flex-start}.mk-doc-list article>div:last-child{flex-direction:row;gap:15px}.mk-overview{gap:15px}.mk-overview strong{font-size:28px}.mk-root{min-width:0}}
 @media(prefers-reduced-motion:reduce){.mk-root *{scroll-behavior:auto;transition:none}}
+.mk-setup-heading h2{font:600 28px var(--font-head);letter-spacing:-.6px;margin:8px 0}.mk-setup-heading p{max-width:720px;line-height:1.7;color:#587086}.mk-steps{display:flex;list-style:none;padding:0;margin:28px 0;gap:24px;border-block:1px solid var(--mk-line)}.mk-steps li{display:flex;gap:10px;align-items:center;padding:18px 0;font-size:13px}.mk-steps b{border-radius:50%;background:#dff2fb;color:#005f8c;width:28px;height:28px;display:grid;place-items:center}.mk-source-selection{display:grid;gap:1px;margin-bottom:24px}.mk-source-selection label{display:flex;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--mk-line);font-size:13px}.mk-source-selection span{min-width:0;overflow-wrap:anywhere}.mk-source-selection small,.mk-muted{display:block;font-size:12px;line-height:1.6;color:#60788c}.mk-ai-launch{display:flex;gap:24px;align-items:center;justify-content:space-between;background:#eef7fc;border-left:4px solid #00aeef;padding:24px}.mk-ai-launch p{font-size:13px;line-height:1.65;margin:8px 0}.mk-ai-launch small,.mk-apply small{display:block;font-size:12px;line-height:1.65;color:#5d7485}.mk-ai-launch>div:first-child{max-width:680px}.mk-ai-launch>div:last-child{min-width:190px}.mk-ai-progress{padding:16px 0;line-height:1.6;font-size:13px;color:#006d9a}.mk-ai-counts{display:flex;flex-wrap:wrap;gap:30px;padding:20px 0}.mk-ai-counts strong{display:block;font:600 30px var(--font-head)}.mk-ai-counts span{font-size:12px;color:#60788c}.mk-ai-result{border-top:1px solid var(--mk-line);padding-top:24px}.mk-ai-result>p{line-height:1.7;font-size:13px}.mk-ai-proposals>div{display:grid;gap:7px;border-bottom:1px solid var(--mk-line);padding:16px 0;font-size:13px}.mk-ai-proposals small{color:#687e8f;font-size:12px;line-height:1.6;overflow-wrap:anywhere}.mk-apply{margin-top:24px;padding:24px;background:#f3f7fa;font-size:13px;line-height:1.7}.mk-apply .mk-check{display:flex;gap:10px;align-items:center;margin:10px 0}.mk-apply button{margin:12px 0}.mk-rule-actions{display:flex;align-items:center;gap:16px;border-top:1px solid var(--mk-line);margin-top:18px;padding-top:18px}.mk-rule-actions small{color:#5c7487;font-size:12px}@media(max-width:700px){.mk-ai-launch{flex-direction:column;align-items:stretch;padding:18px}.mk-steps{gap:12px}.mk-steps li{flex-direction:column;align-items:flex-start;font-size:11px;flex:1}.mk-setup-heading h2{font-size:24px}.mk-rule-actions{flex-direction:column;align-items:stretch}.mk-ai-counts{gap:20px}}
+
+.mk-ai-proposals>div{min-width:0;overflow-wrap:anywhere}.mk-ai-proposals span{white-space:pre-wrap}.mk-panel,.mk-ai-result{min-width:0;max-width:100%;box-sizing:border-box}
 </style>
 </head>
 <body>
@@ -4367,6 +4370,7 @@ function agendaNotificationHTML(t){
   var TYPES = { framework: "Accord-cadre \xE0 bons de commande", fixed: "March\xE9 forfaitaire", quote: "Devis accept\xE9", mixed: "March\xE9 mixte" };
   var UNITS = { day: "Jour", hour: "Heure", flat: "Forfait", unit: "Unit\xE9" };
   var BILLING = { actual: "Au r\xE9el", fixed: "Forfait", milestone: "Jalon", schedule: "\xC9ch\xE9ancier", mixed: "Mixte" };
+  var CONDITIONS = { payment: "Paiement", billing: "Facturation / \xE9ch\xE9ancier", orders: "Bons de commande", revision: "R\xE9vision des prix", expenses: "Frais et d\xE9placements", deliverables: "Livrables", report: "Relev\xE9s d\u2019intervention", tax: "TVA", other: "Autre condition" };
   function minor(value) {
     if (value === "" || value === null || value === void 0) return null;
     const s2 = String(value).trim().replace(/\s/g, "").replace(",", ".");
@@ -4410,7 +4414,7 @@ function agendaNotificationHTML(t){
     return r;
   }
   function emptyMarket() {
-    return { title: "", reference: "", clientName: "", clientId: "", type: "framework", currency: "EUR", status: "draft", billingMode: "actual", notificationDate: "", periodBasis: "unknown", renewalMode: "unknown", renewalCount: null, noMinimum: false, minimumMinor: null, feesIncluded: false, notes: "", prices: [], ceilings: [], periods: [], issues: [] };
+    return { title: "", reference: "", clientName: "", clientId: "", type: "framework", currency: "EUR", status: "draft", billingMode: "actual", notificationDate: "", periodBasis: "unknown", renewalMode: "unknown", renewalCount: null, noMinimum: false, minimumMinor: null, feesIncluded: false, notes: "", prices: [], ceilings: [], periods: [], issues: [], conditions: [] };
   }
   function validateMarket(input, documents2 = []) {
     if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("Fiche de march\xE9 invalide.");
@@ -4472,6 +4476,9 @@ function agendaNotificationHTML(t){
       if (r.status === "resolved" && !r.resolution) throw new Error("Expliquez la r\xE9solution du point \xE0 confirmer.");
       return r;
     });
+    const conditions2 = input.conditions ?? [];
+    if (!Array.isArray(conditions2) || conditions2.length > 150 || new Set(conditions2.map((v) => v?.id)).size !== conditions2.length) throw new Error("Liste de conditions invalide.");
+    m.conditions = conditions2.map((v) => ({ ...common(v, ids), category: choice(v.category, Object.keys(CONDITIONS), "Condition"), label: text(v.label, "Intitul\xE9 de condition", 240, true), value: text(v.value, "Condition contractuelle", 4e3, true) }));
     if (m.status === "validated") {
       const blockers = activationBlockers(m);
       if (blockers.length) throw new Error("Param\xE9trage non validable : " + blockers.join(" ; "));
@@ -4488,15 +4495,53 @@ function agendaNotificationHTML(t){
     if (m.renewalMode === "unknown") b.push("reconduction \xE0 pr\xE9ciser");
     if (m.type === "framework" && !m.ceilings.some((r) => r.status === "validated")) b.push("plafond \xE0 valider");
     else if (m.ceilings.some((r) => r.status !== "validated")) b.push("plafonds encore \xE0 v\xE9rifier");
+    if ((m.conditions || []).some((r) => r.status !== "validated")) b.push("conditions contractuelles encore \xE0 v\xE9rifier");
     if (m.issues.some((r) => r.blocking && r.status === "open")) b.push("point contractuel bloquant non r\xE9solu");
     return b;
   }
 
+  // marches/ai-domain.mjs
+  var normalize = (s2) => String(s2 ?? "").normalize("NFKC").toLowerCase().replace(/\s+/g, " ").trim();
+  var listKey = (section, r) => section === "prices" ? [r.label, r.profile, r.location, r.unit, r.startDate, r.endDate].map(normalize).join("|") : section === "ceilings" ? [r.label, r.scope, r.periodId].map(normalize).join("|") : section === "periods" ? normalize(r.label) : section === "conditions" ? [r.category, r.label].map(normalize).join("|") : normalize(r.title);
+  var sameRule = (section, a, b) => JSON.stringify(section === "prices" ? [a.amountMinor, a.unit] : section === "ceilings" ? [a.amountMinor, a.basis, a.consumptionBasis] : section === "periods" ? [a.startDate, a.endDate] : section === "conditions" ? normalize(a.value) : normalize(a.detail)) === JSON.stringify(section === "prices" ? [b.amountMinor, b.unit] : section === "ceilings" ? [b.amountMinor, b.basis, b.consumptionBasis] : section === "periods" ? [b.startDate, b.endDate] : section === "conditions" ? normalize(b.value) : normalize(b.detail));
+  function issue(title, detail, source2, blocking = true) {
+    return { id: crypto.randomUUID(), title: title.slice(0, 240), detail: detail.slice(0, 2500), blocking, status: "open", resolution: "", source: source2 || { documentId: "", locator: "", note: "" } };
+  }
+  function mergeProposal(current, result, replaceSections = []) {
+    const m = structuredClone(current);
+    m.conditions ??= [];
+    for (const section of ["prices", "ceilings", "periods", "conditions", "issues"]) m[section] ??= [];
+    const addIssue = (r) => {
+      if (!m.issues.some((i) => normalize(i.title) === normalize(r.title))) m.issues.push(r);
+    };
+    for (const f of result.facts || []) {
+      if (f.conflict) continue;
+      const vacant = m[f.field] === null || m[f.field] === "" || m[f.field] === "unknown" || ["March\xE9 \xE0 identifier", "Client \xE0 identifier"].includes(m[f.field]);
+      if (vacant || replaceSections.includes("summary")) m[f.field] = f.value;
+      else if (JSON.stringify(m[f.field]) !== JSON.stringify(f.value)) addIssue(issue("V\xE9rifier : " + f.field, "La fiche contient " + JSON.stringify(m[f.field]) + ", la pi\xE8ce propose " + JSON.stringify(f.value) + ". Ajustez la fiche si n\xE9cessaire.", f.source));
+    }
+    for (const section of ["prices", "ceilings", "periods", "conditions"]) {
+      if (replaceSections.includes(section)) {
+        m[section] = structuredClone(result[section] || []);
+        continue;
+      }
+      for (const r of result[section] || []) {
+        const existing = m[section].find((x) => listKey(section, x) === listKey(section, r));
+        if (!existing) m[section].push(structuredClone(r));
+        else if (!sameRule(section, existing, r)) addIssue(issue("V\xE9rifier : " + r.label, "La r\xE8gle d\xE9j\xE0 saisie a \xE9t\xE9 conserv\xE9e. Proposition IA : " + JSON.stringify(r).slice(0, 1800), r.source));
+      }
+    }
+    for (const r of result.issues || []) addIssue(structuredClone(r));
+    if (m.noMinimum) m.minimumMinor = null;
+    m.status = "draft";
+    return m;
+  }
+
   // marches/ui.js
   var labels = { draft: "En pr\xE9paration", validated: "Param\xE9trage valid\xE9", archived: "Archiv\xE9" };
-  var tabs = { summary: "Fiche march\xE9", documents: "Pi\xE8ces", prices: "Tarifs", ceilings: "Plafonds", periods: "P\xE9riodes", issues: "Points \xE0 confirmer", history: "Historique" };
+  var tabs = { setup: "Assistant de param\xE9trage", summary: "Fiche march\xE9", documents: "Pi\xE8ces", prices: "Tarifs", ceilings: "Plafonds", periods: "P\xE9riodes", conditions: "Facturation et conditions", issues: "Points \xE0 confirmer", history: "Historique" };
   var kinds = { ae: "Acte d\u2019engagement", price: "Bordereau de prix", clauses: "Clauses / CCTP / CCAP", notification: "Notification", amendment: "Avenant", renewal: "Reconduction", offer: "Offre / devis", other: "Autre pi\xE8ce" };
-  var s = { rows: [], clients: [], current: null, docs: [], tab: "summary", dirty: false, busy: false, error: "", notice: "", loaded: false, history: null, epoch: 0, query: "" };
+  var s = { rows: [], clients: [], current: null, docs: [], tab: "summary", dirty: false, busy: false, error: "", notice: "", loaded: false, history: null, analysis: null, readings: [], ai: null, progress: "", stop: false, epoch: 0, query: "" };
   var html = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
   var el = (id) => document.getElementById(id);
   var uid = () => crypto.randomUUID();
@@ -4512,7 +4557,7 @@ function agendaNotificationHTML(t){
   async function api(path = "", options = {}) {
     const user = AUTH_USER, epoch = s.epoch, session = await budgetsEnsureSession();
     if (user !== AUTH_USER || epoch !== s.epoch) throw new Error("La session a chang\xE9.");
-    const response = await fetch(budgetsApi() + "/markets" + path, { ...options, headers: { Authorization: "Bearer " + session.token, ...options.body instanceof FormData ? {} : { "Content-Type": "application/json" }, ...options.headers }, cache: "no-store", signal: AbortSignal.timeout(6e4) });
+    const response = await fetch(budgetsApi() + "/markets" + path, { ...options, headers: { Authorization: "Bearer " + session.token, ...options.body instanceof FormData ? {} : { "Content-Type": "application/json" }, ...options.headers }, cache: "no-store", signal: AbortSignal.timeout(15e4) });
     if (user !== AUTH_USER || epoch !== s.epoch) throw new Error("La session a chang\xE9.");
     if (options.binary && response.ok) return response.blob();
     let data;
@@ -4529,7 +4574,10 @@ function agendaNotificationHTML(t){
   }
   function setBusy(b) {
     s.busy = b;
+    const stop = document.querySelector('[data-action="stop-analysis"]');
+    if (stop) stop.hidden = !b;
     document.querySelectorAll("#marketRoot button,#marketRoot input,#marketRoot select,#marketRoot textarea").forEach((e) => {
+      if (e.dataset.action === "stop-analysis") return;
       if (b) {
         if (e.dataset.wasDisabled === void 0) e.dataset.wasDisabled = String(e.disabled);
         e.disabled = true;
@@ -4547,10 +4595,14 @@ function agendaNotificationHTML(t){
     if (el("marketMessage")) el("marketMessage").replaceChildren();
   }
   function safeLeave() {
+    if (s.busy) {
+      alert("Une op\xE9ration est en cours. Utilisez \xAB Arr\xEAter apr\xE8s ce passage \xBB avant de quitter.");
+      return false;
+    }
     return !s.dirty || confirm("Des modifications de march\xE9 ne sont pas enregistr\xE9es. Quitter cette fiche ?");
   }
   function forget() {
-    s = { rows: [], clients: [], current: null, docs: [], tab: "summary", dirty: false, busy: false, error: "", notice: "", loaded: false, history: null, epoch: s.epoch + 1, query: "" };
+    s = { rows: [], clients: [], current: null, docs: [], tab: "summary", dirty: false, busy: false, error: "", notice: "", loaded: false, history: null, analysis: null, readings: [], ai: null, progress: "", stop: false, epoch: s.epoch + 1, query: "" };
   }
   async function enter() {
     if (!allowed()) {
@@ -4587,13 +4639,17 @@ function agendaNotificationHTML(t){
     try {
       const r = await api("/" + id);
       if (epoch !== s.epoch) return;
-      s.current = r.market;
+      s.current = { ...r.market, conditions: r.market.conditions || [] };
       s.docs = r.documents;
-      s.tab = "summary";
+      s.tab = "setup";
+      s.analysis = null;
+      s.readings = [];
+      s.ai = null;
       s.dirty = false;
       s.error = "";
       s.notice = "";
       s.history = null;
+      await loadAnalysis();
       render();
     } catch (e) {
       if (epoch === s.epoch) error(e.message);
@@ -4605,7 +4661,10 @@ function agendaNotificationHTML(t){
     if (!safeLeave()) return;
     s.current = { ...emptyMarket(), id: uid(), version: 0 };
     s.docs = [];
-    s.tab = "summary";
+    s.tab = "setup";
+    s.analysis = null;
+    s.readings = [];
+    s.ai = null;
     s.dirty = false;
     s.error = "";
     s.notice = "";
@@ -4671,13 +4730,13 @@ function agendaNotificationHTML(t){
     }).join("") + '<button class="mk-secondary" type="button" data-add="periods">+ Ajouter une p\xE9riode</button>';
   }
   function issues() {
-    return '<div class="mk-section-title"><h2>Points \xE0 confirmer</h2><p>Conservez les contradictions et la d\xE9cision retenue. Seuls les points marqu\xE9s bloquants emp\xEAchent de valider le param\xE9trage.</p></div>' + s.current.issues.map((r, i) => {
+    return '<div class="mk-section-title"><h2>Points \xE0 confirmer</h2><p>Renseignez la d\xE9cision retenue, puis cliquez sur \xAB Valider ce point \xBB. La d\xE9cision est enregistr\xE9e imm\xE9diatement. Ajustez aussi les param\xE8tres concern\xE9s si n\xE9cessaire.</p></div>' + (!s.current.issues.length ? '<div class="mk-empty">Aucun point \xE0 confirmer.</div>' : "") + s.current.issues.map((r, i) => {
       const p = "issues." + i;
-      return '<article class="mk-rule"><div class="mk-rule-top"><strong>Point ' + (i + 1) + '</strong><button class="mk-link" data-remove="' + p + '" type="button">Retirer</button></div><div class="mk-fields">' + field(p + ".title", "Sujet", r.title, { wide: true, required: true }) + field(p + ".detail", "Constat documentaire", r.detail, { wide: true, type: "textarea" }) + field(p + ".blocking", "Bloque la validation du param\xE9trage", r.blocking, { type: "checkbox" }) + field(p + ".status", "Traitement", r.status, { options: { open: "\xC0 confirmer", resolved: "R\xE9solu" } }) + field(p + ".resolution", "D\xE9cision retenue et justification", r.resolution, { wide: true, type: "textarea" }) + '</div><details class="mk-proof"><summary>Pi\xE8ce de r\xE9f\xE9rence</summary>' + sourceFields(p, r) + "</details></article>";
+      return '<article class="mk-rule"><div class="mk-rule-top"><strong>Point ' + (i + 1) + '</strong><button class="mk-link" data-remove="' + p + '" type="button">Retirer</button></div><div class="mk-fields">' + field(p + ".title", "Sujet", r.title, { wide: true, required: true }) + field(p + ".detail", "Constat documentaire", r.detail, { wide: true, type: "textarea" }) + field(p + ".blocking", "Bloque la validation du param\xE9trage", r.blocking, { type: "checkbox" }) + '<span class="mk-status">' + (r.status === "resolved" ? "Point valid\xE9" : "\xC0 confirmer") + "</span>" + field(p + ".resolution", "D\xE9cision retenue et justification", r.resolution, { wide: true, type: "textarea" }) + '</div><details class="mk-proof"><summary>Pi\xE8ce de r\xE9f\xE9rence</summary>' + sourceFields(p, r) + '</details><div class="mk-rule-actions"><button type="button" class="' + (r.status === "resolved" ? "mk-secondary" : "mk-primary") + '" data-resolve="' + i + '">' + (r.status === "resolved" ? "Rouvrir ce point" : "Valider ce point") + "</button><small>D\xE9cision et historique sauvegard\xE9s.</small></div></article>";
     }).join("") + '<button class="mk-secondary" data-add="issues" type="button">+ Ajouter un point \xE0 confirmer</button>';
   }
   function documents() {
-    return '<div class="mk-section-title"><h2>Pi\xE8ces du march\xE9</h2><p>Originaux conserv\xE9s, empreinte contr\xF4l\xE9e et doublons d\xE9tect\xE9s. Maximum 5 Mo par pi\xE8ce.</p></div>' + (!s.current.version ? '<div class="mk-message">Enregistrez la fiche pour lui rattacher les pi\xE8ces du march\xE9.</div>' : '<div class="mk-upload"><label>Nature de la pi\xE8ce<select id="mkDocKind">' + Object.entries(kinds).map(([v, t]) => '<option value="' + v + '">' + t + "</option>").join("") + '</select></label><label class="mk-file">Importer des pi\xE8ces<input id="mkFiles" type="file" multiple accept=".pdf,.docx,.xlsx,.png,.jpg,.jpeg,.txt,.csv"></label><p>PDF texte : lecture assist\xE9e du plafond. Scans, Word et Excel : rattachement et saisie manuelle. Les propositions restent \xE0 v\xE9rifier.</p></div>') + '<div id="mkUploadStatus" role="status"></div><div id="mkSuggestions"></div>' + (s.docs.length ? '<div class="mk-doc-list">' + s.docs.map((d) => "<article><div><strong>" + html(d.name) + "</strong><small>" + html(kinds[d.kind] || d.kind) + " \xB7 " + (d.size / 1024 / 1024).toFixed(2) + " Mo \xB7 " + html(new Date(d.uploadedAt).toLocaleDateString("fr-FR")) + "</small><small>" + (d.hasText ? "Texte disponible pour la lecture assist\xE9e" : "Texte non extrait \u2014 lecture manuelle") + '</small></div><div><button type="button" class="mk-secondary" data-download="' + d.id + '">T\xE9l\xE9charger</button>' + (d.hasText ? '<button type="button" class="mk-link" data-analyse="' + d.id + '">Lire les propositions</button>' : "") + "</div></article>").join("") + "</div>" : '<div class="mk-empty">Aucune pi\xE8ce import\xE9e.</div>');
+    return '<div class="mk-section-title"><h2>Pi\xE8ces du march\xE9</h2><p>Originaux conserv\xE9s, empreinte contr\xF4l\xE9e et doublons d\xE9tect\xE9s. Maximum 5 Mo par pi\xE8ce.</p></div>' + (!s.current.version ? '<div class="mk-message">Enregistrez la fiche pour lui rattacher les pi\xE8ces du march\xE9.</div>' : '<div class="mk-upload"><label>Nature de la pi\xE8ce<select id="mkDocKind">' + Object.entries(kinds).map(([v, t]) => '<option value="' + v + '">' + t + "</option>").join("") + '</select></label><label class="mk-file">Importer des pi\xE8ces<input id="mkFiles" type="file" multiple accept=".pdf,.docx,.xlsx,.png,.jpg,.jpeg,.txt,.csv"></label><p>D\xE9posez l\u2019acte d\u2019engagement, les clauses, le bordereau, votre offre, les avenants et la notification. L\u2019assistant lira les PDF, scans, Word et Excel.</p></div>') + '<div id="mkUploadStatus" role="status"></div><div id="mkSuggestions"></div>' + (s.docs.length ? '<div class="mk-doc-list">' + s.docs.map((d) => "<article><div><strong>" + html(d.name) + "</strong><small>" + html(kinds[d.kind] || d.kind) + " \xB7 " + (d.size / 1024 / 1024).toFixed(2) + " Mo \xB7 " + html(new Date(d.uploadedAt).toLocaleDateString("fr-FR")) + "</small><small>" + (d.hasText ? "Texte disponible pour la lecture assist\xE9e" : "Texte non extrait \u2014 lecture manuelle") + '</small></div><div><button type="button" class="mk-secondary" data-download="' + d.id + '">T\xE9l\xE9charger</button>' + (d.hasText ? '<button type="button" class="mk-link" data-analyse="' + d.id + '">Lire les propositions</button>' : "") + "</div></article>").join("") + "</div>" : '<div class="mk-empty">Aucune pi\xE8ce import\xE9e.</div>');
   }
   function history() {
     return '<div class="mk-section-title"><h2>Historique des versions</h2><p>Chaque enregistrement conserve l\u2019auteur, la date et l\u2019\xE9tat de la fiche.</p></div>' + (!s.current.version ? '<div class="mk-empty">La fiche n\u2019a pas encore \xE9t\xE9 enregistr\xE9e.</div>' : !s.history ? '<button type="button" class="mk-secondary" data-action="history">Charger l\u2019historique</button>' : s.history.map((v) => '<article class="mk-history"><strong>Version ' + v.version + " \xB7 " + html(labels[v.market.status]) + "</strong><span>" + html(new Date(v.updatedAt).toLocaleString("fr-FR")) + " \xB7 " + html(v.updatedBy) + "</span><small>" + v.market.prices.length + " tarifs \xB7 " + v.market.ceilings.length + " plafonds \xB7 " + v.market.periods.length + " p\xE9riodes \xB7 " + v.market.issues.filter((x) => x.status === "open").length + ' points \xE0 confirmer</small><button class="mk-link" data-version="' + v.version + '" type="button">Exporter cette version</button></article>').join(""));
@@ -4690,7 +4749,7 @@ function agendaNotificationHTML(t){
       return;
     }
     const m = s.current;
-    container.innerHTML = '<section id="marketRoot" class="mk-root"><div id="marketMessage">' + (s.error ? '<div class="mk-message mk-error" role="alert">' + html(s.error) + "</div>" : s.notice ? '<div class="mk-message mk-success" role="status">' + html(s.notice) + "</div>" : "") + "</div>" + (m ? '<div class="mk-heading"><div><button type="button" class="mk-link" data-action="back">\u2190 Tous les march\xE9s</button><h1>' + html(m.title || "Nouveau march\xE9") + "</h1><p>" + html(m.clientName || "Client \xE0 renseigner") + (m.reference ? " \xB7 " + html(m.reference) : "") + '</p></div><span class="mk-status">' + html(labels[m.status]) + '</span></div><div class="mk-editbar"><span id="mkSaveState">' + (s.dirty ? "Modifications \xE0 enregistrer" : m.version ? "Version " + m.version + " enregistr\xE9e" : "Nouvelle fiche") + '</span><div><button class="mk-secondary" type="button" data-action="export">Exporter la fiche</button><button class="mk-primary" type="button" data-action="save">Enregistrer</button></div></div><nav class="mk-tabs" aria-label="Rubriques du march\xE9">' + Object.entries(tabs).map(([k, t]) => '<button type="button" data-tab="' + k + '" aria-current="' + (s.tab === k ? "page" : "false") + '">' + t + (k === "issues" && m.issues.some((x) => x.status === "open") ? " <span>" + m.issues.filter((x) => x.status === "open").length + "</span>" : "") + "</button>").join("") + '</nav><form id="mkForm" novalidate><div class="mk-panel">' + { summary, documents, prices, ceilings, periods, issues, history }[s.tab]() + '</div></form><div class="mk-validation"><div><strong>Validation du param\xE9trage</strong><p>' + html(activationBlockers(m).length ? "\xC0 compl\xE9ter : " + activationBlockers(m).join(" ; ") : "Les r\xE8gles indispensables sont renseign\xE9es. V\xE9rifiez les sources avant validation.") + "</p><small>Cette validation ne cr\xE9e ni commande ni facture. La consommation du march\xE9 sera suivie \xE0 partir des engagements repris.</small></div><div>" + field("status", "\xC9tat de la fiche", m.status, { options: labels }) + "</div></div>" : '<div class="mk-heading"><div><span class="mk-eyebrow">R\xE9f\xE9rentiel contractuel</span><h1>March\xE9s et contrats</h1><p>Les pi\xE8ces, les prix et les limites qui encadrent vos missions.</p></div><button class="mk-primary" type="button" data-action="new">+ Nouveau march\xE9</button></div><div class="mk-overview"><div><strong>' + s.rows.filter((r) => r.status !== "archived").length + "</strong><span>march\xE9s suivis</span></div><div><strong>" + s.rows.filter((r) => r.status === "draft").length + "</strong><span>en pr\xE9paration</span></div><div><strong>" + s.rows.reduce((n, r) => n + r.issues.filter((x) => x.status === "open").length, 0) + '</strong><span>points \xE0 confirmer</span></div><p>Le plafond contractualis\xE9 et le disponible sont distincts. La reprise des commandes permettra le calcul de consommation.</p></div><div class="mk-list-tools"><label for="mkSearch">Rechercher un march\xE9</label><input id="mkSearch" type="search" value="' + html(s.query) + '" placeholder="Client, r\xE9f\xE9rence ou objet"><button class="mk-secondary" data-action="refresh" type="button">Actualiser</button></div><div id="mkMarketList"></div>') + "</section>";
+    container.innerHTML = '<section id="marketRoot" class="mk-root"><div id="marketMessage">' + (s.error ? '<div class="mk-message mk-error" role="alert">' + html(s.error) + "</div>" : s.notice ? '<div class="mk-message mk-success" role="status">' + html(s.notice) + "</div>" : "") + "</div>" + (m ? '<div class="mk-heading"><div><button type="button" class="mk-link" data-action="back">\u2190 Tous les march\xE9s</button><h1>' + html(m.title || "Nouveau march\xE9") + "</h1><p>" + html(m.clientName || "Client \xE0 renseigner") + (m.reference ? " \xB7 " + html(m.reference) : "") + '</p></div><span class="mk-status">' + html(labels[m.status]) + '</span></div><div class="mk-editbar"><span id="mkSaveState">' + (s.dirty ? "Modifications \xE0 enregistrer" : m.version ? "Version " + m.version + " enregistr\xE9e" : "Nouvelle fiche") + '</span><div><button class="mk-secondary" type="button" data-action="export">Exporter la fiche</button><button class="mk-primary" type="button" data-action="save">Enregistrer</button></div></div><nav class="mk-tabs" aria-label="Rubriques du march\xE9">' + Object.entries(tabs).map(([k, t]) => '<button type="button" data-tab="' + k + '" aria-current="' + (s.tab === k ? "page" : "false") + '">' + t + (k === "issues" && m.issues.some((x) => x.status === "open") ? " <span>" + m.issues.filter((x) => x.status === "open").length + "</span>" : "") + "</button>").join("") + '</nav><form id="mkForm" novalidate><div class="mk-panel">' + { setup, summary, documents, prices, ceilings, periods, conditions, issues, history }[s.tab]() + '</div></form><div class="mk-validation"><div><strong>Validation du param\xE9trage</strong><p>' + html(activationBlockers(m).length ? "\xC0 compl\xE9ter : " + activationBlockers(m).join(" ; ") : "Les r\xE8gles indispensables sont renseign\xE9es. V\xE9rifiez les sources avant validation.") + "</p><small>Cette validation ne cr\xE9e ni commande ni facture. La consommation du march\xE9 sera suivie \xE0 partir des engagements repris.</small></div><div>" + field("status", "\xC9tat de la fiche", m.status, { options: labels }) + "</div></div>" : '<div class="mk-heading"><div><span class="mk-eyebrow">R\xE9f\xE9rentiel contractuel</span><h1>March\xE9s et contrats</h1><p>Les pi\xE8ces, les prix et les limites qui encadrent vos missions.</p></div><button class="mk-primary" type="button" data-action="new">+ Nouveau march\xE9</button></div><div class="mk-overview"><div><strong>' + s.rows.filter((r) => r.status !== "archived").length + "</strong><span>march\xE9s suivis</span></div><div><strong>" + s.rows.filter((r) => r.status === "draft").length + "</strong><span>en pr\xE9paration</span></div><div><strong>" + s.rows.reduce((n, r) => n + r.issues.filter((x) => x.status === "open").length, 0) + '</strong><span>points \xE0 confirmer</span></div><p>Le plafond contractualis\xE9 et le disponible sont distincts. La reprise des commandes permettra le calcul de consommation.</p></div><div class="mk-list-tools"><label for="mkSearch">Rechercher un march\xE9</label><input id="mkSearch" type="search" value="' + html(s.query) + '" placeholder="Client, r\xE9f\xE9rence ou objet"><button class="mk-secondary" data-action="refresh" type="button">Actualiser</button></div><div id="mkMarketList"></div>') + "</section>";
     bind();
     if (!m) renderList();
     if (m && s.tab === "summary") el("mk-clientName")?.setAttribute("list", "mkClients");
@@ -4721,11 +4780,22 @@ function agendaNotificationHTML(t){
       if (el("mk-minimumMinor")) el("mk-minimumMinor").value = "";
     }
     if (path === "clientName") s.current.clientId = s.clients.find((c) => c.name === value)?.id || "";
+    if (path !== "status" && s.current.status === "validated") s.current.status = "draft";
     const parts = path.split(".");
-    if (["prices", "ceilings", "periods"].includes(parts[0])) {
+    if (["prices", "ceilings", "periods", "conditions"].includes(parts[0])) {
       s.current[parts[0]][parts[1]].status = "proposed";
       const check = document.querySelector('[data-review="' + parts.slice(0, 2).join(".") + '"]');
       if (check) check.checked = false;
+    }
+    if (parts[0] === "issues" && parts.length > 2 && s.current.issues[parts[1]].status === "resolved") {
+      s.current.issues[parts[1]].status = "open";
+      const button = document.querySelector('[data-resolve="' + parts[1] + '"]');
+      if (button) {
+        button.textContent = "Valider ce point";
+        button.className = "mk-primary";
+        const badge = button.closest("article")?.querySelector(".mk-status");
+        if (badge) badge.textContent = "\xC0 confirmer";
+      }
     }
     dirty();
   }
@@ -4739,7 +4809,7 @@ function agendaNotificationHTML(t){
   }
   async function save() {
     const form = el("mkForm");
-    if (form && !form.reportValidity()) return;
+    if (form && !form.reportValidity()) return false;
     try {
       const m = validateMarket(s.current, s.docs);
       setBusy(true);
@@ -4757,15 +4827,17 @@ function agendaNotificationHTML(t){
       else s.rows.unshift(s.current);
       s.busy = false;
       render();
+      return true;
     } catch (e) {
       s.busy = false;
       setBusy(false);
       error(e.message);
+      return false;
     }
   }
   function add(list) {
     const common2 = { id: uid(), status: "proposed", source: { documentId: "", locator: "", note: "" } };
-    const row = list === "prices" ? { ...common2, label: "", unit: "day", amountMinor: null, profile: "", location: "", startDate: "", endDate: "", notes: "" } : list === "ceilings" ? { ...common2, label: "", amountMinor: null, basis: "HT", scope: "annual", periodId: "", consumptionBasis: "orders", notes: "" } : list === "periods" ? { ...common2, label: "", startDate: "", endDate: "", decision: "" } : { id: uid(), title: "", detail: "", blocking: false, status: "open", resolution: "", source: { documentId: "", locator: "", note: "" } };
+    const row = list === "prices" ? { ...common2, label: "", unit: "day", amountMinor: null, profile: "", location: "", startDate: "", endDate: "", notes: "" } : list === "ceilings" ? { ...common2, label: "", amountMinor: null, basis: "HT", scope: "annual", periodId: "", consumptionBasis: "orders", notes: "" } : list === "periods" ? { ...common2, label: "", startDate: "", endDate: "", decision: "" } : list === "conditions" ? { ...common2, category: "payment", label: "", value: "" } : { id: uid(), title: "", detail: "", blocking: false, status: "open", resolution: "", source: { documentId: "", locator: "", note: "" } };
     s.current[list].push(row);
     dirty();
     render();
@@ -4796,6 +4868,12 @@ function agendaNotificationHTML(t){
   }
   async function upload(files) {
     if (!files.length) return;
+    const kind = el("mkDocKind")?.value || "other";
+    if (!s.current.version) {
+      s.current.title = s.current.title.trim() || "March\xE9 \xE0 identifier";
+      s.current.clientName = s.current.clientName.trim() || "Client \xE0 identifier";
+      if (!await save()) return;
+    }
     setBusy(true);
     const epoch = s.epoch;
     let count = 0, duplicates = 0, scan = 0;
@@ -4811,7 +4889,7 @@ function agendaNotificationHTML(t){
         }
         const form = new FormData();
         form.append("file", file);
-        form.append("kind", el("mkDocKind").value);
+        form.append("kind", kind);
         form.append("text", text2);
         const r = await api("/" + s.current.id + "/documents", { method: "POST", body: form });
         if (epoch !== s.epoch) return;
@@ -4877,12 +4955,37 @@ function agendaNotificationHTML(t){
       if (e.target.dataset.review) {
         const [list, index] = e.target.dataset.review.split(".");
         s.current[list][index].status = e.target.checked ? "validated" : "proposed";
+        if (s.current.status === "validated") s.current.status = "draft";
         dirty();
       }
     });
     root.addEventListener("click", async (e) => {
       const b = e.target.closest("button");
-      if (!b || s.busy) return;
+      if (!b) return;
+      if (b.dataset.action === "stop-analysis") {
+        s.stop = true;
+        s.progress = "Arr\xEAt demand\xE9 apr\xE8s le passage en cours\u2026";
+        if (el("mkAiProgress")) el("mkAiProgress").textContent = s.progress;
+        return;
+      }
+      if (s.busy) return;
+      if (b.dataset.resolve !== void 0) {
+        await resolveIssue(Number(b.dataset.resolve));
+        return;
+      }
+      if (b.dataset.action === "run-analysis") {
+        await runAnalysis();
+        return;
+      }
+      if (b.dataset.action === "apply-analysis") {
+        await applyAnalysis();
+        return;
+      }
+      if (b.dataset.action === "reload-analysis") {
+        await loadAnalysis();
+        render();
+        return;
+      }
       if (b.dataset.open) {
         await open(b.dataset.open);
         return;
@@ -4971,6 +5074,136 @@ function agendaNotificationHTML(t){
     }
   });
   Object.assign(window, { renderMarches: render, marchesEnter: enter, marchesLeave: safeLeave, marchesForget: forget, marchesNew: newMarket });
+  function conditions() {
+    return '<div class="mk-section-title"><h2>Facturation et conditions</h2><p>\xC9ch\xE9ances, paiement, bons de commande, TVA, frais, r\xE9vision, livrables et relev\xE9s d\u2019intervention. Chaque condition peut \xEAtre ajust\xE9e librement.</p></div>' + (s.current.conditions || []).map((r, i) => {
+      const p = "conditions." + i;
+      return rowCard(p, r, i, field(p + ".category", "Rubrique", r.category, { options: CONDITIONS }) + field(p + ".label", "Intitul\xE9", r.label, { required: true }) + field(p + ".value", "R\xE8gle applicable", r.value, { type: "textarea", wide: true, required: true }));
+    }).join("") + '<button class="mk-secondary" data-add="conditions" type="button">+ Ajouter une condition</button>';
+  }
+  function setup() {
+    const r = s.analysis, result = r?.result;
+    const count = result ? ["prices", "ceilings", "periods", "conditions", "issues"].map((k) => "<div><strong>" + (result[k]?.length || 0) + "</strong><span>" + { prices: "tarifs", ceilings: "plafonds", periods: "p\xE9riodes", conditions: "conditions", issues: "points \xE0 confirmer" }[k] + "</span></div>").join("") : "";
+    return '<div class="mk-setup-heading"><span class="mk-eyebrow">Du dossier au param\xE9trage</span><h2>D\xE9posez les pi\xE8ces. V\xE9rifiez les r\xE8gles.</h2><p>L\u2019assistant lit les documents ensemble et pr\xE9pare votre march\xE9. Les param\xE8tres restent modifiables dans les rubriques ci-dessus.</p></div><ol class="mk-steps"><li><b>1</b><span>Ajouter les pi\xE8ces</span></li><li><b>2</b><span>Analyser le dossier</span></li><li><b>3</b><span>V\xE9rifier et ajuster</span></li></ol>' + (!s.current.version ? '<details class="mk-proof"><summary>Identifier le dossier maintenant (facultatif)</summary><div class="mk-fields">' + field("title", "Objet du march\xE9", s.current.title) + field("clientName", "Client contractant", s.current.clientName) + "</div></details>" : "") + '<div class="mk-upload"><label>Type des pi\xE8ces<select id="mkDocKind">' + Object.entries(kinds).map(([v, t]) => '<option value="' + v + '" ' + (v === "other" ? "selected" : "") + ">" + html(t) + "</option>").join("") + '</select></label><label class="mk-file">Ajouter les pi\xE8ces du march\xE9<input id="mkFiles" type="file" multiple accept=".pdf,.docx,.xlsx,.png,.jpg,.jpeg,.txt,.csv"></label><p>Acte d\u2019engagement, bordereau, CCAP/CCTP, offre, notification, avenants, reconductions\u2026 PDF et scans, Word, Excel, images et texte. 5 Mo par pi\xE8ce.</p></div><div id="mkUploadStatus" role="status"></div>' + (s.docs.length ? '<div class="mk-source-selection">' + s.docs.map((d) => {
+      const reading = s.readings.find((x) => x.id === d.id);
+      return '<label><input type="checkbox" data-ai-document="' + d.id + '" checked><span><strong>' + html(d.name) + "</strong><small>" + html(reading?.read ? reading.complete ? "Texte pr\xEAt pour l\u2019analyse" : "Lecture \xE0 v\xE9rifier" : "Texte pr\xE9par\xE9 au lancement") + "</small></span></label>";
+    }).join("") + "</div>" : '<p class="mk-muted">Commencez par ajouter les documents disponibles. L\u2019assistant compl\xE9tera l\u2019identit\xE9 du march\xE9.</p>') + '<div class="mk-ai-launch"><div><strong>Analyse du dossier par Mistral</strong><p>Le texte s\xE9lectionn\xE9 est trait\xE9 sur Cloudflare. Aucun mod\xE8le Claude ou ChatGPT. Les propositions sont reli\xE9es aux pi\xE8ces ; les informations absentes ou contradictoires restent \xE0 confirmer.</p><small>Quota quotidien partag\xE9 : l\u2019analyse se met en pause \xE0 la limite pr\xE9vue. Les passages termin\xE9s sont conserv\xE9s.</small></div><div><button type="button" class="mk-primary" data-action="run-analysis" ' + (!s.docs.length ? "disabled" : "") + ">" + (r && r.status !== "ready" ? "Reprendre l\u2019analyse" : "Analyser les pi\xE8ces s\xE9lectionn\xE9es") + '</button><button type="button" class="mk-link" data-action="stop-analysis" ' + (!s.busy ? "hidden" : "") + '>Arr\xEAter apr\xE8s ce passage</button></div></div><div id="mkAiProgress" class="mk-ai-progress" role="status" aria-live="polite">' + html(s.progress || (r ? r.status === "ready" ? "Analyse disponible : v\xE9rifiez les propositions avant de les appliquer." : r.completed + " / " + r.total + " passages trait\xE9s" + (r.error ? " \xB7 " + r.error : "") : "")) + "</div>" + (result ? '<div class="mk-ai-result"><h3>Propositions de param\xE9trage</h3><div class="mk-ai-counts">' + count + "</div><p>" + result.coverage.filter((d) => d.selected).length + " / " + result.coverage.length + " pi\xE8ce(s) incluse(s). " + (result.coverage.some((d) => !d.selected || !d.complete) ? "Attention : le dossier n\u2019a pas \xE9t\xE9 lu int\xE9gralement. Les pi\xE8ces \xE0 v\xE9rifier sont signal\xE9es." : "Toutes les pi\xE8ces s\xE9lectionn\xE9es ont \xE9t\xE9 parcourues. Les valeurs restent \xE0 v\xE9rifier.") + "</p>" + result.coverage.flatMap((d) => (d.warnings || []).map((w) => '<p class="mk-muted">' + html(d.name) + " : " + html(w) + "</p>")).join("") + '<div class="mk-ai-proposals">' + (result.facts || []).map((f) => "<div><strong>" + html({ title: "Objet", reference: "R\xE9f\xE9rence", clientName: "Client", type: "Type", billingMode: "Facturation", notificationDate: "Notification", periodBasis: "P\xE9riodes", renewalMode: "Reconduction", renewalCount: "Reconductions pr\xE9vues", noMinimum: "Sans minimum", minimumMinor: "Minimum (centimes)", feesIncluded: "Frais inclus" }[f.field] || f.field) + "</strong><span>" + html(String(f.value)) + (f.conflict ? " \xB7 contradictoire" : "") + "</span><small>" + html(f.source.note) + "</small></div>").join("") + ["prices", "ceilings", "periods", "conditions", "issues"].flatMap((k) => (result[k] || []).map((x) => "<div><strong>" + html(x.label || x.title) + "</strong><span>" + html(k === "prices" ? money(x.amountMinor) + " HT / " + (UNITS[x.unit] || x.unit) : k === "ceilings" ? money(x.amountMinor) + " " + x.basis : k === "periods" ? (x.startDate || "D\xE9but \xE0 pr\xE9ciser") + " \u2192 " + (x.endDate || "Fin \xE0 pr\xE9ciser") : x.value || x.detail) + "</span><small>" + html(s.docs.find((d) => d.id === x.source.documentId)?.name || "") + " \xB7 " + html(x.source.locator) + " \u2014 " + html(x.source.note) + "</small></div>")).join("") + "</div>" + (result.warnings.length ? '<details class="mk-proof"><summary>' + result.warnings.length + " observation(s) de lecture</summary>" + result.warnings.map((w) => "<p>" + html(w) + "</p>").join("") + "</details>" : "") + '<div class="mk-apply"><p><strong>Les saisies existantes sont conserv\xE9es.</strong> Les nouvelles r\xE8gles et les points \xE0 v\xE9rifier seront ajout\xE9s. Choisissez explicitement les rubriques \xE0 remplacer si vous souhaitez reprendre le param\xE9trage.</p><details class="mk-proof"><summary>Rubriques \xE0 remplacer par les propositions</summary>' + Object.entries({ summary: "Identit\xE9 et r\xE8gles g\xE9n\xE9rales", prices: "Tarifs", ceilings: "Plafonds", periods: "P\xE9riodes", conditions: "Conditions de facturation" }).map(([k, t]) => '<label class="mk-check"><input type="checkbox" data-ai-replace="' + k + '" ' + (k === "summary" && s.current.title === "March\xE9 \xE0 identifier" ? "checked" : "") + ">" + t + "</label>").join("") + '</details><button class="mk-primary" data-action="apply-analysis" type="button">Appliquer les propositions \xE0 la fiche</button><small>Vous pourrez tout ajuster avant d\u2019enregistrer. Aucune r\xE8gle ne sera marqu\xE9e comme v\xE9rifi\xE9e automatiquement.</small></div></div>' : "");
+  }
+  async function loadAnalysis() {
+    if (!s.current?.version) return;
+    const r = await api("/" + s.current.id + "/analysis");
+    s.analysis = r.run;
+    s.readings = r.documents;
+    s.ai = r.ai;
+  }
+  async function resolveIssue(index) {
+    const item = s.current.issues[index];
+    if (!item) return;
+    if (item.status !== "resolved" && !item.resolution.trim()) {
+      const control = el("mk-issues-" + index + "-resolution");
+      control?.focus();
+      error("Renseignez la d\xE9cision retenue avant de valider ce point.");
+      return;
+    }
+    item.status = item.status === "resolved" ? "open" : "resolved";
+    if (item.status === "open" && s.current.status === "validated") s.current.status = "draft";
+    dirty();
+    if (await save()) {
+      s.notice = item.status === "resolved" ? "Point valid\xE9 et d\xE9cision enregistr\xE9e. Ajustez les param\xE8tres concern\xE9s si n\xE9cessaire." : "Point rouvert et enregistr\xE9.";
+      render();
+    }
+  }
+  async function runAnalysis() {
+    const selected = [...document.querySelectorAll("[data-ai-document]:checked")].map((e) => e.dataset.aiDocument);
+    if (s.dirty && !await save()) return;
+    if (!s.current.version) return;
+    if (!selected.length) {
+      error("S\xE9lectionnez au moins une pi\xE8ce.");
+      return;
+    }
+    const epoch = s.epoch, id = s.current.id;
+    s.stop = false;
+    s.progress = "Pr\xE9paration des documents\u2026";
+    s.error = "";
+    s.busy = true;
+    render();
+    const progress = (message) => {
+      s.progress = message;
+      if (el("mkAiProgress")) el("mkAiProgress").textContent = message;
+    };
+    try {
+      await loadAnalysis();
+      if (!s.ai?.configured) throw new Error("Le moteur Mistral n\u2019est pas encore activ\xE9 sur le serveur. Vous pouvez continuer le param\xE9trage manuel.");
+      const { readDocument } = await import("./marches/reader.mjs");
+      for (const did of selected) {
+        if (s.stop) break;
+        const d = s.docs.find((d2) => d2.id === did);
+        if (s.readings.find((r) => r.id === did)?.read) continue;
+        progress("Lecture : " + d.name);
+        const blob = await api("/" + id + "/documents/" + did, { binary: true });
+        const reading = await readDocument(new File([blob], d.name, { type: d.mime }), (message) => progress(d.name + " \xB7 " + message), () => s.stop || epoch !== s.epoch);
+        await api("/" + id + "/reading/" + did, { method: "PUT", body: JSON.stringify(reading) });
+      }
+      if (s.stop) {
+        s.notice = "Lecture arr\xEAt\xE9e. Les pi\xE8ces et textes d\xE9j\xE0 pr\xE9par\xE9s sont conserv\xE9s.";
+        return;
+      }
+      progress("D\xE9marrage de l\u2019analyse Mistral\u2026");
+      const created = await api("/" + id + "/analysis", { method: "POST", headers: { "If-Match": String(s.current.version) }, body: JSON.stringify({ documentIds: selected }) });
+      s.analysis = created.run;
+      while (s.analysis.status !== "ready" && !s.stop) {
+        progress("Analyse Mistral \xB7 " + s.analysis.completed + " / " + s.analysis.total + " passages termin\xE9s");
+        const r = await api("/" + id + "/analysis/" + s.analysis.id, { method: "POST", body: "{}" });
+        if (epoch !== s.epoch) return;
+        s.analysis = r.run;
+      }
+      s.notice = s.analysis.status === "ready" ? "Analyse termin\xE9e. V\xE9rifiez les propositions ci-dessous." : "Analyse mise en pause. Vous pourrez la reprendre.";
+    } catch (e) {
+      s.error = e.message;
+    } finally {
+      if (epoch === s.epoch) {
+        try {
+          await loadAnalysis();
+        } catch {
+        }
+        s.busy = false;
+        s.progress = "";
+        render();
+      }
+    }
+  }
+  async function applyAnalysis() {
+    try {
+      setBusy(true);
+      await loadAnalysis();
+    } catch (e) {
+      error(e.message);
+      return;
+    } finally {
+      setBusy(false);
+    }
+    const run = s.analysis;
+    if (!run?.result) return;
+    if (s.dirty) {
+      error("Enregistrez ou rechargez vos modifications avant d\u2019appliquer les propositions.");
+      return;
+    }
+    if (run.stale || run.baseVersion !== s.current.version) {
+      error("La fiche a \xE9t\xE9 modifi\xE9e depuis cette analyse. Relancez l\u2019analyse pour conserver vos ajustements r\xE9cents.");
+      return;
+    }
+    const replace = [...document.querySelectorAll("[data-ai-replace]:checked")].map((e) => e.dataset.aiReplace);
+    try {
+      const candidate = mergeProposal(s.current, run.result, replace);
+      validateMarket(candidate, s.docs);
+      s.current = candidate;
+      dirty();
+      s.tab = "summary";
+      s.notice = "Propositions appliqu\xE9es \xE0 la saisie. Ajustez les param\xE8tres puis cliquez sur Enregistrer.";
+      render();
+    } catch (e) {
+      error(e.message);
+    }
+  }
 })();
 
 /* CDI_MARKETS_END */

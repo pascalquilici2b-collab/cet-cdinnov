@@ -10,22 +10,24 @@ import {emptyMarket,validateMarket,minor,activationBlockers,suggestFromText} fro
 const require=createRequire(process.env.MARCHES_BUILD_PACKAGE||'C:/Users/quili/OneDrive - cdinnov.com/CDInnov - Pascal QUILICI/40 - CDINNOV GESTION INTERNE/CET & CONGES PAYES/LOGICIEL CET/agenda/package.json');
 const {build}=require('esbuild'),{Miniflare}=require('miniflare');
 export const users=['quilici.pascal@cdinnov.com','calendini.matthieu@cdinnov.com'];
-export async function testEnvironment(){
+export async function testEnvironment(options={}){
  const script=process.env.MARCHES_TEST_WORKER?await readFile(process.env.MARCHES_TEST_WORKER,'utf8'):(await build({entryPoints:[fileURLToPath(new URL('../server/budget-service-source.mjs',import.meta.url))],bundle:true,platform:'node',format:'esm',write:false})).outputFiles[0].text;
- const worker=new Miniflare({modules:true,script,compatibilityDate:process.env.MARCHES_TEST_COMPATIBILITY_DATE||'2026-05-15',compatibilityFlags:['nodejs_compat'],kvNamespaces:['CET_KV'],d1Databases:['BUDGETS_DB'],bindings:{CET_WORKSPACE_KEY:'markets-test',BUDGETS_SESSION_SECRET:randomBytes(32).toString('hex'),BUDGETS_ALLOWED_ORIGINS:'http://127.0.0.1:5196,https://app.cdinnov.eu'}});
+ let workerScript=script;
+ if(options.ai){const match=workerScript.match(/(\w+) as default/);if(!match)throw new Error('Export de test introuvable');workerScript=workerScript.replace(match[0],'test_wrapper as default').replace('export {',`const test_wrapper={fetch(request,env){env.MARKETS_AI={run:async(model,input)=>{const r=await env.AI_TEST.fetch('http://model.test',{method:'POST',body:JSON.stringify(input)});if(!r.ok)throw new Error('Model unavailable');return r.json();}};return ${match[1]}.fetch(request,env);}};\nexport {`);}
+ const worker=new Miniflare({modules:true,script:workerScript,serviceBindings:options.ai?{AI_TEST:async request=>Response.json(await options.ai(await request.json()))}:{},compatibilityDate:process.env.MARCHES_TEST_COMPATIBILITY_DATE||'2026-05-15',compatibilityFlags:['nodejs_compat'],kvNamespaces:['CET_KV'],d1Databases:['BUDGETS_DB'],bindings:{CET_WORKSPACE_KEY:'markets-test',BUDGETS_SESSION_SECRET:randomBytes(32).toString('hex'),BUDGETS_ALLOWED_ORIGINS:'http://127.0.0.1:5196,https://app.cdinnov.eu'}});
  const password='Marches-local-test-2026!',salt='00112233445566778899aabbccddeeff';
  const accounts=Object.fromEntries(users.map((email,i)=>[email,{salt,iter:150000,hash:pbkdf2Sync(password,Buffer.from(salt,'hex'),150000,32,'sha256').toString('hex'),name:['Direction test','Consultant test'][i]}]));
  const kv=await worker.getKVNamespace('CET_KV');await kv.put('markets-test',JSON.stringify({auth:{accounts,allowed:users}}));
  const db=await worker.getD1Database('BUDGETS_DB');
  for(const sql of schema)await db.prepare(sql).run();
- const migration=await readFile(new URL('schema.sql',import.meta.url),'utf8');
+ const migration=(await readFile(new URL('schema.sql',import.meta.url),'utf8'))+'\n'+(await readFile(new URL('ai-schema.sql',import.meta.url),'utf8'));
  for(const sql of migration.split(/;(?=\s*(?:CREATE|$))/).map(s=>s.trim()).filter(Boolean))await db.prepare(sql).run();
  const call=async(path,options={})=>{if(options.body instanceof FormData){const serialized=new Request('https://preview.example',{method:'POST',body:options.body});options={...options,body:Buffer.from(await serialized.arrayBuffer()),headers:{...options.headers,'Content-Type':serialized.headers.get('content-type')}};}return worker.dispatchFetch('https://preview.example/budgets/'+path,{...options,headers:{Origin:'http://127.0.0.1:5196','Content-Type':'application/json',...options.headers}});};
  const login=async email=>{const c=await(await call('session',{method:'POST',body:JSON.stringify({email,action:'challenge'})})).json();const proof=createHmac('sha256',pbkdf2Sync(password,Buffer.from(c.salt,'hex'),c.iter,32,'sha256')).update(c.challenge).digest('hex');const r=await call('session',{method:'POST',body:JSON.stringify({email,action:'verify',challenge:c.challenge,proof})});assert.equal(r.status,200);return r.json();};
  return {worker,db,kv,accounts,password,call,login};
 }
 export const fixture=()=>({...emptyMarket(),title:'Accompagnement de projet — cas fictif',clientName:'Client de test',reference:'TEST-2026',prices:[{id:'price-1',label:'Assistance',profile:'Senior',location:'Corse',unit:'day',amountMinor:70000,startDate:'',endDate:'',status:'proposed',notes:'',source:{documentId:'',locator:'',note:''}}],ceilings:[{id:'limit-1',label:'Maximum annuel',scope:'annual',periodId:'',amountMinor:10000000,basis:'HT',consumptionBasis:'orders',notes:'',status:'proposed',source:{documentId:'',locator:'',note:''}}],periods:[{id:'period-1',label:'Année initiale',startDate:'',endDate:'',status:'proposed',decision:'',source:{documentId:'',locator:'',note:''}}]});
-if(process.argv[1]?.endsWith('test.mjs')){
+if(process.argv[1]&&fileURLToPath(import.meta.url)===process.argv[1]){
  let count=0;const check=(name,fn)=>{fn();count++;console.log('OK '+name);};
  check('Montants exacts, zéro distinct de manque',()=>{assert.equal(minor('300 000,00'),30000000);assert.equal(minor(''),null);assert.equal(minor('0'),0);assert.throws(()=>minor('12.345'));assert.throws(()=>minor('-5'));});
  check('Aucune période déduite de la notification',()=>{const f=fixture();f.notificationDate='2023-07-25';const m=validateMarket(f);assert.equal(m.periods[0].startDate,'');assert.ok(activationBlockers(m).length);});

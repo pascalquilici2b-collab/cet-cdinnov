@@ -112,7 +112,7 @@ export default {
       }
       const email=await identity(request,env);
       if(!email)return reply(401,{error:'Votre connexion CDInnov a expiré. Reconnectez-vous à votre compte CDInnov.'});
-      if(path==='/budgets/markets'||path.startsWith('/budgets/markets/'))return await handleMarkets(request,db,email,admins.includes(email),reply,jsonBody);
+      if(path==='/budgets/markets'||path.startsWith('/budgets/markets/'))return await handleMarkets(request,db,email,admins.includes(email),reply,jsonBody,env);
       if(path==='/budgets/agenda'||path.startsWith('/budgets/agenda/'))return await handleAgenda(request,db,email,admins.includes(email),reply,jsonBody,env);
       if(path==='/budgets/clients'){
         if(request.method!=='POST')return reply(405,{error:'Méthode non autorisée.'});

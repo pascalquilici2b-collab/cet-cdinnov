@@ -1,3 +1,4 @@
+import {handleAnalysis,handleReading,aiStatus} from './ai-worker.mjs';
 import {Buffer} from 'node:buffer';
 import {createHash} from 'node:crypto';
 import {validateMarket,suggestFromText} from './domain.mjs';
@@ -22,7 +23,7 @@ function fileType(name,b){
   if(['txt','csv'].includes(ext)&&!b.includes(0))return 'text/plain';
   throw Object.assign(new Error('Format non reconnu. Utilisez PDF, DOCX, XLSX, PNG, JPG, TXT ou CSV.'),{status:415});
 }
-export async function handleMarkets(request,db,email,admin,reply,jsonBody){
+export async function handleMarkets(request,db,email,admin,reply,jsonBody,env={}){
   if(!admin)return reply(403,{error:'Le paramétrage des marchés est réservé à la direction habilitée.'});
   const parts=new URL(request.url).pathname.split('/').filter(Boolean).slice(2);
   const [id,section,documentId]=parts;
@@ -47,8 +48,11 @@ export async function handleMarkets(request,db,email,admin,reply,jsonBody){
     if(!row)return reply(409,{error:'Ce marché a déjà été créé. Actualisez la liste.'});
     return reply(201,{market:unpack(row),documents:[]});
   }
+  if(id==='ai-status'&&!section&&request.method==='GET')return reply(200,await aiStatus(db,env));
   const current=await db.prepare('SELECT * FROM markets WHERE id=?').bind(id).first();
   if(!current)return reply(404,{error:'Marché introuvable.'});
+  if(section==='reading'&&documentId)return await handleReading(request,db,email,current,documentId,reply,jsonBody);
+  if(section==='analysis')return await handleAnalysis(request,db,email,current,documentId,reply,jsonBody,env);
   if(!section){
     if(request.method==='GET')return reply(200,{market:unpack(current),documents:(await getDocs(id)).map(doc)});
     if(request.method!=='PUT')return reply(405,{error:'Méthode non autorisée.'});

@@ -8,7 +8,7 @@ const {build}=require('esbuild');
 const file=path.join(root,'index.html');
 let html=(await readFile(file,'utf8')).replace(/\r\n/g,'\n');
 const css=await readFile(path.join(root,'marches/ui.css'),'utf8');
-const js=(await build({entryPoints:[path.join(root,'marches/ui.js')],bundle:true,format:'iife',platform:'browser',write:false,external:['./marches/vendor/pdf.mjs']})).outputFiles[0].text;
+const js=(await build({entryPoints:[path.join(root,'marches/ui.js')],bundle:true,format:'iife',platform:'browser',write:false,external:['./marches/vendor/pdf.mjs','./marches/reader.mjs']})).outputFiles[0].text;
 if(!html.includes('data-view="marches"')){
  const marker='    <div class="nav-item" data-view="facturier">';
  if(!html.includes(marker))throw new Error('Navigation du facturier introuvable.');

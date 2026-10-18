@@ -5,7 +5,8 @@ import {fileURLToPath} from 'node:url';
 import {testEnvironment,users} from './test.mjs';
 import {emptyMarket} from './domain.mjs';
 const root=path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const env=await testEnvironment();
+const probe=process.env.MARCHES_AI_PROBE?JSON.parse(await readFile(process.env.MARCHES_AI_PROBE,'utf8')):null;
+const env=await testEnvironment(probe?{ai:async input=>{const r=await fetch(probe.url,{method:'POST',headers:{Authorization:'Bearer '+probe.key,'Content-Type':'application/json'},body:JSON.stringify(input)});if(!r.ok)throw new Error('Qwen HTTP '+r.status);return r.json();}}:{});
 const sessions=await Promise.all(users.map(env.login));
 const adminHeaders={Authorization:'Bearer '+sessions[0].token};
 let seeded=null;
@@ -24,6 +25,10 @@ if(process.env.MARCHES_PILOT){
  for(const list of ['prices','ceilings','periods','issues'])for(const item of p.market[list])if(item.source?.documentId)item.source.documentId=sources[item.source.documentId];
  r=await env.call('markets/'+p.id,{method:'PUT',headers:{...adminHeaders,'If-Match':'1'},body:JSON.stringify(p.market)});
  if(!r.ok)throw new Error(await r.text());seeded=p.id;
+}
+if(process.env.MARCHES_QA_READINGS){
+ const cache=JSON.parse(await readFile(process.env.MARCHES_QA_READINGS,'utf8'));
+ for(const r of cache.readings){const doc=await env.db.prepare('SELECT id FROM market_documents WHERE name=?').bind(r.name).first();if(doc)await env.db.prepare('INSERT INTO market_document_readings(document_id,text,method,complete,pages,warnings,updated_at,updated_by) VALUES(?,?,?,?,?,?,?,?)').bind(doc.id,r.text,r.method,r.complete,r.pages,r.warnings,new Date().toISOString(),'Test OCR isolé').run();}
 }
 let host=await readFile(path.join(root,'index.html'),'utf8');
 host=host.replace(/const CLOUD_ENDPOINT\s*=\s*[^;]+;/,"const CLOUD_ENDPOINT='http://127.0.0.1:5196/api';")
@@ -44,8 +49,9 @@ const server=createServer(async(req,res)=>{
    const r=await env.worker.dispatchFetch('https://preview.example'+u.pathname.slice(4)+u.search,{method:req.method,headers:req.headers,body:['GET','HEAD'].includes(req.method)?undefined:Buffer.concat(chunks)});
    res.writeHead(r.status,Object.fromEntries(r.headers));res.end(Buffer.from(await r.arrayBuffer()));return;
   }
+  if(u.pathname==='/qa/analysis'&&req.method==='GET'){const jobs=await env.db.prepare('SELECT * FROM market_analysis_runs').all();const readings=await env.db.prepare('SELECT * FROM market_document_readings').all();res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify({jobs:jobs.results,readings:readings.results}));return;}
   if(u.pathname==='/'||u.pathname==='/index.html'){res.writeHead(200,{'Content-Type':'text/html;charset=utf-8','Cache-Control':'no-store'});res.end(host);return;}
-  if(/^\/marches\/vendor\/(pdf\.mjs|pdf\.worker\.mjs)$/.test(u.pathname)){res.writeHead(200,{'Content-Type':'text/javascript'});res.end(await readFile(path.join(root,u.pathname)));return;}
+  if(/^\/marches\/(reader\.mjs|vendor\/[a-zA-Z0-9_./-]+)$/.test(u.pathname)&&!u.pathname.includes('..')){res.writeHead(200,{'Content-Type':u.pathname.endsWith('.gz')?'application/gzip':u.pathname.endsWith('.wasm')?'application/wasm':'text/javascript'});res.end(await readFile(path.join(root,u.pathname)));return;}
   if(u.pathname==='/favicon.ico'){res.writeHead(204);res.end();return;}
   res.writeHead(404);res.end('Aperçu marchés uniquement.');
  }catch(e){res.writeHead(500);res.end(e.message);}

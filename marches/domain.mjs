@@ -1,6 +1,7 @@
 export const TYPES = {framework:'Accord-cadre à bons de commande',fixed:'Marché forfaitaire',quote:'Devis accepté',mixed:'Marché mixte'};
 export const UNITS = {day:'Jour',hour:'Heure',flat:'Forfait',unit:'Unité'};
 export const BILLING = {actual:'Au réel',fixed:'Forfait',milestone:'Jalon',schedule:'Échéancier',mixed:'Mixte'};
+export const CONDITIONS={payment:'Paiement',billing:'Facturation / échéancier',orders:'Bons de commande',revision:'Révision des prix',expenses:'Frais et déplacements',deliverables:'Livrables',report:'Relevés d’intervention',tax:'TVA',other:'Autre condition'};
 export function minor(value) {
   if(value === '' || value === null || value === undefined)return null;
   const s=String(value).trim().replace(/\s/g,'').replace(',','.');
@@ -30,7 +31,7 @@ function common(v,documentIds) {
   return r;
 }
 export function emptyMarket() {
-  return {title:'',reference:'',clientName:'',clientId:'',type:'framework',currency:'EUR',status:'draft',billingMode:'actual',notificationDate:'',periodBasis:'unknown',renewalMode:'unknown',renewalCount:null,noMinimum:false,minimumMinor:null,feesIncluded:false,notes:'',prices:[],ceilings:[],periods:[],issues:[]};
+  return {title:'',reference:'',clientName:'',clientId:'',type:'framework',currency:'EUR',status:'draft',billingMode:'actual',notificationDate:'',periodBasis:'unknown',renewalMode:'unknown',renewalCount:null,noMinimum:false,minimumMinor:null,feesIncluded:false,notes:'',prices:[],ceilings:[],periods:[],issues:[],conditions:[]};
 }
 export function validateMarket(input,documents=[]) {
   if(!input||typeof input!=='object'||Array.isArray(input))throw new Error('Fiche de marché invalide.');
@@ -87,6 +88,9 @@ export function validateMarket(input,documents=[]) {
     if(r.status==='resolved'&&!r.resolution)throw new Error('Expliquez la résolution du point à confirmer.');
     return r;
   });
+  const conditions=input.conditions??[];
+  if(!Array.isArray(conditions)||conditions.length>150||new Set(conditions.map(v=>v?.id)).size!==conditions.length)throw new Error('Liste de conditions invalide.');
+  m.conditions=conditions.map(v=>({...common(v,ids),category:choice(v.category,Object.keys(CONDITIONS),'Condition'),label:text(v.label,'Intitulé de condition',240,true),value:text(v.value,'Condition contractuelle',4000,true)}));
   if(m.status==='validated'){
     const blockers=activationBlockers(m);
     if(blockers.length)throw new Error('Paramétrage non validable : '+blockers.join(' ; '));
@@ -103,6 +107,7 @@ export function activationBlockers(m) {
   if(m.renewalMode==='unknown')b.push('reconduction à préciser');
   if(m.type==='framework'&&!m.ceilings.some(r=>r.status==='validated'))b.push('plafond à valider');
   else if(m.ceilings.some(r=>r.status!=='validated'))b.push('plafonds encore à vérifier');
+  if((m.conditions||[]).some(r=>r.status!=='validated'))b.push('conditions contractuelles encore à vérifier');
   if(m.issues.some(r=>r.blocking&&r.status==='open'))b.push('point contractuel bloquant non résolu');
   return b;
 }
