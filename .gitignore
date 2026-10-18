@@ -7,3 +7,5 @@ marches/.private/
 .env.*
 .dev.vars
 *.log
+.build/
+platform/.private/

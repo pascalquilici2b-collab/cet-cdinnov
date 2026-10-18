@@ -540,6 +540,7 @@ body:has(.agenda-shell) .topbar{flex-wrap:wrap;row-gap:12px}
 
 .mk-ai-proposals>div{min-width:0;overflow-wrap:anywhere}.mk-ai-proposals span{white-space:pre-wrap}.mk-panel,.mk-ai-result{min-width:0;max-width:100%;box-sizing:border-box}
 </style>
+<script src="./platform/workspace-client.js"></script>
 </head>
 <body>
 <div class="app">
@@ -3941,7 +3942,9 @@ function budgetsForget(){
   budgetsObservedClientNames=null;budgetsPendingClientNames.clear();
   document.getElementById('cdiBudgetsFrame')?.remove();
 }
+const budgetsTransport=CDIPlatform.createBudgetTransport();
 function budgetsClearSession(){
+  budgetsTransport.clear();
   budgetsSession=null;
   try{sessionStorage.removeItem('cdi-budgets-session');const portal=getSession();if(portal?.budgets){delete portal.budgets;localStorage.setItem(AUTH_SESSION_KEY,JSON.stringify(portal));}}catch{}
 }
@@ -4019,12 +4022,10 @@ window.addEventListener('message',async event=>{
     if(message.method==='GET')await budgetsSyncClients();
     const session=await budgetsEnsureSession();
     if(!frame.isConnected||AUTH_USER!==user)throw new Error('La session a changé.');
-    const headers={Authorization:'Bearer '+session.token};
-    if(message.method==='PUT')Object.assign(headers,{'Content-Type':'application/json','If-Match':String(message.version)});
-    const response=await fetch(budgetsApi()+'/workspace',{method:message.method,headers,body:message.method==='PUT'?JSON.stringify(message.workspace):undefined,cache:'no-store',signal:AbortSignal.timeout(30000)});
-    const result=await response.json();
-    if(response.status===401)budgetsClearSession();
-    if(!response.ok)throw new Error(result.error||'Enregistrement impossible. Réessayez.');
+    let result;
+    try{result=await budgetsTransport.request(budgetsApi()+'/workspace',{...session,email:user},message.method,message.workspace,message.version);}
+    catch(error){if(error.status===401)budgetsClearSession();throw error;}
+    if(!frame.isConnected||AUTH_USER!==user)throw new Error('La session a changé.');
     budgetsRefreshClients(message.method==='PUT'?message.workspace.clients:result.workspace.clients);
     reply(result);
   }catch(error){reply(undefined,error.message||'Service indisponible.');}

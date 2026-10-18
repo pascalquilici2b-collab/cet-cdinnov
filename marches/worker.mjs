@@ -32,8 +32,8 @@ export async function handleMarkets(request,db,email,admin,reply,jsonBody,env={}
   if(!id){
     if(request.method==='GET'){
       const result=await db.prepare('SELECT * FROM markets ORDER BY updated_at DESC LIMIT 500').all();
-      const workspace=await db.prepare("SELECT payload FROM budgets_workspace WHERE id='shared'").first();
-      const clients=workspace?(JSON.parse(workspace.payload).clients||[]).map(c=>({id:c.id,name:c.name})):[];
+      const directory=await db.prepare("SELECT record_id AS id,name FROM app_budget_records WHERE workspace_id='shared' AND collection='clients' ORDER BY position").all();
+      const clients=directory.results;
       return reply(200,{markets:result.results.map(unpack),clients});
     }
     if(request.method!=='POST')return reply(405,{error:'Méthode non autorisée.'});

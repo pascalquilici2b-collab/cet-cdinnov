@@ -1,0 +1,15 @@
+{
+  "name":"cdinnov-application",
+  "private":true,
+  "type":"module",
+  "engines":{"node":">=24"},
+  "packageManager":"pnpm@11.25.0",
+  "scripts":{
+    "build":"node platform/build.mjs",
+    "typecheck":"tsc -p platform/tsconfig.json",
+    "test:platform":"node platform/test.mjs",
+    "test:markets":"node marches/test.mjs && node marches/ai-test.mjs",
+    "test:agenda":"node --test agenda/leave-periods.test.mjs"
+  },
+  "devDependencies":{"esbuild":"0.28.0","miniflare":"4.20260730.0","typescript":"5.9.3"}
+}

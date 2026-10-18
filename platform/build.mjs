@@ -1,0 +1,12 @@
+import {createRequire} from 'node:module';
+import {mkdir} from 'node:fs/promises';
+import {fileURLToPath} from 'node:url';
+import path from 'node:path';
+const root=fileURLToPath(new URL('../',import.meta.url));
+const require=createRequire(process.env.MARCHES_BUILD_PACKAGE||new URL('../package.json',import.meta.url));
+const {build}=require('esbuild');
+const output=process.env.CDI_BUILD_OUTPUT||path.join(root,'.build');
+await mkdir(output,{recursive:true});
+await build({entryPoints:[path.join(root,'platform/worker.ts')],outfile:path.join(output,'entry.mjs'),bundle:true,platform:'node',format:'esm',target:'es2022'});
+await build({entryPoints:[path.join(root,'platform/client/workspace-client.ts')],outfile:path.join(root,'platform/workspace-client.js'),bundle:true,platform:'browser',format:'iife',globalName:'CDIPlatform',target:'es2022'});
+console.log('Application Worker and typed browser transport built.');

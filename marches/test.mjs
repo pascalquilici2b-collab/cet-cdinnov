@@ -6,20 +6,22 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {schema} from '../server/budget-service-source.mjs';
 import {emptyMarket,validateMarket,minor,activationBlockers,suggestFromText} from './domain.mjs';
+import {migrateLocal} from '../platform/migrations.mjs';
 
-const require=createRequire(process.env.MARCHES_BUILD_PACKAGE||'C:/Users/quili/OneDrive - cdinnov.com/CDInnov - Pascal QUILICI/40 - CDINNOV GESTION INTERNE/CET & CONGES PAYES/LOGICIEL CET/agenda/package.json');
+const require=createRequire(process.env.MARCHES_BUILD_PACKAGE||new URL('../package.json',import.meta.url));
 const {build}=require('esbuild'),{Miniflare}=require('miniflare');
 export const users=['quilici.pascal@cdinnov.com','calendini.matthieu@cdinnov.com'];
 export async function testEnvironment(options={}){
  const script=process.env.MARCHES_TEST_WORKER?await readFile(process.env.MARCHES_TEST_WORKER,'utf8'):(await build({entryPoints:[fileURLToPath(new URL('../server/budget-service-source.mjs',import.meta.url))],bundle:true,platform:'node',format:'esm',write:false})).outputFiles[0].text;
  let workerScript=script;
  if(options.ai){const match=workerScript.match(/(\w+) as default/);if(!match)throw new Error('Export de test introuvable');workerScript=workerScript.replace(match[0],'test_wrapper as default').replace('export {',`const test_wrapper={fetch(request,env){env.MARKETS_AI={run:async(model,input)=>{const r=await env.AI_TEST.fetch('http://model.test',{method:'POST',body:JSON.stringify(input)});if(!r.ok)throw new Error('Model unavailable');return r.json();}};return ${match[1]}.fetch(request,env);}};\nexport {`);}
- const worker=new Miniflare({modules:true,script:workerScript,serviceBindings:options.ai?{AI_TEST:async request=>Response.json(await options.ai(await request.json()))}:{},compatibilityDate:process.env.MARCHES_TEST_COMPATIBILITY_DATE||'2026-05-15',compatibilityFlags:['nodejs_compat'],kvNamespaces:['CET_KV'],d1Databases:['BUDGETS_DB'],bindings:{CET_WORKSPACE_KEY:'markets-test',BUDGETS_SESSION_SECRET:randomBytes(32).toString('hex'),BUDGETS_ALLOWED_ORIGINS:'http://127.0.0.1:5196,https://app.cdinnov.eu'}});
+ const worker=new Miniflare({modules:true,script:workerScript,serviceBindings:options.ai?{AI_TEST:async request=>Response.json(await options.ai(await request.json()))}:{},compatibilityDate:process.env.MARCHES_TEST_COMPATIBILITY_DATE||'2026-05-15',compatibilityFlags:['nodejs_compat'],kvNamespaces:['CET_KV'],d1Databases:['BUDGETS_DB'],r2Buckets:['CET_FILES'],bindings:{CET_WORKSPACE_KEY:'markets-test',BUDGETS_SESSION_SECRET:randomBytes(32).toString('hex'),BUDGETS_ALLOWED_ORIGINS:'http://127.0.0.1:5196,https://app.cdinnov.eu'}});
  const password='Marches-local-test-2026!',salt='00112233445566778899aabbccddeeff';
  const accounts=Object.fromEntries(users.map((email,i)=>[email,{salt,iter:150000,hash:pbkdf2Sync(password,Buffer.from(salt,'hex'),150000,32,'sha256').toString('hex'),name:['Direction test','Consultant test'][i]}]));
  const kv=await worker.getKVNamespace('CET_KV');await kv.put('markets-test',JSON.stringify({auth:{accounts,allowed:users}}));
  const db=await worker.getD1Database('BUDGETS_DB');
  for(const sql of schema)await db.prepare(sql).run();
+ await migrateLocal(db);
  const migration=(await readFile(new URL('schema.sql',import.meta.url),'utf8'))+'\n'+(await readFile(new URL('ai-schema.sql',import.meta.url),'utf8'));
  for(const sql of migration.split(/;(?=\s*(?:CREATE|$))/).map(s=>s.trim()).filter(Boolean))await db.prepare(sql).run();
  const call=async(path,options={})=>{if(options.body instanceof FormData){const serialized=new Request('https://preview.example',{method:'POST',body:options.body});options={...options,body:Buffer.from(await serialized.arrayBuffer()),headers:{...options.headers,'Content-Type':serialized.headers.get('content-type')}};}return worker.dispatchFetch('https://preview.example/budgets/'+path,{...options,headers:{Origin:'http://127.0.0.1:5196','Content-Type':'application/json',...options.headers}});};
