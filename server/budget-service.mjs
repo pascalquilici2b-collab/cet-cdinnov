@@ -445,7 +445,9 @@ function decode(output, part) {
           result.warnings.push(part.name + " : une clause g\xE9n\xE9rale sans tarif chiffr\xE9 a \xE9t\xE9 \xE9cart\xE9e des tarifs.");
           continue;
         }
-        if (section === "prices" && (/(?:maximum|plafond).*(?:annuel|contrat|global)|montant maximum|estimation|simulation|sous[ -]?total|co[ûu]t global|montant global/i.test(r.label || "") || /(?:prix|tarifs).{0,100}(?:bordereau|annexe)/i.test(r.quote) && !/journalier|par jour|par heure|forfait|prix unitaire/i.test(r.quote))) {
+        const explicitRate = /tarif|prix unitaire|par jour|par heure|forfait/i.test(r.quote || "");
+        const aggregatePrice = /estimation|simulation|sous[ -]?total|co[ûu]t global|montant global/i.test(r.label || "") && !explicitRate;
+        if (section === "prices" && (/(?:maximum|plafond).*(?:annuel|contrat|global)|montant maximum/i.test(r.label || "") || aggregatePrice || /(?:prix|tarifs).{0,100}(?:bordereau|annexe)/i.test(r.quote) && !/journalier|par jour|par heure|forfait|prix unitaire/i.test(r.quote))) {
           result.warnings.push(part.name + " : une estimation, un renvoi au bordereau ou un plafond a \xE9t\xE9 \xE9cart\xE9 des tarifs.");
           continue;
         }
