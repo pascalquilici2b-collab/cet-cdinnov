@@ -145,7 +145,7 @@ function render(){
  const container=el('content');
  if(!allowed()){container.innerHTML='<div class="mk-empty">Le paramétrage des marchés est réservé à la direction habilitée.</div>';return;}
  const m=s.current;
- container.innerHTML='<section id="marketRoot" class="mk-root">'+
+ container.innerHTML=billingNavigation('marches')+'<section id="marketRoot" class="mk-root">'+
  '<div id="marketMessage">'+(s.error?'<div class="mk-message mk-error" role="alert">'+html(s.error)+'</div>':s.notice?'<div class="mk-message mk-success" role="status">'+html(s.notice)+'</div>':'')+'</div>'+
  (m?'<div class="mk-heading"><div><button type="button" class="mk-link" data-action="back">← Tous les marchés</button><h1>'+html(m.title||'Nouveau marché')+'</h1><p>'+html(m.clientName||'Client à renseigner')+(m.reference?' · '+html(m.reference):'')+'</p></div><span class="mk-status">'+html(labels[m.status])+'</span></div>'+
  '<div class="mk-editbar"><span id="mkSaveState">'+(s.dirty?'Modifications à enregistrer':m.version?'Version '+m.version+' enregistrée':'Nouvelle fiche')+'</span><div><button class="mk-secondary" type="button" data-action="export">Exporter la fiche</button><button class="mk-primary" type="button" data-action="save">Enregistrer</button></div></div>'+

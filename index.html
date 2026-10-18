@@ -74,6 +74,12 @@
     user-select:none;
   }
   .nav-item svg{width:18px;height:18px;stroke:var(--muted);flex:0 0 18px;transition:stroke .12s}
+  .cdi-nav-name{min-width:0;line-height:1.5}
+  .billing-nav{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:22px;padding:8px;background:var(--panel);border:1px solid var(--line);border-radius:12px}
+  .billing-nav [aria-current="page"]{background:var(--accent-soft);color:var(--accent-strong);font-weight:700}
+  .billing-nav button:focus-visible{outline:3px solid var(--accent-strong);outline-offset:2px}
+  .agenda-leave-details{display:grid;gap:8px;max-height:55vh;overflow:auto;margin-top:16px}
+  .agenda-leave-details button{justify-content:space-between;white-space:normal;text-align:left}
   .nav-item:hover{background:var(--panel-2)}
   .nav-item.active{background:#fff;color:var(--accent-strong);box-shadow:var(--shadow);font-weight:600}
   .nav-item.active svg{stroke:var(--accent)}
@@ -564,16 +570,15 @@ body:has(.agenda-shell) .topbar{flex-wrap:wrap;row-gap:12px}
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M7 14h3M14 17h3"/></svg>
       Congés et déplacements
     </div>
-    <div class="nav-item" data-view="marches" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();setView('marches');toggleSidebar(false)}"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3h10l3 3v15H8zM4 7H2v14h3M12 8h5M12 12h5M12 16h5"/></svg>Marchés et contrats</div>
-    <div class="nav-item" data-view="facturier">
+    <div class="nav-item" data-view="facturier" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();setView('facturier');toggleSidebar(false)}">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v4H3z"/><path d="M5 7v14h14V7"/><path d="M9 11h6M9 15h6M9 19h3"/></svg>
-      Facturier
+      <span class="cdi-nav-name"><span class="cdi-beta">Bêta</span> Logiciel de facturation</span>
     </div>
     <div class="nav-item" data-view="budgetsprojets" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();setView('budgetsprojets');toggleSidebar(false)}">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h7l2 2h9v14H3z"/><path d="M7 17v-4m5 4v-7m5 7v-5"/></svg>
       <span>Outil budgets</span><span class="cdi-beta">Beta</span>
     </div>
-    <a id="cdiSheetsLink" class="nav-item" href="./feuilles/" style="text-decoration:none"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg><span>SMARTSHEET</span></a>
+    <a id="cdiSheetsLink" class="nav-item" href="./feuilles/" style="text-decoration:none"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg><span class="cdi-nav-name"><span class="cdi-beta">Bêta</span> Smartsheet</span></a>
     <div class="nav-label" id="navLabelReglages">Réglages</div>
     <div class="nav-item" data-view="parametres">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -1004,7 +1009,7 @@ function availableYears(){
 /* Symbole CDInnov du 21 septembre 2026 : SVG intégré, PNG pour les exports PDF. */
 
 const VIEW_META = {
-  marches:{title:'Marchés et contrats',sub:'Référentiel contractuel · prix, plafonds et périodes',action:null},
+  marches:{title:'Logiciel de facturation',sub:'Marchés et contrats · prix, plafonds et périodes',action:null},
   agenda:{title:'Agenda',sub:'Déplacements et congés de l’équipe',action:'Nouveau déplacement',actFn:()=>openAgendaTrip()},
   budgetsprojets:{title:'Outil budgets',sub:'',action:null},
   dashboard:{title:'Tableau de bord CET', sub:"Vue d'ensemble du Compte Épargne-Temps", action:'Nouveau mouvement', actFn:()=>openMouvement()},
@@ -1012,7 +1017,7 @@ const VIEW_META = {
   salaries:{title:'Salariés', sub:'Bénéficiaires du dispositif CET', action:'Nouveau salarié', actFn:()=>openSalarie()},
   conges:{title:'Congés payés', sub:'', action:'Poser une période', actFn:()=>openConge()},
   notesfrais:{title:'Note de frais', sub:'Création, suivi et archivage des notes de frais', action:'Créer une note de frais', actFn:()=>openNoteFrais()},
-  facturier:{title:'Facturier', sub:'Codes affaires et suivi de facturation', action:null},
+  facturier:{title:'Logiciel de facturation', sub:'Codes affaires et suivi de facturation', action:null},
   parametres:{title:'Paramètres & données', sub:'Plafonds, types de mouvements, sauvegardes', action:null}
 };
 
@@ -1022,12 +1027,13 @@ function setView(v){
   if(currentView==='marches'&&v!==currentView&&!marchesLeave())return;
   if(v==='conges')v='agenda';
   if(typeof budgetsDirty!=='undefined'&&currentView==='budgetsprojets'&&v!==currentView&&!budgetsLeave())return;
-  document.querySelector('.year-pick').style.display=['budgetsprojets','marches'].includes(v)?'none':'';
+  document.querySelector('.year-pick').style.display=['budgetsprojets','marches','facturier'].includes(v)?'none':'';
   if(v!=='agenda'){clearInterval(agendaTimer);agendaTimer=null;}
   currentView=v;
-  $$('.nav-item').forEach(n=>n.classList.toggle('active', n.dataset.view===v));
+  $$('.nav-item').forEach(n=>n.classList.toggle('active', n.dataset.view===v||(v==='marches'&&n.dataset.view==='facturier')));
   const meta=VIEW_META[v];
   $('#pageTitle').textContent=meta.title;
+  if(['marches','facturier'].includes(v)){const badge=document.createElement('span');badge.className='cdi-beta';badge.textContent='Bêta';$('#pageTitle').prepend(badge,' ');}
   $('#pageSub').textContent=meta.sub;
   const ta=$('#topAction');
   if(meta.action){ ta.style.display=''; $('#topActionLabel').textContent=meta.action; ta.onclick=meta.actFn; }
@@ -2625,6 +2631,16 @@ function caCode(c){ return [c.code1,c.code2].filter(x=>x!==''&&x!=null).join(' '
 function caCodeKey(c){ return String(c.code1==null?'':c.code1)+String(c.code2==null?'':c.code2); }
 function eurHT(n){ return (Number(n)||0).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'; }
 function moisAnnee(d){ if(!d) return '—'; const dd=new Date(String(d).slice(0,10)+'T00:00:00'); if(isNaN(dd)) return '—'; return MOIS_FR[dd.getMonth()]+' '+dd.getFullYear(); }
+function billingNavigation(active){
+  return '<nav class="billing-nav no-print" aria-label="Rubriques du logiciel de facturation">'+[['marches','Marchés et contrats'],['codes','Codes affaires'],['factures','Factures']].map(([id,label])=>`<button type="button" class="btn btn-ghost" onclick="setBillingSection('${id}')" ${active===id?'aria-current="page"':''}>${label}</button>`).join('')+'</nav>';
+}
+function setBillingSection(section){
+  if(section==='marches'){setView('marches');return;}
+  // Let setView preserve the market editor's unsaved-change confirmation.
+  setView('facturier');
+  if(currentView!=='facturier')return;
+  setFactTab(section);
+}
 function setFactTab(t){ factTab=t; if(t==='codes') codePage=1; else factPage=1; renderFacturier(); }
 function factYears(){
   const ys=new Set(); factures().forEach(f=>{ const y=yearOf(f.dateFacture); if(y) ys.add(y); });
@@ -2647,7 +2663,7 @@ function facturesFiltered(){
 function renderFacturier(){
   setTimeout(()=>budgetsSyncClients().catch(budgetsClientsError),0);
   const cont=$('#content');
-  if(!facturierAdmin()){ cont.innerHTML=emptyState('Accès réservé',"Le facturier est réservé à la direction."); return; }
+  if(!facturierAdmin()){ cont.innerHTML=emptyState('Accès réservé',"Le logiciel de facturation est réservé à la direction."); return; }
   const cds=codesFiltered(), fts=facturesFiltered();
   codePage=Math.min(Math.max(1,codePage), Math.max(1,Math.ceil(cds.length/codePer)));
   factPage=Math.min(Math.max(1,factPage), Math.max(1,Math.ceil(fts.length/factPer)));
@@ -2655,7 +2671,7 @@ function renderFacturier(){
   const totHT=fts.reduce((s,f)=>s+(Number(f.ht)||0),0);
   const totTTC=fts.reduce((s,f)=>s+(Number(f.ttc)||0),0);
   const nonPayees=fts.filter(f=>!f.datePaiement).length;
-  cont.innerHTML=`
+  cont.innerHTML=`${billingNavigation(factTab)}
     <div class="stat-grid">
       <div class="stat"><div class="k">${ic('file')} Codes affaires</div><div class="v">${codesAff().length}</div><div class="sub">${eurHT(codesAff().reduce((s,c)=>s+(Number(c.montantHT)||0),0))} HT au total</div></div>
       <div class="stat"><div class="k">${ic('file')} Factures ${factYear==='all'?'(toutes)':factYear}</div><div class="v">${fts.length}</div><div class="sub">${nonPayees} sans date de paiement</div></div>
@@ -2663,10 +2679,8 @@ function renderFacturier(){
     </div>
     <div class="card">
       <div class="card-head">
-        <h2>${factTab==='codes'?'Codes affaires':'Facturier'}</h2>
+        <h2>${factTab==='codes'?'Codes affaires':'Factures'}</h2>
         <div class="grow"></div>
-        <button class="btn btn-ghost btn-sm no-print" onclick="setFactTab('codes')" ${factTab==='codes'?'style="background:var(--accent-soft);color:var(--accent-strong)"':''}>Codes affaires</button>
-        <button class="btn btn-ghost btn-sm no-print" onclick="setFactTab('factures')" ${factTab==='factures'?'style="background:var(--accent-soft);color:var(--accent-strong)"':''}>Facturier</button>
       </div>
       <div class="card-pad">
         <div class="cdi-clients-toolbar"><button class="btn btn-ghost btn-sm" onclick="budgetsOpenClients()">Clients et logos</button><span id="cdiClientsStatus" role="status"></span></div>
@@ -4153,7 +4167,7 @@ function renderAgenda(){
   $('#agendaKind').onchange=e=>{a.kind=e.target.value;a.type='';renderAgenda();};
   $('#agendaPerson').onchange=e=>{a.person=e.target.value;renderAgenda();};$('#agendaTypeFilter').onchange=e=>{a.type=e.target.value;renderAgenda();};
 }
-function agendaBindTrips(root){root.querySelectorAll('[data-ag-trip]').forEach(el=>el.onclick=()=>agendaShowTrip(el.dataset.agTrip));root.querySelectorAll('[data-ag-leave]').forEach(el=>el.onclick=()=>agendaOpenLeave(el.dataset.agLeave));}
+function agendaBindTrips(root){root.querySelectorAll('[data-ag-trip]').forEach(el=>el.onclick=()=>agendaShowTrip(el.dataset.agTrip));root.querySelectorAll('[data-ag-leave]').forEach(el=>el.onclick=()=>agendaOpenLeave(el.dataset.agLeave));root.querySelectorAll('[data-ag-leave-period]').forEach(el=>el.onclick=()=>agendaOpenLeavePeriod(el.dataset.agLeavePeriod));}
 function agendaModal(html,compact=false){
   agendaFocus=document.activeElement;modal(html,!compact);const panel=$('#overlay .modal');panel.classList.add('agenda-modal');if(compact)panel.classList.add('agenda-day-menu');panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-labelledby','agendaModalTitle');
   panel.onkeydown=e=>{if(e.key!=='Tab')return;const focusable=[...panel.querySelectorAll('button,input,select,textarea')].filter(el=>!el.disabled&&el.getClientRects().length);if(!focusable.length)return;const first=focusable[0],last=focusable.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}};
@@ -4282,27 +4296,126 @@ function agendaShowTrip(id){
   }
 }
 function agendaEmployeeEmail(employee){return normEmail(employee.email)||salEmail(employee.matricule)||'salarie:'+employee.matricule;}
+/* CDI_LEAVE_PERIODS_START */
+var CDILeavePeriods = (() => {
+  var __defProp = Object.defineProperty;
+  var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+  var __getOwnPropNames = Object.getOwnPropertyNames;
+  var __hasOwnProp = Object.prototype.hasOwnProperty;
+  var __export = (target, all) => {
+    for (var name in all)
+      __defProp(target, name, { get: all[name], enumerable: true });
+  };
+  var __copyProps = (to, from, except, desc) => {
+    if (from && typeof from === "object" || typeof from === "function") {
+      for (let key2 of __getOwnPropNames(from))
+        if (!__hasOwnProp.call(to, key2) && key2 !== except)
+          __defProp(to, key2, { get: () => from[key2], enumerable: !(desc = __getOwnPropDesc(from, key2)) || desc.enumerable });
+    }
+    return to;
+  };
+  var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+
+  // agenda/leave-periods.mjs
+  var leave_periods_exports = {};
+  __export(leave_periods_exports, {
+    leavePeriods: () => leavePeriods
+  });
+  var validDate = (value) => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value + "T12:00:00Z")) && (/* @__PURE__ */ new Date(value + "T12:00:00Z")).toISOString().slice(0, 10) === value;
+  var addDay = (day) => new Date(Date.parse(day + "T12:00:00Z") + 864e5).toISOString().slice(0, 10);
+  var weekday = (day) => (/* @__PURE__ */ new Date(day + "T12:00:00Z")).getUTCDay();
+  var key = (...parts) => JSON.stringify(parts);
+  function leavePeriods(raw = []) {
+    const groups = /* @__PURE__ */ new Map();
+    const insert = (c) => {
+      if (!validDate(c.date) || !["AM", "PM"].includes(c.half) || ["Refus\xE9", "Annul\xE9"].includes(c.statut)) return;
+      const id = key(c.matricule, c.date, c.type, c.statut);
+      if (!groups.has(id)) groups.set(id, { matricule: c.matricule, date: c.date, type: c.type, statut: c.statut, halves: /* @__PURE__ */ new Set() });
+      groups.get(id).halves.add(c.half);
+    };
+    for (const c of raw) {
+      if (c.date && c.half) insert(c);
+      else if (validDate(c.dateDebut) && validDate(c.dateFin) && c.dateFin >= c.dateDebut) {
+        for (let day = c.dateDebut; day <= c.dateFin; day = addDay(day)) {
+          if (![0, 6].includes(weekday(day))) for (const half of ["AM", "PM"]) insert({ ...c, date: day, half });
+        }
+      }
+    }
+    const daily = [...groups.values()].map((c) => ({ ...c, halves: [...c.halves].sort(), days: c.halves.size / 2 }));
+    const occupied = new Set(daily.map((c) => key(c.matricule, c.date)));
+    const fridays = /* @__PURE__ */ new Map();
+    for (const c of daily.filter((c2) => c2.type === "Cong\xE9s pay\xE9s" && weekday(c2.date) === 5)) {
+      const id = key(c.matricule, c.date);
+      if (!fridays.has(id)) fridays.set(id, []);
+      fridays.get(id).push(c);
+    }
+    for (const items of fridays.values()) {
+      if (new Set(items.flatMap((c) => c.halves)).size !== 2) continue;
+      const first = items.find((c) => c.statut !== "Valid\xE9") || items[0], date = addDay(first.date);
+      if (occupied.has(key(first.matricule, date))) continue;
+      daily.push({ ...first, date, halves: ["AM", "PM"], days: 1, countedSaturday: true });
+      occupied.add(key(first.matricule, date));
+    }
+    const compatible = /* @__PURE__ */ new Map();
+    for (const c of daily) {
+      const id = key(c.matricule, c.type, c.statut);
+      if (!compatible.has(id)) compatible.set(id, []);
+      compatible.get(id).push(c);
+    }
+    const result = [];
+    for (const entries of compatible.values()) {
+      entries.sort((a, b) => a.date.localeCompare(b.date));
+      let period;
+      for (const entry of entries) {
+        const previous = period?.entries.at(-1);
+        let joins = !!previous && previous.halves.includes("PM") && entry.halves.includes("AM");
+        if (joins) {
+          for (let day = addDay(previous.date); day < entry.date; day = addDay(day)) {
+            if (![0, 6].includes(weekday(day)) || occupied.has(key(entry.matricule, day))) {
+              joins = false;
+              break;
+            }
+          }
+        }
+        if (!joins) {
+          period = {
+            id: "leave:" + key(entry.matricule, entry.date, entry.type, entry.statut),
+            matricule: entry.matricule,
+            type: entry.type,
+            statut: entry.statut,
+            start: entry.date,
+            end: entry.date,
+            days: 0,
+            entries: []
+          };
+          result.push(period);
+        }
+        period.end = entry.date;
+        period.days += entry.days;
+        period.entries.push(entry);
+      }
+    }
+    return result.sort((a, b) => a.start.localeCompare(b.start) || a.id.localeCompare(b.id));
+  }
+  return __toCommonJS(leave_periods_exports);
+})();
+/* CDI_LEAVE_PERIODS_END */
 function agendaLeaves(){
-  const snapshot=agendaState.leaves,employees=snapshot?.employees||state.salaries,raw=snapshot?.records||state.conges||[],records=[];
-  // Legacy periods are expanded for display without changing stored leave balances.
-  raw.forEach(c=>{if(c.date&&c.half)records.push(c);else if(c.dateDebut&&c.dateFin>=c.dateDebut){for(let day=c.dateDebut;day<=c.dateFin;day=agendaAddDays(day,1)){const dow=new Date(day+'T12:00:00').getDay();if(dow!==0&&dow!==6)['AM','PM'].forEach(half=>records.push({...c,date:day,half}));}}});
-  const groups=new Map();
-  records.forEach(c=>{
-    if(!/^\d{4}-\d{2}-\d{2}$/.test(c.date)||!['AM','PM'].includes(c.half)||['Refusé','Annulé'].includes(c.statut))return;
-    const key=[c.matricule,c.date,c.type,c.statut].join('|');
-    if(!groups.has(key))groups.set(key,{...c,halves:new Set()});groups.get(key).halves.add(c.half);
-  });
-  const result=[...groups.values()].map(c=>{
+  const snapshot=agendaState.leaves,employees=snapshot?.employees||state.salaries,raw=snapshot?.records||state.conges||[];
+  return CDILeavePeriods.leavePeriods(raw).map(c=>{
     const employee=employees.find(s=>s.matricule===c.matricule)||{matricule:c.matricule};
-    const half=c.halves.size===1?[...c.halves][0]:null,pending=c.statut!=='Validé';
-    return {id:'leave:'+c.matricule+':'+c.date+':'+c.type+':'+c.statut,kind:'leave',owner:agendaEmployeeEmail(employee),matricule:c.matricule,type:c.type,title:(c.type==='Congés payés'?'Congé':c.type)+(half==='AM'?' · matin':half==='PM'?' · après-midi':'')+(pending?' · en attente':''),start:c.date,end:c.date,startTime:half==='PM'?'12:00':'',location:'',days:c.halves.size/2,pending};
+    const first=c.entries[0],last=c.entries.at(-1),pending=c.statut!=='Validé';
+    const half=c.start===c.end&&first.halves.length===1?first.halves[0]:null;
+    const detail=half==='AM'?' · matin':half==='PM'?' · après-midi':(first.halves.length===1?' · dès l’après-midi':'')+(last.halves.length===1?' · jusqu’au matin':'');
+    return {...c,kind:'leave',owner:agendaEmployeeEmail(employee),title:(c.type==='Congés payés'?'Congé':c.type)+detail+(pending?' · en attente':''),startTime:first.halves[0]==='PM'?'12:00':'',location:'',pending};
   });
-  // Keep the portal's paid-leave Saturday convention visible and clearly labelled.
-  const fridays=new Map();records.filter(c=>c.type==='Congés payés'&&new Date(c.date+'T12:00:00').getDay()===5).forEach(c=>{const key=c.matricule+'|'+c.date;if(!fridays.has(key))fridays.set(key,[]);fridays.get(key).push(c);});
-  fridays.forEach(items=>{if(new Set(items.map(c=>c.half)).size!==2)return;const c=items[0],day=agendaAddDays(c.date,1);if(result.some(t=>t.matricule===c.matricule&&t.start===day))return;const employee=employees.find(s=>s.matricule===c.matricule)||{matricule:c.matricule};const pending=items.some(x=>x.statut!=='Validé');result.push({id:'leave:'+c.matricule+':'+day,kind:'leave',owner:agendaEmployeeEmail(employee),matricule:c.matricule,type:'Congés payés',title:'Congé · samedi décompté'+(pending?' · en attente':''),start:day,end:day,startTime:'',location:'',days:1,pending});});
-  return result;
 }
-function agendaEntryAttribute(t){return t.kind==='leave'?`data-ag-leave="${esc(t.start)}"`:`data-ag-trip="${esc(t.id)}"`;}
+function agendaEntryAttribute(t){return t.kind==='leave'?`data-ag-leave-period="${esc(t.id)}"`:`data-ag-trip="${esc(t.id)}"`;}
+function agendaOpenLeavePeriod(id){
+  const period=agendaLeaves().find(c=>c.id===id);if(!period){toast('Cette période a changé. Actualisez le calendrier.');return;}
+  agendaModal(`<div class="modal-head"><h3 id="agendaModalTitle">${esc(period.title)}</h3><div class="grow"></div><button class="icon-btn" type="button" onclick="agendaClose()" aria-label="Fermer">${ic('close')}</button></div><div class="modal-body">${agendaPerson(period)}<p>Du ${dateFR(period.start)} au ${dateFR(period.end)} · ${String(period.days).replace('.',',')} jour(s) décompté(s)</p><p>Choisissez une journée pour consulter ou gérer ses demi-journées.</p><div class="agenda-leave-details">${period.entries.map(c=>`<button class="btn btn-ghost" type="button" data-ag-leave="${esc(c.date)}"><span>${esc(agendaDate(c.date,{weekday:'long',day:'numeric',month:'long',year:'numeric'}))}</span><span>${c.countedSaturday?'Samedi décompté':c.halves.length===2?'Journée entière':c.halves[0]==='AM'?'Matin':'Après-midi'}</span></button>`).join('')}</div></div>`);
+  agendaBindTrips($('#overlay .modal'));
+}
 async function agendaPrepareLeaves(){
   if(agendaState.leaves?.updatedAt>(state.majAt||'')){
     await cloudLoad();
@@ -4749,7 +4862,7 @@ function agendaNotificationHTML(t){
       return;
     }
     const m = s.current;
-    container.innerHTML = '<section id="marketRoot" class="mk-root"><div id="marketMessage">' + (s.error ? '<div class="mk-message mk-error" role="alert">' + html(s.error) + "</div>" : s.notice ? '<div class="mk-message mk-success" role="status">' + html(s.notice) + "</div>" : "") + "</div>" + (m ? '<div class="mk-heading"><div><button type="button" class="mk-link" data-action="back">\u2190 Tous les march\xE9s</button><h1>' + html(m.title || "Nouveau march\xE9") + "</h1><p>" + html(m.clientName || "Client \xE0 renseigner") + (m.reference ? " \xB7 " + html(m.reference) : "") + '</p></div><span class="mk-status">' + html(labels[m.status]) + '</span></div><div class="mk-editbar"><span id="mkSaveState">' + (s.dirty ? "Modifications \xE0 enregistrer" : m.version ? "Version " + m.version + " enregistr\xE9e" : "Nouvelle fiche") + '</span><div><button class="mk-secondary" type="button" data-action="export">Exporter la fiche</button><button class="mk-primary" type="button" data-action="save">Enregistrer</button></div></div><nav class="mk-tabs" aria-label="Rubriques du march\xE9">' + Object.entries(tabs).map(([k, t]) => '<button type="button" data-tab="' + k + '" aria-current="' + (s.tab === k ? "page" : "false") + '">' + t + (k === "issues" && m.issues.some((x) => x.status === "open") ? " <span>" + m.issues.filter((x) => x.status === "open").length + "</span>" : "") + "</button>").join("") + '</nav><form id="mkForm" novalidate><div class="mk-panel">' + { setup, summary, documents, prices, ceilings, periods, conditions, issues, history }[s.tab]() + '</div></form><div class="mk-validation"><div><strong>Validation du param\xE9trage</strong><p>' + html(activationBlockers(m).length ? "\xC0 compl\xE9ter : " + activationBlockers(m).join(" ; ") : "Les r\xE8gles indispensables sont renseign\xE9es. V\xE9rifiez les sources avant validation.") + "</p><small>Cette validation ne cr\xE9e ni commande ni facture. La consommation du march\xE9 sera suivie \xE0 partir des engagements repris.</small></div><div>" + field("status", "\xC9tat de la fiche", m.status, { options: labels }) + "</div></div>" : '<div class="mk-heading"><div><span class="mk-eyebrow">R\xE9f\xE9rentiel contractuel</span><h1>March\xE9s et contrats</h1><p>Les pi\xE8ces, les prix et les limites qui encadrent vos missions.</p></div><button class="mk-primary" type="button" data-action="new">+ Nouveau march\xE9</button></div><div class="mk-overview"><div><strong>' + s.rows.filter((r) => r.status !== "archived").length + "</strong><span>march\xE9s suivis</span></div><div><strong>" + s.rows.filter((r) => r.status === "draft").length + "</strong><span>en pr\xE9paration</span></div><div><strong>" + s.rows.reduce((n, r) => n + r.issues.filter((x) => x.status === "open").length, 0) + '</strong><span>points \xE0 confirmer</span></div><p>Le plafond contractualis\xE9 et le disponible sont distincts. La reprise des commandes permettra le calcul de consommation.</p></div><div class="mk-list-tools"><label for="mkSearch">Rechercher un march\xE9</label><input id="mkSearch" type="search" value="' + html(s.query) + '" placeholder="Client, r\xE9f\xE9rence ou objet"><button class="mk-secondary" data-action="refresh" type="button">Actualiser</button></div><div id="mkMarketList"></div>') + "</section>";
+    container.innerHTML = billingNavigation("marches") + '<section id="marketRoot" class="mk-root"><div id="marketMessage">' + (s.error ? '<div class="mk-message mk-error" role="alert">' + html(s.error) + "</div>" : s.notice ? '<div class="mk-message mk-success" role="status">' + html(s.notice) + "</div>" : "") + "</div>" + (m ? '<div class="mk-heading"><div><button type="button" class="mk-link" data-action="back">\u2190 Tous les march\xE9s</button><h1>' + html(m.title || "Nouveau march\xE9") + "</h1><p>" + html(m.clientName || "Client \xE0 renseigner") + (m.reference ? " \xB7 " + html(m.reference) : "") + '</p></div><span class="mk-status">' + html(labels[m.status]) + '</span></div><div class="mk-editbar"><span id="mkSaveState">' + (s.dirty ? "Modifications \xE0 enregistrer" : m.version ? "Version " + m.version + " enregistr\xE9e" : "Nouvelle fiche") + '</span><div><button class="mk-secondary" type="button" data-action="export">Exporter la fiche</button><button class="mk-primary" type="button" data-action="save">Enregistrer</button></div></div><nav class="mk-tabs" aria-label="Rubriques du march\xE9">' + Object.entries(tabs).map(([k, t]) => '<button type="button" data-tab="' + k + '" aria-current="' + (s.tab === k ? "page" : "false") + '">' + t + (k === "issues" && m.issues.some((x) => x.status === "open") ? " <span>" + m.issues.filter((x) => x.status === "open").length + "</span>" : "") + "</button>").join("") + '</nav><form id="mkForm" novalidate><div class="mk-panel">' + { setup, summary, documents, prices, ceilings, periods, conditions, issues, history }[s.tab]() + '</div></form><div class="mk-validation"><div><strong>Validation du param\xE9trage</strong><p>' + html(activationBlockers(m).length ? "\xC0 compl\xE9ter : " + activationBlockers(m).join(" ; ") : "Les r\xE8gles indispensables sont renseign\xE9es. V\xE9rifiez les sources avant validation.") + "</p><small>Cette validation ne cr\xE9e ni commande ni facture. La consommation du march\xE9 sera suivie \xE0 partir des engagements repris.</small></div><div>" + field("status", "\xC9tat de la fiche", m.status, { options: labels }) + "</div></div>" : '<div class="mk-heading"><div><span class="mk-eyebrow">R\xE9f\xE9rentiel contractuel</span><h1>March\xE9s et contrats</h1><p>Les pi\xE8ces, les prix et les limites qui encadrent vos missions.</p></div><button class="mk-primary" type="button" data-action="new">+ Nouveau march\xE9</button></div><div class="mk-overview"><div><strong>' + s.rows.filter((r) => r.status !== "archived").length + "</strong><span>march\xE9s suivis</span></div><div><strong>" + s.rows.filter((r) => r.status === "draft").length + "</strong><span>en pr\xE9paration</span></div><div><strong>" + s.rows.reduce((n, r) => n + r.issues.filter((x) => x.status === "open").length, 0) + '</strong><span>points \xE0 confirmer</span></div><p>Le plafond contractualis\xE9 et le disponible sont distincts. La reprise des commandes permettra le calcul de consommation.</p></div><div class="mk-list-tools"><label for="mkSearch">Rechercher un march\xE9</label><input id="mkSearch" type="search" value="' + html(s.query) + '" placeholder="Client, r\xE9f\xE9rence ou objet"><button class="mk-secondary" data-action="refresh" type="button">Actualiser</button></div><div id="mkMarketList"></div>') + "</section>";
     bind();
     if (!m) renderList();
     if (m && s.tab === "summary") el("mk-clientName")?.setAttribute("list", "mkClients");

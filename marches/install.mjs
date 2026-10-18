@@ -9,7 +9,7 @@ const file=path.join(root,'index.html');
 let html=(await readFile(file,'utf8')).replace(/\r\n/g,'\n');
 const css=await readFile(path.join(root,'marches/ui.css'),'utf8');
 const js=(await build({entryPoints:[path.join(root,'marches/ui.js')],bundle:true,format:'iife',platform:'browser',write:false,external:['./marches/vendor/pdf.mjs','./marches/reader.mjs']})).outputFiles[0].text;
-if(!html.includes('data-view="marches"')){
+if(!html.includes('/* CDI_MARKETS_START */')){
  const marker='    <div class="nav-item" data-view="facturier">';
  if(!html.includes(marker))throw new Error('Navigation du facturier introuvable.');
  html=html.replace(marker,'    <div class="nav-item" data-view="marches" role="button" tabindex="0" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();setView(\'marches\');toggleSidebar(false)}"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3h10l3 3v15H8zM4 7H2v14h3M12 8h5M12 12h5M12 16h5"/></svg>Marchés et contrats</div>\n'+marker);

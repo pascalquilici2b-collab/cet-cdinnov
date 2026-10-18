@@ -49,6 +49,7 @@
 }
 
 .cdi-app-home img { display: block; }
+.cdi-beta { padding: 2px 5px; border: 1px solid #d5d8dc; border-radius: 5px; background: #e5e7eb; color: #5f6672; font-size: 10px; font-weight: 600; letter-spacing: 0; }
 .cdi-app-home:hover { background: #e9f4fc; }
 .cdi-app-header a:focus-visible { outline: 3px solid #1786c9; outline-offset: 3px; }
 
@@ -66,3 +67,9 @@
 }
 
 @media print { .cdi-app-header { display: none; } }
+
+@media (max-width: 360px) {
+  .cdi-app-header { gap: 6px; padding-inline: 6px; }
+  .cdi-app-home { gap: 4px; }
+  .cdi-app-home img { display: none; }
+}
