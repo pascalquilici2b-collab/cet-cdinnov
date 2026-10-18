@@ -1,0 +1,9 @@
+.wrangler/
+node_modules/
+marches/node_modules/
+marches/.preview-data/
+marches/.private/
+.env
+.env.*
+.dev.vars
+*.log
