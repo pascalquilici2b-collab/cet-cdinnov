@@ -1,6 +1,6 @@
 # Migration progressive de l’application CDInnov
 
-Statut : socle technique, tableau de bord et gestion financière quotidienne en React/TypeScript, octobre 2026. La migration de l’ensemble de l’application reste en cours.
+Statut : socle technique, tableau de bord, gestion financière quotidienne, CET, salariés et paramètres en React/TypeScript, octobre 2026. La migration de l’ensemble de l’application reste en cours.
 
 ## Entrée de production et commandes
 
@@ -15,10 +15,11 @@ pnpm build
 pnpm test:platform
 pnpm test:dashboard
 pnpm test:finance
+pnpm test:personnel
 pnpm test:agenda
 ```
 
-Le Worker complet sort dans `.build/entry.mjs`. Le transport navigateur compilé dans `platform/workspace-client.js` et les écrans React (`platform/dashboard.js`, `platform/finance.js` et leurs CSS) sont publiés avec `index.html`. Les imports partagés de `platform/chunks/` doivent être publiés avec eux ; conserver les anciens chunks déjà déployés pour les onglets encore ouverts. Le build fixe son répertoire de travail afin d’être reproductible. Les autres écrans, dont les applications React Budgets et SmartSheet, conservent leurs ressources actuelles.
+Le Worker complet sort dans `.build/entry.mjs`. Le transport navigateur compilé dans `platform/workspace-client.js` et les écrans React (`platform/dashboard.js`, `platform/finance.js`, `platform/personnel.js` et leurs CSS) sont publiés avec `index.html`. Les imports partagés de `platform/chunks/` doivent être publiés avec eux ; conserver les anciens chunks déjà déployés pour les onglets encore ouverts. Le build fixe son répertoire de travail afin d’être reproductible. Les autres écrans, dont les applications React Budgets et SmartSheet, conservent leurs ressources actuelles.
 
 Pour les suites Marchés/IA sur le serveur complet, définir `MARCHES_TEST_WORKER` sur le chemin absolu de `.build/entry.mjs` et `MARCHES_TEST_COMPATIBILITY_DATE=2026-06-09`. Les tests navigateur demandent un répertoire privé `PORTAL_QA` et un Playwright installé (`PLAYWRIGHT_PACKAGE` peut désigner son package.json). `CDI_BUDGET_BACKUP`, facultatif, permet de tester localement une sauvegarde réelle ; toutes les sorties restent hors du dépôt.
 
@@ -36,6 +37,18 @@ Le nouveau `GET /api/v1/budget-records` est authentifié avec la même session e
 
 ## Publication et retour arrière
 
+### CET, salariés et paramètres
+
+`platform/client/personnel.tsx` reprend la synthèse CET, les mouvements, les salariés et les paramètres (y compris les comptes). `personnel-editor.tsx` reprend les formulaires de mouvement, salarié et type, ainsi que l’historique individuel. `personnel-domain.ts` définit les contrats et les filtres/tris des mouvements. Le module est chargé après connexion et partage React avec la finance et le tableau de bord.
+
+Les calculs CET, transformations CP→CET, coûts journaliers, imports de suivi Excel et extractions de fiches de paie restent raccordés aux services historiques. Les fenêtres de confirmation, calcul après import et aperçu de bulletin restent dans ces services. Les formulaires conservent les références de fichiers et les champs inconnus lors des modifications. La recherche ne déclenche aucun appel serveur et conserve le focus. Les callbacks des formulaires sont invalidés à leur fermeture et à la déconnexion ; les réponses tardives de photo, bulletin et suivi ne doivent pas ouvrir un écran dans une autre session. Les données React des collaborateurs sont limitées à leur propre dossier ; la gestion des comptes ne reçoit que des résumés, sans mots de passe ni empreintes.
+
+L’import JSON conserve désormais toutes les rubriques du fichier ainsi que les rubriques existantes absentes d’une ancienne sauvegarde. L’ancienne reconstruction limitée au CET pouvait effacer le facturier et les comptes. L’import exige une confirmation avant remplacement, vérifie le format des collections connues et garde les champs supplémentaires. L’import de suivi CET recalcule les jours restant à créditer à la confirmation, pour éviter un double crédit.
+
+Vérification : `node platform/personnel-browser-test.mjs`, avec `PORTAL_QA` privé. Cette suite couvre les transformations et leur annulation, le coût journalier à temps partiel, les créations/modifications/suppressions, l’import incrémental (décodeur Excel simulé, parseur métier réel), le bulletin PDF (transport/extraction simulés), les comptes, les sauvegardes récentes et anciennes, les profils et les écrans mobiles. Les données sont synthétiques et les notifications neutralisées. Une comparaison privée supplémentaire porte sur les résultats des filtres et tris de l’ancien écran avec la copie de production ; aucune donnée réelle n’est commise au dépôt.
+
+Ce lot frontend ne change ni le schéma, ni le Worker, ni les abonnements. Sauvegarder et comparer les données avant/après publication ; le retour arrière restaure seulement les fichiers frontend. Les écrans congés/agenda, marchés et les services historiques restent les prochains lots ; les calculs, imports et autorisations serveur ne sont pas présentés comme intégralement migrés.
+
 ### Gestion financière quotidienne
 
 `platform/client/finance.tsx` reprend les listes Codes affaires, Factures et Notes de frais ; `finance-editor.tsx` reprend les trois formulaires. `finance-domain.ts` porte leurs contrats, normalisation, recherches, tris, pagination, totaux et validation des saisies de facturation. Le tableau de bord et ce module utilisent un même chunk React, sans chargement avant connexion.
@@ -48,7 +61,7 @@ Les montages React sont détruits à la déconnexion et à la sortie des vues. L
 
 Vérification : `node platform/finance-browser-test.mjs`, avec `PORTAL_QA` privé. Le test couvre les créations/modifications, extensions de données, filtres et pagination, exports filtrés, import SQL confirmé, préremplissage PDF respectant les saisies, frais kilométriques et électriques, avance, durée, signature, duplication, annulation d’un retrait de pièce, profil comptabilité, restriction des collaborateurs et mobile. Les notifications et services externes sont remplacés uniquement dans le serveur local de test ; aucun e-mail de test n’est envoyé.
 
-Ce lot frontend ne nécessite aucune migration SQL ni republication du Worker. Conserver une sauvegarde privée de la version et des données, vérifier l’identité des données avant/après, publier tous les fichiers/chunks ensemble. Le retour arrière restaure le précédent frontend, sans restaurer la base par-dessus les nouvelles saisies. Il reste à migrer les écrans CET/congés, salariés, paramètres, marchés et les services historiques ; les intégrations existantes continuent de fonctionner entre-temps.
+Ce lot frontend ne nécessite aucune migration SQL ni republication du Worker. Conserver une sauvegarde privée de la version et des données, vérifier l’identité des données avant/après, publier tous les fichiers/chunks ensemble. Le retour arrière restaure le précédent frontend, sans restaurer la base par-dessus les nouvelles saisies. Le lot Personnel décrit ci-dessus reprend ensuite le CET, les salariés et les paramètres ; les intégrations existantes continuent de fonctionner entre-temps.
 
 ### Tableau de bord commun
 

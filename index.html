@@ -1069,6 +1069,7 @@ $('#yearSelect').addEventListener('change', e=>{ currentYear=Number(e.target.val
 function render(){
   if(currentView!=='dashboard')dashboardForget();
   if(!['facturier','notesfrais'].includes(currentView))financeForget();
+  if(!['cet','mouvements','salaries','parametres'].includes(currentView))personnelForget();
   migrateTypes();
   refreshYearPicker();
   renderMajPill();
@@ -1150,314 +1151,23 @@ function renderDashboard(){
     });
   }).catch(()=>{if(epoch===dashboardEpoch&&element.isConnected)element.innerHTML='<div class="card card-pad" role="alert">Le tableau de bord n’a pas pu être chargé. <button class="btn btn-ghost" onclick="dashboardForget();renderDashboard()">Réessayer</button></div>';});
 }
-function renderCetSummary(){
-  if(!isAdmin(AUTH_USER)){setView('mouvements');return;}
-  const rows=computeYear(currentYear);
-  const g=globalTotals(rows);
-  const pg=Number(state.params.plafondGlobal);
-  const c=$('#content');
-  const anyAlert=g.alertesCP;
-  c.innerHTML=`
-    <div style="margin-bottom:16px"><button class="btn btn-ghost btn-sm" onclick="setView('mouvements')">← Retour aux mouvements CET</button></div>
-    <div class="stat-grid">
-      <div class="stat accent">
-        <div class="k">${ic('wallet')} Solde total CET</div>
-        <div class="v">${nbJours(g.soldeFin)}<span class="u">jours</span></div>
-        <div class="sub">${state.salaries.length} salariés</div>
-      </div>
-      <div class="stat">
-        <div class="k">${ic('plus')} Crédits ${currentYear}</div>
-        <div class="v">${nbJours(g.credits)}<span class="u">j</span></div>
-        <div class="sub">Alimentations validées</div>
-      </div>
-      <div class="stat">
-        <div class="k">${ic('minus')} Débits ${currentYear}</div>
-        <div class="v">${nbJours(Math.abs(g.debits))}<span class="u">j</span></div>
-        <div class="sub">Utilisations validées</div>
-      </div>
-      <div class="stat">
-        <div class="k">${ic('bank')} Vers épargne salariale</div>
-        <div class="v">${nbJours(g.epargne)}<span class="u">j</span></div>
-        <div class="sub">PEE + PER</div>
-      </div>
-    </div>
-
-    ${anyAlert ? `<div class="help-banner" style="background:var(--warn-soft);border-color:#eccfd3;color:#7a2530">
-      ${ic('alert')}<div><b>${anyAlert} dépassement${anyAlert>1?'s':''} du plafond CP→CET</b> (${state.params.plafondCPan} j/an) sur ${currentYear}. Détail dans le tableau.</div></div>` : ''}
-
-    <div class="card">
-      <div class="card-head">
-        <div style="display:flex;align-items:center;gap:12px"><h2>Synthèse par salarié</h2><select class="inp slim" style="width:auto" onchange="currentYear=Number(this.value);render()">${availableYears().map(y=>`<option value="${y}" ${y===currentYear?'selected':''}>${y}</option>`).join('')}</select></div>
-        <div class="grow"></div>
-        <button class="btn btn-ghost btn-sm no-print" onclick="exportCSV()">${ic('download')} Export Excel/CSV</button>
-        <button class="btn btn-ghost btn-sm no-print" onclick="window.print()">${ic('print')} Imprimer</button>
-      </div>
-      <div class="card-body">
-        <table>
-          <thead><tr>
-            <th>Salarié</th>
-            <th class="num">Crédits</th>
-            <th class="num">Débits</th>
-            <th class="num">Solde</th>
-            <th class="num">CP affectés</th>
-            <th>État</th>
-          </tr></thead>
-          <tbody>
-          ${rows.map(r=>`
-            <tr class="clickable" onclick="openDetail('${r.sal.matricule}')">
-              <td><div class="name-cell"><div class="avatar">${avInner(r.sal)}</div>
-                <div><div class="t">${esc(r.sal.nom)} ${esc(r.sal.prenom)}</div><div class="s">Mat. ${esc(r.sal.matricule)}</div></div></div></td>
-              <td class="num" style="color:var(--ok)">+${nbJours(r.credits)}</td>
-              <td class="num" style="color:${r.debits?'var(--orange)':'var(--muted)'}">${r.debits?nbJours(r.debits):'0'}</td>
-              <td class="num"><b>${nbJours(r.soldeFin)}</b></td>
-              <td class="num">${nbJours(r.cpAffectes)} / ${state.params.plafondCPan}</td>
-              <td>${stateBadges(r)}</td>
-            </tr>`).join('')}
-          </tbody>
-        </table>
-        ${rows.length?'':emptyState('Aucun salarié','Ajoutez vos salariés pour démarrer.')}
-      </div>
-    </div>
-  `;
-}
-function stateBadges(r){
-  let h='';
-  if(r.alerteCP) h+=`<span class="badge b-warn"><span class="dot"></span>CP &gt; plafond</span> `;
-  if(!h) h=`<span class="badge b-ok"><span class="dot"></span>OK</span>`;
-  return h;
-}
-
+function renderCetSummary(){if(!isAdmin(AUTH_USER)){setView('mouvements');return;}renderReactPersonnel('cet');}
 /* ---------- Mouvements ---------- */
 let movFilter={sal:'',type:'',cat:'',q:''};
 let movSort={key:'date',dir:'desc'};
-function setSort(key){ if(movSort.key===key) movSort.dir=movSort.dir==='asc'?'desc':'asc'; else { movSort.key=key; movSort.dir=(key==='date'||key==='qte'||key==='montant')?'desc':'asc'; } renderMouvements(); }
-function sortArrow(key){ if(movSort.key!==key) return '<span class="car" style="opacity:.28">↕</span>'; return '<span class="car">'+(movSort.dir==='asc'?'▲':'▼')+'</span>'; }
-function sortMovs(list){ const k=movSort.key, s=movSort.dir==='asc'?1:-1; const val=m=>{ switch(k){ case 'sal': return m.sal?(m.sal.nom+' '+m.sal.prenom):'zzz'; case 'type': return m.libelle||m.type||''; case 'qte': return m.qteSignee; case 'statut': return m.statut||''; case 'montant': return m.montant==null?-Infinity:m.montant; default: return m.date||''; } }; return list.sort((a,b)=>{ let va=val(a),vb=val(b); if(typeof va==='number'&&typeof vb==='number') return (va-vb)*s; va=String(va).toLowerCase(); vb=String(vb).toLowerCase(); return (va<vb?-1:va>vb?1:0)*s; }); }
-function renderMouvements(){
-  if(!movAccess) return renderMouvementsNoAccess();
-  const admin = movAccess==='admin';
-  const me = admin?null:salByMat(movAccess);
-  const c=$('#content');
-  let list=allEnriched().filter(m=>m.annee===currentYear);
-  if(!admin) list=list.filter(m=>m.matricule===movAccess);
-  else if(movFilter.sal) list=list.filter(m=>m.matricule===movFilter.sal);
-  if(movFilter.type) list=list.filter(m=>m.type===movFilter.type);
-  if(movFilter.cat) list=list.filter(m=>m.categorie===movFilter.cat);
-  if(movFilter.q){ const q=movFilter.q.toLowerCase();
-    list=list.filter(m=>((m.sal?m.sal.nom+' '+m.sal.prenom:'')+' '+m.libelle+' '+(m.commentaire||'')).toLowerCase().includes(q)); }
-  sortMovs(list);
-
-  c.innerHTML=`
-    ${admin?'':`
-    <div class="help-banner" style="align-items:center">
-      <div style="display:flex;gap:10px;align-items:center">${ic('lock')}<div>Connecté : <b>${esc(me.nom)} ${esc(me.prenom)}</b> — vous voyez uniquement vos mouvements et montants.</div></div>
-    </div>`}
-    <div class="card">
-      <div class="card-head"><h2>Heures supplémentaires → CET</h2><div class="desc">${HEURES_PAR_JOUR_CET} h supp = 1 jour d'alimentation CET</div>${admin?'<button class="btn btn-ghost btn-sm" onclick="setView(\'cet\')">Synthèse CET</button>':''}</div>
-      <div class="card-pad" style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between">
-        <div style="font-size:13px;color:var(--muted);max-width:520px">${admin?`Chaque salarié remplit le modèle calendrier (heures supp. par jour), puis vous téléversez son fichier ici : l'outil additionne les heures et crédite l'alimentation CET. Import <b>incrémental</b>.`:`Remplissez le modèle (vos heures supp. par jour) puis téléversez-le ici pour créditer votre CET. Import <b>incrémental</b> (pas de double comptage).`}</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap" class="no-print">
-          <a class="btn btn-ghost btn-sm" href="modele_suivi_CET.xlsx" download>${ic('download')} Télécharger le modèle</a>
-          <label class="btn btn-primary btn-sm" style="cursor:pointer;margin:0">${ic('upload')} Téléverse ton fichier de suivi CET<input type="file" accept=".xlsx,.xls,.xlsm" style="display:none" onchange="onSuiviCET(this)"></label>
-        </div>
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-head" style="flex-wrap:wrap;gap:10px">
-        <div class="filters">
-          <div class="search">${ic('search')}<input class="inp slim" id="fq" placeholder="Rechercher…" value="${esc(movFilter.q)}"></div>
-          ${admin?`<select class="inp slim" id="fsal" style="width:auto">${optAll('Tous salariés')}${state.salaries.map(s=>`<option value="${s.matricule}" ${movFilter.sal===s.matricule?'selected':''}>${esc(s.nom)} ${esc(s.prenom)}</option>`).join('')}</select>`:''}
-          <select class="inp slim" id="fcat" style="width:auto"><option value="">Toutes catégories</option><option value="Alimentation" ${movFilter.cat==='Alimentation'?'selected':''}>Alimentation</option><option value="Utilisation" ${movFilter.cat==='Utilisation'?'selected':''}>Utilisation</option></select>
-          <select class="inp slim" id="ftype" style="width:auto">${optAll('Tous types')}${state.types.map(t=>`<option value="${t.code}" ${movFilter.type===t.code?'selected':''}>${esc(t.code)}</option>`).join('')}</select>
-        </div>
-        <div class="grow"></div>
-        <span class="chip">${list.length} mouvement${list.length>1?'s':''}</span>
-        <button class="btn btn-ghost btn-sm no-print" onclick="exportMouvCSV()">${ic('download')} Export</button>
-        <button class="btn btn-primary btn-sm no-print" onclick="openMouvement()">${ic('plus')} Nouveau</button>
-      </div>
-      <div class="card-body">
-        <table>
-          <thead><tr>
-            <th class="th-sort${movSort.key==='date'?' act':''}" onclick="setSort('date')">Date${sortArrow('date')}</th>
-            <th class="th-sort${movSort.key==='sal'?' act':''}" onclick="setSort('sal')">Salarié${sortArrow('sal')}</th>
-            <th class="th-sort${movSort.key==='type'?' act':''}" onclick="setSort('type')">Type${sortArrow('type')}</th>
-            <th class="num th-sort${movSort.key==='qte'?' act':''}" onclick="setSort('qte')">Qté signée${sortArrow('qte')}</th>
-            <th class="th-sort${movSort.key==='statut'?' act':''}" onclick="setSort('statut')">Statut${sortArrow('statut')}</th>
-            <th class="num th-sort${movSort.key==='montant'?' act':''}" onclick="setSort('montant')">Montant${sortArrow('montant')}</th>
-            <th></th>
-          </tr></thead>
-          <tbody>
-          ${list.map(m=>`
-            <tr>
-              <td style="white-space:nowrap">${dateFR(m.date)}</td>
-              <td><div class="name-cell"><div class="avatar">${m.sal?avInner(m.sal):'?'}</div>
-                <div><div class="t">${m.sal?esc(m.sal.nom+' '+m.sal.prenom):'<i>inconnu</i>'}</div><div class="s">Mat. ${esc(m.matricule)}</div></div></div></td>
-              <td><span class="badge b-${movTone(m)}"><span class="dot"></span>${esc(m.libelle)}</span></td>
-              <td class="num" style="color:${toneColor(movTone(m))};font-weight:700">${m.qteSignee>0?'+':''}${nbJours(m.qteSignee)} j</td>
-              <td>${statutBadge(m.statut)}</td>
-              <td class="num">${eur(m.montant)}</td>
-              <td class="num" style="white-space:nowrap">
-                <button class="icon-btn" title="Modifier" onclick="openMouvement('${m.id}')">${ic('edit')}</button>
-                <button class="icon-btn" title="Supprimer" onclick="delMouvement('${m.id}')">${ic('trash')}</button>
-              </td>
-            </tr>`).join('')}
-          </tbody>
-        </table>
-        ${list.length?'':emptyState('Aucun mouvement', admin?`Aucune écriture pour ${currentYear}. Cliquez « Nouveau » pour saisir.`:`Aucun mouvement vous concernant pour ${currentYear}.`)}
-      </div>
-    </div>`;
-  const ta=$('#topAction'); if(ta) ta.style.display='';
-  $('#fq').addEventListener('input', e=>{movFilter.q=e.target.value; renderMouvements(); setTimeout(()=>{const el=$('#fq'); if(el){el.focus(); el.setSelectionRange(el.value.length,el.value.length);}},0);});
-  if($('#fsal')) $('#fsal').addEventListener('change', e=>{movFilter.sal=e.target.value; renderMouvements();});
-  $('#fcat').addEventListener('change', e=>{movFilter.cat=e.target.value; renderMouvements();});
-  $('#ftype').addEventListener('change', e=>{movFilter.type=e.target.value; renderMouvements();});
-}
-function renderMouvementsNoAccess(){
-  const ta=$('#topAction'); if(ta) ta.style.display='none';
-  const cont=$('#content');
-  cont.innerHTML=`
-    <div class="card" style="max-width:480px;margin:46px auto">
-      <div class="card-pad" style="text-align:center">
-        <div style="margin-bottom:8px"><span style="width:46px;height:46px;border-radius:13px;background:var(--accent-soft);display:inline-flex;align-items:center;justify-content:center;color:var(--accent-strong)">${ic('lock')}</span></div>
-        <h2 style="margin:0 0 6px">Accès non rattaché</h2>
-        <div style="font-size:13px;color:var(--muted)">Votre compte n'est rattaché à aucun salarié. Contactez l'administrateur pour qu'il vous associe à votre dossier.</div>
-      </div>
-    </div>`;
-}
+function renderMouvements(){renderReactPersonnel('mouvements');}
 function statutBadge(s){
   if(s==='Validé') return `<span class="badge b-valid"><span class="dot"></span>Validé</span>`;
   return `<span class="badge b-pending"><span class="dot"></span>En attente</span>`;
 }
 
 /* ---------- Salariés ---------- */
-function renderSalariesLock(){
-  $('#content').innerHTML=`
-    <div class="card" style="max-width:440px;margin:48px auto">
-      <div class="card-pad" style="text-align:center">
-        <div style="width:46px;height:46px;border-radius:13px;background:var(--accent-soft);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;color:var(--accent-strong)">${ic('lock')}</div>
-        <h2 style="margin:0 0 6px">Onglet protégé</h2>
-        <div style="font-size:13px;color:var(--muted);margin-bottom:16px">Saisissez le mot de passe pour accéder aux salariés et aux coûts.</div>
-        <input class="inp" type="password" id="salPwd" placeholder="Mot de passe" style="text-align:center" onkeydown="if(event.key==='Enter')tryUnlockSalaries()">
-        <button class="btn btn-primary" style="margin-top:12px;width:100%;justify-content:center" onclick="tryUnlockSalaries()">${ic('check')} Déverrouiller</button>
-      </div>
-    </div>`;
-  setTimeout(()=>{ const e=$('#salPwd'); if(e) e.focus(); }, 60);
-}
-function tryUnlockSalaries(){
-  const e=$('#salPwd');
-  if(e && e.value===SALARIES_PWD){ salariesUnlocked=true; toast('Accès autorisé'); renderSalaries(); }
-  else { toast('Mot de passe incorrect'); if(e){ e.value=''; e.focus(); } }
-}
-function renderSalariesAdminOnly(){
-  const ta=$('#topAction'); if(ta) ta.style.display='none';
-  $('#content').innerHTML=`
-    <div class="card" style="max-width:480px;margin:46px auto">
-      <div class="card-pad" style="text-align:center">
-        <div style="margin-bottom:8px"><span style="width:46px;height:46px;border-radius:13px;background:var(--accent-soft);display:inline-flex;align-items:center;justify-content:center;color:var(--accent-strong)">${ic('lock')}</span></div>
-        <h2 style="margin:0 0 6px">Réservé aux administrateurs</h2>
-        <div style="font-size:13px;color:var(--muted)">La gestion des salariés est accessible uniquement aux comptes administrateurs.</div>
-      </div>
-    </div>`;
-}
-function renderSalaries(){
-  if(!isAdmin(AUTH_USER)) return renderSalariesAdminOnly();
-  const rows=computeYear(currentYear);
-  const byMat=Object.fromEntries(rows.map(r=>[r.sal.matricule,r]));
-  const c=$('#content');
-  c.innerHTML=`
-    <div class="card">
-      <div class="card-head"><h2>Salariés</h2><div class="grow"></div>
-        <button class="btn btn-primary btn-sm" onclick="openSalarie()">${ic('plus')} Nouveau salarié</button></div>
-      <div class="card-body">
-        <table>
-          <thead><tr><th>Salarié</th><th>Entrée</th><th>Temps</th><th>Coût/jour</th><th class="num">Solde fin ${currentYear}</th><th>Statut</th><th></th></tr></thead>
-          <tbody>
-          ${state.salaries.map(s=>{const r=byMat[s.matricule]||{soldeFin:0};return `
-            <tr class="clickable" onclick="openDetail('${s.matricule}')">
-              <td><div class="name-cell"><div class="avatar">${avInner(s)}</div>
-                <div><div class="t">${esc(s.nom)} ${esc(s.prenom)}</div><div class="s">Mat. ${esc(s.matricule)}</div></div></div></td>
-              <td>${dateFR(s.dateEntree)}</td>
-              <td>${s.tempsPartiel||100} %</td>
-              <td><span style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap" onclick="event.stopPropagation()">${s.coutJour?eur(s.coutJour):'<span style="color:var(--muted-2)">—</span>'}<label class="icon-btn" title="Importer / remplacer la fiche de paie PDF (calcul du coût/jour)" style="cursor:pointer;margin:0">${ic('upload')}<input type="file" accept="application/pdf" style="display:none" onchange="onPayslip('${s.matricule}',this)"></label>${s.payslip?`<span class="ps-chip" title="${esc(s.payslipName||'fiche.pdf')} — aperçu" onclick="previewPayslip('${s.matricule}')">${ic('file')}<span class="ps-name">${esc(s.payslipName||'fiche.pdf')}</span></span><button class="icon-btn ps-x" title="Retirer la fiche de paie" onclick="removePayslip('${s.matricule}')">${ic('close')}</button>`:''}</span></td>
-              <td class="num"><b>${nbJours(r.soldeFin)}</b> j</td>
-              <td><span class="badge ${s.statut==='Actif'?'b-valid':'b-ok'}"><span class="dot"></span>${esc(s.statut||'Actif')}</span></td>
-              <td class="num" style="white-space:nowrap" onclick="event.stopPropagation()">
-                <button class="icon-btn" title="Modifier" onclick="openSalarie('${s.matricule}')">${ic('edit')}</button>
-                <button class="icon-btn" title="Supprimer" onclick="delSalarie('${s.matricule}')">${ic('trash')}</button>
-              </td>
-            </tr>`;}).join('')}
-          </tbody>
-        </table>
-        ${state.salaries.length?'':emptyState('Aucun salarié','Ajoutez votre premier bénéficiaire.')}
-      </div>
-    </div>`;
-}
+function renderSalaries(){renderReactPersonnel('salaries');}
 
 /* ---------- Paramètres ---------- */
-function renderParametres(){
-  if(!isAdmin(AUTH_USER)){ const ta=$('#topAction'); if(ta) ta.style.display='none'; $('#content').innerHTML='<div class="card" style="max-width:480px;margin:46px auto"><div class="card-pad" style="text-align:center"><div style="margin-bottom:8px"><span style="width:46px;height:46px;border-radius:13px;background:var(--accent-soft);display:inline-flex;align-items:center;justify-content:center;color:var(--accent-strong)">'+ic('lock')+'</span></div><h2 style="margin:0 0 6px">Réservé aux administrateurs</h2><div style="font-size:13px;color:var(--muted)">Les paramètres et données sont accessibles uniquement aux comptes administrateurs.</div></div></div>'; return; }
-  const p=state.params;const c=$('#content');
-  c.innerHTML=`
-    <div class="card">
-      <div class="card-head"><h2>Paramètres généraux</h2></div>
-      <div class="card-pad">
-        <div class="form-grid">
-          <div class="form-row full"><label>Entreprise</label><input class="inp" id="pEnt" value="${esc(p.entreprise)}"></div>
-          <div class="form-row"><label>Plafond global CET (jours)</label><input class="inp" type="number" id="pPg" value="${p.plafondGlobal}"></div>
-          <div class="form-row"><label>Plafond CP → CET (jours / an)</label><input class="inp" type="number" id="pPcp" value="${p.plafondCPan}"></div>
-          <div class="form-row"><label>Année de suivi par défaut</label><input class="inp" type="number" id="pAn" value="${p.anneeSuivi}"></div>
-          <div class="form-row"><label>Unité</label><input class="inp" id="pUnite" value="${esc(p.unite)}"></div>
-          <div class="form-row full"><label>Dispositifs d'épargne</label><input class="inp" id="pDisp" value="${esc(p.dispositifs)}"></div>
-        </div>
-        <div style="margin-top:16px"><button class="btn btn-primary" onclick="saveParams()">${ic('check')} Enregistrer</button></div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-head"><h2>Types de mouvements</h2><div class="grow"></div>
-        <button class="btn btn-ghost btn-sm" onclick="openType()">${ic('plus')} Ajouter un type</button></div>
-      <div class="card-body">
-        <table>
-          <thead><tr><th>Code</th><th>Libellé</th><th>Catégorie</th><th>Signe</th><th>Compteur CP</th><th>Épargne</th><th></th></tr></thead>
-          <tbody>
-          ${state.types.map(t=>`
-            <tr>
-              <td><span class="chip">${esc(t.code)}</span></td>
-              <td>${esc(t.libelle)}</td>
-              <td><span class="badge ${t.categorie==='Alimentation'?'b-alim':'b-util'}"><span class="dot"></span>${esc(t.categorie)}</span></td>
-              <td style="font-weight:700;color:${t.signe>0?'var(--accent-strong)':'var(--warn)'}">${t.signe>0?'+ Crédit':'− Débit'}</td>
-              <td>${t.compteCP==='Oui'?'<span class="badge b-valid"><span class="dot"></span>Oui</span>':'<span style="color:var(--muted-2)">Non</span>'}</td>
-              <td>${t.epargne==='Oui'?'<span class="badge b-valid"><span class="dot"></span>Oui</span>':'<span style="color:var(--muted-2)">Non</span>'}</td>
-              <td class="num" style="white-space:nowrap">
-                <button class="icon-btn" onclick="openType('${esc(t.code)}')">${ic('edit')}</button>
-                <button class="icon-btn" onclick="delType('${esc(t.code)}')">${ic('trash')}</button>
-              </td>
-            </tr>`).join('')}
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-head"><h2>Données & sauvegarde</h2></div>
-      <div class="card-pad">
-        ${cloudEnabled()
-          ? `<div class="help-banner">${ic('info')}<div>Synchronisation <b>Cloudflare activée</b> — les données sont enregistrées dans la base KV via le Worker (<b>${esc(CLOUD_ENDPOINT)}</b>). Le navigateur garde un cache hors-ligne. Une <b>sauvegarde JSON</b> ponctuelle reste conseillée.</div></div>`
-          : `<div class="help-banner">${ic('info')}<div>Données en local (cache du navigateur). Pour synchroniser entre postes, renseignez <b>CLOUD_ENDPOINT</b> et <b>CLOUD_TOKEN</b> en haut du fichier (voir « cloudflare-worker.js »). Pensez à la <b>sauvegarde JSON</b>.</div></div>`}
-        <div class="filters">
-          <button class="btn btn-ghost" onclick="exportCSV()">${ic('download')} Export synthèse (CSV)</button>
-          <button class="btn btn-ghost" onclick="exportMouvCSV()">${ic('download')} Export mouvements (CSV)</button>
-          <button class="btn btn-ghost" onclick="backupJSON()">${ic('save')} Sauvegarde (JSON)</button>
-          <button class="btn btn-ghost" onclick="$('#importFile').click()">${ic('upload')} Importer (JSON)</button>
-          <input type="file" id="importFile" accept="application/json" style="display:none" onchange="importJSON(event)">
-          <button class="btn btn-ghost" onclick="migrateAttachmentsToR2()">${ic('upload')} Déplacer les pièces jointes vers R2</button>
-          <button class="btn btn-danger" onclick="resetAll()">${ic('refresh')} Réinitialiser</button>
-        </div>
-      </div>
-    </div>
-    ${renderAuthAdminCard()}`;
-}
+function renderParametres(){renderReactPersonnel('parametres');}
 function saveParams(){
+  if(!isAdmin(AUTH_USER))return;
   state.params.entreprise=$('#pEnt').value.trim();
   state.params.plafondGlobal=Number($('#pPg').value)||0;
   state.params.plafondCPan=Number($('#pPcp').value)||0;
@@ -2066,23 +1776,29 @@ function parseBrutAnnuel(text){
   if(m){ const v=normNum(m[1]); if(v) return {brut:v, via:'1ere valeur Annee du bulletin'}; }
   return {brut:null, via:''};
 }
+const payslipRequests=new WeakMap();
 async function onPayslip(mat, input){
+  if(!isAdmin(AUTH_USER))return;
+  const user=AUTH_USER,view=currentView,epoch=personnelEditorEpoch;
   const f=input&&input.files&&input.files[0]; input.value='';
   if(!f) return;
   if(f.type && f.type.indexOf('pdf')<0){ toast('Veuillez choisir un fichier PDF'); return; }
   toast('Envoi de la fiche de paie…');
   try{
     const s=salByMat(mat); if(!s) return;
-    const oldUrl=s.payslip;
+    const attempt=Symbol();payslipRequests.set(s,attempt);
     const url=await uploadFileToR2(f,'payslip-'+mat);
+    if(AUTH_USER!==user||!isAdmin(user)||salByMat(mat)!==s||payslipRequests.get(s)!==attempt)return;
     s.payslip=url; s.payslipName=f.name; save(); render();
     // Keep the old file while an unsaved draft or another note may still refer to it.
     const txt=await pdfTextFromData(await toU8Async(url));
     const {brut,via}=parseBrutAnnuel(txt);
+    if(AUTH_USER!==user||salByMat(mat)!==s||s.payslip!==url||currentView!==view||personnelEditorEpoch!==epoch)return;
     openCoutCalc(mat, brut, via);
   }catch(e){ toast(e.message||'Impossible de lire ce PDF'); }
 }
 function previewPayslip(mat){
+  if(!isAdmin(AUTH_USER))return;
   const s=salByMat(mat); if(!s||!s.payslip) return;
   modal(`
     <div class="modal-head"><h3>Fiche de paie — ${esc(s.nom)} ${esc(s.prenom)}</h3><div class="grow"></div><button class="icon-btn" onclick="closeModal()">${ic('close')}</button></div>
@@ -2114,14 +1830,17 @@ async function renderPayslipThumb(s){
   }catch(e){ if($('#psThumb')) wrap.innerHTML='<div class="hint">Aperçu indisponible — cliquez « Télécharger » pour ouvrir le PDF.</div>'; }
 }
 function removePayslip(mat){
+  if(!isAdmin(AUTH_USER))return;
   const s=salByMat(mat); if(!s) return;
   deleteFileFromR2(s.payslip);
   delete s.payslip; delete s.payslipName; s.coutJour=null; save(); closeModal(); toast('Fiche de paie et coût/jour retirés'); render();
 }
 async function recalcPayslip(mat){
+  if(!isAdmin(AUTH_USER))return;
+  const user=AUTH_USER,epoch=personnelEditorEpoch;
   const s=salByMat(mat); if(!s||!s.payslip) return;
   toast('Lecture de la fiche de paie…');
-  try{ const txt=await pdfTextFromData(await toU8Async(s.payslip)); const {brut,via}=parseBrutAnnuel(txt); closeModal(); openCoutCalc(mat, brut, via); }
+  try{ const url=s.payslip,txt=await pdfTextFromData(await toU8Async(url));if(AUTH_USER!==user||personnelEditorEpoch!==epoch||salByMat(mat)!==s||s.payslip!==url)return; const {brut,via}=parseBrutAnnuel(txt); closeModal(); openCoutCalc(mat, brut, via); }
   catch(e){ toast(e.message||'Impossible de lire ce PDF'); }
 }
 
@@ -2138,6 +1857,8 @@ function loadXLSX(){
   });
 }
 async function onSuiviCET(input){
+  if(!personnelMovementAllowed(null))return;
+  const user=AUTH_USER,access=movAccess,view=currentView,epoch=personnelEditorEpoch;
   const f=input&&input.files&&input.files[0]; input.value=''; if(!f) return;
   toast('Lecture du fichier de suivi…');
   try{
@@ -2151,6 +1872,7 @@ async function onSuiviCET(input){
       total += sumHoursSheet(rows);
     }
     total=Math.round(total*100)/100;
+    if(AUTH_USER!==user||movAccess!==access||currentView!==view||personnelEditorEpoch!==epoch)return;
     let matricule=matFromEmp(emp);
     if(movAccess && movAccess!=='admin') matricule=movAccess; // agent connecté : crédite son propre CET
     if(!matricule){ toast('Salarié non identifié (feuille « Salarié », liste déroulante).'); return; }
@@ -2185,6 +1907,7 @@ function matFromEmp(emp){
   return s?s.matricule:'';
 }
 function openSuiviConfirm(p){
+  if(!personnelMovementAllowed({matricule:p.matricule}))return;
   const s=salByMat(p.matricule);
   const days=Math.floor(p.total/HEURES_PAR_JOUR_CET);
   const reste=Math.round((p.total - days*HEURES_PAR_JOUR_CET)*100)/100;
@@ -2207,6 +1930,9 @@ function openSuiviConfirm(p){
     </div>`);
 }
 function applySuiviCET(mat, delta, total){
+  if(!personnelMovementAllowed({matricule:mat})||!salByMat(mat))return;
+  const already=state.mouvements.filter(m=>m.matricule===mat&&m.type==='ALIM_CP'&&m.src==='hsupp').reduce((a,m)=>a+(Number(m.qte)||0),0);
+  delta=Math.floor(total/HEURES_PAR_JOUR_CET)-already;
   if(!(delta>0)){ closeModal(); return; }
   const today=ymd(new Date());
   state.mouvements.push({id:uid(),date:today,matricule:mat,type:'ALIM_CP',qte:delta,statut:'Validé',commentaire:'Heures supp. importées : '+total+' h cumulées → +'+delta+' j',src:'hsupp'});
@@ -2214,6 +1940,7 @@ function applySuiviCET(mat, delta, total){
   save(); closeModal(); toast('+'+delta+' jour(s) CET crédité(s)'); render();
 }
 function openCoutCalc(mat, brut, via){
+  if(!isAdmin(AUTH_USER))return;
   const s=salByMat(mat); if(!s) return;
   const Yref=Number(state.params.anneeSuivi)-1;
   modal(`
@@ -2248,6 +1975,7 @@ function coutCalcRefresh(){
   $('#ccCout').textContent = cout? window._ccCout.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €' : '—';
 }
 function applyCoutCalc(mat){
+  if(!isAdmin(AUTH_USER))return;
   if(!window._ccCout){ toast('Renseignez un brut annuel valide'); return; }
   const s=salByMat(mat); if(!s) return;
   s.coutJour=window._ccCout; s.brutAnnuel=Number($('#ccBrut').value)||null; s.brutRefYear=Number($('#ccY').value)||null;
@@ -2837,6 +2565,53 @@ async function financeOpenEditor(kind,record,existing){
   }catch(error){if(epoch===financeEditorEpoch&&element.isConnected){element.textContent='Le formulaire ne peut pas être chargé. Fermez-le et réessayez.';toast(error.message);}}
 }
 
+/* React personnel screens. Existing CET calculations, imports and storage remain authoritative. */
+let personnelPromise=null,personnelMounted=null,personnelEpoch=0,personnelView=null,personnelEditorDispose=null,personnelEditorEpoch=0;
+function personnelModule(){return personnelPromise||=import('./platform/personnel.js').catch(error=>{personnelPromise=null;throw error;});}
+function personnelStyle(){if(!$('#personnelStyle')){const css=document.createElement('link');css.id='personnelStyle';css.rel='stylesheet';css.href='platform/personnel.css';document.head.append(css);}}
+function personnelEditorForget(){personnelEditorEpoch++;if(personnelEditorDispose){personnelEditorDispose();personnelEditorDispose=null;}}
+function personnelForget(){personnelEpoch++;if(personnelMounted){personnelMounted.dispose();personnelMounted=null;}personnelView=null;$('#personnelRoot')?.remove();}
+function personnelMovementAllowed(m){return !!(AUTH_USER&&movAccess&&(movAccess==='admin'&&isAdmin(AUTH_USER)||movAccess===AUTH_USER_MAT[AUTH_USER]&&(!m||m.matricule===movAccess)));}
+function personnelProps(view){
+ const user=AUTH_USER,admin=isAdmin(user),access=admin?'admin':AUTH_USER_MAT[user]||null;
+ const allowed=s=>admin||s.matricule===access;
+ const a=admin?authState():null;
+ const snapshot={view,admin,access,year:currentYear,years:availableYears(),hoursPerDay:HEURES_PAR_JOUR_CET,employees:state.salaries.filter(allowed),types:state.types,movements:allEnriched().filter(allowed),rows:computeYear(currentYear).filter(r=>allowed(r.sal)),params:state.params,filter:{...movFilter},sort:{...movSort},cloud:cloudEnabled(),accounts:a?[...new Set([...a.allowed,...Object.keys(a.accounts)])].sort().map(email=>({email,name:a.accounts[email]?.name||'',admin:isAdmin(email),active:!!a.accounts[email]})):[]};
+ const active=()=>AUTH_USER===user&&currentView===view&&!!$('#personnelRoot');
+ const adminActions=new Set(['summary','exportSummary','newEmployee','editEmployee','deleteEmployee','payslip','previewPayslip','removePayslip','newType','editType','deleteType','saveParams','backup','importJSON','migrateFiles','reset','addAccount','resetAccount','removeAccount']);
+ return {snapshot,filter:patch=>{if(active()){Object.assign(movFilter,patch);renderReactPersonnel(view);}},sort:value=>{if(active()){movSort=value;renderReactPersonnel(view);}},year:value=>{if(active()){currentYear=Number(value);render();}},act:(name,arg,extra)=>{
+  if(!active()||adminActions.has(name)&&!isAdmin(AUTH_USER))return;
+  const actions={summary:()=>setView('cet'),movements:()=>setView('mouvements'),detail:()=>openDetail(arg),newMovement:()=>openMouvement(),editMovement:()=>openMouvement(arg),deleteMovement:()=>delMouvement(arg),importCET:()=>onSuiviCET(arg),exportSummary:exportCSV,exportMovements:exportMouvCSV,print:()=>window.print(),newEmployee:()=>openSalarie(),editEmployee:()=>openSalarie(arg),deleteEmployee:()=>delSalarie(arg),payslip:()=>onPayslip(arg,extra),previewPayslip:()=>previewPayslip(arg),removePayslip:()=>removePayslip(arg),newType:()=>openType(),editType:()=>openType(arg),deleteType:()=>delType(arg),saveParams,backup:backupJSON,importJSON:()=>importJSON(arg),migrateFiles:migrateAttachmentsToR2,reset:resetAll,addAccount:()=>{authAddAllowed();const input=$('#newAllowedEmail');if(input)input.value='';},resetAccount:()=>authResetAccount(arg),removeAccount:()=>authRemoveAllowed(arg)};
+  return actions[name]?.();
+ }};
+}
+function renderReactPersonnel(view){
+ if(!AUTH_USER)return;
+ $('#topAction').style.display=(view==='mouvements'?!!movAccess:isAdmin(AUTH_USER)&&view!=='cet'&&view!=='parametres')?'':'none';
+ const user=AUTH_USER;
+ if(personnelMounted&&personnelView===view&&$('#personnelRoot')){personnelMounted.update(personnelProps(view));return;}
+ personnelForget();personnelView=view;personnelStyle();
+ $('#content').innerHTML='<div id="personnelRoot"><div class="card card-pad" role="status">Chargement…</div></div>';
+ const element=$('#personnelRoot'),epoch=personnelEpoch;
+ personnelModule().then(module=>{if(epoch!==personnelEpoch||AUTH_USER!==user||currentView!==view||!element.isConnected)return;personnelMounted=module.mountPersonnel(element,personnelProps(view));}).catch(()=>{if(epoch===personnelEpoch&&element.isConnected)element.innerHTML='<div class="card card-pad" role="alert">Chargement impossible. <button class="btn btn-ghost" onclick="personnelForget();render()">Réessayer</button></div>';});
+}
+async function personnelOpenEditor(kind,record,mat){
+ const user=AUTH_USER;if(!user)return;
+ personnelStyle();modal('<div id="personnelEditorRoot"><div class="modal-body" role="status">Chargement du formulaire…</div></div>',kind==='detail');
+ const element=$('#personnelEditorRoot'),epoch=++personnelEditorEpoch;
+ try{
+  const module=await personnelModule();if(epoch!==personnelEditorEpoch||AUTH_USER!==user||!element.isConnected)return;
+  const employee=kind==='employee'||kind==='detail'?record:undefined;
+  let run=0;const history=kind==='detail'?allEnriched().filter(m=>m.matricule===record.matricule).sort((a,b)=>(a.date||'').localeCompare(b.date||'')).map(m=>{if(m.statut==='Validé')run+=m.qteSignee;return {m,run};}).reverse():[];
+  const actions={close:closeModal,saveMovement:()=>saveMouvement(record?.id||''),saveEmployee:()=>saveSalarie(record?.matricule||''),saveType:()=>saveType(record?.code||''),costPreview:salCoutPreview,regime:salRegimeChanged,photo:salPhotoUpload,removePhoto:salPhotoRemove,newMovement:()=>{closeModal();openMouvement(undefined,record.matricule);}};
+  personnelEditorDispose=module.mountPersonnelEditor(element,{kind,employee,movement:kind==='movement'?record:undefined,movementType:kind==='type'?record:undefined,employees:state.salaries.filter(s=>isAdmin(user)||s.matricule===AUTH_USER_MAT[user]),types:state.types,params:state.params,today:ymd(new Date()),year:currentYear,lockedMat:isAdmin(user)?null:AUTH_USER_MAT[user]||null,row:kind==='detail'?computeYear(currentYear).find(r=>r.sal.matricule===record.matricule):undefined,history,
+   act:(name,...args)=>{if(AUTH_USER===user&&element.isConnected&&epoch===personnelEditorEpoch)return actions[name]?.(...args);},init:()=>{if(kind==='employee')salCoutPreview();}
+  });
+  if(kind==='movement'&&!record&&mat&&isAdmin(user))$('#mSal').value=mat;
+  element.querySelector('input:not([disabled]),select:not([disabled]),button')?.focus();
+ }catch(error){if(epoch===personnelEditorEpoch&&element.isConnected){element.textContent='Le formulaire ne peut pas être chargé. Fermez-le et réessayez.';toast(error.message);}}
+}
+
 /* ===================== MODALS ===================== */
 function modal(html,wide){
   financeEditorForget();
@@ -2845,36 +2620,17 @@ function modal(html,wide){
   o.classList.add('show');
   o.onclick=e=>{ if(e.target===o) closeModal(); };
 }
-function closeModal(){ financeEditorForget(); facturxCloseViewer(); $('#overlay').classList.remove('show'); $('#overlay').innerHTML=''; if(typeof _facturxSession!=='undefined') _facturxSession=null; if(typeof _fvPdfFile!=='undefined') _fvPdfFile=null; }
+function closeModal(){ financeEditorForget();personnelEditorForget(); facturxCloseViewer(); $('#overlay').classList.remove('show'); $('#overlay').innerHTML=''; if(typeof _facturxSession!=='undefined') _facturxSession=null; if(typeof _fvPdfFile!=='undefined') _fvPdfFile=null; }
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeModal(); });
 document.addEventListener('click', ()=>{ if(typeof $$==='function') $$('.salpick-list').forEach(l=>l.style.display='none'); });
 
 /* --- Mouvement form --- */
-function openMouvement(id){
-  const m = id ? state.mouvements.find(x=>x.id===id) : null;
-  const lockMat = (typeof movAccess!=='undefined' && movAccess && movAccess!=='admin') ? movAccess : null;
-  const today=ymd(new Date());
-  modal(`
-    <div class="modal-head"><h3>${m?'Modifier le mouvement':'Nouveau mouvement'}</h3></div>
-    <div class="modal-body">
-      <div class="form-grid">
-        <div class="form-row"><label>Date</label><input class="inp" type="date" id="mDate" value="${m?m.date:today}"></div>
-        <div class="form-row"><label>Salarié</label><select class="inp" id="mSal" ${lockMat?'disabled':''}>${state.salaries.filter(s=>!lockMat||s.matricule===lockMat).map(s=>`<option value="${s.matricule}" ${(m?m.matricule:lockMat)===s.matricule?'selected':''}>${esc(s.nom)} ${esc(s.prenom)} (${s.matricule})</option>`).join('')}</select></div>
-        <div class="form-row full"><label>Type de mouvement</label><select class="inp" id="mType">${state.types.map(t=>`<option value="${t.code}" ${m&&m.type===t.code?'selected':''}>${esc(t.libelle)}</option>`).join('')}</select></div>
-        <div class="form-row"><label>Quantité (jours, positive)</label><input class="inp" type="number" min="0" step="0.5" id="mQte" value="${m?m.qte:''}" placeholder="ex. 5"></div>
-        <div class="form-row"><label>Statut</label><select class="inp" id="mStatut"><option ${m&&m.statut==='Validé'?'selected':''}>Validé</option><option ${m&&m.statut==='En attente'?'selected':''}>En attente</option></select></div>
-        <div class="form-row full"><label>Commentaire</label><input class="inp" id="mComm" value="${m?esc(m.commentaire||''):''}" placeholder="optionnel"></div>
-      </div>
-    </div>
-    <div class="modal-foot">
-      <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>
-      <button class="btn btn-primary" onclick="saveMouvement('${m?m.id:''}')">${ic('check')} ${m?'Enregistrer':'Ajouter'}</button>
-    </div>`);
-}
+function openMouvement(id,mat){const m=id?state.mouvements.find(x=>x.id===id):null;if(!personnelMovementAllowed(m)||id&&!m)return;return personnelOpenEditor('movement',m,mat);}
 function migrateTypes(){ if(!state.types) state.types=[]; if(!state.types.some(t=>t.code==='ALIM_TRANSFO_CP')){ const nt={code:'ALIM_TRANSFO_CP',libelle:'Alimentation – Transformation CP en CET',categorie:'Alimentation',signe:1,compteCP:'Non',epargne:'Oui',monetisation:'Oui'}; const i=state.types.findIndex(t=>t.code==='ALIM_CP'); if(i>=0) state.types.splice(i+1,0,nt); else state.types.push(nt); save(); } }
 function transfoDeduct(m){ const s=salByMat(m.matricule); if(!s) return; const qte=Number(m.qte)||0; const acq=Number(s.cpAcquis)||0; const fromAcq=Math.max(0,Math.min(qte,acq)); const fromEnc=qte-fromAcq; s.cpAcquis=acq-fromAcq; s.cpEnCours=(Number(s.cpEnCours)||0)-fromEnc; m.transfoAcq=fromAcq; m.transfoEnc=fromEnc; }
 function transfoRestore(m){ const s=salByMat(m.matricule); if(!s){ m.transfoAcq=0; m.transfoEnc=0; return; } if(m.transfoAcq==null && m.transfoEnc==null){ s.cpAcquis=(Number(s.cpAcquis)||0)+(Number(m.qte)||0); } else { s.cpAcquis=(Number(s.cpAcquis)||0)+(Number(m.transfoAcq)||0); s.cpEnCours=(Number(s.cpEnCours)||0)+(Number(m.transfoEnc)||0); } m.transfoAcq=0; m.transfoEnc=0; }
 function saveMouvement(id){
+  if(!personnelMovementAllowed(id?state.mouvements.find(x=>x.id===id):null))return;
   const date=$('#mDate').value, type=$('#mType').value;
   let mat=$('#mSal').value;
   if(typeof movAccess!=='undefined' && movAccess && movAccess!=='admin') mat=movAccess; // agent : sur lui-même
@@ -2886,6 +2642,7 @@ function saveMouvement(id){
   save(); closeModal(); toast(id?'Mouvement modifié':'Mouvement ajouté'); render();
 }
 function delMouvement(id){
+  if(!personnelMovementAllowed(state.mouvements.find(x=>x.id===id)))return;
   const m=state.mouvements.find(x=>x.id===id);
   const isCet = !!(m && m.src==='cetconge');
   const isTransfo = !!(m && m.type==='ALIM_TRANSFO_CP');
@@ -2898,43 +2655,7 @@ function delMouvement(id){
 }
 
 /* --- Salarié form --- */
-function openSalarie(mat){
-  const s = mat ? salByMat(mat) : null;
-  _salPhoto = s ? (s.photo||null) : null;
-  modal(`
-    <div class="modal-head"><h3>${s?'Modifier le salarié':'Nouveau salarié'}</h3></div>
-    <div class="modal-body">
-      <div class="form-grid">
-        <div class="form-row"><label>Matricule</label><input class="inp" id="sMat" value="${s?esc(s.matricule):''}" ${s?'disabled':''} placeholder="ex. 006"></div>
-        <div class="form-row"><label>Statut</label><select class="inp" id="sStatut"><option ${s&&s.statut==='Actif'?'selected':''}>Actif</option><option ${s&&s.statut==='Sorti'?'selected':''}>Sorti</option><option ${s&&s.statut==='Suspendu'?'selected':''}>Suspendu</option></select></div>
-        <div class="form-row"><label>Nom</label><input class="inp" id="sNom" value="${s?esc(s.nom):''}"></div>
-        <div class="form-row"><label>Prénom</label><input class="inp" id="sPrenom" value="${s?esc(s.prenom):''}"></div>
-        <div class="form-row"><label>Date d'entrée</label><input class="inp" type="date" id="sDate" value="${s?s.dateEntree:''}"></div>
-        <div class="form-row"><label>Régime de travail</label><select class="inp" id="sRegime" onchange="salRegimeChanged();salCoutPreview()"><option ${(!s||s.regime!=='Temps partiel')?'selected':''}>Temps plein</option><option ${s&&s.regime==='Temps partiel'?'selected':''}>Temps partiel</option></select></div>
-        <div class="form-row" id="sJoursAnRow" style="${s&&s.regime==='Temps partiel'?'':'display:none'}"><label>Jours travaillés / an (temps partiel)</label><input class="inp" type="number" id="sJoursAn" value="${s&&s.joursAnPartiel!=null?s.joursAnPartiel:''}" placeholder="ex. 130" oninput="salCoutPreview()"></div>
-        <div class="form-row"><label>Brut chargé annuel (€) <span class="hint">N-1 ou estimé</span></label><input class="inp" type="number" step="0.01" id="sBrut" value="${s&&s.brutAnnuel!=null?s.brutAnnuel:''}" placeholder="ex. 40000" oninput="salCoutPreview()"></div>
-        <div class="form-row"><label>Année de réf. (jours ouvrés)</label><input class="inp" type="number" id="sBrutY" value="${s&&s.brutRefYear?s.brutRefYear:Number(state.params.anneeSuivi)}" oninput="salCoutPreview()"></div>
-        <div class="form-row"><label>Coût / jour manuel (€) <span class="hint">si pas de brut</span></label><input class="inp" type="number" step="0.01" id="sCout" value="${s&&s.coutJour!=null&&!(s&&s.brutAnnuel)?s.coutJour:''}" placeholder="optionnel" oninput="salCoutPreview()"></div>
-        <div class="form-row"><label>Coût / jour retenu</label><input class="inp" id="sCoutCalc" value="" disabled style="font-weight:700;color:var(--accent-strong)"></div>
-        <div class="form-row full"><div class="preview" id="sCoutDetail"></div></div>
-        <div class="form-row"><label>Congés acquis — solde (j)</label><input class="inp" type="number" step="0.5" id="sCpAcq" value="${s&&s.cpAcquis!=null?s.cpAcquis:''}" placeholder="ex. 21.5"></div>
-        <div class="form-row"><label>Congés en cours d'acquisition (j)</label><input class="inp" type="number" step="0.5" id="sCpEnc" value="${s&&s.cpEnCours!=null?s.cpEnCours:''}" placeholder="ex. 32.5"></div>
-        <div class="form-row full"><label>Commentaire</label><input class="inp" id="sComm" value="${s?esc(s.commentaire||''):''}"></div>
-        <div class="form-row full"><label>Photo de profil</label>
-          <div style="display:flex;align-items:center;gap:12px">
-            <div id="salPhotoPrev" class="avatar" style="width:48px;height:48px;font-size:16px">${s&&s.photo?'<img src="'+s.photo+'" style="width:100%;height:100%;object-fit:cover">':esc(initials(s||{nom:'',prenom:''}))}</div>
-            <label class="btn btn-ghost btn-sm" style="cursor:pointer;margin:0">${ic('upload')} Importer une photo<input type="file" accept="image/*" style="display:none" onchange="salPhotoUpload(this)"></label>
-            <button type="button" class="btn btn-ghost btn-sm" onclick="salPhotoRemove()">Retirer</button>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="modal-foot">
-      <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>
-      <button class="btn btn-primary" onclick="saveSalarie('${s?s.matricule:''}')">${ic('check')} ${s?'Enregistrer':'Ajouter'}</button>
-    </div>`);
-  salCoutPreview();
-}
+function openSalarie(mat){if(!isAdmin(AUTH_USER))return;const s=mat?salByMat(mat):null;if(mat&&!s)return;_salPhoto=s?.photo||null;return personnelOpenEditor('employee',s);}
 let _salPhoto=null;
 function salPhotoUpload(input){
   const f=input&&input.files&&input.files[0]; if(!f) return;
@@ -2970,6 +2691,7 @@ function salCoutPreview(){
   }
 }
 function saveSalarie(mat){
+  if(!isAdmin(AUTH_USER))return;
   const isNew=!mat;
   const matricule = isNew ? $('#sMat').value.trim() : mat;
   const cur = isNew ? null : salByMat(mat);
@@ -2996,6 +2718,7 @@ function saveSalarie(mat){
   save(); closeModal(); toast(isNew?'Salarié ajouté':'Salarié modifié'); render();
 }
 function delSalarie(mat){
+  if(!isAdmin(AUTH_USER))return;
   const n=state.mouvements.filter(m=>m.matricule===mat).length;
   confirmModal('Supprimer ce salarié ?', n?`Attention : ${n} mouvement(s) lui sont rattachés et seront aussi supprimés.`:'Aucun mouvement rattaché.',()=>{
     state.salaries=state.salaries.filter(s=>s.matricule!==mat);
@@ -3005,29 +2728,9 @@ function delSalarie(mat){
 }
 
 /* --- Type form --- */
-function openType(code){
-  const t = code ? typeByCode(code) : null;
-  modal(`
-    <div class="modal-head"><h3>${t?'Modifier le type':'Nouveau type de mouvement'}</h3></div>
-    <div class="modal-body">
-      <div class="form-grid">
-        <div class="form-row"><label>Code</label><input class="inp" id="tCode" value="${t?esc(t.code):''}" ${t?'disabled':''} placeholder="EX. ALIM_RTT"></div>
-        <div class="form-row"><label>Catégorie</label><select class="inp" id="tCat"><option ${t&&t.categorie==='Alimentation'?'selected':''}>Alimentation</option><option ${t&&t.categorie==='Utilisation'?'selected':''}>Utilisation</option></select></div>
-        <div class="form-row full"><label>Libellé</label><input class="inp" id="tLib" value="${t?esc(t.libelle):''}"></div>
-        <div class="form-row"><label>Effet sur le solde</label><select class="inp" id="tSigne"><option value="1" ${t&&t.signe>0?'selected':''}>+ Crédit (alimente)</option><option value="-1" ${t&&t.signe<0?'selected':''}>− Débit (utilise)</option></select></div>
-        <div class="form-row"><label>Compteur CP→CET ?</label><select class="inp" id="tCp"><option ${t&&t.compteCP==='Oui'?'selected':''}>Non</option><option ${t&&t.compteCP==='Oui'?'selected':''} value="Oui">Oui</option></select></div>
-        <div class="form-row"><label>Compte épargne ?</label><select class="inp" id="tEp"><option value="Non" ${!t||t.epargne!=='Oui'?'selected':''}>Non</option><option value="Oui" ${t&&t.epargne==='Oui'?'selected':''}>Oui</option></select></div>
-        <div class="form-row"><label>Monétisable ?</label><select class="inp" id="tMon"><option value="Non" ${!t||t.monetisation!=='Oui'?'selected':''}>Non</option><option value="Oui" ${t&&t.monetisation==='Oui'?'selected':''}>Oui</option></select></div>
-      </div>
-    </div>
-    <div class="modal-foot">
-      <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>
-      <button class="btn btn-primary" onclick="saveType('${t?t.code:''}')">${ic('check')} ${t?'Enregistrer':'Ajouter'}</button>
-    </div>`);
-  // fix CP select default
-  const cp=$('#tCp'); cp.innerHTML=`<option value="Non" ${!t||t.compteCP!=='Oui'?'selected':''}>Non</option><option value="Oui" ${t&&t.compteCP==='Oui'?'selected':''}>Oui</option>`;
-}
+function openType(code){if(!isAdmin(AUTH_USER))return;const t=code?typeByCode(code):null;if(code&&!t)return;return personnelOpenEditor('type',t);}
 function saveType(code){
+  if(!isAdmin(AUTH_USER))return;
   const isNew=!code;
   const c = isNew ? $('#tCode').value.trim().toUpperCase() : code;
   if(!c){ toast('Code requis'); return; }
@@ -3038,54 +2741,14 @@ function saveType(code){
   save(); closeModal(); toast(isNew?'Type ajouté':'Type modifié'); render();
 }
 function delType(code){
+  if(!isAdmin(AUTH_USER))return;
   const n=state.mouvements.filter(m=>m.type===code).length;
   if(n){ toast(`Impossible : ${n} mouvement(s) utilisent ce type`); return; }
   confirmModal('Supprimer ce type ?','',()=>{ state.types=state.types.filter(t=>t.code!==code); save(); closeModal(); toast('Type supprimé'); render(); });
 }
 
 /* --- Detail employee --- */
-function openDetail(mat){
-  const s=salByMat(mat); if(!s) return;
-  const r=computeYear(currentYear).find(x=>x.sal.matricule===mat);
-  const hist=allEnriched().filter(m=>m.matricule===mat).sort((a,b)=>(a.date||'').localeCompare(b.date||''));
-  let run=0; const histRows=hist.map(m=>{ if(m.statut==='Validé') run+=m.qteSignee; return {m,run};}).reverse();
-  modal(`
-    <div class="modal-head">
-      <div class="name-cell"><div class="avatar" style="width:38px;height:38px;font-size:14px">${avInner(s)}</div>
-        <div><h3 style="margin:0">${esc(s.nom)} ${esc(s.prenom)}</h3><div class="s" style="color:var(--muted);font-size:12px">Matricule ${esc(s.matricule)} · ${s.statut}</div></div></div>
-      <div class="grow"></div>
-      <button class="icon-btn" onclick="closeModal()">${ic('close')}</button>
-    </div>
-    <div class="modal-body">
-      <div class="detail-stats">
-        <div class="s"><div class="k">Solde fin ${currentYear}</div><div class="v">${nbJours(r.soldeFin)} <span style="font-size:12px;color:var(--muted)">j</span></div></div>
-        <div class="s"><div class="k">Crédits</div><div class="v" style="color:var(--accent-strong)">+${nbJours(r.credits)}</div></div>
-        <div class="s"><div class="k">Débits</div><div class="v">${nbJours(r.debits)}</div></div>
-        <div class="s"><div class="k">CP affectés</div><div class="v">${nbJours(r.cpAffectes)}<span style="font-size:12px;color:var(--muted)"> / ${state.params.plafondCPan}</span></div></div>
-      </div>
-      ${(r.alerteCP||r.alertePlafond)?`<div class="help-banner" style="background:var(--warn-soft);border-color:#eccfd3;color:#7a2530">${ic('alert')}<div>${r.alerteCP?`Plafond CP→CET dépassé (${nbJours(r.cpAffectes)} j &gt; ${state.params.plafondCPan} j). `:''}${r.alertePlafond?`Solde au-delà du plafond global (${nbJours(r.soldeFin)} j &gt; ${state.params.plafondGlobal} j).`:''}</div></div>`:''}
-      <div class="section-title" style="margin-top:6px">Historique du compte</div>
-      <div style="max-height:300px;overflow:auto;border:1px solid var(--line);border-radius:var(--radius-sm)">
-        <table>
-          <thead><tr><th>Date</th><th>Type</th><th class="num">Mouvement</th><th class="num">Solde cumulé</th><th>Statut</th></tr></thead>
-          <tbody>
-          ${histRows.length?histRows.map(({m,run})=>`
-            <tr>
-              <td style="white-space:nowrap">${dateFR(m.date)}</td>
-              <td><span class="badge b-${movTone(m)}"><span class="dot"></span>${esc(m.libelle)}</span></td>
-              <td class="num" style="color:${toneColor(movTone(m))};font-weight:700">${m.qteSignee>0?'+':''}${nbJours(m.qteSignee)} j</td>
-              <td class="num">${m.statut==='Validé'?'<b>'+nbJours(run)+'</b>':'<span style="color:var(--muted-2)">—</span>'}</td>
-              <td>${statutBadge(m.statut)}</td>
-            </tr>`).join(''):`<tr><td colspan="5" class="empty">Aucun mouvement.</td></tr>`}
-          </tbody>
-        </table>
-      </div>
-    </div>
-    <div class="modal-foot">
-      <button class="btn btn-ghost" onclick="closeModal()">Fermer</button>
-      <button class="btn btn-primary" onclick="closeModal();openMouvement()">${ic('plus')} Mouvement pour ce salarié</button>
-    </div>`, true);
-}
+function openDetail(mat){const s=salByMat(mat);if(!s||!AUTH_USER||!isAdmin(AUTH_USER)&&movAccess!==mat)return;return personnelOpenEditor('detail',s);}
 
 /* --- confirm --- */
 function confirmModal(title,msg,onYes){
@@ -3115,6 +2778,7 @@ function exportCSV(){
   toast('Synthèse exportée');
 }
 function exportMouvCSV(){
+  if(!personnelMovementAllowed(null))return;
   const head=['Date','Matricule','Nom Prénom','Type','Libellé','Catégorie','Qté','Signe','Qté signée','Montant €','Année','CP?','Épargne?','Statut','Commentaire'];
   const lines=[head.map(csvCell).join(';')];
   const own = (typeof movAccess!=='undefined' && movAccess && movAccess!=='admin') ? movAccess : null;
@@ -3129,13 +2793,21 @@ function backupJSON(){
   toast('Sauvegarde téléchargée');
 }
 function importJSON(ev){
+  if(!isAdmin(AUTH_USER))return;
+  const user=AUTH_USER,epoch=personnelEpoch;
   const f=ev.target.files[0]; if(!f) return;
   const rd=new FileReader();
   rd.onload=()=>{ try{
       const d=JSON.parse(rd.result);
-      if(!d.params||!d.salaries) throw 0;
-      state={ params:Object.assign(structuredClone(PARAMS_DEFAULT),d.params), types:d.types||structuredClone(TYPES_DEFAULT), salaries:d.salaries||[], mouvements:d.mouvements||[], conges:d.conges||[], notesFrais:d.notesFrais||[] };
-      currentYear=Number(state.params.anneeSuivi); save(); toast('Données importées'); render();
+      if(!d||typeof d.params!=='object'||!d.params||Array.isArray(d.params)||!Array.isArray(d.salaries))throw 0;
+      for(const key of ['types','mouvements','conges','notesFrais','factures','codesAffaires'])if(Object.hasOwn(d,key)&&!Array.isArray(d[key]))throw 0;
+      if(Object.hasOwn(d,'auth')&&(!d.auth||typeof d.auth!=='object'||Array.isArray(d.auth)))throw 0;
+      if(AUTH_USER!==user||personnelEpoch!==epoch||!isAdmin(user))return;
+      confirmModal('Importer cette sauvegarde ?', 'Les données présentes dans le fichier remplaceront les données correspondantes. Les rubriques absentes d’une ancienne sauvegarde seront conservées.',()=>{
+        if(AUTH_USER!==user||!isAdmin(user))return;
+        state={...state,...d,params:{...structuredClone(PARAMS_DEFAULT),...state.params,...d.params}};
+        currentYear=Number(state.params.anneeSuivi);save();closeModal();personnelForget();toast('Données importées');render();
+      });
     }catch(e){ toast('Fichier invalide'); } };
   rd.readAsText(f); ev.target.value='';
 }
@@ -3302,7 +2974,7 @@ function unlockApp(email){
 function authLogout(){
   if(!marchesLeave())return;
   if(!budgetsLeave())return;
-  dashboardForget();financeForget();closeModal();nfDraft=null;
+  dashboardForget();financeForget();personnelForget();closeModal();nfDraft=null;
   marchesForget();
   agendaForget();
   budgetsForget();
@@ -3321,41 +2993,16 @@ function renderUserChip(){
 }
 
 /* gestion des acces (Reglages, admin seulement) */
-function renderAuthAdminCard(){
-  if(!isAdmin(AUTH_USER)) return '';
-  const a=authState();
-  const emails=[...new Set([...a.allowed, ...Object.keys(a.accounts)])].sort();
-  const rows=emails.map(e=>{
-    const acc=a.accounts[e]; const admin=isAdmin(e);
-    const statut = acc ? '<span class="badge b-valid"><span class="dot"></span>Compte actif</span>' : '<span class="badge b-util"><span class="dot"></span>En attente 1re connexion</span>';
-    return `<tr>
-      <td>${esc(acc?acc.name:'—')}</td>
-      <td>${esc(e)}${admin?' <span class="chip">admin</span>':''}</td>
-      <td>${statut}</td>
-      <td class="num" style="white-space:nowrap">
-        ${acc?`<button class="icon-btn" title="Réinitialiser le mot de passe" onclick="authResetAccount('${esc(e)}')">${ic('refresh')}</button>`:''}
-        ${admin?'':`<button class="icon-btn" title="Retirer l'accès" onclick="authRemoveAllowed('${esc(e)}')">${ic('trash')}</button>`}
-      </td></tr>`;
-  }).join('');
-  return `<div class="card">
-    <div class="card-head"><h2>Comptes &amp; accès</h2></div>
-    <div class="card-pad">
-      <div class="help-banner">${ic('info')}<div>Ajoutez les adresses e-mail autorisées à se connecter. Chaque collaborateur <b>crée son mot de passe</b> à sa première connexion. Vous seul (admin) gérez cette liste.</div></div>
-      <div class="filters" style="margin-bottom:14px">
-        <input class="inp" id="newAllowedEmail" type="email" placeholder="prenom@cdinnov.com" style="max-width:280px">
-        <button class="btn btn-primary btn-sm" onclick="authAddAllowed()">${ic('plus')} Autoriser cette adresse</button>
-      </div>
-      <table><thead><tr><th>Nom</th><th>E-mail</th><th>Statut</th><th></th></tr></thead>
-      <tbody>${rows||'<tr><td colspan="4" style="color:var(--muted)">Aucune adresse autorisée.</td></tr>'}</tbody></table>
-    </div></div>`;
-}
+
 function authAddAllowed(){
+  if(!isAdmin(AUTH_USER))return;
   const e=normEmail($('#newAllowedEmail').value);
   if(!e || e.indexOf('@')<1){ toast('Adresse invalide'); return; }
   const a=authState(); if(!a.allowed.includes(e)) a.allowed.push(e);
   save(); toast('Adresse autorisée'); render();
 }
 function authRemoveAllowed(email){
+  if(!isAdmin(AUTH_USER))return;
   email=normEmail(email);
   if(isAdmin(email)){ toast('Impossible de retirer un admin'); return; }
   if(!confirm("Retirer l'accès de "+email+" ? Son compte et son mot de passe seront supprimés.")) return;
@@ -3363,6 +3010,7 @@ function authRemoveAllowed(email){
   save(); render();
 }
 function authResetAccount(email){
+  if(!isAdmin(AUTH_USER))return;
   email=normEmail(email);
   if(!confirm("Réinitialiser le mot de passe de "+email+" ? La personne devra le recréer à sa prochaine connexion.")) return;
   const a=authState(); delete a.accounts[email];
