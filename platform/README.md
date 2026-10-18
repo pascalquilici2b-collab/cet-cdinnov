@@ -1,6 +1,6 @@
 # Migration progressive de l’application CDInnov
 
-Statut : socle technique et tableau de bord commun, octobre 2026. La migration de l’ensemble de l’application reste en cours.
+Statut : socle technique, tableau de bord et gestion financière quotidienne en React/TypeScript, octobre 2026. La migration de l’ensemble de l’application reste en cours.
 
 ## Entrée de production et commandes
 
@@ -14,10 +14,11 @@ pnpm typecheck
 pnpm build
 pnpm test:platform
 pnpm test:dashboard
+pnpm test:finance
 pnpm test:agenda
 ```
 
-Le Worker complet sort dans `.build/entry.mjs`. Le transport navigateur compilé dans `platform/workspace-client.js` et le tableau de bord React (`platform/dashboard.js` et `.css`) sont publiés avec `index.html`. Les autres écrans, dont les applications React Budgets et SmartSheet, conservent leurs ressources actuelles.
+Le Worker complet sort dans `.build/entry.mjs`. Le transport navigateur compilé dans `platform/workspace-client.js` et les écrans React (`platform/dashboard.js`, `platform/finance.js` et leurs CSS) sont publiés avec `index.html`. Les imports partagés de `platform/chunks/` doivent être publiés avec eux ; conserver les anciens chunks déjà déployés pour les onglets encore ouverts. Le build fixe son répertoire de travail afin d’être reproductible. Les autres écrans, dont les applications React Budgets et SmartSheet, conservent leurs ressources actuelles.
 
 Pour les suites Marchés/IA sur le serveur complet, définir `MARCHES_TEST_WORKER` sur le chemin absolu de `.build/entry.mjs` et `MARCHES_TEST_COMPATIBILITY_DATE=2026-06-09`. Les tests navigateur demandent un répertoire privé `PORTAL_QA` et un Playwright installé (`PLAYWRIGHT_PACKAGE` peut désigner son package.json). `CDI_BUDGET_BACKUP`, facultatif, permet de tester localement une sauvegarde réelle ; toutes les sorties restent hors du dépôt.
 
@@ -34,6 +35,20 @@ Le nouveau `GET /api/v1/budget-records` est authentifié avec la même session e
 `GET /budgets/workspace` renvoie un ETag. Une version inchangée répond 304 après contrôle de session, sans charger le document en SQL. Le cache navigateur reste en mémoire, attaché à la session signée ; il est vidé lors d’une déconnexion, d’un changement de session ou d’une écriture. Aucun cache partagé de données financières n’est ajouté. Le serveur ne parse plus le gros JSON lors d’une simple lecture.
 
 ## Publication et retour arrière
+
+### Gestion financière quotidienne
+
+`platform/client/finance.tsx` reprend les listes Codes affaires, Factures et Notes de frais ; `finance-editor.tsx` reprend les trois formulaires. `finance-domain.ts` porte leurs contrats, normalisation, recherches, tris, pagination, totaux et validation des saisies de facturation. Le tableau de bord et ce module utilisent un même chunk React, sans chargement avant connexion.
+
+Les recherches et changements de page sont locaux. Le répertoire clients n’est demandé qu’à l’entrée du facturier ou après une modification utile ; il n’est plus relu à chaque frappe. Les notes de frais sont paginées. Les noms, photos et logos restent affichés selon les données disponibles.
+
+Le raccordement aux services existants reste volontairement explicite dans `index.html` : stockage, import SQL avec confirmation, exports CSV/PDF, upload et lecture des pièces, calcul kilométrique, signature et Factur-X. Les calculs et barèmes existants ne sont pas modifiés par cette migration. Les enregistrements complets restent la source d’écriture ; une modification conserve les champs inconnus, dates et références de pièces non concernées. Le contrat d’authentification historique n’est pas remplacé par ce lot.
+
+Les montages React sont détruits à la déconnexion et à la sortie des vues. Les réponses tardives de lecture de PDF, d’itinéraire et d’upload de justificatif ne doivent pas rouvrir une fiche fermée ni modifier la note d’un autre contexte. Un retrait de justificatif dans un brouillon ne supprime plus le fichier de la note enregistrée. La suppression d’une note ne supprime pas une pièce encore référencée par une autre note ; les pièces détachées d’un brouillon restent conservées, sans purge automatique dans cette tranche.
+
+Vérification : `node platform/finance-browser-test.mjs`, avec `PORTAL_QA` privé. Le test couvre les créations/modifications, extensions de données, filtres et pagination, exports filtrés, import SQL confirmé, préremplissage PDF respectant les saisies, frais kilométriques et électriques, avance, durée, signature, duplication, annulation d’un retrait de pièce, profil comptabilité, restriction des collaborateurs et mobile. Les notifications et services externes sont remplacés uniquement dans le serveur local de test ; aucun e-mail de test n’est envoyé.
+
+Ce lot frontend ne nécessite aucune migration SQL ni republication du Worker. Conserver une sauvegarde privée de la version et des données, vérifier l’identité des données avant/après, publier tous les fichiers/chunks ensemble. Le retour arrière restaure le précédent frontend, sans restaurer la base par-dessus les nouvelles saisies. Il reste à migrer les écrans CET/congés, salariés, paramètres, marchés et les services historiques ; les intégrations existantes continuent de fonctionner entre-temps.
 
 ### Tableau de bord commun
 

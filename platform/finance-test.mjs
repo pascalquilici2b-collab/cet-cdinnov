@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import {codesFiltered,invoicesFiltered,expensesFiltered,paginate,expenseTotal,expenseRefund,expenseStatus,codeKey} from './client/finance-domain.ts';
+const codes=[{id:'a',code1:24,code2:7,label:'Etude',client:'Client A',montantHT:0,extension:{preserve:true}},{id:'b',code1:25,code2:1,label:'Suivi',client:'Client B',montantHT:100}];
+const invoices=Array.from({length:1216},(_,i)=>({id:'i'+i,number:'F-'+i,code:'2407',client:i%2?'Client A':'Client B',ht:i/100,ttc:i*1.2/100,dateFacture:i%3?'2026-10-18':'2025-09-01',pdfSource:{name:'source.pdf'},extension:{keep:i}}));
+const expenses=[{id:'n1',numero:1,matricule:'004',dateNote:'2026-10-01',objet:'Mission',statut:'Soumise',avance:10,lignes:[{montant:0.1},{montant:0.2}],unknown:{keep:true}},{id:'n2',numero:2,matricule:'001',dateNote:'2026-10-02',statut:'Payée',lignes:[{montant:100}]}];
+const snapshot={admin:false,matricule:'004',expenses,employees:[{matricule:'004',nom:'Exemple',prenom:'Alex'}],filters:{expenseQ:'',expensePerson:'',expenseStatus:''}};
+const before=JSON.stringify({codes,invoices,expenses});
+assert.deepEqual(codesFiltered(codes,'client a').map(v=>v.id),['a']);assert.deepEqual(codesFiltered(codes,'').map(v=>v.id),['b','a']);assert.equal(codeKey(codes[0]),'247');
+assert.equal(invoicesFiltered(invoices,'','all','all').length,1216);
+assert.equal(invoicesFiltered(invoices,'client a','2026','9').length,invoices.filter(v=>v.client==='Client A'&&v.dateFacture.startsWith('2026-10')).length);
+assert.equal(invoicesFiltered(invoices,'','2026','8').length,0);
+const last=paginate(invoices,999,20);assert.equal(last.page,61);assert.equal(last.items.length,16);assert.equal(paginate([],99,20).page,1);
+assert.deepEqual(expensesFiltered(snapshot).map(v=>v.id),['n1']);assert.deepEqual(expensesFiltered({...snapshot,matricule:null}),[]);
+assert.equal(expensesFiltered({...snapshot,admin:true}).length,2);assert.equal(expensesFiltered({...snapshot,filters:{...snapshot.filters,expenseStatus:'Envoyé'}}).length,1);
+assert.equal(expenseTotal(expenses[0]),0.3);assert.equal(expenseRefund(expenses[0]),-9.7);assert.equal(expenseStatus('Validée'),'Envoyé');
+assert.equal(JSON.stringify({codes,invoices,expenses}),before);
+console.log('Finance domain passed: 1,216 records, filtering, totals, pagination, scope isolation and immutable source records.');
