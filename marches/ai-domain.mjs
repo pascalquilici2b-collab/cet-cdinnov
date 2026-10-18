@@ -1,6 +1,10 @@
 import {emptyMarket,validateMarket,minor,CONDITIONS} from './domain.mjs';
-export const MODEL='@cf/mistralai/mistral-small-3.1-24b-instruct';
-export const MODEL_LABEL='Mistral Small 3.1 · modèle ouvert (Apache 2.0)';
+export const MODEL='@cf/qwen/qwen3-30b-a3b-fp8';
+export const MODEL_LABEL='Qwen3 30B A3B · modèle ouvert (Apache 2.0)';
+export const ANALYSIS_VERSION='2026-10-18-qwen-sourced-dates-v1';
+export const DAILY_BUDGET=5000;
+export const OUTPUT_TOKENS=6000;
+export const INPUT_NEURONS_PER_TOKEN=.004625,OUTPUT_NEURONS_PER_TOKEN=.030475;
 export const normalize=s=>String(s??'').normalize('NFKC').toLowerCase().replace(/\s+/g,' ').trim();
 export const listKey=(section,r)=>section==='prices'?[r.label,r.profile,r.location,r.unit,r.startDate,r.endDate].map(normalize).join('|'):section==='ceilings'?[r.label,r.scope,r.periodId].map(normalize).join('|'):section==='periods'?normalize(r.label):section==='conditions'?[r.category,r.label].map(normalize).join('|'):normalize(r.title);
 export const sameRule=(section,a,b)=>JSON.stringify(section==='prices'?[a.amountMinor,a.unit]:section==='ceilings'?[a.amountMinor,a.basis,a.consumptionBasis]:section==='periods'?[a.startDate,a.endDate]:section==='conditions'?normalize(a.value):normalize(a.detail))===JSON.stringify(section==='prices'?[b.amountMinor,b.unit]:section==='ceilings'?[b.amountMinor,b.basis,b.consumptionBasis]:section==='periods'?[b.startDate,b.endDate]:section==='conditions'?normalize(b.value):normalize(b.detail));
@@ -38,6 +42,16 @@ export function amountInQuote(amount,quote){
  const values=[...text.matchAll(/(?<![\d.,])\d+(?:(?:[ .]\d{3})+)?(?:[,.]\d{1,2})?(?![\d.,])/g)].map(m=>{let n=m[0].replace(/ /g,'');if(n.includes(','))n=n.replace(/\./g,'').replace(',','.');else if(/^\d{1,3}(?:\.\d{3})+$/.test(n))n=n.replace(/\./g,'');return Math.round(Number(n)*100);});
  return values.includes(amount);
 }
+export function dateInQuote(value,quote){
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(value||''))return false;
+ const [year,month,day]=value.split('-').map(Number),text=normalize(quote).normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+ const numeric=new RegExp('(?<!\\d)(?:'+year+'[-/.]0?'+month+'[-/.]0?'+day+'|0?'+day+'[-/.]0?'+month+'[-/.]'+year+')(?!\\d)');
+ const months=['janv(?:ier)?','fevr(?:ier)?','mars','avr(?:il)?','mai','juin','juil(?:let)?|jul','aout','sept(?:embre)?','oct(?:obre)?','nov(?:embre)?','dec(?:embre)?'];
+ return numeric.test(text)||new RegExp('(?<!\\d)0?'+day+'(?:er)?\\s+(?:'+months[month-1]+')\\.?\\s+'+year+'(?!\\d)').test(text);
+}
+export function receivedDateInQuote(value,quote){
+ return String(quote).split(/[\n;!?]/).some(line=>line.length<=250&&dateInQuote(value,line)&&/r[ée]ception|re[çc]ue?\b|notifi[ée]e?\s+(?:au|le)\b/i.test(line)&&!/non renseign|inconnu|[àa] confirmer|signature|commencera|d[èe]s r[ée]ception/i.test(line));
+}
 export function decode(output,part){
  const raw=output?.choices?.[0]?.message?.content??output?.response??output;
  let parsed=typeof raw==='object'?raw:JSON.parse(String(raw).replace(/^\s*<think>[\s\S]*?<\/think>\s*/,'').replace(/^\s*```(?:json)?\s*|\s*```\s*$/g,''));
@@ -55,12 +69,15 @@ export function decode(output,part){
      if(r.value===''||r.value===null||r.value==='unknown')continue;
      if(r.field==='type'&&!({framework:/accord[ -]?cadre|bons? de commande/i,fixed:/forfait|prix global/i,quote:/devis/i,mixed:/mixte/i}[r.value]?.test(r.quote)))continue;
      if(r.field==='renewalMode'&&!({none:/sans reconduction|aucune reconduction|non recondu|non renouvel/i,tacit:/tacite/i,express:/expresse|expressément/i}[r.value]?.test(r.quote)))continue;
-     if(r.field==='notificationDate'&&!/notifi|réception/i.test(r.quote))continue;
+     if(r.field==='notificationDate'&&!receivedDateInQuote(r.value,r.quote)){result.issues.push(issue('Date de réception à confirmer','La citation ne prouve pas la date de réception proposée. Saisissez la date effective après vérification.',source));continue;}
+     if(r.field==='feesIncluded'&&(!/frais|d[ée]placements?|transport|h[ée]bergement/i.test(r.quote)||!/inclus|compris|charge|rembours|en sus/i.test(r.quote))){result.warnings.push(part.name+' : une règle de frais sans justification explicite a été écartée.');continue;}
      const validated=validateMarket({...base,[r.field]:r.value},docs);
      result.facts.push({field:r.field,value:validated[r.field],source});continue;
     }
     const common={id:crypto.randomUUID(),status:'proposed',source};let row;
-    if(section==='prices'&&!/tarif|prix|€|euro|\bHT\b|\bTTC\b/i.test(r.quote))continue;
+    if(section==='prices'&&!/tarif|prix|€|\beuros?\b|\bHT\b|\bTTC\b/i.test(r.quote))continue;
+    if(section==='prices'&&!/\d|illisible|non lisible|\?{2,}|\bXX+\b|[□�]/i.test(r.quote)){result.warnings.push(part.name+' : une clause générale sans tarif chiffré a été écartée des tarifs.');continue;}
+    if(section==='prices'&&(/(?:maximum|plafond).*(?:annuel|contrat|global)|montant maximum|estimation|simulation|sous[ -]?total|co[ûu]t global|montant global/i.test(r.label||'')||(/(?:prix|tarifs).{0,100}(?:bordereau|annexe)/i.test(r.quote)&&!/journalier|par jour|par heure|forfait|prix unitaire/i.test(r.quote)))){result.warnings.push(part.name+' : une estimation, un renvoi au bordereau ou un plafond a été écarté des tarifs.');continue;}
     if(section==='prices')row={...common,label:r.label,amountMinor:minor(r.amount),unit:r.unit||'day',profile:r.profile||'',location:r.location||'',startDate:r.startDate||'',endDate:r.endDate||'',notes:r.notes||''};
     if(section==='ceilings'&&!/maximum|maxima|plafond|limite/i.test(r.quote)){result.warnings.push(part.name+' : un montant sans maximum contractuel explicite a été écarté des plafonds.');continue;}
     if(section==='ceilings')row={...common,label:r.label,amountMinor:minor(r.amount),basis:r.basis,scope:r.scope,periodId:'',consumptionBasis:r.consumptionBasis||'orders',notes:r.notes||''};
@@ -69,6 +86,7 @@ export function decode(output,part){
     if(section==='issues'&&!r.blocking&&/avec et sans espace|espace(?:s)? insécable/i.test(r.detail||''))continue;
     if(section==='issues')row={id:common.id,title:r.title,detail:r.detail||'',blocking:r.blocking===true,status:'open',resolution:'',source};
     if(['prices','ceilings'].includes(section)&&!amountInQuote(row.amountMinor,r.quote)){row.amountMinor=null;row.notes+=' Montant à saisir : le chiffre proposé n’était pas présent dans la citation.';result.issues.push(issue('Montant à vérifier : '+row.label,'La citation ne justifie pas le montant proposé. Consultez la pièce avant de saisir le montant.',source));}
+    if(['prices','periods'].includes(section))for(const field of ['startDate','endDate'])if(row[field]&&!dateInQuote(row[field],source.note)){row[field]='';result.issues.push(issue('Date à confirmer : '+row.label,'La date proposée ne figure pas dans la citation. Une durée ou une signature ne suffit pas à établir la période effective.',source));}
     result[section].push(validateMarket({...base,[section]:[row]},docs)[section][0]);
    }catch{result.warnings.push(part.name+' : une proposition '+section+' invalide demande une vérification manuelle.');}
   }

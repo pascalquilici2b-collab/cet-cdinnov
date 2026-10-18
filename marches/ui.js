@@ -280,7 +280,7 @@ function setup(){
  '<div class="mk-upload"><label>Type des pièces<select id="mkDocKind">'+Object.entries(kinds).map(([v,t])=>'<option value="'+v+'" '+(v==='other'?'selected':'')+'>'+html(t)+'</option>').join('')+'</select></label><label class="mk-file">Ajouter les pièces du marché<input id="mkFiles" type="file" multiple accept=".pdf,.docx,.xlsx,.png,.jpg,.jpeg,.txt,.csv"></label><p>Acte d’engagement, bordereau, CCAP/CCTP, offre, notification, avenants, reconductions… PDF et scans, Word, Excel, images et texte. 5 Mo par pièce.</p></div>'+
  '<div id="mkUploadStatus" role="status"></div>'+
  (s.docs.length?'<div class="mk-source-selection">'+s.docs.map(d=>{const reading=s.readings.find(x=>x.id===d.id);return '<label><input type="checkbox" data-ai-document="'+d.id+'" checked><span><strong>'+html(d.name)+'</strong><small>'+html(reading?.read?(reading.complete?'Texte prêt pour l’analyse':'Lecture à vérifier'):'Texte préparé au lancement')+'</small></span></label>';}).join('')+'</div>':'<p class="mk-muted">Commencez par ajouter les documents disponibles. L’assistant complétera l’identité du marché.</p>')+
- '<div class="mk-ai-launch"><div><strong>Analyse du dossier par Mistral</strong><p>Le texte sélectionné est traité sur Cloudflare. Aucun modèle Claude ou ChatGPT. Les propositions sont reliées aux pièces ; les informations absentes ou contradictoires restent à confirmer.</p><small>Quota quotidien partagé : l’analyse se met en pause à la limite prévue. Les passages terminés sont conservés.</small></div><div><button type="button" class="mk-primary" data-action="run-analysis" '+(!s.docs.length?'disabled':'')+'>'+(r&&r.status!=='ready'?'Reprendre l’analyse':'Analyser les pièces sélectionnées')+'</button><button type="button" class="mk-link" data-action="stop-analysis" '+(!s.busy?'hidden':'')+'>Arrêter après ce passage</button></div></div>'+
+ '<div class="mk-ai-launch"><div><strong>Analyse assistée du dossier</strong><p>Le texte sélectionné est traité sur Cloudflare par un modèle ouvert. Les propositions sont reliées aux pièces ; les informations absentes ou contradictoires restent à confirmer.</p><small>'+html(s.ai?.model||'Modèle ouvert')+' · '+(s.ai?Math.floor(s.ai.remaining/s.ai.dailyBudget*100)+' % du budget de lecture disponible aujourd’hui. ':'')+'À la limite, l’analyse se met en pause. Les passages terminés sont conservés.</small></div><div><button type="button" class="mk-primary" data-action="run-analysis" '+(!s.docs.length?'disabled':'')+'>'+(r&&r.status!=='ready'?'Reprendre l’analyse':'Analyser les pièces sélectionnées')+'</button><button type="button" class="mk-link" data-action="stop-analysis" '+(!s.busy?'hidden':'')+'>Arrêter après ce passage</button></div></div>'+
  '<div id="mkAiProgress" class="mk-ai-progress" role="status" aria-live="polite">'+html(s.progress|| (r?(r.status==='ready'?'Analyse disponible : vérifiez les propositions avant de les appliquer.':r.completed+' / '+r.total+' passages traités'+(r.error?' · '+r.error:'')) :''))+'</div>'+
  (result?'<div class="mk-ai-result"><h3>Propositions de paramétrage</h3><div class="mk-ai-counts">'+count+'</div><p>'+result.coverage.filter(d=>d.selected).length+' / '+result.coverage.length+' pièce(s) incluse(s). '+(result.coverage.some(d=>!d.selected||!d.complete)?'Attention : le dossier n’a pas été lu intégralement. Les pièces à vérifier sont signalées.':'Toutes les pièces sélectionnées ont été parcourues. Les valeurs restent à vérifier.')+'</p>'+
  result.coverage.flatMap(d=>(d.warnings||[]).map(w=>'<p class="mk-muted">'+html(d.name)+' : '+html(w)+'</p>')).join('')+
@@ -304,7 +304,7 @@ async function runAnalysis(){
  const epoch=s.epoch,id=s.current.id;s.stop=false;s.progress='Préparation des documents…';s.error='';s.busy=true;render();
  const progress=message=>{s.progress=message;if(el('mkAiProgress'))el('mkAiProgress').textContent=message;};
  try{
-  await loadAnalysis();if(!s.ai?.configured)throw new Error('Le moteur Mistral n’est pas encore activé sur le serveur. Vous pouvez continuer le paramétrage manuel.');
+  await loadAnalysis();if(!s.ai?.configured)throw new Error('Le moteur IA n’est pas encore activé sur le serveur. Vous pouvez continuer le paramétrage manuel.');
   const {readDocument}=await import('./marches/reader.mjs');
   for(const did of selected){if(s.stop)break;const d=s.docs.find(d=>d.id===did);if(s.readings.find(r=>r.id===did)?.read)continue;
    progress('Lecture : '+d.name);const blob=await api('/'+id+'/documents/'+did,{binary:true});
@@ -312,9 +312,9 @@ async function runAnalysis(){
    await api('/'+id+'/reading/'+did,{method:'PUT',body:JSON.stringify(reading)});
   }
   if(s.stop){s.notice='Lecture arrêtée. Les pièces et textes déjà préparés sont conservés.';return;}
-  progress('Démarrage de l’analyse Mistral…');
+  progress('Démarrage de l’analyse assistée…');
   const created=await api('/'+id+'/analysis',{method:'POST',headers:{'If-Match':String(s.current.version)},body:JSON.stringify({documentIds:selected})});s.analysis=created.run;
-  while(s.analysis.status!=='ready'&&!s.stop){progress('Analyse Mistral · '+s.analysis.completed+' / '+s.analysis.total+' passages terminés');const r=await api('/'+id+'/analysis/'+s.analysis.id,{method:'POST',body:'{}'});if(epoch!==s.epoch)return;s.analysis=r.run;}
+  while(s.analysis.status!=='ready'&&!s.stop){progress('Analyse des pièces · '+s.analysis.completed+' / '+s.analysis.total+' passages terminés');const r=await api('/'+id+'/analysis/'+s.analysis.id,{method:'POST',body:'{}'});if(epoch!==s.epoch)return;s.analysis=r.run;}
   s.notice=s.analysis.status==='ready'?'Analyse terminée. Vérifiez les propositions ci-dessous.':'Analyse mise en pause. Vous pourrez la reprendre.';
  }catch(e){s.error=e.message;}
  finally{if(epoch===s.epoch){try{await loadAnalysis();}catch{}s.busy=false;s.progress='';render();}}
