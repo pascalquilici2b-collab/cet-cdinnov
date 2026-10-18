@@ -34,16 +34,19 @@ Le cas pilote reste « En préparation » : tarifs et plafond proposés avec sou
 Définir MARCHES_BUILD_PACKAGE si les dépendances de construction sont installées ailleurs. Les chemins de repli actuellement configurés correspondent au poste de travail utilisé. Une installation locale des dépendances de package.json peut être choisie via cette variable.
 
 ## Publication
-Avant publication : connexion Cloudflare requise ; télécharger la configuration et les modules du Worker cet-data réellement actifs, conserver tous les bindings et secrets et comparer le service Budgets/Agenda à la référence utilisée. Ne pas publier le cloudflare-worker.js historique isolément.
+Télécharger la configuration et les modules du Worker cet-data réellement actifs et conserver tous les bindings et secrets. Le 18 octobre, le service actif est un bundle entry.mjs incluant aussi SMARTSHEET. Ne pas le remplacer par le seul service Budgets/Agenda ni par cloudflare-worker.js.
 
 1. Sauvegarder les modules actifs et la configuration dans un répertoire privé ; vérifier la base D1 associée.
 2. Appliquer marches/schema.sql, de manière additive et idempotente.
-3. Compiler server/budget-service-source.mjs en ESM avec esbuild et remplacer uniquement le module de service correspondant dans le Worker combiné, en préservant ses autres modules et paramètres.
+3. Pour une première installation sur le bundle du 17 octobre : exécuter integrate-live-worker.mjs avec le fichier entry.mjs téléchargé et un dossier de sortie privé. Cet outil exige les ancres exactes et vérifie la conservation du code existant hors un import et deux ajouts de routage. Tester combined-test.mjs via MARCHES_TEST_WORKER, puis publier entry.mjs et markets-service.mjs ensemble. Pour une mise à jour ultérieure, repartir des modules actifs et mettre à jour uniquement markets-service.mjs après comparaison. server/budget-service-source.mjs reste le banc de développement, pas un remplacement complet du Worker de production.
 4. Vérifier les refus anonymes et les routes historiques.
 5. Importer le cas CCIC dans les tables privées. Conserver les règles en préparation.
 6. Publier index.html et les ressources marches/vendor depuis le dernier état du dépôt, après contrôle des modifications concurrentes.
-7. Vérifier la publication du portail et la navigation authentifiée.
+7. Vérifier la publication du portail et la navigation. Les parcours authentifiés peuvent être testés dans une base locale isolée ; ne jamais fabriquer une session de production pour ces vérifications.
 
 Le moteur d’engagements, les BC, les alertes de consommation, l’émission et le paiement des factures ne font pas partie de cette tranche. Le logiciel ne présente aucun « disponible » avant reprise et rapprochement de ces données.
 
 Références techniques : [limites D1](https://developers.cloudflare.com/d1/platform/limits/) et [SQL D1](https://developers.cloudflare.com/d1/sql-api/sql-statements/).
+
+## Contrôle de la publication du 18 octobre 2026
+Le serveur est publié, avec les dix bindings existants conservés. Le pilote CCIC et ses quatre pièces sont enregistrés dans D1 ; chaque pièce a été relue et son SHA-256 comparé à l’original. Les 35 contrôles ont été exécutés contre le bundle réellement destiné à la publication, avec Miniflare 4.20260730.0 et MARCHES_TEST_COMPATIBILITY_DATE=2026-06-09. Définir MARCHES_BUILD_PACKAGE vers ce runtime et MARCHES_TEST_WORKER vers combined-test.mjs pour reproduire ce contrôle. Les vérifications publiques confirment les refus anonymes et les en-têtes CORS des routes Marchés, Budgets, Agenda et SMARTSHEET. Les identifiants de déploiement et preuves détaillées sont conservés hors du dépôt public.

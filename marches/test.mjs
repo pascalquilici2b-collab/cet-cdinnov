@@ -11,8 +11,8 @@ const require=createRequire(process.env.MARCHES_BUILD_PACKAGE||'C:/Users/quili/O
 const {build}=require('esbuild'),{Miniflare}=require('miniflare');
 export const users=['quilici.pascal@cdinnov.com','calendini.matthieu@cdinnov.com'];
 export async function testEnvironment(){
- const script=(await build({entryPoints:[fileURLToPath(new URL('../server/budget-service-source.mjs',import.meta.url))],bundle:true,platform:'node',format:'esm',write:false})).outputFiles[0].text;
- const worker=new Miniflare({modules:true,script,compatibilityDate:'2026-05-15',compatibilityFlags:['nodejs_compat'],kvNamespaces:['CET_KV'],d1Databases:['BUDGETS_DB'],bindings:{CET_WORKSPACE_KEY:'markets-test',BUDGETS_SESSION_SECRET:randomBytes(32).toString('hex'),BUDGETS_ALLOWED_ORIGINS:'http://127.0.0.1:5196,https://app.cdinnov.eu'}});
+ const script=process.env.MARCHES_TEST_WORKER?await readFile(process.env.MARCHES_TEST_WORKER,'utf8'):(await build({entryPoints:[fileURLToPath(new URL('../server/budget-service-source.mjs',import.meta.url))],bundle:true,platform:'node',format:'esm',write:false})).outputFiles[0].text;
+ const worker=new Miniflare({modules:true,script,compatibilityDate:process.env.MARCHES_TEST_COMPATIBILITY_DATE||'2026-05-15',compatibilityFlags:['nodejs_compat'],kvNamespaces:['CET_KV'],d1Databases:['BUDGETS_DB'],bindings:{CET_WORKSPACE_KEY:'markets-test',BUDGETS_SESSION_SECRET:randomBytes(32).toString('hex'),BUDGETS_ALLOWED_ORIGINS:'http://127.0.0.1:5196,https://app.cdinnov.eu'}});
  const password='Marches-local-test-2026!',salt='00112233445566778899aabbccddeeff';
  const accounts=Object.fromEntries(users.map((email,i)=>[email,{salt,iter:150000,hash:pbkdf2Sync(password,Buffer.from(salt,'hex'),150000,32,'sha256').toString('hex'),name:['Direction test','Consultant test'][i]}]));
  const kv=await worker.getKVNamespace('CET_KV');await kv.put('markets-test',JSON.stringify({auth:{accounts,allowed:users}}));
