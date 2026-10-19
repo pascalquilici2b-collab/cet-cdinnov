@@ -3,6 +3,7 @@ import {createRoot} from 'react-dom/client';
 import type {DashboardAction, DashboardData, DocumentSummary, Member} from '../dashboard-contracts';
 import './dashboard.css';
 import {Icon} from './icon';
+import {ExpenseStatus} from './expense-status';
 
 interface Props {load:(week:string,signal:AbortSignal)=>Promise<DashboardData>; open:(action:DashboardAction)=>Promise<void>|void; portrait?:(member:Member)=>string;}
 const add=(day:string,n:number)=>new Date(Date.parse(day+'T12:00:00Z')+n*86400000).toISOString().slice(0,10);
@@ -46,7 +47,7 @@ function Dashboard({load,open,portrait}:Props){
       <button className="db-link" onClick={()=>navigate({kind:kind==='invoice'?'invoices':'expenses'})}>Tout voir <span aria-hidden="true">↗</span></button></header>
     {items.length?<div className="db-document-list">{items.map(item=><button key={item.id} className="db-document" disabled={opening} onClick={()=>navigate({kind,id:item.id})}>
       <span className="db-file-icon" aria-hidden="true"><Icon name={kind==='invoice'?'file':'wallet'}/></span><span className="db-document-main"><strong>{item.number||'Sans numéro'}</strong><span>{item.label||'Sans libellé'}</span><small>{item.dateSource==='created'?'Créée le ':'Datée du '}{date(item.date)}</small></span>
-      <span className="db-document-value"><strong>{euro(item.amount)}{kind==='invoice'&&<small> HT</small>}</strong><span className={'db-status '+(item.status==='Payée'?'is-paid':'')}>{item.status}</span></span><span className="db-chevron" aria-hidden="true">›</span>
+      <span className="db-document-value"><strong>{euro(item.amount)}{kind==='invoice'&&<small> HT</small>}</strong>{kind==='expense'?<ExpenseStatus status={item.status}/>:<span className={'db-status '+(item.status==='Payée'?'is-paid':'')}>{item.status}</span>}</span><span className="db-chevron" aria-hidden="true">›</span>
     </button>)}</div>:<p className="db-empty">{kind==='invoice'?'Aucune facture enregistrée.':'Aucune note de frais enregistrée.'}</p>}
     {items.some(item=>item.dateSource==='document')&&<p className="db-footnote">Pour les anciens documents, le classement utilise la date du document, la date de création n’étant pas disponible.</p>}
   </section>;}

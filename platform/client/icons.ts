@@ -27,6 +27,8 @@ const paths:Record<string,string>={
     copy:'<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
     lock:'<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
     mail:'<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 6 10-6"/>',
+    logout:'<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',
+    settings:'<path d="m9 3-1 3-3 1-2 3 2 2-1 3 2 3 3-1 2 4h3l1-3 3-1 2-3-2-2 1-3-2-3-3 1-2-4Z"/><circle cx="12" cy="12" r="3"/>',
     cash:'<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/>',
     meal:'<path d="M6 2v7a2 2 0 0 0 4 0V2M8 9v13"/><path d="M16 2c-2 0-3 2-3 5s1 4 3 4v11"/>',
     bed:'<path d="M2 4v16M2 12h20v8M2 12V8h13a3 3 0 0 1 3 3v1"/><circle cx="7" cy="9" r="1.4"/>',

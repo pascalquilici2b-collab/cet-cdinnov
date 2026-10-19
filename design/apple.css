@@ -155,4 +155,37 @@ body th{background:var(--paper-tint);color:var(--muted);border-color:var(--line)
  .cdi-sheets-app .iv-form-editor .iv-form-title-input{font-size:20px!important}
 }
 .auth-card .auth-logo{display:block;width:100px;height:80px;max-width:100%;object-fit:contain;margin:0 auto 20px}
+/* The overlay scrolls the complete form. A height cap without inner scrolling
+   previously let long expense forms extend beyond their opaque modal surface. */
+.overlay>.modal{max-height:none;flex-shrink:0}
+.overlay .finance-editor{background:var(--surface);border-radius:inherit;color:var(--ink)}
+.overlay .finance-editor .modal-head{border-radius:18px 18px 0 0}
+.overlay .finance-editor .modal-body{background:var(--surface)}
+.overlay .finance-editor .modal-foot{border-radius:0 0 18px 18px}
+.overlay .finance-editor :is(.nf-km,.ac-list){background:var(--surface);color:var(--ink);border-color:var(--field-border)}
+.overlay .finance-editor .nf-line{background:var(--paper-tint)}
+.overlay .finance-editor .icon-btn{background:var(--surface);color:var(--ink)}
+.sidebar .nav-item.cdi-application{border-left:0;padding-left:12px;box-shadow:none}
+body :is(.avatar,.cdi-employee-identity img){border-radius:50%;overflow:hidden}
+.avatar img{width:100%;height:100%;object-fit:cover}
+.cdi-employee-identity{display:inline-flex;align-items:center;gap:9px}
+.cdi-employee-identity img{width:30px;height:30px;flex:0 0 30px;object-fit:cover}
+body .expense-status{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:5px 9px;white-space:nowrap;font-size:11px;font-weight:600;line-height:1.2;background:var(--paper-tint);color:var(--muted)}
+.expense-status .cdi-icon-wrap{display:inline-flex}.expense-status svg{width:15px;height:15px;flex:0 0 15px}
+body .expense-status.is-sent{background:#e6f1ff;color:#075bb5}
+body .expense-status.is-paid{background:#e5f5eb;color:#17663b}
+:root[data-theme=dark] .expense-status.is-sent{background:#193653;color:#91c8ff}
+:root[data-theme=dark] .expense-status.is-paid{background:#203e32;color:#a4e4c2}
+.sidebar #userChip{padding:12px;margin-top:10px;border-radius:18px}
+.uc-identity{display:flex;align-items:center;gap:10px;margin-bottom:12px;min-width:0}
+.uc-identity>div{min-width:0}.uc-identity .uc-name{margin:0;white-space:normal;overflow-wrap:anywhere;line-height:1.4;font-size:13px}
+.uc-role{display:block;color:var(--muted);font-size:11px;margin-top:2px}
+.uc-avatar{position:relative;display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;flex:0 0 38px;border-radius:50%;background:var(--highlight);color:var(--cyan);overflow:hidden;font-size:12px;font-weight:600}
+.uc-avatar img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 28%}
+.uc-actions{display:flex;flex-direction:column;gap:3px}
+.sidebar #userChip .uc-action{display:flex;align-items:center;gap:9px;width:100%;min-height:40px;border:0;border-radius:10px;padding:9px 10px;background:transparent;color:var(--ink);font:400 12px var(--font-sans);text-align:left;cursor:pointer;margin:0}
+.sidebar #userChip .uc-action svg{width:17px;height:17px;flex:0 0 17px;color:inherit;stroke:currentColor}
+.sidebar #userChip .uc-action:hover,.sidebar #userChip .uc-settings[aria-current=page]{background:var(--surface)}
+.sidebar #userChip .uc-logout{color:#bc2633}
+:root[data-theme=dark] .sidebar #userChip .uc-logout{color:#ff9ba3}
 @media print{.theme-toggle{display:none!important}:root,[data-theme=dark]{color-scheme:light;--paper:white;--paper-tint:#f5f5f7;--surface:white;--ink:#1d1d1f;--muted:#6e6e73;--line:#d2d2d7}}

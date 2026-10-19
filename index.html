@@ -587,11 +587,6 @@ body:has(.agenda-shell) .topbar{flex-wrap:wrap;row-gap:12px}
       <span class="cdi-nav-name">Outil budgets</span><span class="cdi-beta">Bêta</span>
     </div>
     <a id="cdiSheetsLink" class="nav-item cdi-application app-sheets" href="./feuilles/" style="text-decoration:none"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg><span class="cdi-nav-name">Smartsheet</span><span class="cdi-beta">Bêta</span></a>
-    <div class="nav-label" id="navLabelReglages">Réglages</div>
-    <div class="nav-item" data-view="parametres">
-      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-      Paramètres & données
-    </div>
     <div class="spacer"></div>
     <button class="theme-toggle" type="button" data-theme-toggle aria-label="Activer le mode nuit" aria-pressed="false"><svg class="theme-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 13.1A9 9 0 0 1 10.9 3.2a9 9 0 1 0 9.9 9.9Z"/></svg><svg class="theme-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></svg><span data-theme-label>Mode clair</span><span class="theme-track" aria-hidden="true"></span></button>
     <div id="userChip" class="user-chip"></div>
@@ -696,8 +691,8 @@ body.authed .auth-gate{display:none}
 </style>
 <link rel="stylesheet" href="platform/design-system.css">
 <link rel="stylesheet" href="design/portal.css?v=apple1">
-<link rel="stylesheet" href="design/apple.css?v=apple1">
-<script src="platform/icons.js?v=20261019"></script>
+<link rel="stylesheet" href="design/apple.css?v=expenseui1">
+<script src="platform/icons.js?v=expenseui1"></script>
 <div id="authGate" class="auth-gate">
   <div class="auth-card">
     <img class="auth-logo" src="./design/brand/assets/logos/cdinnov-symbol.svg" width="100" height="80" alt="CDInnov" />
@@ -1093,6 +1088,7 @@ function render(){
   if(!['facturier','notesfrais'].includes(currentView))financeForget();
   if(!['cet','mouvements','salaries','parametres'].includes(currentView))personnelForget();
   migrateTypes();
+  renderUserChip();
   refreshYearPicker();
   renderMajPill();
   if(currentView==='dashboard') renderDashboard();
@@ -1130,7 +1126,7 @@ function renderDashboard(){
   $('#content').innerHTML='<div id="dashboardRoot"><div class="card card-pad" role="status">Chargement du tableau de bord…</div></div>';
   const element=$('#dashboardRoot');
   if(!document.getElementById('dashboardStyle')){const css=document.createElement('link');css.id='dashboardStyle';css.rel='stylesheet';css.href='platform/dashboard.css';document.head.append(css);}
-  dashboardModule ||= import('./platform/dashboard.js?v=apple1').catch(error=>{dashboardModule=null;throw error;});
+  dashboardModule ||= import('./platform/dashboard.js?v=expenseui1').catch(error=>{dashboardModule=null;throw error;});
   dashboardModule.then(module=>{
     if(epoch!==dashboardEpoch||AUTH_USER!==user||currentView!=='dashboard'||!element.isConnected)return;
     dashboardDispose=module.mountDashboard(element,{
@@ -2500,8 +2496,8 @@ let financeModulePromise=null,financeMounted=null,financeEpoch=0,financeView=nul
 let financeEditorDispose=null,financeEditorEpoch=0,financeClientStatus='',financeClientError=false;
 let nfPage=1,nfPer=20;
 function financeModule(){
-  if(!$('#financeStyle')){const link=document.createElement('link');link.id='financeStyle';link.rel='stylesheet';link.href='platform/finance.css';document.head.append(link);}
-  return financeModulePromise ||= import('./platform/finance.js').catch(error=>{financeModulePromise=null;throw error;});
+  if(!$('#financeStyle')){const link=document.createElement('link');link.id='financeStyle';link.rel='stylesheet';link.href='platform/finance.css?v=expenseui1';document.head.append(link);}
+  return financeModulePromise ||= import('./platform/finance.js?v=expenseui1').catch(error=>{financeModulePromise=null;throw error;});
 }
 function financeForget(){financeEpoch++;financeMounted?.dispose();financeMounted=null;financeView=null;$('#financeRoot')?.remove();}
 function financeEditorForget(){financeEditorEpoch++;if(financeEditorDispose){financeEditorDispose();financeEditorDispose=null;}}
@@ -2934,6 +2930,7 @@ function authLogout(){
   facturxForgetAuth();
   clearSession(); AUTH_USER=null; movAccess=null; salariesUnlocked=false;
   document.body.classList.remove('authed');
+  renderUserChip();
   const e=$('#authEmail'); if(e) e.value='';
   authBack();
 }
@@ -2941,8 +2938,8 @@ function renderUserChip(){
   document.querySelectorAll('[data-view="marches"]').forEach(e=>e.style.display=isAdmin(AUTH_USER)?'':'none');
   const el=$('#userChip'); if(!el) return;
   if(!AUTH_USER){ el.innerHTML=''; return; }
-  const acc=authState().accounts[AUTH_USER]; const nm=acc?acc.name:AUTH_USER;
-  el.innerHTML=`<div class="uc-name" title="${esc(AUTH_USER)}">${esc(nm)}${isAdmin(AUTH_USER)?' · admin':''}</div><button class="uc-logout" onclick="authLogout()">${ic('lock')} Déconnexion</button>`;
+  const nm=agendaName(AUTH_USER),photo=agendaPortrait(AUTH_USER),admin=isAdmin(AUTH_USER);
+  el.innerHTML=`<div class="uc-identity"><span class="uc-avatar" aria-hidden="true">${esc(agendaInitials(AUTH_USER))}${photo?`<img src="${esc(photo)}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">`:''}</span><div><div class="uc-name" title="${esc(nm)}">${esc(nm)}</div><span class="uc-role">${admin?'Administrateur':'Mon compte'}</span></div></div><nav class="uc-actions" aria-label="Mon compte">${admin?`<button type="button" class="nav-item uc-action uc-settings" data-view="parametres" ${currentView==='parametres'?'aria-current="page"':''} onclick="setView('parametres');toggleSidebar(false)">${ic('settings')} Paramètres &amp; données</button>`:''}<button type="button" class="uc-action uc-logout" onclick="authLogout()">${ic('logout')} Déconnexion</button></nav>`;
 }
 
 /* gestion des acces (Reglages, admin seulement) */
