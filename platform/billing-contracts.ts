@@ -46,8 +46,10 @@ export interface BillingDocument {
 }
 export type BillingQuoteAction='sent'|'accepted'|'refused'|'reopened';
 export type BillingQuoteState='prepared'|'sent'|'accepted'|'refused'|'expired';
-export type BillingListState='all'|'draft'|'finalizing'|'issue_failed'|'issued'|BillingQuoteState;
-export interface BillingQuoteSummary {version:number;state:BillingQuoteState;occurredOn:string|null;invoice:{id:string;number:string|null;state:BillingDocument['status']}|null;}
+export type BillingListState='all'|'draft'|'finalizing'|'issue_failed'|'issued'|'previous'|'abandoned'|BillingQuoteState;
+export interface BillingQuoteRevisionSummary {rootId:string;familyVersion:number;ordinal:number;count:number;parentId:string|null;parentNumber:string|null;reason:string;abandoned:boolean;abandonReason:string|null;currentId:string;currentOrdinal:number;currentNumber:string|null;currentState:BillingDocument['status'];}
+export interface BillingQuoteRevisionItem {id:string;ordinal:number;number:string|null;status:BillingDocument['status'];createdAt:string;reason:string;abandonedAt:string|null;abandonReason:string|null;grossMinor:string|null;}
+export interface BillingQuoteSummary {version:number;state:BillingQuoteState;occurredOn:string|null;invoice:{id:string;number:string|null;state:BillingDocument['status']}|null;revision:BillingQuoteRevisionSummary;}
 export interface BillingQuoteEvent {id:string;version:number;action:BillingQuoteAction;occurredOn:string;note:string;recordedAt:string;recordedBy:string;}
 export interface BillingQuoteEventInput {id:string;documentVersion:number;action:BillingQuoteAction;occurredOn:string;note:string;}
 export interface BillingIssuanceSummary {id:string;number:string;state:'pending'|'rendering'|'failed'|'ready';attempts:number;errorCode:string|null;createdAt:string;updatedAt:string;files:string[];}
@@ -74,6 +76,9 @@ export interface BillingTransport {
   list(query:{kind:BillingKind; q:string; offset:number; limit:number;state?:BillingListState}):Promise<BillingPage>;
   quoteEvents(id:string,before?:number):Promise<{events:BillingQuoteEvent[];nextBefore:number|null}>;
   quoteEvent(id:string,version:number,data:BillingQuoteEventInput):Promise<BillingDocument>;
+  quoteVersions(id:string,before?:number):Promise<{versions:BillingQuoteRevisionItem[];nextBefore:number|null}>;
+  reviseQuote(id:string,version:number,data:{id:string;familyVersion:number;reason:string}):Promise<BillingDocument>;
+  abandonQuoteRevision(id:string,version:number,data:{id:string;familyVersion:number;reason:string}):Promise<BillingDocument>;
   get(id:string):Promise<BillingDocument>;
   create(id:string,data:BillingDraft):Promise<BillingDocument>;
   save(id:string,version:number,data:BillingDraft):Promise<BillingDocument>;

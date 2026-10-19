@@ -19,8 +19,7 @@ export async function quoteFixtureTools(ctx,token){
  const email='direction@example.test',series={id:randomUUID(),issuerSiren:'732829320',kind:'quote',prefix:'TEST-DEVIS-',width:4,firstValue:1,startDate:'2020-01-01',endDate:'2099-12-31'};
  await createNumberSeries(ctx.db,series,email);
  const call=(path,method='GET',body,headers={})=>ctx.worker.dispatchFetch('https://preview.test/api/v1/billing'+path,{method,headers:{Origin:'https://app.cdinnov.eu','Content-Type':'application/json',Authorization:'Bearer '+token,...headers},...(body===undefined?{}:{body:JSON.stringify(body)})});
- const create=async(data=quoteFixture(),ready=true)=>{
-  const res=await call('/documents','POST',{id:randomUUID(),data});assert.equal(res.status,201,await res.clone().text());const doc=await res.json();if(!ready)return doc;
+ const finalize=async doc=>{
   const issue=await reserveIssuance(ctx.db,{id:randomUUID(),documentId:doc.id,documentVersion:doc.version,seriesId:series.id},email);
   const lease=randomUUID();assert.ok(await claimIssuanceJob(ctx.db,issue.id,lease,email));
   const bytes=samplePDF(),sha256=createHash('sha256').update(bytes).digest('hex'),artifact={kind:'pdf',key:`billing/${issue.id}/pdf/${sha256}`,sha256,size:bytes.length,contentType:'application/pdf'};
@@ -28,7 +27,8 @@ export async function quoteFixtureTools(ctx,token){
   assert.ok(await completeIssuanceJob(ctx.db,issue.id,lease,{schemaVersion:1,envelopeSha256:issue.envelopeSha256,generatorVersion:'synthetic-quote-test',profile:'quote-pdf',artifacts:[artifact]},email));
   return (await call('/documents/'+doc.id)).json();
  };
+ const create=async(data=quoteFixture(),ready=true)=>{const res=await call('/documents','POST',{id:randomUUID(),data});assert.equal(res.status,201,await res.clone().text());const doc=await res.json();return ready?finalize(doc):doc;};
  const input=(doc,action='accepted',note='Accord reçu par e-mail',occurredOn='2020-01-02')=>({id:randomUUID(),documentVersion:doc.version,action,note,occurredOn});
  const send=(doc,data=input(doc),version=doc.quote.version)=>call('/documents/'+doc.id+'/quote-events','POST',data,{'If-Match':String(version)});
- return {call,create,input,send};
+ return {call,create,input,send,finalize,series};
 }

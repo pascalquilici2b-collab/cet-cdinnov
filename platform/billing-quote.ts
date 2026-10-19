@@ -3,6 +3,7 @@ import type {Database,Reply} from './contracts';
 import type {BillingDocument,BillingQuoteAction,BillingQuoteEvent} from './billing-contracts';
 import {boundedBody} from './portal';
 import {billingToday} from './billing-quote-domain';
+import {revisionJSON,quoteFamilyRoot} from './billing-revisions';
 
 const fail=(status:number,message:string):never=>{throw Object.assign(new Error(message),{status});};
 const uuid=(v:unknown):v is string=>typeof v==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
@@ -18,7 +19,9 @@ export function quoteJSON(){
    WHEN coalesce(json_extract(data_json,'$.validUntil'),'')<>'' AND json_extract(data_json,'$.validUntil')<'${billingToday()}' THEN 'expired'
    WHEN ${last('action')} IN ('sent','reopened') THEN 'sent' ELSE 'prepared' END,'occurredOn',${last('occurred_on')},
   'invoice',json((SELECT json_object('id',d.id,'number',i.number,'state',CASE WHEN j.state='ready' THEN 'issued' WHEN j.state='failed' THEN 'issue_failed' WHEN i.id IS NOT NULL THEN 'finalizing' ELSE 'draft' END)
-   FROM billing_documents d LEFT JOIN billing_issuances i ON i.document_id=d.id LEFT JOIN billing_issue_jobs j ON j.issuance_id=i.id WHERE d.source_document_id=billing_documents.id))) ELSE NULL END`;
+   FROM billing_documents d LEFT JOIN billing_issuances i ON i.document_id=d.id LEFT JOIN billing_issue_jobs j ON j.issuance_id=i.id
+   WHERE d.source_document_id=${quoteFamilyRoot('billing_documents.id')} OR d.source_document_id IN (SELECT document_id FROM billing_quote_revisions WHERE root_document_id=${quoteFamilyRoot('billing_documents.id')}))),
+  'revision',json(${revisionJSON()})) ELSE NULL END`;
 }
 
 export async function billingQuoteRoute(request:Request,db:Database,record:BillingDocument,email:string,reply:Reply,read:()=>Promise<BillingDocument>):Promise<Response>{
@@ -44,6 +47,7 @@ export async function billingQuoteRoute(request:Request,db:Database,record:Billi
  if(record.status!=='issued')return fail(409,'Finalisez le devis avant d’enregistrer son suivi.');
  if(record.version!==input.documentVersion||record.quote?.version!==Number(expected))return fail(409,'Le suivi a changé dans une autre session. Rechargez-le avant de continuer.');
  if(record.quote.invoice)return fail(409,'Une facture est déjà liée à ce devis. Son suivi est conservé.');
+ if(record.quote.revision.abandoned||record.quote.revision.currentId!==record.id)return fail(409,'Utilisez la version en cours du devis pour enregistrer une réponse.');
  if(input.occurredOn>billingToday()||input.occurredOn<record.data.issueDate)return fail(422,'La date doit être comprise entre la date du devis et aujourd’hui.');
  if(input.action==='accepted'&&record.data.validUntil&&input.occurredOn>record.data.validUntil)return fail(422,'La date de l’accord dépasse la validité du devis. Préparez un nouveau devis si les conditions ont changé.');
  if(input.action!=='sent'&&!note)return fail(422,input.action==='reopened'?'Indiquez la raison de la correction.':'Précisez l’origine de la réponse du client (e-mail, devis signé, appel…).');
@@ -56,7 +60,7 @@ export async function billingQuoteRoute(request:Request,db:Database,record:Billi
  }catch(error){
   const retry=await db.prepare('SELECT * FROM billing_quote_events WHERE id=?').bind(id).first<EventRow>();
   if(retry?.document_id===record.id&&retry.request_hash===hash)return reply(200,await read());
-  if(/BILLING_QUOTE_TRANSITION|UNIQUE constraint/.test(String(error)))return fail(409,'Le suivi a changé dans une autre session. Votre saisie est conservée ; rechargez le suivi.');
+  if(/BILLING_QUOTE_TRANSITION|BILLING_REVISION_INACTIVE|UNIQUE constraint/.test(String(error)))return fail(409,'Le suivi ou la version en cours a changé. Votre saisie est conservée ; rechargez le suivi.');
   throw error;
  }
  return reply(201,await read());

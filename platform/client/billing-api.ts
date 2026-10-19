@@ -1,4 +1,4 @@
-import type {BillingTransport,BillingDraft,BillingDocument,BillingContext,BillingPage,BillingSettings,BillingNumberSeries,BillingDirectoryRecord,BillingDirectoryPage,BillingQuoteEvent} from '../billing-contracts';
+import type {BillingTransport,BillingDraft,BillingDocument,BillingContext,BillingPage,BillingSettings,BillingNumberSeries,BillingDirectoryRecord,BillingDirectoryPage,BillingQuoteEvent,BillingQuoteRevisionItem} from '../billing-contracts';
 export function createBillingTransport(options:{baseUrl:string;getToken:()=>Promise<string>;isActive:()=>boolean}):BillingTransport & {dispose:()=>void} {
   let disposed=false;const controllers=new Set<AbortController>();
   const active=()=>{if(disposed||!options.isActive())throw new Error('Votre session ou la page a changé.');};
@@ -19,6 +19,9 @@ export function createBillingTransport(options:{baseUrl:string;getToken:()=>Prom
     directoryGet:(kind,id)=>request<BillingDirectoryRecord>('/'+kind+'/'+encodeURIComponent(id)),
     directoryCreate:(kind,id,data)=>request<BillingDirectoryRecord>('/'+kind,'POST',{id,data}),
     directorySave:(kind,id,version,data)=>request<BillingDirectoryRecord>('/'+kind+'/'+encodeURIComponent(id),'PUT',{data},version),
+    quoteVersions:(id,before)=>request<{versions:BillingQuoteRevisionItem[];nextBefore:number|null}>('/documents/'+encodeURIComponent(id)+'/quote-versions'+(before?'?before='+before:'')),
+    reviseQuote:(id,version,data)=>request<BillingDocument>('/documents/'+encodeURIComponent(id)+'/revise','POST',data,version),
+    abandonQuoteRevision:(id,version,data)=>request<BillingDocument>('/documents/'+encodeURIComponent(id)+'/abandon-revision','POST',data,version),
     quoteEvents:(id,before)=>request<{events:BillingQuoteEvent[];nextBefore:number|null}>('/documents/'+encodeURIComponent(id)+'/quote-events'+(before?'?before='+before:'')),
     quoteEvent:(id,version,data)=>request<BillingDocument>('/documents/'+encodeURIComponent(id)+'/quote-events','POST',data,version),
     list:query=>request<BillingPage>('/documents?'+new URLSearchParams({kind:query.kind,q:query.q,offset:String(query.offset),limit:String(query.limit),state:query.state||'all'})),

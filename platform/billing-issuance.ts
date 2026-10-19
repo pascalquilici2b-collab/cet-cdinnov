@@ -98,6 +98,7 @@ export async function reserveIssuance(db:Database,input:{id:string;documentId:st
   if(row)return unpack(row);
  }catch(error){
   const retried=await replay();if(retried)return retried;
+  if(/BILLING_REVISION_INACTIVE/.test(String(error)))return fail(409,'Cette version du devis a été remplacée ou abandonnée. Ouvrez la version en cours.');
   if(!/BILLING_RESERVATION_CONFLICT|UNIQUE constraint/.test(String(error)))throw error;
  }
  const retried=await replay();if(retried)return retried;

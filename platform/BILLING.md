@@ -12,6 +12,8 @@ La conversion d'un devis crée une seule facture brouillon liée à sa source. L
 
 Les paramètres de facturation enregistrent les coordonnées de l'émetteur, ses adresses de facturation électronique, le mode de facturation, les conditions et mentions de paiement. Chaque nouveau document en reçoit une copie. Modifier ces paramètres ne réécrit jamais un document existant. Les paramètres sont eux-mêmes versionnés, avec historique et protection contre les modifications concurrentes.
 
+Les devis finalisés peuvent être révisés en créant un nouveau brouillon lié. Le panneau des versions conserve motifs, anciens montants et accès aux documents. Abandonner une révision non finalisée réactive le parent et conserve le brouillon en lecture seule. La facturation complète reste unique dans le groupe de versions ; voir [BILLING-REVISIONS.md](BILLING-REVISIONS.md).
+
 Le téléchargement PDF est proposé pour une version enregistrée. Les modifications non sauvegardées le désactivent. La route vérifie la version puis transmet au moteur Python uniquement l'instantané du document ; le moteur recalcule ses montants avant le rendu ReportLab. Aucun total ni numéro fourni par le navigateur n'est accepté. Le PDF porte la mention brouillon, même lorsque les informations sont complètes. Les caractères non représentables sont refusés explicitement.
 
 L’aperçu « En direct » suit la saisie. « PDF paginé » affiche le vrai PDF enregistré, avec navigation par page et zoom, à l’aide du PDF.js déjà embarqué. Modifier le brouillon ramène à l’aperçu en direct. Après émission, la fiche présente montant, client et PDF archivé ; aucun long formulaire désactivé. Les coordonnées de l’émetteur remplies, les mentions et les rapports techniques sont repliables. Les critères de design sont dans [BILLING-UX.md](BILLING-UX.md).
@@ -58,6 +60,7 @@ node platform/node_modules/typescript/bin/tsc -p platform/tsconfig.json
 node --test platform/billing-domain-test.mjs platform/facturx-integrity-test.mjs platform/billing-test.mjs platform/billing-pdf-test.mjs
 node --test platform/billing-issuance-test.mjs platform/billing-generation-test.mjs platform/billing-directory-test.mjs
 node --test platform/billing-quote-test.mjs
+node --test platform/billing-revision-test.mjs
 $env:BILLING_TEST_PYTHON = '<interpréteur avec requirements-lock.txt installé>'
 node --test platform/billing-contract-test.mjs
 $env:PYTHONPATH = 'facturx-service'
@@ -66,6 +69,7 @@ $env:PORTAL_QA = '<dossier privé de captures>'
 node platform/billing-browser-test.mjs
 node platform/billing-directory-browser-test.mjs
 node platform/billing-quote-browser-test.mjs
+node platform/billing-revision-browser-test.mjs
 node platform/finance-browser-test.mjs
 node platform/billing-pdf-integration-test.mjs
 # Avec les variables FACTURX_JAVA, FACTURX_GHOSTSCRIPT, FACTURX_ICC et FACTURX_VERAPDF_JAR :
@@ -82,7 +86,7 @@ Le test `billing-pdf-integration-test.mjs` démarre son propre moteur FastAPI lo
 ## Prochains lots
 
 1. Validation guidée des champs et navigation de suivi ; rapprochement des clients avec les autres répertoires et gestion des contacts/établissements liés.
-2. Révisions commerciales des devis, avoirs, acomptes, règlements et allocations. Le suivi d’acceptation/refus/expiration est disponible.
+2. Avoirs, acomptes, règlements et allocations. Le suivi des réponses et les révisions commerciales liées des devis sont disponibles.
 3. Qualification AGIRIS : profil, destinataire, annexes, dépôt et résultat réel d’un document de test autorisé.
 4. Vérification source/déploiement, reprise des archives, séries réelles, migration et sauvegarde restaurable.
 5. Recette finale, déploiement coordonné Worker, moteur Python et ressources statiques, puis vérification du service publié.

@@ -2,7 +2,7 @@ import {useEffect,useRef,useState} from 'react';
 import type {FormEvent} from 'react';
 import type {BillingDocument,BillingNumberSeries,BillingTransport,BillingKind} from '../billing-contracts';
 
-export const billingStateLabel=(document:BillingDocument|null|undefined)=>!document?.issuance?'Brouillon':document.issuance.state==='ready'?'Émis':document.issuance.state==='failed'?'À reprendre':'Finalisation en cours';
+export const billingStateLabel=(document:BillingDocument|null|undefined)=>document?.quote?.revision.abandoned?'Version abandonnée':!document?.issuance?'Brouillon':document.issuance.state==='ready'?'Émis':document.issuance.state==='failed'?'À reprendre':'Finalisation en cours';
 const failures:Record<string,string>={render:'Le rendu du document a échoué.',validation:'Le document n’a pas passé les contrôles définitifs.',storage:'L’archivage des fichiers n’a pas abouti.',unavailable:'Le moteur documentaire était indisponible.'};
 const message=(e:unknown)=>e instanceof Error?e.message:'La finalisation n’a pas abouti.';
 
@@ -29,6 +29,7 @@ export function IssuancePanel({record,saved,busy,transport,onDocument,onBusy,onN
   }finally{running.current=false;if(live.current)onBusy('');}
  }
  const issue=record?.issuance;
+ if(!issue&&record?.quote&&(record.quote.revision.abandoned||record.quote.revision.currentId!==record.id))return null;
  if(issue?.state==='ready')return issue.files.length>1?<details className="bill-archive-tools"><summary>Fichiers techniques et contrôles <span>⌄</span></summary><p>Le Factur-X contient déjà le XML. Ces fichiers permettent de consulter les contrôles effectués.</p><div className="bill-issuance-actions">{issue.files.filter(kind=>kind!=='pdf').map(kind=><button type="button" className="bill-button" key={kind} disabled={busy} onClick={()=>onDownload(kind)}>{({xml:'Télécharger le XML',validation:'Rapport de validation',verapdf:'Rapport PDF/A'} as Record<string,string>)[kind]||kind}</button>)}</div></details>:null;
  return <details className="bill-finalize-disclosure" open={!!issue||expanded} onToggle={e=>{if(!issue)setExpanded(e.currentTarget.open);}}><summary><span>{issue?'Terminer la génération':'Vérifier et finaliser'}</span><small>{issue?issue.number:'Après avoir enregistré et vérifié votre document'}</small><span>⌄</span></summary><section className="bill-issuance" aria-label="Finalisation du document"><div><h2>{issue?issue.number:'Finaliser le document'}</h2>{issue?<p>{billingStateLabel(record)} · Le numéro est réservé ; le contenu est désormais figé.</p>:<p>Le contrôle préalable vérifie le document avant de réserver son numéro.</p>}</div>
   {error&&<p role="alert" className="bill-issuance-error">{error}</p>}

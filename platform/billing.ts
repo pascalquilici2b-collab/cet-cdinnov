@@ -9,6 +9,7 @@ import {createNumberSeries,reserveIssuance} from './billing-issuance';
 import {preflightIssuance,generateIssuance,issuedFile} from './billing-generation';
 import {billingDirectoryRoute} from './billing-directory';
 import {billingQuoteRoute,quoteJSON} from './billing-quote';
+import {createQuoteRevision,abandonQuoteRevision,quoteVersions} from './billing-revisions';
 
 interface Row {
  id:string; kind:'invoice'|'quote'; status:'draft'; version:number; data_json:string;
@@ -90,7 +91,7 @@ function pageParameter(params:URLSearchParams,name:string,fallback:number,max:nu
 }
 async function list(request:Request,db:Database,reply:Reply) {
  const params=new URL(request.url).searchParams,kind=params.get('kind'),q=params.get('q')||'',state=params.get('state')||'all';
- const quoteStates=['prepared','sent','accepted','refused','expired'];
+ const quoteStates=['prepared','sent','accepted','refused','expired','previous','abandoned'];
  if([...params.keys()].some(k=>!['kind','q','limit','offset','state'].includes(k))||[...new Set(params.keys())].some(k=>params.getAll(k).length>1)||
   (kind!==null&&kind!=='quote'&&kind!=='invoice')||q.length>200||!['all','draft','issued','finalizing','issue_failed',...quoteStates].includes(state)||(quoteStates.includes(state)&&kind!=='quote'))return fail(400,'Filtres de recherche invalides.');
  const limit=pageParameter(params,'limit',25,100,1),offset=pageParameter(params,'offset',0,1000000);
@@ -98,11 +99,15 @@ async function list(request:Request,db:Database,reply:Reply) {
  const row=await db.prepare(`WITH enriched AS (
   SELECT *,${issuanceJSON} AS issuance_json,${quoteJSON()} AS quote_json FROM billing_documents WHERE (? IS NULL OR kind=?)
  ), classified AS (SELECT *,CASE WHEN json_extract(issuance_json,'$.state')='ready' THEN 'issued' WHEN json_extract(issuance_json,'$.state')='failed' THEN 'issue_failed' WHEN issuance_json IS NOT NULL THEN 'finalizing' ELSE 'draft' END AS effective_status FROM enriched),
- filtered AS (SELECT * FROM classified WHERE (?='all' OR effective_status=? OR (effective_status='issued' AND json_extract(quote_json,'$.state')=?))
+ filtered AS (SELECT * FROM classified WHERE (CASE
+  WHEN ?='previous' THEN kind='quote' AND json_extract(quote_json,'$.revision.currentId')<>id AND json_extract(quote_json,'$.revision.abandoned')=0
+  WHEN ?='abandoned' THEN kind='quote' AND json_extract(quote_json,'$.revision.abandoned')=1
+  ELSE (kind<>'quote' OR (?='all' AND ?<>'') OR (json_extract(quote_json,'$.revision.currentId')=id AND json_extract(quote_json,'$.revision.abandoned')=0))
+   AND (?='all' OR effective_status=? OR (effective_status='issued' AND json_extract(quote_json,'$.state')=?)) END)
   AND (?='' OR instr(lower(json_extract(data_json,'$.title')),lower(?))>0 OR instr(lower(json_extract(data_json,'$.buyer.name')),lower(?))>0 OR instr(lower(json_extract(data_json,'$.references.businessCode')),lower(?))>0 OR instr(lower(json_extract(issuance_json,'$.number')),lower(?))>0))
  SELECT (SELECT count(*) FROM filtered) AS total,(SELECT json_group_array(json(row_json)) FROM (
  SELECT json_object('id',id,'kind',kind,'status',status,'version',version,'data_json',data_json,'totals_json',totals_json,'issues_json',issues_json,'source_document_id',source_document_id,'created_at',created_at,'updated_at',updated_at,'created_by',created_by,'updated_by',updated_by,'issuance_json',issuance_json,'quote_json',quote_json) AS row_json
- FROM filtered ORDER BY updated_at DESC,id LIMIT ? OFFSET ?)) AS rows_json`).bind(kind,kind,state,state,state,q,q,q,q,q,limit,offset).first<{total:number;rows_json:string}>();
+ FROM filtered ORDER BY updated_at DESC,id LIMIT ? OFFSET ?)) AS rows_json`).bind(kind,kind,state,state,state,q,state,state,state,q,q,q,q,q,limit,offset).first<{total:number;rows_json:string}>();
  return reply(200,{documents:JSON.parse(row?.rows_json||'[]').map(document),total:row?.total||0,limit,offset});
 }
 
@@ -136,10 +141,23 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
   }
   return reply(200,document(existing));
  }
- const match=path.match(/^\/api\/v1\/billing\/documents\/([^/]+)(\/quote-events|\/convert|\/preview\.pdf|\/issue|\/finalize|\/files\/(?:pdf|xml|validation|verapdf))?$/);
+ const match=path.match(/^\/api\/v1\/billing\/documents\/([^/]+)(\/quote-versions|\/revise|\/abandon-revision|\/quote-events|\/convert|\/preview\.pdf|\/issue|\/finalize|\/files\/(?:pdf|xml|validation|verapdf))?$/);
  if(!match)return reply(404,{error:'Accès de facturation introuvable.'});
  if(!uuid(match[1]))return fail(400,'Identifiant de document invalide.');
  const id=match[1].toLowerCase();
+ if(match[2]==='/quote-versions'||match[2]==='/revise'||match[2]==='/abandon-revision'){
+  const row=await get(db,id);if(!row)return reply(404,{error:'Devis introuvable.'});const current=document(row);
+  if(match[2]==='/quote-versions'){
+   if(request.method!=='GET')return reply(405,{error:'Méthode non autorisée.'});
+   const params=new URL(request.url).searchParams;if([...params.keys()].some(k=>k!=='before')||params.getAll('before').length>1)return fail(400,'Page de versions invalide.');
+   const before=pageParameter(params,'before',Number.MAX_SAFE_INTEGER,Number.MAX_SAFE_INTEGER,1);
+   return reply(200,await quoteVersions(db,current,before));
+  }
+  if(request.method!=='POST')return reply(405,{error:'Méthode non autorisée.'});
+  const expected=expectedVersion(request),input=await body(request,['id','familyVersion','reason']);
+  if(match[2]==='/revise'){const result=await createQuoteRevision(db,current,expected,input,session.email);return reply(result.created?201:200,document((await get(db,result.id))!));}
+  await abandonQuoteRevision(db,current,expected,input,session.email);return reply(200,document((await get(db,id))!));
+ }
  if(match[2]==='/quote-events'){
   const row=await get(db,id);if(!row)return reply(404,{error:'Devis introuvable.'});
   return billingQuoteRoute(request,db,document(row),session.email,reply,async()=>document((await get(db,id))!));
@@ -151,6 +169,7 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
   const current=document(row);
   if(match[2]==='/issue'){
    if(!uuid(input.id)||!uuid(input.seriesId))return fail(400,'Identifiant de finalisation ou de série invalide.');
+   if(!current.issuance&&current.quote&&(current.quote.revision.abandoned||current.quote.revision.currentId!==current.id))return fail(409,'Cette version du devis a été remplacée ou abandonnée. Ouvrez la version en cours.');
    if(!current.issuance)await preflightIssuance(env,current.data);
    await reserveIssuance(db,{id:input.id,documentId:id,documentVersion:expected,seriesId:input.seriesId},session.email);
   }else{
@@ -179,10 +198,11 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
  if(!match[2]&&request.method==='PUT') {
   const expected=expectedVersion(request),input=await body(request,['data']),p=prepared(input.data);
   const saved=await db.prepare(`UPDATE billing_documents SET version=version+1,data_json=?,totals_json=?,issues_json=?,updated_at=?,updated_by=?
-   WHERE id=? AND version=? AND kind=? AND status='draft' AND NOT EXISTS(SELECT 1 FROM billing_issuances WHERE document_id=billing_documents.id) RETURNING *`).bind(p.dataJSON,p.totalsJSON,p.issuesJSON,new Date().toISOString(),session.email,id,expected,p.data.kind).first<Row>();
+   WHERE id=? AND version=? AND kind=? AND status='draft' AND NOT EXISTS(SELECT 1 FROM billing_issuances WHERE document_id=billing_documents.id) AND NOT EXISTS(SELECT 1 FROM billing_quote_revisions WHERE document_id=billing_documents.id AND abandoned_at IS NOT NULL) RETURNING *`).bind(p.dataJSON,p.totalsJSON,p.issuesJSON,new Date().toISOString(),session.email,id,expected,p.data.kind).first<Row>();
   if(saved)return reply(200,document((await get(db,saved.id))!));
   const existing=await get(db,id);if(!existing)return reply(404,{error:'Document introuvable.'});
   if(existing.kind!==p.data.kind)return fail(400,'Le type du document ne peut pas être modifié. Utilisez la conversion du devis.');
+  if(document(existing).quote?.revision.abandoned)return fail(409,'Cette version a été abandonnée et reste consultable. Ouvrez la version en cours pour poursuivre.');
   if(existing.issuance_json)return fail(409,'Ce document est figé et ne peut plus être modifié. Créez un document correctif.');
   return conflict();
  }
@@ -205,6 +225,7 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
     SELECT ?,'invoice','draft',1,?,?,?,?,id,version,?,?,?,? FROM billing_documents WHERE id=? AND version=? AND kind='quote' AND status='draft'
     ON CONFLICT DO NOTHING RETURNING *`).bind(targetId,p.dataJSON,p.totalsJSON,p.issuesJSON,digest(p.dataJSON),stamp,stamp,session.email,session.email,id,expected).first<Row>();
   } catch(error) {
+   if(String(error).includes('BILLING_REVISION_INACTIVE'))return fail(409,'Utilisez la version en cours du devis. Une facture peut déjà être liée à cette proposition.');
    if(String(error).includes('BILLING_QUOTE_ACCEPTANCE_REQUIRED'))return fail(409,'Enregistrez l’accord du client avant de facturer ce devis émis.');
    if(String(error).includes('BILLING_SOURCE_VERSION'))return conflict();throw error;
   }

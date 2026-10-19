@@ -10,6 +10,8 @@ L’accord permet de créer un unique brouillon de facture lié au devis émis. 
 
 Une réponse peut être corrigée avec un motif obligatoire tant qu’aucune facture n’est liée. La correction remet le devis en attente, conserve toutes les réponses précédentes et permet une nouvelle déclaration. Une facture liée verrouille ce suivi ; la gestion des corrections et avoirs de cette facture appartient au prochain lot.
 
+Les révisions commerciales liées sont disponibles : chaque révision crée un nouveau brouillon, conserve les versions précédentes et doit recevoir son propre accord avant conversion lorsqu’elle est émise. Un brouillon de révision peut être abandonné avec motif pour réactiver son parent. Voir [BILLING-REVISIONS.md](BILLING-REVISIONS.md). Le suivi s’effectue sur la version en cours.
+
 La liste filtre les brouillons, les documents en finalisation ou à reprendre, et les devis à envoyer, en attente, acceptés, refusés ou expirés. Le nombre et les lignes proviennent d’une même lecture de la base. Un résultat vide propose de réinitialiser les filtres. Les badges restent lisibles sur mobile ; leur couleur ne porte pas seule l’information.
 
 ## Dates et expiration
@@ -38,4 +40,4 @@ Le suivi se trouve dans le résumé à côté du PDF. Sur mobile, il occupe tout
 
 ## Suites
 
-Les révisions commerciales liées entre plusieurs devis, les justificatifs attachés, la signature électronique, les relances/envoyés automatiques, les acomptes et factures partielles restent à réaliser. La duplication actuelle crée un nouveau brouillon indépendant ; elle ne constitue pas encore une révision commerciale liée. Le rapprochement des devis/factures historiques et la qualification de production restent dans le plan général.
+Les justificatifs attachés, la signature électronique, les relances/envois automatiques, les acomptes et factures partielles restent à réaliser. La duplication crée un nouveau brouillon indépendant ; l’action « Préparer une nouvelle version » établit la relation de révision. Le rapprochement des devis/factures historiques et la qualification de production restent dans le plan général.
