@@ -24,13 +24,13 @@ const signed=data=>{const body=Buffer.from(JSON.stringify(data)).toString('base6
 const oldClaims=email=>({aud:'cdinnov-budgets',email,exp:Date.now()+60000,fingerprint:createHash('sha256').update(JSON.stringify([accounts[email].salt,accounts[email].iter,accounts[email].hash])).digest('hex'),nonce:randomBytes(16).toString('hex')});
 
 try {
-  await ctx.kv.put('markets-test',JSON.stringify(portal));
+  await ctx.setPortal(JSON.stringify(portal));
   const before=await ctx.kv.get('markets-test');
   await check('Anonymous access, CORS, methods and malformed login bodies rejected',async()=>{
     assert.equal((await call()).status,401);
     assert.equal((await call(undefined,{method:'OPTIONS'})).status,204);
     assert.equal((await call(undefined,{headers:{Origin:'https://other.invalid'}})).status,403);
-    assert.equal((await call(undefined,{method:'DELETE'})).status,405);
+    assert.equal((await call(undefined,{method:'DELETE'})).status,401);
     for(const body of [null,[],{},42,{email:{},action:'challenge'},{email:users[0],action:[]},{email:users[0],action:['challenge']},{email:'invalid',action:'challenge'}])assert.equal((await post(body)).status,400);
     assert.equal((await call(undefined,{method:'POST',body:'{'})).status,400);
     assert.equal((await call(undefined,{method:'POST',headers:{'Content-Type':'text/plain'},body:'{}'})).status,415);
@@ -96,19 +96,19 @@ try {
   });
   await check('Account removal and credential changes invalidate existing sessions on the next request',async()=>{
     const custom=await ctx.login(external);
-    await ctx.kv.put('markets-test',JSON.stringify({...portal,auth:{...portal.auth,allowed:users}}));
+    await ctx.setPortal(JSON.stringify({...portal,auth:{...portal.auth,allowed:users}}));
     assert.equal((await get(custom.token)).status,401);
-    await ctx.kv.put('markets-test',JSON.stringify({...portal,auth:{...portal.auth,accounts:{...accounts,[users[1]]:{...accounts[users[1]],hash:'f'.repeat(64)}}}}));
+    await ctx.setPortal(JSON.stringify({...portal,auth:{...portal.auth,accounts:{...accounts,[users[1]]:{...accounts[users[1]],hash:'f'.repeat(64)}}}}));
     for(const path of ['/api/v1/session','/budgets/workspace','/sheets/session','/api/v1/dashboard'])assert.equal((await get(employeeSession.token,path)).status,401,path);
     assert.equal((await get(adminSession.token)).status,200);
     const removed={...accounts};delete removed[users[0]];
-    await ctx.kv.put('markets-test',JSON.stringify({...portal,auth:{...portal.auth,accounts:removed}}));
+    await ctx.setPortal(JSON.stringify({...portal,auth:{...portal.auth,accounts:removed}}));
     assert.equal((await get(adminSession.token)).status,401);
-    await ctx.kv.put('markets-test',before);
+    await ctx.setPortal(before);
   });
-  await check('Session lookup uses one KV read, zero SQL writes and never shares an identity cache',async()=>{
+  await check('Session lookup uses one account read, zero SQL writes and never shares an identity cache',async()=>{
     let reads=0;let current=structuredClone(portal);
-    const env={BUDGETS_SESSION_SECRET:ctx.sessionSecret,CET_WORKSPACE_KEY:'test',CET_KV:{get:async()=>{reads++;return current;}}};
+    const env={BUDGETS_DB:{withSession:()=>({prepare:()=>({bind:()=>({first:async()=>null})})})},BUDGETS_SESSION_SECRET:ctx.sessionSecret,CET_WORKSPACE_KEY:'test',CET_KV:{get:async()=>{reads++;return current;}}};
     const req=new Request('https://test',{headers:{Authorization:'Bearer '+adminSession.token}});
     assert.equal((await sessionIdentity(req,env)).email,users[0]);assert.equal(reads,1);
     current.auth.accounts[users[0]].hash='0'.repeat(64);

@@ -691,7 +691,7 @@ body.authed .auth-gate{display:none}
 </style>
 <link rel="stylesheet" href="platform/design-system.css">
 <link rel="stylesheet" href="design/portal.css?v=apple1">
-<link rel="stylesheet" href="design/apple.css?v=expenseui1">
+<link rel="stylesheet" href="design/apple.css?v=portalaccess1">
 <script src="platform/icons.js?v=expenseui1"></script>
 <div id="authGate" class="auth-gate">
   <div class="auth-card">
@@ -746,7 +746,6 @@ body.authed .auth-gate{display:none}
    Le code du Worker a deployer est fourni dans "cloudflare-worker.js".
    ============================================================ */
 const CLOUD_ENDPOINT = "https://cet-data.pascalquilici2b.workers.dev";  // <-- METTRE ICI l'adresse Cloudflare (Worker)
-const CLOUD_TOKEN    = "4d191eee-9345-4930-8f37-6ed2c43ea51c";   // <-- UUID du token / cle des donnees
 /* ============================================================ */
 /* =========================================================
    CET · CDInnov — moteur + UI (mono-fichier, hors-ligne)
@@ -823,36 +822,8 @@ function freshState(){
     auth: {accounts:{},allowed:[]}
   };
 }
-function load(){
-  try{
-    const raw = localStorage.getItem(STORE_KEY);
-    if(!raw) return freshState();
-    const d = JSON.parse(raw);
-    return {
-      params: Object.assign(structuredClone(PARAMS_DEFAULT), d.params||{}),
-      types: d.types && d.types.length ? d.types : structuredClone(TYPES_DEFAULT),
-      salaries: d.salaries || [],
-      mouvements: d.mouvements || [],
-      conges: d.conges || [],
-      notesFrais: d.notesFrais || [],
-      codesAffaires: d.codesAffaires || [],
-      factures: d.factures || [],
-      facturxPartyMemory: d.facturxPartyMemory || {seller:[],buyer:[]},
-      majAt: d.majAt || null,
-      majBy: d.majBy || '',
-      auth: (d.auth && typeof d.auth==='object') ? d.auth : {accounts:{},allowed:[]}
-    };
-  }catch(e){ STORAGE_OK=false; return freshState(); }
-}
-function save(){
-  if(typeof budgetsClientsChanged==='function')budgetsClientsChanged();
-  try{ reconcileCetMovements(); }catch(e){}
-  /* Agenda leave snapshot */ try{agendaState.leaves=null;}catch{}
-  state.majAt = new Date().toISOString();
-  try{ state.majBy = (typeof AUTH_USER!=='undefined' && AUTH_USER) ? AUTH_USER : ''; }catch(e){}
-  try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); STORAGE_OK=true; }catch(e){ STORAGE_OK=false; }
-  renderMajPill(); cloudSave();
-}
+
+
 function majLabel(){
   if(!state.majAt) return null;
   const d=new Date(state.majAt); if(isNaN(d)) return null;
@@ -878,61 +849,19 @@ function renderMajPill(){
 /* ===================== SYNCHRO CLOUDFLARE ===================== */
 let cloudTimer=null;
 function cloudEnabled(){ return typeof CLOUD_ENDPOINT==='string' && CLOUD_ENDPOINT.trim()!==''; }
-function cloudURL(){ return CLOUD_ENDPOINT.replace(/\/+$/,'')+'/'+encodeURIComponent(CLOUD_TOKEN); }
+
 function setSync(kind,txt){ const p=$('#syncPill'); if(!p) return; p.dataset.state=kind; const t=$('#syncTxt'); if(t) t.textContent=txt; }
-async function cloudLoad(options={}){
-  if(!cloudEnabled()){ setSync('local','Local'); return true; }
-  const expectedUser=AUTH_USER;
-  setSync('busy','Chargement…');
-  try{
-    const r=await fetch(cloudURL(),{method:'GET',cache:'no-store'});
-    if(!r.ok) throw new Error('HTTP '+r.status);
-    const txt=await r.text();
-    if(AUTH_USER!==expectedUser)return false;
-    if(txt && txt.trim()){
-      const d=JSON.parse(txt);
-      if(d && d.params){
-        state={ params:Object.assign(structuredClone(PARAMS_DEFAULT), d.params),
-                types:(d.types&&d.types.length)?d.types:structuredClone(TYPES_DEFAULT),
-                salaries:d.salaries||[], mouvements:d.mouvements||[], conges:d.conges||[], notesFrais:d.notesFrais||[],
-                codesAffaires:d.codesAffaires||[], factures:d.factures||[],
-                facturxPartyMemory: d.facturxPartyMemory || {seller:[],buyer:[]},
-                majAt:d.majAt||null, majBy:d.majBy||'',
-                auth:(d.auth&&typeof d.auth==='object')?d.auth:(state.auth||{accounts:{},allowed:[]}) };
-        try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){}
-        currentYear=Number(state.params.anneeSuivi)||currentYear;
-      }
-      setSync('ok','Synchronisé'); render();
-    } else {
-      if(options.readOnly)return false;
-      await cloudPush(); render();   // aucune donnee distante : on envoie l'etat local
-    }
-    return true;
-  }catch(e){ setSync('err','Hors ligne'); return false; }
-}
-function cloudSave(){ if(!cloudEnabled()) return; clearTimeout(cloudTimer); cloudTimer=setTimeout(cloudPush, 700); }
+
+
 /* ---- Notifications e-mail (via Worker /notify -> Brevo) ---- */
-function notify(subject, html, to){
-  if(!cloudEnabled()) return;
-  const u=CLOUD_ENDPOINT.replace(/\/+$/,'')+'/notify';
-  const payload={subject:subject,html:html}; if(to) payload.to=to;
-  try{ fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).catch(()=>{}); }catch(e){}
-}
+
 let _cgNotifyTimer=null;
 function scheduleCongesNotify(mat){
   clearTimeout(_cgNotifyTimer);
   _cgNotifyTimer=setTimeout(()=>{ const days=conges().filter(c=>c.matricule===mat && c.statut!=='Validé').length*0.5 + autoSamedisList(mat).filter(x=>x.statut!=='Validé').length; if(days>0){ const s=salByMat(mat)||{}; notify('Congés en attente — '+(s.nom||'')+' '+(s.prenom||''), '<p><b>'+esc(s.nom)+' '+esc(s.prenom)+'</b> a posé des congés <b>en attente de validation</b> : <b>'+nbJours(days)+' jour(s)</b> au total.</p><p>Connectez-vous à l\'outil pour les valider.</p>'); } }, 4500);
 }
-async function cloudPush(){
-  if(!cloudEnabled()) return;
-  setSync('busy','Envoi…');
-  try{
-    const r=await fetch(cloudURL(),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(state)});
-    if(!r.ok) throw new Error('HTTP '+r.status);
-    setSync('ok','Synchronisé');
-  }catch(e){ setSync('err','Erreur sync'); }
-}
-function cloudSyncNow(){ if(cloudEnabled()) cloudLoad(); else toast('Renseignez CLOUD_ENDPOINT en haut du fichier'); }
+
+
 
 /* ---------- helpers ---------- */
 const $ = (s,r=document)=>r.querySelector(s);
@@ -946,7 +875,7 @@ function eur(n){ if(n==null||n==='') return '—'; return Number(n).toLocaleStri
 function eur2(n){ if(n==null||n==='') return '—'; return Number(n).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'; }
 function dateFR(d){ if(!d) return '—'; const [y,m,da]=String(d).split('-'); return `${da}/${m}/${y}`; }
 function initials(s){ return (s.nom?.[0]||'')+(s.prenom?.[0]||''); }
-function avInner(s){ return (s&&s.photo)?'<img src="'+s.photo+'" alt="" style="width:100%;height:100%;object-fit:cover;display:block">':esc(initials(s||{})); }
+function avInner(s){ const photo=photoURL(s?.photo);return photo?'<img src="'+esc(photo)+'" alt="" style="width:100%;height:100%;object-fit:cover;display:block">':esc(initials(s||{})); }
 function typeByCode(c){ return state.types.find(t=>t.code===c); }
 function salByMat(m){ return state.salaries.find(s=>s.matricule===m); }
 /* vert = alimentation ou affectation epargne (PEI/PERECOLI) ; rouge = utilisation */
@@ -1383,7 +1312,7 @@ function agAvatar(s,pend,half){
   const col=congesAgentColor(s.matricule);
   const lib = half==='AM' ? 'matin uniquement' : (half==='PM' ? 'après-midi uniquement' : 'journée entière');
   const tt = `${esc(s.nom)} ${esc(s.prenom)} — ${lib}${pend?' (en attente)':''}`;
-  const chip = `<span class="agchip ${pend?'pend':''}" style="--agc:${col}" title="${tt}">${s.photo?'<img src="'+s.photo+'">':'<span class="agini">'+esc(initials(s))+'</span>'}</span>`;
+  const chip = `<span class="agchip ${pend?'pend':''}" style="--agc:${col}" title="${tt}">${photoURL(s.photo)?'<img src="'+esc(photoURL(s.photo))+'">':'<span class="agini">'+esc(initials(s))+'</span>'}</span>`;
   if(half!=='AM' && half!=='PM') return chip;
   return `<span class="agslot ${pend?'pend':''}" style="--agc:${col}" title="${tt}">${chip}<span class="aghalf">${half==='AM'?'M':'A-M'}</span></span>`;
 }
@@ -1687,29 +1616,11 @@ function dataURLtoU8(d){ const b=atob(String(d).split(',')[1]||''); const u=new 
 
 /* ---- Pièces jointes volumineuses (R2, via Worker /files/<key>) — évite de saturer le quota KV (25 Mo/valeur) ---- */
 function filesBase(){ return CLOUD_ENDPOINT.replace(/\/+$/,'')+'/files/'; }
-function isRemoteFileURL(s){ return typeof s==='string' && /^https?:\/\//.test(s) && s.indexOf('/files/')>-1; }
-async function uploadFileToR2(file, keyPrefix){
-  const ext=(file.name||'').split('.').pop().toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,10);
-  const key=(keyPrefix||'f')+'-'+Date.now().toString(36)+Math.random().toString(36).slice(2,7)+(ext?('.'+ext):'');
-  const r=await fetch(filesBase()+encodeURIComponent(key),{method:'PUT',headers:{'Content-Type':file.type||'application/octet-stream'},body:file});
-  if(!r.ok) throw new Error("Échec de l'envoi du fichier (HTTP "+r.status+")");
-  return filesBase()+encodeURIComponent(key);
-}
-function deleteFileFromR2(url){
-  if(!isRemoteFileURL(url)) return;
-  try{ fetch(url,{method:'DELETE'}).catch(()=>{}); }catch(e){}
-}
-async function toU8Async(src){
-  if(!src) return new Uint8Array();
-  if(String(src).startsWith('data:')) return dataURLtoU8(src);
-  const r=await fetch(src); const buf=await r.arrayBuffer(); return new Uint8Array(buf);
-}
-async function toDataURLAsync(src){
-  if(!src) return null;
-  if(String(src).startsWith('data:')) return src;
-  const r=await fetch(src); const blob=await r.blob();
-  return await new Promise((res,rej)=>{ const fr=new FileReader(); fr.onload=()=>res(fr.result); fr.onerror=()=>rej(fr.error||new Error('Lecture impossible')); fr.readAsDataURL(blob); });
-}
+
+
+
+
+
 async function migrateAttachmentsToR2(){
   if(!cloudEnabled()){ toast('Synchronisation cloud désactivée'); return; }
   toast('Migration des pièces jointes en cours…');
@@ -1785,13 +1696,14 @@ async function onPayslip(mat, input){
     openCoutCalc(mat, brut, via);
   }catch(e){ toast(e.message||'Impossible de lire ce PDF'); }
 }
-function previewPayslip(mat){
+async function previewPayslip(mat){
   if(!isAdmin(AUTH_USER))return;
   const s=salByMat(mat); if(!s||!s.payslip) return;
+  const user=AUTH_USER;let fileURL;try{fileURL=await privateFileURL(s.payslip);}catch(e){toast(e.message);return;}if(AUTH_USER!==user)return;
   modal(`
     <div class="modal-head"><h3>Fiche de paie — ${esc(s.nom)} ${esc(s.prenom)}</h3><div class="grow"></div><button class="icon-btn" onclick="closeModal()">${ic('close')}</button></div>
     <div class="modal-body">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;font-size:12px;color:var(--muted)"><span class="icoinline" style="color:var(--accent-strong)">${ic('file')}</span><b style="color:var(--ink)">${esc(s.payslipName||'fiche.pdf')}</b><a class="link" href="${s.payslip}" download="${esc(s.payslipName||'fiche.pdf')}">Télécharger</a></div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;font-size:12px;color:var(--muted)"><span class="icoinline" style="color:var(--accent-strong)">${ic('file')}</span><b style="color:var(--ink)">${esc(s.payslipName||'fiche.pdf')}</b><a class="link" href="${esc(fileURL)}" download="${esc(s.payslipName||'fiche.pdf')}">Télécharger</a></div>
       <div id="psThumb" style="display:flex;justify-content:center;align-items:center;min-height:120px"><div class="hint">Aperçu en cours…</div></div>
     </div>
     <div class="modal-foot">
@@ -2169,13 +2081,14 @@ function nfJustif(i,input){
   }).catch(()=>toast('Envoi du justificatif impossible'));
 }
 function nfJustifRemove(i){ nfSync(); const l=nfDraft.lignes[i];if(!l)return;delete l.justificatif;delete l.justName;delete l.justType;renderNoteEditor(); }
-function nfJustifPreview(i){
+async function nfJustifPreview(i){
   nfSync();
   const l=nfDraft.lignes[i]; if(!l||!l.justificatif) return;
+  const user=AUTH_USER,draft=nfDraft;let fileURL;try{fileURL=await privateFileURL(l.justificatif);}catch(e){toast(e.message);return;}if(AUTH_USER!==user||nfDraft!==draft)return;
   const isImg=l.justType ? l.justType.indexOf('image/')===0 : /^data:image\//.test(l.justificatif);
   modal(`<div class="modal-head"><h3>Justificatif — ${esc(l.categorie||'')}</h3><div class="grow"></div><button class="icon-btn" onclick="renderNoteEditor()">${ic('close')}</button></div>
-    <div class="modal-body"><div style="font-size:12px;color:var(--muted);margin-bottom:10px">${esc(l.justName||'')} <a class="link" href="${l.justificatif}" download="${esc(l.justName||'justificatif')}">Télécharger</a></div>
-    ${isImg?`<img src="${l.justificatif}" style="max-width:100%;border:1px solid var(--line);border-radius:8px">`:`<iframe src="${l.justificatif}" style="width:100%;height:60vh;border:1px solid var(--line);border-radius:8px"></iframe>`}</div>
+    <div class="modal-body"><div style="font-size:12px;color:var(--muted);margin-bottom:10px">${esc(l.justName||'')} <a class="link" href="${esc(fileURL)}" download="${esc(l.justName||'justificatif')}">Télécharger</a></div>
+    ${isImg?`<img src="${esc(fileURL)}" style="max-width:100%;border:1px solid var(--line);border-radius:8px">`:`<iframe sandbox src="${esc(fileURL)}" style="width:100%;height:60vh;border:1px solid var(--line);border-radius:8px"></iframe>`}</div>
     <div class="modal-foot"><button class="btn btn-ghost" onclick="renderNoteEditor()">Retour à la note</button></div>`, true);
 }
 function saveNoteFrais(thenPdf){
@@ -2504,7 +2417,7 @@ function financeEditorForget(){financeEditorEpoch++;if(financeEditorDispose){fin
 function financeExpenseAllowed(note){return !!(note&&AUTH_USER&&(isAdmin(AUTH_USER)||AUTH_USER_MAT[AUTH_USER]&&note.matricule===AUTH_USER_MAT[AUTH_USER]));}
 function financeProps(view,user){
   const admin=isAdmin(user),matricule=AUTH_USER_MAT[user]||null;
-  return {snapshot:{view,admin,matricule,codes:admin?codesAff().slice():[],invoices:admin?factures().map(f=>({...f,validFacturx:!!(f.facturx&&f.facturx.snapshot===facturxSignature(f))})):[],expenses:notesFrais().filter(financeExpenseAllowed),employees:state.salaries.map(({matricule,nom,prenom,photo})=>({matricule,nom,prenom,photo})),clients:budgetsClients,clientStatus:financeClientStatus,clientError:financeClientError,filters:{tab:factTab,codeQ,factQ,year:factYear,month:factMonth,codePage,codePer,factPage,factPer,expenseQ:nfFilter.q,expensePerson:nfFilter.sal,expenseStatus:nfFilter.statut,expensePage:nfPage,expensePer:nfPer}},
+  return {snapshot:{view,admin,matricule,codes:admin?codesAff().slice():[],invoices:admin?factures().map(f=>({...f,validFacturx:!!(f.facturx&&f.facturx.snapshot===facturxSignature(f))})):[],expenses:notesFrais().filter(financeExpenseAllowed),employees:state.salaries.map(({matricule,nom,prenom,photo})=>({matricule,nom,prenom,photo:photoURL(photo)})),clients:budgetsClients,clientStatus:financeClientStatus,clientError:financeClientError,filters:{tab:factTab,codeQ,factQ,year:factYear,month:factMonth,codePage,codePer,factPage,factPer,expenseQ:nfFilter.q,expensePerson:nfFilter.sal,expenseStatus:nfFilter.statut,expensePage:nfPage,expensePer:nfPer}},
     filter:patch=>{
       if(AUTH_USER!==user||currentView!==view)return;
       if('codeQ'in patch)codeQ=patch.codeQ;if('factQ'in patch)factQ=patch.factQ;
@@ -2555,7 +2468,7 @@ async function financeOpenEditor(kind,record,existing){
 
 /* React personnel screens. Existing CET calculations, imports and storage remain authoritative. */
 let personnelPromise=null,personnelMounted=null,personnelEpoch=0,personnelView=null,personnelEditorDispose=null,personnelEditorEpoch=0;
-function personnelModule(){return personnelPromise||=import('./platform/personnel.js').catch(error=>{personnelPromise=null;throw error;});}
+function personnelModule(){return personnelPromise||=import('./platform/personnel.js?v=portalaccess1').catch(error=>{personnelPromise=null;throw error;});}
 function personnelStyle(){if(!$('#personnelStyle')){const css=document.createElement('link');css.id='personnelStyle';css.rel='stylesheet';css.href='platform/personnel.css';document.head.append(css);}}
 function personnelEditorForget(){personnelEditorEpoch++;if(personnelEditorDispose){personnelEditorDispose();personnelEditorDispose=null;}}
 function personnelForget(){personnelEpoch++;if(personnelMounted){personnelMounted.dispose();personnelMounted=null;}personnelView=null;$('#personnelRoot')?.remove();}
@@ -2564,7 +2477,7 @@ function personnelProps(view){
  const user=AUTH_USER,admin=isAdmin(user),access=admin?'admin':AUTH_USER_MAT[user]||null;
  const allowed=s=>admin||s.matricule===access;
  const a=admin?authState():null;
- const snapshot={view,admin,access,year:currentYear,years:availableYears(),hoursPerDay:HEURES_PAR_JOUR_CET,employees:state.salaries.filter(allowed),types:state.types,movements:allEnriched().filter(allowed),rows:computeYear(currentYear).filter(r=>allowed(r.sal)),params:state.params,filter:{...movFilter},sort:{...movSort},cloud:cloudEnabled(),accounts:a?[...new Set([...a.allowed,...Object.keys(a.accounts)])].sort().map(email=>({email,name:a.accounts[email]?.name||'',admin:isAdmin(email),active:!!a.accounts[email]})):[]};
+ const snapshot={view,admin,access,year:currentYear,years:availableYears(),hoursPerDay:HEURES_PAR_JOUR_CET,employees:state.salaries.filter(allowed).map(s=>({...s,photo:photoURL(s.photo)})),types:state.types,movements:allEnriched().filter(allowed),rows:computeYear(currentYear).filter(r=>allowed(r.sal)),params:state.params,filter:{...movFilter},sort:{...movSort},cloud:cloudEnabled(),accounts:a?[...new Set([...a.allowed,...Object.keys(a.accounts)])].sort().map(email=>({email,name:a.accounts[email]?.name||'',admin:isAdmin(email),active:!!a.accounts[email]})):[]};
  const active=()=>AUTH_USER===user&&currentView===view&&!!$('#personnelRoot');
  const adminActions=new Set(['summary','exportSummary','newEmployee','editEmployee','deleteEmployee','payslip','previewPayslip','removePayslip','newType','editType','deleteType','saveParams','backup','importJSON','migrateFiles','reset','addAccount','resetAccount','removeAccount']);
  return {snapshot,filter:patch=>{if(active()){Object.assign(movFilter,patch);renderReactPersonnel(view);}},sort:value=>{if(active()){movSort=value;renderReactPersonnel(view);}},year:value=>{if(active()){currentYear=Number(value);render();}},act:(name,arg,extra)=>{
@@ -2589,7 +2502,7 @@ async function personnelOpenEditor(kind,record,mat){
  const element=$('#personnelEditorRoot'),epoch=++personnelEditorEpoch;
  try{
   const module=await personnelModule();if(epoch!==personnelEditorEpoch||AUTH_USER!==user||!element.isConnected)return;
-  const employee=kind==='employee'||kind==='detail'?record:undefined;
+  const employee=kind==='employee'||kind==='detail'?record&&{...record,photo:photoURL(record.photo)}:undefined;
   let run=0;const history=kind==='detail'?allEnriched().filter(m=>m.matricule===record.matricule).sort((a,b)=>(a.date||'').localeCompare(b.date||'')).map(m=>{if(m.statut==='Validé')run+=m.qteSignee;return {m,run};}).reverse():[];
   const actions={close:closeModal,saveMovement:()=>saveMouvement(record?.id||''),saveEmployee:()=>saveSalarie(record?.matricule||''),saveType:()=>saveType(record?.code||''),costPreview:salCoutPreview,regime:salRegimeChanged,photo:salPhotoUpload,removePhoto:salPhotoRemove,newMovement:()=>{closeModal();openMouvement(undefined,record.matricule);}};
   personnelEditorDispose=module.mountPersonnelEditor(element,{kind,employee,movement:kind==='movement'?record:undefined,movementType:kind==='type'?record:undefined,employees:state.salaries.filter(s=>isAdmin(user)||s.matricule===AUTH_USER_MAT[user]),types:state.types,params:state.params,today:ymd(new Date()),year:currentYear,lockedMat:isAdmin(user)?null:AUTH_USER_MAT[user]||null,row:kind==='detail'?computeYear(currentYear).find(r=>r.sal.matricule===record.matricule):undefined,history,
@@ -2776,10 +2689,7 @@ function exportMouvCSV(){
   dl(`CET_Mouvements.csv`, '﻿'+lines.join('\r\n'), 'text/csv;charset=utf-8');
   toast('Mouvements exportés');
 }
-function backupJSON(){
-  dl(`CET_CDInnov_sauvegarde_${ymd(new Date())}.json`, JSON.stringify(state,null,2), 'application/json');
-  toast('Sauvegarde téléchargée');
-}
+
 function importJSON(ev){
   if(!isAdmin(AUTH_USER))return;
   const user=AUTH_USER,epoch=personnelEpoch;
@@ -2791,8 +2701,9 @@ function importJSON(ev){
       for(const key of ['types','mouvements','conges','notesFrais','factures','codesAffaires'])if(Object.hasOwn(d,key)&&!Array.isArray(d[key]))throw 0;
       if(Object.hasOwn(d,'auth')&&(!d.auth||typeof d.auth!=='object'||Array.isArray(d.auth)))throw 0;
       if(AUTH_USER!==user||personnelEpoch!==epoch||!isAdmin(user))return;
-      confirmModal('Importer cette sauvegarde ?', 'Les données présentes dans le fichier remplaceront les données correspondantes. Les rubriques absentes d’une ancienne sauvegarde seront conservées.',()=>{
+      confirmModal('Importer cette sauvegarde ?', 'Les données présentes dans le fichier remplaceront les données correspondantes. Les rubriques absentes et les accès actuels seront conservés.',async()=>{
         if(AUTH_USER!==user||!isAdmin(user))return;
+        if(cloudEnabled()){try{if(!await cloudPush())return;await portalFetch(cloudURL()+'/restore',{method:'PUT',headers:{'Content-Type':'application/json','If-Match':String(portalVersion)},body:JSON.stringify(d)});await cloudLoad({discard:true});closeModal();personnelForget();toast('Données importées, accès actuels conservés');render();}catch(e){toast(e.message);}return;}
         state={...state,...d,params:{...structuredClone(PARAMS_DEFAULT),...state.params,...d.params}};
         currentYear=Number(state.params.anneeSuivi);save();closeModal();personnelForget();toast('Données importées');render();
       });
@@ -2841,20 +2752,8 @@ async function pbkdf2(pw, saltHex, iter){
   return _hex(bits);
 }
 function randHex(n){ const a=new Uint8Array(n); crypto.getRandomValues(a); return _hex(a.buffer); }
-async function authCreateAccount(email, name, pw){
-  email=normEmail(email);
-  const salt=randHex(16), iter=150000;
-  const hash=await pbkdf2(pw, salt, iter);
-  authState().accounts[email]={ salt, iter, hash, name:(name||'').trim()||email, created:new Date().toISOString() };
-  save();
-  try{ await cloudPush(); }catch(e){}   // pousse immediatement dans le cloud (pas d'attente du debounce)
-}
-async function authVerify(email, pw){
-  email=normEmail(email);
-  const acc=authState().accounts[email]; if(!acc) return false;
-  const h=await pbkdf2(pw, acc.salt, acc.iter||150000);
-  return h===acc.hash;
-}
+
+
 
 /* session locale */
 function setSession(email){ try{ localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify({email:normEmail(email), t:Date.now()})); }catch(e){} }
@@ -2869,39 +2768,9 @@ function authMsg(t, kind){ const m=$('#authMsg'); if(!m) return; if(!t){ m.style
 function authShowStep(step){ ['Loading','Email','Login','Create'].forEach(x=>{ const el=$('#authStep'+x); if(el) el.style.display=(x===step?'':'none'); }); }
 function authBack(){ authMsg(''); ['#authPw','#authPw1','#authPw2'].forEach(id=>{const e=$(id); if(e) e.value='';}); authShowStep('Email'); setTimeout(()=>{const e=$('#authEmail'); if(e) e.focus();},30); }
 let _authEmailPending='';
-function authContinue(){
-  authMsg('');
-  const email=normEmail($('#authEmail').value);
-  if(!email || email.indexOf('@')<1){ authMsg('Entrez une adresse e-mail valide.'); return; }
-  _authEmailPending=email;
-  const acc=authState().accounts[email];
-  if(acc){ $('#authLoginWho').textContent=acc.name+' · '+email; authShowStep('Login'); setTimeout(()=>$('#authPw').focus(),30); return; }
-  if(isAllowed(email)){ $('#authName').value=''; authShowStep('Create'); setTimeout(()=>$('#authName').focus(),30); return; }
-  authMsg("Cette adresse n'est pas autorisée à accéder à l'outil. Contactez l'administrateur (Pascal).");
-}
-async function authDoLogin(){
-  authMsg('');
-  const pw=$('#authPw').value;
-  if(!pw){ authMsg('Entrez votre mot de passe.'); return; }
-  try{
-    const ok=await authVerify(_authEmailPending, pw);
-    if(!ok){ authMsg('Mot de passe incorrect.'); return; }
-    setSession(_authEmailPending); await authSaveCredential(_authEmailPending, pw); unlockApp(_authEmailPending); facturxWarmLogin(_authEmailPending, pw); budgetsWarmLogin(_authEmailPending, pw);
-  }catch(e){ authMsg("Erreur technique (chiffrement indisponible). Ouvrez l'application via son adresse https, pas en fichier local."); }
-}
-async function authDoCreate(){
-  authMsg('');
-  if(!isAllowed(_authEmailPending)){ authMsg("Adresse non autorisée."); return; }
-  const name=$('#authName').value.trim();
-  const p1=$('#authPw1').value, p2=$('#authPw2').value;
-  if(!name){ authMsg('Indiquez votre nom.'); return; }
-  if(p1.length<8){ authMsg('Le mot de passe doit faire au moins 8 caractères.'); return; }
-  if(p1!==p2){ authMsg('Les deux mots de passe ne correspondent pas.'); return; }
-  try{
-    await authCreateAccount(_authEmailPending, name, p1);
-    setSession(_authEmailPending); await authSaveCredential(_authEmailPending, p1, name); unlockApp(_authEmailPending); budgetsWarmLogin(_authEmailPending, p1);
-  }catch(e){ authMsg("Erreur technique (chiffrement indisponible). Ouvrez l'application via son adresse https, pas en fichier local."); }
-}
+
+
+
 function unlockApp(email){
   AUTH_USER=normEmail(email);
   budgetsObserveClients();
@@ -2919,9 +2788,14 @@ function unlockApp(email){
   /* Markets deep link */ if(new URLSearchParams(location.search).get('view')==='marches'&&isAdmin(AUTH_USER))setTimeout(()=>setView('marches'),0);
   setTimeout(()=>{if(new URLSearchParams(location.search).get('view')==='agenda'&&currentView!=='agenda')setView('agenda');else if(currentView==='agenda')agendaEnter();},0);
 }
-function authLogout(){
+async function authLogout(){
   if(!marchesLeave())return;
   if(!budgetsLeave())return;
+  if(cloudEnabled()&&portalClean&&JSON.stringify(state)!==portalClean&&!await cloudPush()){
+    toast('Enregistrement impossible. Conservez vos modifications avant de vous déconnecter.');return;
+  }
+  const oldSession=budgetsCurrentSession();
+  if(cloudEnabled()&&oldSession)try{await fetch(CLOUD_ENDPOINT.replace(/\/$/,'')+'/api/v1/session',{method:'DELETE',headers:{Authorization:'Bearer '+oldSession.token}});}catch{}
   toggleSidebar(false);
   dashboardForget();financeForget();personnelForget();closeModal();nfDraft=null;
   marchesForget();
@@ -2929,6 +2803,7 @@ function authLogout(){
   budgetsForget();
   facturxForgetAuth();
   clearSession(); AUTH_USER=null; movAccess=null; salariesUnlocked=false;
+  portalClear();
   document.body.classList.remove('authed');
   renderUserChip();
   const e=$('#authEmail'); if(e) e.value='';
@@ -2944,28 +2819,9 @@ function renderUserChip(){
 
 /* gestion des acces (Reglages, admin seulement) */
 
-function authAddAllowed(){
-  if(!isAdmin(AUTH_USER))return;
-  const e=normEmail($('#newAllowedEmail').value);
-  if(!e || e.indexOf('@')<1){ toast('Adresse invalide'); return; }
-  const a=authState(); if(!a.allowed.includes(e)) a.allowed.push(e);
-  save(); toast('Adresse autorisée'); render();
-}
-function authRemoveAllowed(email){
-  if(!isAdmin(AUTH_USER))return;
-  email=normEmail(email);
-  if(isAdmin(email)){ toast('Impossible de retirer un admin'); return; }
-  if(!confirm("Retirer l'accès de "+email+" ? Son compte et son mot de passe seront supprimés.")) return;
-  const a=authState(); a.allowed=a.allowed.filter(x=>x!==email); delete a.accounts[email];
-  save(); render();
-}
-function authResetAccount(email){
-  if(!isAdmin(AUTH_USER))return;
-  email=normEmail(email);
-  if(!confirm("Réinitialiser le mot de passe de "+email+" ? La personne devra le recréer à sa prochaine connexion.")) return;
-  const a=authState(); delete a.accounts[email];
-  save(); toast('Mot de passe réinitialisé'); render();
-}
+
+
+
 
 /* cablage ecran de connexion */
 (function(){
@@ -3177,7 +3033,7 @@ async function facturxReadFile(url) {
     finally{db.close();}
   }
   if(!url.startsWith(filesBase()) && !url.startsWith('data:application/pdf'))throw new Error('Adresse de pièce jointe non autorisée.');
-  const r=await fetch(url);if(!r.ok)throw new Error('Lecture du PDF impossible (HTTP '+r.status+').');return r.blob();
+  const r=await privateFileFetch(url);if(!r.ok)throw new Error('Lecture du PDF impossible (HTTP '+r.status+').');return r.blob();
 }
 async function facturxDownload(url,name) {
   if(!facturierAdmin())return;
@@ -3442,7 +3298,7 @@ const budgetsTransport=CDIPlatform.createBudgetTransport();
 function budgetsClearSession(){
   budgetsTransport.clear();
   budgetsSession=null;
-  try{sessionStorage.removeItem('cdi-budgets-session');const portal=getSession();if(portal?.budgets){delete portal.budgets;localStorage.setItem(AUTH_SESSION_KEY,JSON.stringify(portal));}}catch{}
+  try{sessionStorage.removeItem('cdi-budgets-session');const portal=getSession();if(portal?.budgets&&portal.email===AUTH_USER){delete portal.budgets;localStorage.setItem(AUTH_SESSION_KEY,JSON.stringify(portal));}}catch{}
 }
 function budgetsCurrentSession(email=AUTH_USER){
   const portal=getSession();
@@ -3455,7 +3311,7 @@ function budgetsCurrentSession(email=AUTH_USER){
   try{if(!portal.budgets)localStorage.setItem(AUTH_SESSION_KEY,JSON.stringify({...portal,budgets:candidate}));sessionStorage.removeItem('cdi-budgets-session');}catch{}
   return candidate;
 }
-async function budgetsSignIn(email,password){
+async function budgetsSignIn(email,password,commit=true){
   const request=async data=>{
     const response=await fetch(budgetsApi()+'/session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,...data}),signal:AbortSignal.timeout(30000)});
     const result=await response.json();if(!response.ok)throw new Error(result.error||'Connexion CDInnov impossible.');return result;
@@ -3466,6 +3322,7 @@ async function budgetsSignIn(email,password){
   const key=await crypto.subtle.importKey('raw',_bytes(derived),{name:'HMAC',hash:'SHA-256'},false,['sign']);
   const proof=_hex(await crypto.subtle.sign('HMAC',key,new TextEncoder().encode(challenge.challenge)));
   const result=await request({action:'verify',challenge:challenge.challenge,proof});
+  if(!commit)return {...result,email};
   if(AUTH_USER!==email)throw new Error('La session utilisateur a changé.');
   budgetsSession={...result,email};
   const portal=getSession();if(portal?.email!==email)throw new Error('La session utilisateur a changé.');
@@ -3538,7 +3395,7 @@ const agendaState={trips:[],leaves:null,members:[],loaded:false,loading:false,er
 let agendaTimer=null,agendaConfirmationTimer=null,agendaEditing=null,agendaFocus=null;
 let agendaPickers={};
 let agendaModeExplicit=false,agendaPromise=null,agendaMounted=null,agendaRenderEpoch=0,agendaEditorDispose=null,agendaEditorEpoch=0;
-function agendaModule(){return agendaPromise||=import('./platform/agenda.js').catch(error=>{agendaPromise=null;throw error;});}
+function agendaModule(){return agendaPromise||=import('./platform/agenda.js?v=portalaccess1').catch(error=>{agendaPromise=null;throw error;});}
 function agendaStyleSheet(){if(!$('#agendaReactStyle')){const link=document.createElement('link');link.id='agendaReactStyle';link.rel='stylesheet';link.href='platform/agenda.css';document.head.append(link);}}
 function agendaReactForget(){agendaRenderEpoch++;if(agendaMounted){agendaMounted.dispose();agendaMounted=null;}$('#agendaRoot')?.remove();}
 function agendaEditorForget(){agendaEditorEpoch++;if(agendaEditorDispose){agendaEditorDispose();agendaEditorDispose=null;}agendaPickers={};}
@@ -3580,7 +3437,7 @@ function agendaInitials(email){return agendaName(email).replace(/@.*/,'').split(
 function agendaPortrait(email){
   const employee=state.salaries.find(s=>salEmail(s.matricule)===email||normEmail(s.email)===email);
   const saved=employee?.photo;
-  return saved&&/^(https?:\/\/|data:image\/(png|jpeg|webp);base64,)/i.test(saved)?saved:AGENDA_PORTRAITS[email]?'https://cdinnov.eu/team/'+AGENDA_PORTRAITS[email]+'.webp':'';
+  return saved&&/^(https?:\/\/|data:image\/(png|jpeg|webp);base64,)/i.test(saved)?photoURL(saved):AGENDA_PORTRAITS[email]?'https://cdinnov.eu/team/'+AGENDA_PORTRAITS[email]+'.webp':'';
 }
 function agendaAvatar(email){
   const photo=agendaPortrait(email);
@@ -4919,17 +4776,175 @@ function agendaNotificationHTML(t){
 /* CDI_MARKETS_END */
 /* ===================== boot ===================== */
 setView('dashboard');
-function bootAuth(){
-  ensureAuthSeed();
-  const proceed=()=>{
-    ensureAuthSeed();
-    const sx=getSession();
-    if(sx && authState().accounts[sx.email] && budgetsCurrentSession(sx.email)){ unlockApp(sx.email); }
-    else { authShowStep('Email'); setTimeout(()=>{ const e=$('#authEmail'); if(e) e.focus(); },50); }
-  };
-  if(cloudEnabled()){ cloudLoad().then(proceed).catch(proceed); }
-  else { setSync('local','Local'); proceed(); }
+
+
+
+
+
+/* CDI_PORTAL_START */
+/* Server-authorised bridge for the remaining portal controllers. No credential
+   verifier is downloaded or persisted by this client. Built into the classic shell. */
+let portalVersion=0,portalClean='',portalSending=null,portalEpoch=0,portalLoginAttempt=0;
+const portalBlobs=new Map();
+window.addEventListener('storage',event=>{
+  if(event.key!==AUTH_SESSION_KEY||!AUTH_USER)return;
+  let email;try{email=JSON.parse(event.newValue)?.email;}catch{}
+  if(email===AUTH_USER)return;
+  if(portalClean&&JSON.stringify(state)!==portalClean)portalRemember();
+  dashboardForget();financeForget();personnelForget();closeModal();nfDraft=null;marchesForget();agendaForget();budgetsForget();facturxForgetAuth();
+  AUTH_USER=null;movAccess=null;salariesUnlocked=false;portalClear();document.body.classList.remove('authed');renderUserChip();authBack();
+});
+function load(){return freshState();}
+function cloudURL(){return CLOUD_ENDPOINT.replace(/\/+$/,'')+'/api/v1/portal';}
+async function portalFetch(url,options={}){
+  const session=await budgetsEnsureSession();
+  const response=await fetch(url,{...options,cache:'no-store',headers:{...options.headers,Authorization:'Bearer '+session.token}});
+  if(!response.ok){let message;try{message=(await response.json()).error;}catch{}throw Object.assign(new Error(message||'Accès au portail impossible (HTTP '+response.status+').'),{status:response.status});}
+  return response;
 }
+async function portalRead(options={}){return (await portalFetch(cloudURL(),options)).json();}
+function portalRemember(){try{localStorage.removeItem(STORE_KEY);if(AUTH_USER)localStorage.setItem(STORE_KEY+':draft:'+AUTH_USER,JSON.stringify(state));}catch{}}
+function save(){
+  if(typeof budgetsClientsChanged==='function')budgetsClientsChanged();
+  try{reconcileCetMovements();agendaState.leaves=null;}catch{}
+  state.majAt=new Date().toISOString();state.majBy=AUTH_USER||'';
+  portalRemember();renderMajPill();cloudSave();
+}
+async function cloudLoad(options={}){
+  if(!cloudEnabled()){setSync('local','Local');return true;}
+  const user=AUTH_USER,epoch=portalEpoch;if(!user)return false;
+  if(portalClean&&JSON.stringify(state)!==portalClean&&!options.discard){setSync('err','Modifications à enregistrer');return false;}
+  setSync('busy','Chargement…');
+  try{
+    const data=await portalRead();if(AUTH_USER!==user||portalEpoch!==epoch)return false;
+    state={...freshState(),...data.workspace,params:data.workspace.params||structuredClone(PARAMS_DEFAULT)};
+    portalVersion=data.version;portalClean=JSON.stringify(state);currentYear=Number(state.params.anneeSuivi)||currentYear;
+    await portalLoadPhotos();if(AUTH_USER!==user||portalEpoch!==epoch)return false;
+    setSync('ok','Synchronisé');render();return true;
+  }catch(e){if(AUTH_USER===user)setSync('err',e.status===401?'Connexion expirée':'Chargement impossible');return false;}
+}
+function cloudSave(){if(!cloudEnabled()||!AUTH_USER)return;clearTimeout(cloudTimer);cloudTimer=setTimeout(()=>cloudPush(),700);}
+async function cloudPush(){
+  if(!cloudEnabled())return true;
+  if(portalSending)return portalSending;
+  clearTimeout(cloudTimer);const user=AUTH_USER,epoch=portalEpoch;
+  if(!user||!portalVersion)return false;
+  const pending=(async()=>{
+    try{
+      while(AUTH_USER===user&&portalEpoch===epoch&&JSON.stringify(state)!==portalClean){
+        const snapshot=JSON.stringify(state);setSync('busy','Envoi…');
+        const response=await portalFetch(cloudURL(),{method:'PUT',headers:{'Content-Type':'application/json','If-Match':String(portalVersion)},body:snapshot});
+        const result=await response.json();if(AUTH_USER!==user||portalEpoch!==epoch)return false;
+        portalVersion=result.version;portalClean=snapshot;
+      }
+      try{localStorage.removeItem(STORE_KEY+':draft:'+user);}catch{}
+      if(AUTH_USER===user)setSync('ok','Synchronisé');return true;
+    }catch(e){if(AUTH_USER===user&&portalEpoch===epoch){portalRemember();setSync('err',e.status===409?'Conflit : copie locale conservée':'Non enregistré');toast(e.message);}return false;}
+  })();portalSending=pending;
+  try{return await pending;}finally{if(portalSending===pending)portalSending=null;}
+}
+async function cloudSyncNow(){
+  if(!cloudEnabled())return toast('Synchronisation cloud désactivée');
+  if(portalClean&&JSON.stringify(state)!==portalClean){
+    if(!confirm('Des modifications locales ne sont pas enregistrées. Télécharger leur copie puis recharger les données du serveur ?'))return;
+    dl('CDInnov-modifications-locales.json',JSON.stringify(state,null,2),'application/json');
+  }
+  await cloudLoad({discard:true});
+}
+function notify(subject,html,to){
+  if(!cloudEnabled()||!AUTH_USER)return;
+  const user=AUTH_USER;
+  cloudPush().then(ok=>{if(ok&&AUTH_USER===user)return portalFetch(CLOUD_ENDPOINT.replace(/\/+$/,'')+'/notify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({subject,html,...(to?{to}:{})})});}).catch(()=>toast('Notification non envoyée. Les données restent enregistrées.'));
+}
+function isRemoteFileURL(src){try{const url=new URL(src);return url.origin===new URL(CLOUD_ENDPOINT).origin&&url.pathname.startsWith('/files/');}catch{return false;}}
+async function privateFileFetch(src){return isRemoteFileURL(src)?portalFetch(src):fetch(src);}
+async function privateFileURL(src){
+  if(!isRemoteFileURL(src))return src;
+  if(portalBlobs.has(src))return portalBlobs.get(src);
+  const user=AUTH_USER,epoch=portalEpoch,response=await privateFileFetch(src),blob=await response.blob();
+  if(AUTH_USER!==user||portalEpoch!==epoch)throw new Error('La session a changé.');
+  const url=URL.createObjectURL(blob);portalBlobs.set(src,url);return url;
+}
+function photoURL(src){return isRemoteFileURL(src)?portalBlobs.get(src)||'':src;}
+async function portalLoadPhotos(){await Promise.all((state.salaries||[]).map(s=>s.photo&&isRemoteFileURL(s.photo)?privateFileURL(s.photo).catch(()=>null):null));}
+async function uploadFileToR2(file,keyPrefix){
+  if(file.size>20*1024*1024)throw new Error('Fichier trop volumineux (20 Mo maximum).');
+  const ext=(file.name||'').split('.').pop().toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,10);
+  const key=(keyPrefix||'f')+'-'+crypto.randomUUID()+(ext?'.'+ext:'');
+  const url=filesBase()+encodeURIComponent(key);await portalFetch(url,{method:'PUT',headers:{'Content-Type':file.type||'application/octet-stream'},body:file});
+  if(file.type.startsWith('image/'))await privateFileURL(url);return url;
+}
+function deleteFileFromR2(url){if(isRemoteFileURL(url))cloudPush().then(ok=>ok?portalFetch(url,{method:'DELETE'}):null).catch(()=>{});}
+async function toU8Async(src){if(!src)return new Uint8Array();if(String(src).startsWith('data:'))return dataURLtoU8(src);const r=await privateFileFetch(src);if(!r.ok)throw new Error('Lecture du fichier impossible.');return new Uint8Array(await r.arrayBuffer());}
+async function toDataURLAsync(src){if(!src)return null;if(String(src).startsWith('data:'))return src;const r=await privateFileFetch(src);if(!r.ok)throw new Error('Lecture du fichier impossible.');return fileToDataURL(await r.blob());}
+function portalClear(){
+  portalEpoch++;portalLoginAttempt++;clearTimeout(cloudTimer);portalVersion=0;portalClean='';portalSending=null;
+  for(const url of portalBlobs.values())URL.revokeObjectURL(url);portalBlobs.clear();
+  try{localStorage.removeItem(STORE_KEY);}catch{}state=freshState();
+}
+function authContinue(){
+  authMsg('');const email=normEmail($('#authEmail').value);
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){authMsg('Entrez une adresse e-mail valide.');return;}
+  _authEmailPending=email;$('#authLoginWho').textContent=email;authShowStep('Login');setTimeout(()=>$('#authPw').focus(),30);
+}
+async function portalLogin(email,password){
+  const attempt=++portalLoginAttempt;const session=await budgetsSignIn(email,password,false);
+  if(attempt!==portalLoginAttempt)throw new Error('La demande de connexion a changé.');
+  setSession(email);localStorage.setItem(AUTH_SESSION_KEY,JSON.stringify({...getSession(),budgets:session}));AUTH_USER=email;
+  if(cloudEnabled()&&!await cloudLoad({discard:true})){AUTH_USER=null;clearSession();throw new Error('Impossible de charger vos données. Réessayez.');}
+  if(attempt!==portalLoginAttempt)throw new Error('La demande de connexion a changé.');
+  unlockApp(email);await authSaveCredential(email,password);facturxWarmLogin(email,password);
+}
+async function authDoLogin(){
+  const pw=$('#authPw').value;if(!pw)return authMsg('Entrez votre mot de passe.');
+  const button=$('#authLogin');button.disabled=true;authMsg('Connexion…','ok');
+  try{await portalLogin(_authEmailPending,pw);$('#authPw').value='';authMsg('');}catch(e){authMsg(e.message||'Connexion impossible.');}finally{button.disabled=false;}
+}
+async function authDoCreate(){
+  const name=$('#authName').value.trim(),p1=$('#authPw1').value,p2=$('#authPw2').value;
+  if(!name||p1.length<8||p1!==p2)return authMsg('Indiquez votre nom et deux mots de passe identiques de 8 caractères minimum.');
+  const token=window.cdiInvitation?.token,email=window.cdiInvitation?.email;
+  if(!token||!email)return authMsg('Utilisez le lien d’invitation fourni par un administrateur.');
+  $('#authCreate').disabled=true;
+  try{
+    const salt=randHex(16),iter=150000,hash=await pbkdf2(p1,salt,iter);
+    const response=await fetch(cloudURL()+'/enrol',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,token,name,salt,iter,hash})});
+    if(!response.ok)throw new Error((await response.json()).error||'Création impossible.');
+    delete window.cdiInvitation;await portalLogin(email,p1);authMsg('');
+  }catch(e){authMsg(e.message);}finally{$('#authCreate').disabled=false;}
+}
+async function authCreateAccount(){throw new Error('Utilisez une invitation délivrée par un administrateur.');}
+async function authVerify(){throw new Error('La vérification du compte se fait sur le serveur.');}
+async function authAccountAction(email,action){
+  if(!isAdmin(AUTH_USER))return;
+  if(!await cloudPush())return;
+  try{
+    const result=await(await portalFetch(cloudURL()+'/accounts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,action})})).json();
+    await cloudLoad({discard:true});
+    if(result.token){
+      const url=new URL(location.href);url.search='';url.hash=new URLSearchParams({invitation:result.token,email:result.email}).toString();
+      modal('<div class="modal-head"><h3>Lien d’activation du compte</h3></div><div class="modal-body"><p>Transmettez ce lien à la personne concernée. Il est utilisable une seule fois, pendant 24 heures.</p><input class="inp" id="accountInviteLink" readonly value="'+esc(url.href)+'" aria-label="Lien d’activation"><p class="hint">Le lien permet de choisir un mot de passe. Il doit rester confidentiel.</p></div><div class="modal-foot"><button class="btn" onclick="navigator.clipboard.writeText(document.getElementById(\'accountInviteLink\').value).then(()=>toast(\'Lien copié\'))">Copier le lien</button><button class="btn btn-primary" onclick="closeModal()">Fermer</button></div>');
+    }else toast('Accès retiré');
+  }catch(e){toast(e.message);}
+}
+async function authAddAllowed(){const email=normEmail($('#newAllowedEmail').value);await authAccountAction(email,'invite');}
+async function authRemoveAllowed(email){if(confirm('Retirer l’accès de '+email+' ?'))await authAccountAction(normEmail(email),'remove');}
+async function authResetAccount(email){if(confirm('Révoquer le mot de passe actuel et créer un lien de réinitialisation pour '+email+' ?'))await authAccountAction(normEmail(email),'reset');}
+async function backupJSON(){try{const data=cloudEnabled()?await(await portalFetch(cloudURL()+'/backup')).json():state;dl('CET_CDInnov_sauvegarde_'+ymd(new Date())+'.json',JSON.stringify(data,null,2),'application/json');toast('Sauvegarde téléchargée');}catch(e){toast(e.message);}}
+async function bootAuth(){
+  if(!cloudEnabled()){ensureAuthSeed();const sx=getSession();if(sx&&budgetsCurrentSession(sx.email))unlockApp(sx.email);else authBack();return;}
+  portalClear();
+  const fragment=new URLSearchParams(location.hash.slice(1));
+  if(fragment.has('invitation')){
+    window.cdiInvitation={token:fragment.get('invitation'),email:normEmail(fragment.get('email'))};history.replaceState(null,'',location.pathname+location.search);_authEmailPending=window.cdiInvitation.email;clearSession();authShowStep('Create');return;
+  }
+  const session=getSession();if(!session||!budgetsCurrentSession(session.email)){authBack();return;}
+  AUTH_USER=session.email;
+  try{await portalFetch(CLOUD_ENDPOINT.replace(/\/$/,'')+'/api/v1/session');if(!await cloudLoad({discard:true}))throw new Error('Chargement impossible');unlockApp(session.email);}
+  catch{AUTH_USER=null;clearSession();authBack();}
+}
+
+/* CDI_PORTAL_END */
 bootAuth();
 </script>
 </body>

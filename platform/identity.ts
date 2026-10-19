@@ -68,6 +68,8 @@ export async function sessionIdentity(request:Request,env:Environment,now=Date.n
   if(!authorization || !/^Bearer [A-Za-z0-9_.-]+$/i.test(authorization)) return null;
   const claims=decode(authorization.slice(7),secret(env),sessionAudience,now);
   if(!claims) return null;
+  const revoked=await env.BUDGETS_DB.withSession('first-primary').prepare('SELECT token_hash FROM app_session_revocations WHERE token_hash=?').bind(createHash('sha256').update(authorization.slice(7)).digest('hex')).first();
+  if(revoked)return null;
   const current=await account(env,claims.email);
   if(!current || !equal(claims.fingerprint,fingerprint(current))) return null;
   return {email:claims.email,name:current.name || claims.email,expiresAt:claims.exp,admin:admins.includes(claims.email)};

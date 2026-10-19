@@ -94,15 +94,15 @@ try{
   const concurrent=await Promise.all([sheets({method:'PUT',body:JSON.stringify({state:initial.state,revision:2})}),sheets({method:'PUT',body:JSON.stringify({state:initial.state,revision:2})})]);assert.deepEqual(concurrent.map(r=>r.status).sort(),[200,409]);
  });
  await check('Portail historique, fichiers R2 et agenda conservés',async()=>{
-  const portal=await ctx.worker.dispatchFetch('https://test/markets-test');assert.equal(portal.status,200);assert.deepEqual((await portal.json()).auth.accounts,ctx.accounts);
-  const putFile=await ctx.worker.dispatchFetch('https://test/files/synthetic.pdf',{method:'PUT',headers:{'Content-Type':'application/pdf','Content-Length':'19'},body:'%PDF-synthetic-only'});assert.equal(putFile.status,200,(await putFile.clone().text()).slice(0,1000));
-  assert.equal(await(await ctx.worker.dispatchFetch('https://test/files/synthetic.pdf')).text(),'%PDF-synthetic-only');
-  assert.equal((await ctx.worker.dispatchFetch('https://test/files/synthetic.pdf',{method:'DELETE'})).status,200);
-  assert.equal((await ctx.worker.dispatchFetch('https://test/files/synthetic.pdf')).status,404);
+  const portal=await ctx.worker.dispatchFetch('https://test/markets-test');assert.equal(portal.status,410);
+  const putFile=await ctx.worker.dispatchFetch('https://test/files/synthetic.pdf',{method:'PUT',headers:{...headers,'Content-Type':'application/pdf','Content-Length':'19'},body:'%PDF-synthetic-only'});assert.equal(putFile.status,200,(await putFile.clone().text()).slice(0,1000));
+  assert.equal(await(await ctx.worker.dispatchFetch('https://test/files/synthetic.pdf',{headers})).text(),'%PDF-synthetic-only');
+  assert.equal((await ctx.worker.dispatchFetch('https://test/files/synthetic.pdf',{method:'DELETE',headers})).status,200);
+  assert.equal((await ctx.worker.dispatchFetch('https://test/files/synthetic.pdf',{headers})).status,404);
   assert.equal((await call('agenda')).status,200);
  });
  await check('Révocation du compte appliquée même en présence du cache',async()=>{
-  const account=ctx.accounts[users[0]];await ctx.kv.put('markets-test',JSON.stringify({auth:{allowed:users,accounts:{...ctx.accounts,[users[0]]:{...account,hash:'a'.repeat(64)}}}}));
+  const account=ctx.accounts[users[0]];await ctx.setPortal(JSON.stringify({auth:{allowed:users,accounts:{...ctx.accounts,[users[0]]:{...account,hash:'a'.repeat(64)}}}}));
   assert.equal((await call('workspace',{headers:{'If-None-Match':tag}})).status,401);
  });
  console.log(checks+' scénarios plateforme validés.');

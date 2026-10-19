@@ -28,6 +28,23 @@ try{
  const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error'&&/React|flushSync|unmount/i.test(m.text()))warnings.push(m.text());});await page.goto(base);await page.locator('[data-react-agenda]').waitFor();await page.locator('.agenda-calendar [data-ag-trip="t1"]').waitFor();
  const checks=[];for(const width of [2560,1920,1440,1024,768,390,320]){await page.setViewportSize({width,height:1080});await page.waitForFunction(()=>document.documentElement.scrollWidth<=innerWidth+1);if(width<=650)await page.waitForFunction(()=>agendaState.mode==='list');const size=await page.evaluate(()=>({window:innerWidth,content:document.querySelector('.content').getBoundingClientRect().width,sidebar:document.querySelector('.sidebar').getBoundingClientRect().width,bodyOverflow:document.documentElement.scrollWidth,mode:agendaState.mode,font:getComputedStyle(document.querySelector('.agenda-shell')).fontFamily}));assert.ok(size.content>width-(width>880?size.sidebar+45:30),'Use available width '+width);if(width<=650){assert.equal(size.mode,'list');assert.equal(await page.locator('.agenda-list').isVisible(),true);}checks.push(size);if([1920,768,390].includes(width))await page.screenshot({path:join(out,'agenda-responsive-'+width+'.png'),fullPage:true});}
  await page.setViewportSize({width:1920,height:1080});await page.evaluate(()=>CDITheme.set('dark'));
+ assert.equal(await page.getByText('Un agenda partagé, une vue d’ensemble.',{exact:true}).count(),0);
+ for(const kind of ['trip','leave']){
+  await page.evaluate(kind=>kind==='trip'?openAgendaTrip(null,'2026-10-26'):agendaNewLeave('2026-10-26'),kind);
+  await page.locator(kind==='trip'?'#ag-start':'#cgD1').waitFor();
+  assert.equal(await page.locator('#agendaModalTitle').evaluate(el=>getComputedStyle(el).color),'rgb(245, 245, 247)');
+  if(kind==='trip')await page.locator('.agenda-combo-toggle').first().click();
+  for(const width of [1440,390]){
+   await page.setViewportSize({width,height:900});
+   const styles=await page.locator('.agenda-editor').evaluate(el=>{const nodes=[el,...el.querySelectorAll('.inp,.agenda-combo-control,.agenda-combo-options,.agenda-participants,.agenda-duration,.preview')].filter(e=>e.getBoundingClientRect().height&&getComputedStyle(e).display!=='none');return nodes.map(e=>({tag:e.className,bg:getComputedStyle(e).backgroundColor,color:getComputedStyle(e).color,width:e.getBoundingClientRect().width}));});
+   assert.ok(styles.every(s=>s.bg!=='rgb(255, 255, 255)'),JSON.stringify(styles));
+   assert.ok(styles.every(s=>s.color!=='rgb(27, 98, 141)'),JSON.stringify(styles));
+   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+   await page.screenshot({path:join(out,'agenda-'+kind+'-editor-dark-'+width+'.png'),fullPage:true});
+  }
+  await page.evaluate(()=>closeModal());
+ }
+ await page.setViewportSize({width:1920,height:1080});
  await page.screenshot({path:join(out,'agenda-dark-1920.png'),fullPage:true});
  await page.setViewportSize({width:390,height:844});await page.screenshot({path:join(out,'agenda-dark-390.png'),fullPage:true});await page.evaluate(()=>CDITheme.set('light'));
  // Drawer can be opened, navigated, dismissed by keyboard, and does not trap focus after resize.

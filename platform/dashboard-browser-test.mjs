@@ -12,7 +12,7 @@ process.env.MARCHES_TEST_WORKER=fileURLToPath(new URL('../.build/entry.mjs',impo
 process.env.MARCHES_TEST_COMPATIBILITY_DATE='2026-06-09';
 const ctx=await testEnvironment();
 const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Paris',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
-const fixture=dashboardFixture(ctx.accounts,today);fixture.salaries[0].photo='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l1sAAAAASUVORK5CYII=';fixture.notesFrais[0].signature=null;await ctx.kv.put('markets-test',JSON.stringify(fixture));
+const fixture=dashboardFixture(ctx.accounts,today);fixture.salaries[0].photo='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l1sAAAAASUVORK5CYII=';fixture.notesFrais[0].signature=null;await ctx.setPortal(JSON.stringify(fixture));
 await insertDashboardTrips(ctx.db,today,users[0],users[1]);
 const sessions=await Promise.all(users.map(email=>ctx.login(email)));
 const root=fileURLToPath(new URL('../',import.meta.url)).replace(/[\\/]$/,'');

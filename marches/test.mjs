@@ -23,11 +23,13 @@ export async function testEnvironment(options={}){
  const db=await worker.getD1Database('BUDGETS_DB');
  for(const sql of schema)await db.prepare(sql).run();
  await migrateLocal(db);
+ await db.prepare("INSERT INTO app_portal_workspace(id,payload,version,updated_at,updated_by) VALUES ('shared',?,1,?,'fixture')").bind(await kv.get('markets-test'),new Date().toISOString()).run();
  const migration=(await readFile(new URL('schema.sql',import.meta.url),'utf8'))+'\n'+(await readFile(new URL('ai-schema.sql',import.meta.url),'utf8'));
  for(const sql of migration.split(/;(?=\s*(?:CREATE|$))/).map(s=>s.trim()).filter(Boolean))await db.prepare(sql).run();
  const call=async(path,options={})=>{if(options.body instanceof FormData){const serialized=new Request('https://preview.example',{method:'POST',body:options.body});options={...options,body:Buffer.from(await serialized.arrayBuffer()),headers:{...options.headers,'Content-Type':serialized.headers.get('content-type')}};}return worker.dispatchFetch('https://preview.example/budgets/'+path,{...options,headers:{Origin:'http://127.0.0.1:5196','Content-Type':'application/json',...options.headers}});};
  const login=async email=>{const c=await(await call('session',{method:'POST',body:JSON.stringify({email,action:'challenge'})})).json();const proof=createHmac('sha256',pbkdf2Sync(password,Buffer.from(c.salt,'hex'),c.iter,32,'sha256')).update(c.challenge).digest('hex');const r=await call('session',{method:'POST',body:JSON.stringify({email,action:'verify',challenge:c.challenge,proof})});assert.equal(r.status,200);return r.json();};
- return {worker,db,kv,accounts,password,sessionSecret,call,login};
+ const setPortal=async payload=>{await kv.put('markets-test',payload);await db.prepare("UPDATE app_portal_workspace SET payload=?,version=version+1 WHERE id='shared'").bind(payload).run();};
+ return {worker,db,kv,accounts,password,sessionSecret,call,login,setPortal};
 }
 export const fixture=()=>({...emptyMarket(),title:'Accompagnement de projet — cas fictif',clientName:'Client de test',reference:'TEST-2026',prices:[{id:'price-1',label:'Assistance',profile:'Senior',location:'Corse',unit:'day',amountMinor:70000,startDate:'',endDate:'',status:'proposed',notes:'',source:{documentId:'',locator:'',note:''}}],ceilings:[{id:'limit-1',label:'Maximum annuel',scope:'annual',periodId:'',amountMinor:10000000,basis:'HT',consumptionBasis:'orders',notes:'',status:'proposed',source:{documentId:'',locator:'',note:''}}],periods:[{id:'period-1',label:'Année initiale',startDate:'',endDate:'',status:'proposed',decision:'',source:{documentId:'',locator:'',note:''}}]});
 if(process.argv[1]&&fileURLToPath(import.meta.url)===process.argv[1]){
@@ -87,7 +89,7 @@ if(process.argv[1]&&fileURLToPath(import.meta.url)===process.argv[1]){
  const saved=await ctx.db.prepare('SELECT count(*) AS n FROM market_document_chunks WHERE document_id=?').bind(d.id).first();assert.ok(saved.n>0);
  await ctx.db.prepare("UPDATE market_document_chunks SET data='eA==' WHERE document_id=? AND sequence=0").bind(d.id).run();
  assert.equal((await ctx.call('markets/'+id+'/documents/'+d.id,{headers})).status,503);count++;
- const portal={auth:{accounts:{...ctx.accounts},allowed:users}};portal.auth.accounts[users[0]].hash='a'.repeat(64);await ctx.kv.put('markets-test',JSON.stringify(portal));
+ const portal={auth:{accounts:{...ctx.accounts},allowed:users}};portal.auth.accounts[users[0]].hash='a'.repeat(64);await ctx.setPortal(JSON.stringify(portal));
  assert.equal((await ctx.call('markets',{headers})).status,401);count++;
  const html=await readFile(new URL('../index.html',import.meta.url),'utf8');for(const script of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g))new vm.Script(script[1]);assert.equal((html.match(/data-view="facturier" role=/g)||[]).length,1);assert.ok(html.includes("['marches','Marchés et contrats']"));count++;
  console.log(count+' contrôles réussis dans le moteur Cloudflare local.');

@@ -14,7 +14,7 @@ const readingText='Maximum annuel : 300 000 euros HT.\nPaiement sous 30 jours ap
 let modelCalls=0;
 const ctx=await testEnvironment({ai:async()=>{modelCalls++;return {response:{facts:[],prices:[],ceilings:[],periods:[],issues:[],conditions:[{category:'payment',label:'Paiement contractuel',value:'30 jours après réception',quote:'Paiement sous 30 jours après réception de la facture.'}]}};}});
 const sessions=await Promise.all(users.map(ctx.login)),headers={Authorization:'Bearer '+sessions[0].token};
-const f=dashboardFixture(ctx.accounts,'2026-10-19');f.salaries.forEach(s=>{s.photo=null;s.payslip=null});await ctx.kv.put('markets-test',JSON.stringify(f));
+const f=dashboardFixture(ctx.accounts,'2026-10-19');f.salaries.forEach(s=>{s.photo=null;s.payslip=null});await ctx.setPortal(JSON.stringify(f));
 const seed={...fixture(),reference:'CCIC-TEST',notes:'Note à conserver',issues:[{id:'issue-1',title:'Reconduction',detail:'Vérifier la clause',blocking:true,status:'open',resolution:'',source:{documentId:'',locator:'',note:''}}]};
 let response=await ctx.call('markets',{method:'POST',headers,body:JSON.stringify({id:'ccic-test',market:seed})});assert.equal(response.status,201);
 const upload=new FormData();upload.append('file',new Blob([readingText],{type:'text/plain'}),'clauses-fictives.txt');upload.append('kind','clauses');upload.append('text',readingText);

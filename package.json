@@ -12,6 +12,7 @@
     "test:platform": "node platform/test.mjs",
     "test:identity": "node platform/identity-test.mjs",
     "test:identity:browser": "node platform/identity-browser-test.mjs",
+    "test:portal": "node platform/portal-test.mjs",
     "test:dashboard": "node platform/dashboard-test.mjs",
     "test:finance": "node platform/finance-test.mjs",
     "test:markets": "node marches/test.mjs && node marches/ai-test.mjs",

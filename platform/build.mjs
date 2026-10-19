@@ -14,6 +14,20 @@ await build({absWorkingDir:root,entryPoints:[path.join(root,'platform/client/ico
 await build({absWorkingDir:root,entryPoints:[path.join(root,'platform/client/theme.ts')],outfile:path.join(root,'platform/theme.js'),bundle:true,platform:'browser',format:'iife',globalName:'CDITheme',target:'es2022',minify:true});
 const portalPath=path.join(root,'index.html');
 let portal=await readFile(portalPath,'utf8');
+// Keep remaining classic controllers connected to the authenticated portal bridge.
+// Replace declarations structurally so no former public persistence path stays active.
+const ts=require('typescript'),bridge=await readFile(path.join(root,'platform/client/portal-compat.js'),'utf8');
+portal=portal.replace(/\/\* CDI_PORTAL_START \*\/[\s\S]*?\/\* CDI_PORTAL_END \*\//,'');
+const bridgeAst=ts.createSourceFile('bridge.js',bridge,ts.ScriptTarget.Latest,true,ts.ScriptKind.JS);
+const names=new Set(bridgeAst.statements.filter(ts.isFunctionDeclaration).map(n=>n.name.text));
+const scriptStart=portal.indexOf('>',portal.lastIndexOf('<script',portal.indexOf('function freshState()')))+1;
+const scriptEnd=portal.lastIndexOf('</script>');
+const script=portal.slice(scriptStart,scriptEnd),ast=ts.createSourceFile('shell.js',script,ts.ScriptTarget.Latest,true,ts.ScriptKind.JS);
+let updated=script;
+for(const node of [...ast.statements].reverse())if(ts.isFunctionDeclaration(node)&&names.has(node.name?.text))updated=updated.slice(0,node.getStart(ast))+updated.slice(node.end);
+if(!updated.includes('\nbootAuth();'))throw new Error('Portal boot marker missing');
+updated=updated.replace('\nbootAuth();','\n/* CDI_PORTAL_START */\n'+bridge+'\n/* CDI_PORTAL_END */\nbootAuth();');
+portal=portal.slice(0,scriptStart)+updated+portal.slice(scriptEnd);
 const marker=/\/\* CDI_MARKETS_START \*\/[\s\S]*?\/\* CDI_MARKETS_END \*\//;
 if(!marker.test(portal))throw new Error('Market controller integration marker missing.');
 const controller=await build({absWorkingDir:root,entryPoints:[path.join(root,'marches/ui.js')],bundle:true,format:'iife',platform:'browser',write:false,external:['./marches/vendor/pdf.mjs','./marches/reader.mjs','./platform/markets.js?v=marketreact1']});

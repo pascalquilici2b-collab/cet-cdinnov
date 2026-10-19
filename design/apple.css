@@ -1,5 +1,9 @@
 /* Apple-inspired application treatment, adapted from the reference supplied by CDInnov.
    Semantic status colours and user-authored cell colours remain intact. */
+.agenda-modal{--ag-navy:var(--ink);--ag-muted:var(--muted);--ag-line:var(--line);--ag-travel-color:var(--ink);--ag-travel-bg:var(--highlight);--ag-leave-color:var(--ink);--ag-leave-bg:var(--paper-tint);color:var(--ink);background:var(--surface)}
+.agenda-modal .modal-head h3{color:var(--ink)}
+.agenda-modal{--font:var(--font-sans);--font-head:var(--font-sans)}
+.agenda-modal :is(.agenda-day-choice,.agenda-detail-chip){border-color:var(--line);color:var(--ink)}
 :root{--radius:18px;--radius-field:11px;--radius-button:999px;--radius-label:8px;--shadow:none;--shadow-lg:none;--font:var(--font-sans);--font-head:var(--font-sans)}
 html{background:var(--paper)}
 body{background:var(--paper);color:var(--ink);font-family:var(--font-sans);font-weight:400;-webkit-font-smoothing:antialiased}

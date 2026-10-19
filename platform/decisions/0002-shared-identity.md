@@ -4,6 +4,8 @@
 **Date : 19 octobre 2026.**
 **Responsable fonctionnel : CDInnov.**
 
+**Mise à jour : les limites concernant KV, les pièces et la révocation sont traitées par [ADR-0003](0003-protected-portal.md). Les descriptions ci-dessous retracent la première tranche.**
+
 ## Contexte
 
 Les interfaces sont largement reprises en React/TypeScript, mais la connexion des API récentes était encore incorporée au serveur JavaScript historique. Les comptes et données doivent être conservés, sans nouvel abonnement.
