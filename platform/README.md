@@ -1,6 +1,6 @@
 # Migration progressive de l’application CDInnov
 
-Statut : socle technique, tableau de bord, gestion financière quotidienne, CET, salariés et paramètres en React/TypeScript, octobre 2026. La migration de l’ensemble de l’application reste en cours.
+Statut : socle technique, principaux écrans du portail, Budgets, Smartsheet et les neuf rubriques Marchés en React/TypeScript, octobre 2026. La migration de l’ensemble des services reste en cours. Le document [ARCHITECTURE.md](ARCHITECTURE.md) décrit l’architecture de référence, les limites et les étapes restantes ; les sections ci-dessous conservent le détail des différentes tranches.
 
 ## Entrée de production et commandes
 
@@ -19,7 +19,7 @@ pnpm test:personnel
 pnpm test:agenda
 ```
 
-Le Worker complet sort dans `.build/entry.mjs`. Le transport navigateur compilé dans `platform/workspace-client.js` et les écrans React (`platform/dashboard.js`, `platform/finance.js`, `platform/personnel.js` et leurs CSS) sont publiés avec `index.html`. Les imports partagés de `platform/chunks/` doivent être publiés avec eux ; conserver les anciens chunks déjà déployés pour les onglets encore ouverts. Le build fixe son répertoire de travail afin d’être reproductible. Les autres écrans, dont les applications React Budgets et SmartSheet, conservent leurs ressources actuelles.
+Le Worker complet sort dans `.build/entry.mjs`. Le transport navigateur et les modules React du portail sont publiés avec `index.html` et les imports partagés de `platform/chunks/`. Conserver les anciens chunks pour les onglets déjà ouverts. `pnpm build` reconstruit aussi le contrôleur Marchés intégré au portail et son écran `platform/markets.js`. Budgets et Smartsheet sont construits séparément depuis leurs sources réunies : `pnpm build:budgets` et `pnpm build:sheets`.
 
 Pour les suites Marchés/IA sur le serveur complet, définir `MARCHES_TEST_WORKER` sur le chemin absolu de `.build/entry.mjs` et `MARCHES_TEST_COMPATIBILITY_DATE=2026-06-09`. Les tests navigateur demandent un répertoire privé `PORTAL_QA` et un Playwright installé (`PLAYWRIGHT_PACKAGE` peut désigner son package.json). `CDI_BUDGET_BACKUP`, facultatif, permet de tester localement une sauvegarde réelle ; toutes les sorties restent hors du dépôt.
 
@@ -39,7 +39,7 @@ Le nouveau `GET /api/v1/budget-records` est authentifié avec la même session e
 
 ### Interface responsive et agenda
 
-`design-system.css` fournit les couleurs, espacements, contrôles et surfaces communes du portail. Les panneaux clairs, les ombres discrètes et les plages de planning s’inspirent de la référence Dribbble fournie. Le lien Claude fourni renvoyait « Page not found » lors de la consultation : ses tokens n’ont pas été inventés ni présentés comme intégrés. Le logo et les couleurs CDInnov restent utilisés.
+La référence actuelle est le guide Apple fourni : `design/tokens.css`, `design/apple.css` et les adaptations par application. Elle remplace les choix graphiques antérieurs ; le détail figure dans `design/README-apple.md`. Les thèmes clair/nuit, portraits et dimensions responsives sont partagés.
 
 Le contenu n’est plus plafonné à 1 180 px. La barre latérale reste lisible sur ordinateur et devient un tiroir avec focus clavier et contenu arrière inerte sur mobile. Le tableau de bord utilise des requêtes de conteneur ; son planning devient une liste par collaborateur sur petit écran. Finance et Personnel conservent leurs tables et toutes leurs actions, avec les intitulés de colonnes répétés en fiches sur téléphone. Les tableaux de comparaison mensuels restent défilables dans leur propre panneau.
 
@@ -47,7 +47,13 @@ Le contenu n’est plus plafonné à 1 180 px. La barre latérale reste lisible 
 
 Contrôles : `node platform/agenda-browser-test.mjs` avec `PORTAL_QA` privé, puis les suites navigateur dashboard, finance, personnel, agenda et budgets. Sept largeurs sont contrôlées : 320, 390, 768, 1024, 1440, 1920 et 2560 px. Le test agenda utilise un transport local simulé, contrôle les en-têtes de version et les conflits, et neutralise toutes les notifications externes. Les suites plateforme et de calcul vérifient séparément les services conservés. Aucun schéma ou abonnement n’est modifié dans ce lot.
 
-La migration globale reste progressive : marchés, intégrations et services historiques ne sont pas annoncés comme entièrement réécrits. Budgets et Smartsheet gardent leurs écrans embarqués existants. Le retour arrière restaure le frontend précédent, en conservant les données et les chunks déjà publiés pour les onglets encore ouverts.
+La migration globale reste progressive : les écrans Marchés, Budgets et Smartsheet sont désormais repris, tandis que leurs intégrations et plusieurs services historiques restent à moderniser. Le retour arrière restaure le frontend précédent, en conservant les données et les chunks déjà publiés pour les onglets encore ouverts.
+
+### Marchés et contrats
+
+`client/markets.tsx` et `markets-contracts.ts` portent les neuf rubriques en React/TypeScript strict. `marches/ui.js` conserve le contrôleur, les API et les validations existantes. Il charge le module après connexion et habilitation, le démonte à la sortie et ignore les réponses d’une session révolue. Les mises à jour de messages et de progression gardent les champs et le focus ; les recherches restent locales. Les propositions de lecture sont rendues en JSX, sans insertion de HTML documentaire.
+
+`pnpm test:markets:browser` utilise le serveur complet dans Miniflare, une base fictive et un modèle simulé. Il vérifie les tarifs, les sources, les décisions, les fichiers, les propositions IA, la conservation des conditions manuelles, les versions, les conflits, les exports, les thèmes et les profils. Le test couvre aussi le symbole de connexion à 320, 390 et 1440 pixels. Cette tranche ne change aucun schéma ni document en production.
 
 ### CET, salariés et paramètres
 

@@ -154,4 +154,5 @@ body th{background:var(--paper-tint);color:var(--muted);border-color:var(--line)
  .cdi-sheets-app .iv-form-editor :is(input,textarea,select){min-width:0;max-width:100%;font-size:16px}
  .cdi-sheets-app .iv-form-editor .iv-form-title-input{font-size:20px!important}
 }
+.auth-card .auth-logo{display:block;width:100px;height:80px;max-width:100%;object-fit:contain;margin:0 auto 20px}
 @media print{.theme-toggle{display:none!important}:root,[data-theme=dark]{color-scheme:light;--paper:white;--paper-tint:#f5f5f7;--surface:white;--ink:#1d1d1f;--muted:#6e6e73;--line:#d2d2d7}}

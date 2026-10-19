@@ -21,7 +21,8 @@
     "test:applications:browser": "node platform/applications-browser-test.mjs",
     "build:sheets": "node apps/build-sheets.mjs",
     "typecheck:sheets": "tsc -p apps/sheets/tsconfig.json && tsc -p apps/sheets/tsconfig.core.json",
-    "test:sheets": "node --test apps/sheets/test/*.test.mjs"
+    "test:sheets": "node --test apps/sheets/test/*.test.mjs",
+    "test:markets:browser": "node platform/markets-browser-test.mjs"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "4.2.1",
