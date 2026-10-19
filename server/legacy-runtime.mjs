@@ -680,4 +680,4 @@ export {
   entry_default as default
 };
 
-export {identity, addClientNames, jsonBody, admins};
+export {identity, addClientNames, jsonBody, admins, validateWorkspace, validateState};

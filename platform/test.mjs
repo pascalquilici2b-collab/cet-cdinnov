@@ -78,7 +78,7 @@ try{
   const a=await transport.request(url,session,'GET');a.workspace.clients=[];
   const b=await transport.request(url,session,'GET');assert.equal(b.workspace.clients.length,2);
   transport.clear();const c=await transport.request(url,{email:users[1],token:other.token},'GET');assert.equal(c.version,b.version);
-  const changed=structuredClone(c.workspace);changed.unknownString='saved';await transport.request(url,session,'PUT',changed,c.version);
+  const current=await transport.request(url,session,'GET');const changed=structuredClone(current.workspace);changed.unknownString='saved';await transport.request(url,session,'PUT',changed,current.version);
   assert.equal((await transport.request(url,session,'GET')).workspace.unknownString,'saved');
  });
  await check('Déconnexion annule une réponse de cache en vol',async()=>{

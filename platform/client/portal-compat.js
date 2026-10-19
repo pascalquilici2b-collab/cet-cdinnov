@@ -49,7 +49,8 @@ async function cloudPush(){
     try{
       while(AUTH_USER===user&&portalEpoch===epoch&&JSON.stringify(state)!==portalClean){
         const snapshot=JSON.stringify(state);setSync('busy','Envoi…');
-        const response=await portalFetch(cloudURL(),{method:'PUT',headers:{'Content-Type':'application/json','If-Match':String(portalVersion)},body:snapshot});
+        const changes=CDIPlatform.recordChanges(JSON.parse(portalClean),JSON.parse(snapshot)).filter(c=>!['majAt','majBy'].includes(c.path[0]));
+        const response=await portalFetch(cloudURL(),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({changes})});
         const result=await response.json();if(AUTH_USER!==user||portalEpoch!==epoch)return false;
         portalVersion=result.version;portalClean=snapshot;
       }

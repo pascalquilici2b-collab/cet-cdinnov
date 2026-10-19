@@ -7,9 +7,13 @@ Ce document fixe la cible technique pour l’ensemble de l’application et dist
 
 ## Point d’avancement du 19 octobre
 
-Les principaux écrans sont migrés. Le travail restant porte surtout sur le serveur, les droits d’accès, les sauvegardes par enregistrement et le cycle complet de facturation. La cible reste **React/TypeScript + Cloudflare Workers + D1 + R2**, sans nouvel abonnement.
+Les principaux écrans sont migrés. Les sauvegardes ciblées sont maintenant implémentées pour le portail, les budgets et Smartsheet. Le travail restant porte surtout sur la normalisation SQL, les rôles configurables et le cycle complet de facturation. La cible reste **React/TypeScript + Cloudflare Workers + D1 + R2**, sans nouvel abonnement.
 
-La tranche actuelle place le portail, les fichiers historiques et les notifications derrière la session commune. Les comptes et leurs mots de passe sont conservés. Le document KV du portail est copié à l’identique dans D1, qui devient sa seule source d’écriture avec contrôle de version. L’ancien document KV est conservé comme point de reprise, sans route publique de lecture ou d’écriture.
+La tranche précédente a placé le portail, les fichiers historiques et les notifications derrière la session commune. Les comptes et leurs mots de passe sont conservés. D1 reste la seule source active du portail. L’ancien document KV est conservé comme point de reprise, sans route publique de lecture ou d’écriture.
+
+La tranche actuelle envoie les seules modifications, avec une précondition sur chaque valeur concernée. Des utilisateurs peuvent enregistrer des lignes différentes depuis une même ancienne lecture. Un conflit bloque toute la requête et conserve la copie locale. Les droits, les références et les validations restent contrôlés par le serveur. Les anciens onglets gardent leurs sauvegardes versionnées compatibles. Les nouvelles saisies des collègues apparaissent au rechargement ; il n’y a pas de synchronisation collaborative en temps réel ajoutée.
+
+Les écritures SQLite ciblent les champs/enregistrements modifiés et conservent les triggers de projection. Les documents JSON restent les sources de vérité internes : la normalisation en tables par entité reste à réaliser. La publication de ce lot ne déplace aucune donnée et ne modifie aucun schéma.
 
 Les formulaires de congés et déplacements utilisent les couleurs du thème sombre pour les titres, champs, listes et encarts. Le bloc « Organisation de l’équipe / Un agenda partagé, une vue d’ensemble » est retiré. Aucun abonnement ni fournisseur supplémentaire n’est ajouté.
 
@@ -92,16 +96,18 @@ Une seule source accepte les écritures pour chaque domaine. La projection SQL B
 
 | Stockage actuel | Conservation actuelle | Cible |
 |---|---|---|
-| `app_portal_workspace` (D1) | Copie exacte du document historique ; version, auteur, date ; contrôle atomique des sauvegardes ; réponses filtrées | Tables métier et écritures ciblées |
+| `app_portal_workspace` (D1) | Document historique conservé ; écritures ciblées atomiques, droits et réponses filtrées | Tables métier normalisées et lectures compatibles |
 | Portail KV | Instantané conservé, fermé aux anciennes routes ; aucun écrivain actif | Archive de reprise ; aucun retour automatique vers cette source |
 | `app_session_revocations` (D1) | Jetons déconnectés refusés jusqu’à expiration ; empreintes uniquement | Politique de session et rôles configurables |
-| `budgets_workspace` | Document source avec contrôle de version et ETag | Écritures ciblées sur clients, projets, lignes, dépenses et rapports |
+| `budgets_workspace` | Document source, ETag et écritures ciblées sur clients, projets, lignes, dépenses et rapports | Faire des tables par entité la source de vérité après réconciliation |
 | `app_budget_records` | Projection indexée, synchronisée dans la même transaction | Transition vers les enregistrements faisant autorité après réconciliation |
-| Espace Smartsheet | Document complet avec révision ; sauvegardes sérialisées côté navigateur | Espaces, feuilles, lignes et colonnes modifiables séparément |
+| Espace Smartsheet | Espaces, feuilles, lignes, colonnes et champs modifiables séparément ; document compatible et révision conservés | Tables par entité, préservation des ordres et des extensions |
 | Marchés | Versions, pièces, lectures et analyses conservées | Relations vers commandes, interventions et factures ; pièces privées dans R2 |
 | Agenda | Déplacements et versions en base | Référentiels et droits communs |
 
 La migration des interfaces ne modifie pas ces sources de données. Les nouvelles vues restent compatibles avec les sauvegardes et contrôles de version existants. Un conflit doit conserver la saisie locale, présenter une erreur et permettre son export ; il ne doit pas écraser automatiquement la version d’un autre utilisateur.
+
+Les écritures `PATCH` portent sur les différences depuis la dernière copie locale confirmée. Le serveur les applique à la source actuelle, puis sauvegarde par une instruction SQL atomique, avec relance bornée si la version change pendant la requête. Les ajouts et suppressions ne se fondent pas sur un indice périmé. Un réordonnancement ambigu est refusé ; les collections sans identifiant fiable restent des blocs conservés intégralement. Les anciens `PUT` gardent la précondition de version globale. La limite stockée de 1,5 Mo reste en place ; les requêtes différentielles acceptent 4 Mo pour les anciennes et nouvelles valeurs de gros champs.
 
 Le déplacement d’une pièce devra procéder par copie, comparaison de taille et d’empreinte, puis changement de référence. Aucun original ne doit être supprimé avant vérification et maintien d’une lecture compatible pendant la transition.
 
@@ -111,8 +117,8 @@ La connexion vérifie la preuve côté serveur. Le navigateur ne télécharge pl
 
 | Surface | Protection livrée | Limite / suite |
 |---|---|---|
-| Portail | Session requise ; salarié limité à son dossier, annuaire et planning partagés ; comptes résumés sans vérificateurs | Document global encore utilisé comme source d’écriture |
-| Sauvegardes | Numéro de version obligatoire ; une seule écriture gagne en cas de concurrence ; copie locale conservée, export avant rechargement | Fusion fine par enregistrement à poursuivre |
+| Portail | Session requise ; salarié limité à son dossier, annuaire et planning partagés ; comptes résumés sans vérificateurs | Document interne encore global, avec écritures JSON ciblées |
+| Sauvegardes | Préconditions par valeur pour les nouveaux clients ; version globale pour les anciens ; conflits atomiques, copie locale et export conservés | Normalisation SQL et résolution assistée des conflits |
 | Pièces R2 | Lecture autorisée par référence accessible ou propriétaire du dépôt ; fichiers joints à un autre dossier refusés ; dépôt existant non écrasable | Inventaire périodique des fichiers devenus orphelins |
 | Suppression de pièces | Une référence encore utilisée interdit la suppression ; annulation d’un formulaire conserve l’original | Nettoyage différé automatisé à concevoir |
 | Notifications | Session, destinataires internes contrôlés et limitation de fréquence | Évènements métier serveur à terme |
@@ -177,6 +183,8 @@ La tranche Identité ajoute 11 scénarios serveur sur le Worker complet : compat
 
 Le lot Portail ajoute 9 scénarios d’intégration : fermeture des anciens accès, filtrage, contrôle des écritures, conflits, fichiers, notifications, export/restauration, invitations/révocation et déconnexion. La recette navigateur couvre aussi les invitations, la réinitialisation, le dépôt et la lecture des justificatifs. Un essai privé sur une copie des données réelles confirme la connexion et une sauvegarde sans changement métier pour chacun des cinq comptes, sans appel ni écriture en production.
 
+Le lot Écritures ciblées ajoute 13 scénarios d’intégration, dont 400 variantes de conservation et d’ordre. Il vérifie les modifications simultanées indépendantes, les vrais conflits, les reprises réseau, les droits, les gros logos, les imports atomiques, les relations et le rollback sur échec de projection. Une recette isolée des trois documents réels confirme leur conservation après modification/restauration et la connexion des cinq comptes. Les navigateurs testent le portail, la création d’un client, l’édition/rechargement Smartsheet, les formulaires, imports et exports, avec les interfaces existantes.
+
 Avant publication : sauvegarde privée des données et de la configuration ; revue de la différence ; conservation des anciens assets pour les onglets ouverts. Après publication : comparaison des fichiers servis au commit et comparaison des données avant/après. Pour une livraison d’interface, le Worker et les bases n’ont pas à être remplacés.
 
 Après cette bascule de sécurité, republier l’ancien frontend non authentifié ou réouvrir l’ancienne route KV n’est pas un retour arrière acceptable. Une correction doit rester compatible avec l’API authentifiée et conserver D1 comme source. Il ne faut pas restaurer une ancienne base par-dessus les nouvelles saisies. Une migration SQL exige en plus un essai de restauration et un rapprochement des nombres, montants, relations et empreintes avant bascule.
@@ -184,7 +192,7 @@ Après cette bascule de sécurité, republier l’ancien frontend non authentifi
 ## 9. Ordre de clôture de la migration
 
 1. **Identité et fichiers communs** : accès du portail et des fichiers sécurisés ; suivi des habilitations et revue périodique à maintenir.
-2. **Écritures ciblées** : Budgets, référentiels et Smartsheet, puis données du portail ; supprimer progressivement les documents globaux comme sources d’écriture après réconciliation.
+2. **Normalisation SQL** : écritures ciblées du portail, des budgets et de Smartsheet livrées ; supprimer progressivement les documents globaux comme sources de vérité après réconciliation des tables par entité et reprise des lecteurs.
 3. **Cycle métier CCIC** : devis, commandes, engagements, interventions, factures, relevés, règlements et alertes, avec transactions et cas de concurrence.
 4. **Derniers composants historiques** : coque, connexion, détails de planning, imports et intégrations ; généraliser le typage strict et retirer les chemins de compatibilité devenus inutiles.
 5. **Exploitation** : mesure des quotas et du CPU par route, essai de restauration, revue des accès et recette utilisateur de bout en bout.
@@ -196,10 +204,11 @@ La migration sera considérée comme terminée quand les accès privés seront c
 | Priorité | Lot | Résultat attendu avant clôture |
 |---|---|---|
 | Livré | Portail et fichiers derrière la session commune | Lectures filtrées, droits par dossier/pièce, anciennes voies fermées, invitations, export et restauration métier contrôlés |
-| P1 | Identités et écritures cohérentes | Révocation et version globale livrées ; poursuivre les écritures par enregistrement et le modèle de rôles |
+| Livré | Écritures ciblées des trois modules | Préconditions par enregistrement/champ, conflits atomiques, conservation des données et compatibilité des anciens clients |
+| P1 | Tables métier et rôles configurables | Remplacer les documents sources par des tables normalisées après réconciliation ; poursuivre le modèle de rôles |
 | P1 | Devis et commandes CCIC | Devis versionnés ; commande rattachée au marché et à une période ; plafond annuel et engagement suivis séparément |
 | P1 | Interventions et factures CCIC | Tâches prédéfinies + texte libre ; temps et périodes ; facture partielle/finale et relevé associé ; émission atomique, historique figé |
 | P2 | Fin de reprise technique | Coque et détails de planning typés ; composants Smartsheet en mode strict ; anciens contrôleurs retirés après parité |
 | P2 | Exploitation | Restauration répétable, mesures CPU/quotas par route, suivi des erreurs et recette métier complète |
 
-Les décisions techniques figurent dans [ADR-0002](decisions/0002-shared-identity.md) et [ADR-0003](decisions/0003-protected-portal.md). Les preuves de sauvegarde et de conservation restent dans le dossier privé de livraison ; aucune sauvegarde de données ou de comptes n’est publiée avec le site.
+Les décisions techniques figurent dans [ADR-0002](decisions/0002-shared-identity.md), [ADR-0003](decisions/0003-protected-portal.md) et [ADR-0004](decisions/0004-record-writes.md). Les preuves de sauvegarde et de conservation restent dans le dossier privé de livraison ; aucune sauvegarde de données ou de comptes n’est publiée avec le site.

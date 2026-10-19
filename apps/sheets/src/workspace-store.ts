@@ -1,4 +1,5 @@
 import type { WorkspaceState, WorkspaceUpdate } from "./contracts";
+import {recordChanges} from '../../../platform/record-changes';
 export type SaveStatus =
   | "loading"
   | "saved"
@@ -49,6 +50,7 @@ export class WorkspaceStore {
   private snapshot: Snapshot = { state: null, status: "loading", error: "" };
   private listeners = new Set<() => void>();
   private revision = 0;
+  private baseline: WorkspaceState | null = null;
   private pending: WorkspaceState | null = null;
   private writing: Promise<void> | null = null;
   private timer: ReturnType<typeof setTimeout> | undefined;
@@ -88,6 +90,7 @@ export class WorkspaceStore {
         );
       if (this.disposed || epoch !== this.epoch) return;
       this.revision = result.revision;
+      this.baseline = structuredClone(result.state);
       this.current.current = result.state;
       this.pending = null;
       this.publish({ state: result.state, status: "saved", error: "" });
@@ -132,9 +135,9 @@ export class WorkspaceStore {
       this.publish({ status: "saving" });
       try {
         const response = await this.request({
-          method: "PUT",
+          method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ state, revision: this.revision }),
+          body: JSON.stringify({ changes: recordChanges(this.baseline, state) }),
         });
         const result: Envelope = await response.json();
         if (!response.ok)
@@ -148,6 +151,7 @@ export class WorkspaceStore {
           throw new SaveError("La confirmation de sauvegarde est invalide.");
         if (this.disposed || epoch !== this.epoch) return;
         this.revision = result.revision;
+        this.baseline = structuredClone(state);
         this.publish({ error: "" });
       } catch (error) {
         if (!this.disposed && epoch === this.epoch) {

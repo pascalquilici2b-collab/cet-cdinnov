@@ -48,7 +48,7 @@ try{
  await frame.getByText(workspace.clients[0].name,{exact:true}).first().waitFor();
  assert.ok(requests.some(r=>r.status===304 && r.bytes===0),'Reopening unchanged workspace uses 304');
  await frame.getByLabel('Nom du client',{exact:true}).fill('Vérification migration locale');
- const saved=page.waitForResponse(r=>r.url().endsWith('/budgets/workspace')&&r.request().method()==='PUT');
+ const saved=page.waitForResponse(r=>r.url().endsWith('/budgets/workspace')&&r.request().method()==='PATCH');
  await frame.getByRole('button',{name:'Créer le client',exact:true}).click();
  assert.equal((await saved).status(),200);
  const after=JSON.parse((await ctx.db.prepare("SELECT payload FROM budgets_workspace WHERE id='shared'").first()).payload);

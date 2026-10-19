@@ -5,6 +5,7 @@ import {resolve,join,extname,sep} from 'node:path';
 import {createRequire} from 'node:module';
 import assert from 'node:assert/strict';
 import * as XLSX from 'xlsx';
+import {applyRecordChanges} from './record-changes.ts';
 const require=createRequire(process.env.PLAYWRIGHT_PACKAGE||'C:/Users/quili/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright/package.json');
 const {chromium}=require('playwright'),root=fileURLToPath(new URL('../',import.meta.url)).replace(/[\\/]$/,'');
 const out=process.env.PORTAL_QA;assert.ok(out,'Private PORTAL_QA is required');await mkdir(out,{recursive:true});
@@ -39,7 +40,7 @@ async function audit(page,frame,name,width){
 }
 try{
  const context=await browser.newContext({viewport:{width:1920,height:1000},locale:'fr-FR'});
- await context.route('**/*',async route=>{const u=new URL(route.request().url());if(u.origin===base)return route.continue();if(u.pathname==='/sheets/session')return route.fulfill({json:{ok:true}});if(u.pathname==='/sheets/state'){if(route.request().method()==='GET')return route.fulfill({json:{revision,state:sheetState}});const body=route.request().postDataJSON();writes.push(body);sheetState=body.state||body;revision++;return route.fulfill({json:{ok:true,revision,state:sheetState}})}return route.abort()});
+ await context.route('**/*',async route=>{const u=new URL(route.request().url());if(u.origin===base)return route.continue();if(u.pathname==='/sheets/session')return route.fulfill({json:{ok:true}});if(u.pathname==='/sheets/state'){if(route.request().method()==='GET')return route.fulfill({json:{revision,state:sheetState}});assert.equal(route.request().method(),'PATCH');const body=route.request().postDataJSON();writes.push(body);sheetState=applyRecordChanges(sheetState,body.changes);revision++;return route.fulfill({json:{ok:true,revision,state:sheetState}})}return route.abort()});
  const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));page.setDefaultTimeout(10000);await page.goto(base+'/budget-test');const frame=page.frameLocator('#budget');await frame.getByRole('button',{name:'Ouvrir le projet PROJET 1',exact:true}).waitFor();
  const budget=page.frames().find(f=>f.url().includes('/budgets-projets/'));
  for(const width of [2560,1920,1024,768,390,320])await audit(page,budget,'budgets-projets',width);
@@ -74,7 +75,7 @@ try{
    for(const width of [1920,390,320])await audit(page,page,'smartsheet-'+view.toLowerCase(),width);
  }
  await page.setViewportSize({width:1920,height:1000});
- const saved=action=>Promise.all([page.waitForResponse(r=>r.url().endsWith('/sheets/state')&&r.request().method()==='PUT'),action()]);
+ const saved=action=>Promise.all([page.waitForResponse(r=>r.url().endsWith('/sheets/state')&&r.request().method()==='PATCH'),action()]);
  await page.getByRole('button',{name:'Formulaires',exact:true}).click();
  await saved(()=>page.getByRole('button',{name:'Créer un formulaire',exact:true}).first().click());
  assert.equal(sheetState.sheets[0].forms.length,1);

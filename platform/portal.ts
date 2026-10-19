@@ -2,6 +2,8 @@ import {createHash,randomBytes} from 'node:crypto';
 import {Buffer} from 'node:buffer';
 import type {Environment,Reply,WorkspaceRow} from './contracts';
 import {admins,sessionIdentity} from './identity.ts';
+import {applyRecordChanges,validateChanges} from './record-changes';
+import {saveRecordSource} from './record-writes';
 // The compatibility document keeps all unknown fields. Only explicitly granted fields
 // leave the server for a collaborator; credential verifiers never leave normal APIs.
 type Document = Record<string,any>;
@@ -49,17 +51,18 @@ export async function boundedBody(request:Request,max=1500000):Promise<Uint8Arra
   if(reader)try{while(true){const {done,value}=await reader.read();if(done)break;size+=value.byteLength;if(size>max){await reader.cancel();fail(413,'Fichier ou données trop volumineux.');}chunks.push(value);}}finally{reader.releaseLock();}
   return Buffer.concat(chunks);
 }
-async function input(request:Request):Promise<Document>{
+async function input(request:Request,max=1500000):Promise<Document>{
   if(!request.headers.get('content-type')?.startsWith('application/json'))return fail(415,'Format JSON requis.');
-  let value:unknown;try{value=JSON.parse(Buffer.from(await boundedBody(request)).toString());}catch(e){if((e as {status?:number}).status)throw e;return fail(400,'Données JSON invalides.');}
+  let value:unknown;try{value=JSON.parse(Buffer.from(await boundedBody(request,max)).toString());}catch(e){if((e as {status?:number}).status)throw e;return fail(400,'Données JSON invalides.');}
   return object(value)?value:fail(400,'Document invalide.');
 }
 function version(request:Request){const value=request.headers.get('if-match');if(!value||!/^\d+$/.test(value))return fail(428,'Rechargez les données avant de les enregistrer.');return Number(value);}
 async function writePortal(env:Environment,p:Document,expected:number,email:string){
-  const payload=JSON.stringify(p);if(Buffer.byteLength(payload)>1500000)fail(413,'Déplacez les pièces jointes volumineuses vers le stockage de fichiers.');
-  const row=await env.BUDGETS_DB.withSession('first-primary').prepare("UPDATE app_portal_workspace SET payload=?,version=version+1,updated_at=?,updated_by=? WHERE id='shared' AND version=? RETURNING version").bind(payload,new Date().toISOString(),email,expected).first<{version:number}>();
-  if(!row)fail(409,'Une autre personne a modifié le portail. Vos modifications locales sont conservées : rechargez avant de les réappliquer.');
-  return row!.version;
+  const row=await readPortal(env);
+  if(row.version!==expected)fail(409,'Une autre personne a modifié le portail. Vos modifications locales sont conservées.');
+  const saved=await saveRecordSource(env.BUDGETS_DB.withSession('first-primary'),'portal',JSON.parse(row.payload),p,expected,email);
+  if(saved===null)fail(409,'Une autre personne a modifié le portail. Vos modifications locales sont conservées.');
+  return saved!;
 }
 function merge(p:Document,next:Document,email:string){
   for(const key of ['salaries','types','mouvements','conges','notesFrais','codesAffaires','factures'])if(!Array.isArray(next[key]))fail(400,'Collection invalide : '+key);
@@ -76,7 +79,8 @@ function merge(p:Document,next:Document,email:string){
       if(!same(next[key].filter(other),view[key].filter(other)))fail(403,'Vous ne pouvez modifier que votre dossier.');
       const records=next[key].filter((r:Document)=>own(r,mat));
       if(key==='conges')for(const r of records){const before=p.conges.find((c:Document)=>c.id===r.id);if(r.statut!=='En attente'&&!same(before,r))fail(403,'La validation des congés est réservée à un responsable.');}
-      result[key]=[...(p[key]||[]).filter(other),...records];
+      let index=0;result[key]=(p[key]||[]).flatMap((r:Document)=>other(r)?[r]:index<records.length?[records[index++]]:[]);
+      result[key].push(...records.slice(index));
     }
   }
   for(const key of ['conges','mouvements','notesFrais']){
@@ -88,6 +92,15 @@ function merge(p:Document,next:Document,email:string){
     for(const r of p.notesFrais||[])if(r.statut==='Payée'&&!result.notesFrais.some((x:Document)=>x.id===r.id))fail(403,'Une note payée est verrouillée.');
   }
   result.majAt=new Date().toISOString();result.majBy=email;return result;
+}
+
+async function checkNewFiles(env:Environment,p:Document,result:Document,email:string){
+  const keys=(value:unknown,out=new Set<string>()):Set<string>=>{if(typeof value==='string'){try{const u=new URL(value);if(u.pathname.startsWith('/files/'))out.add(decodeURIComponent(u.pathname.slice(7)));}catch{}}else if(value&&typeof value==='object')Object.values(value).forEach(v=>keys(v,out));return out;};
+  const previous=keys(portalView(p,email));
+  for(const key of keys(portalView(result,email)))if(!previous.has(key)){
+    const metadata=await (env.CET_FILES as any).head(key);
+    if(metadata?.customMetadata?.owner!==email)fail(403,'Vous ne pouvez joindre que les fichiers de votre dossier.');
+  }
 }
 
 export async function portalRoute(request:Request,env:Environment,reply:Reply):Promise<Response>{
@@ -104,17 +117,26 @@ export async function portalRoute(request:Request,env:Environment,reply:Reply):P
   }
   const session=await sessionIdentity(request,portalEnvironment(env));if(!session)return reply(401,{error:'Votre connexion CDInnov a expiré. Reconnectez-vous.'});
   if(path==='/api/v1/portal'&&request.method==='GET')return reply(200,{workspace:portalView(p,session.email),version:row.version});
+  if(path==='/api/v1/portal'&&request.method==='PATCH'){
+    // A replacement includes both the old precondition and the new value. Keep
+    // existing large inline logos importable without increasing stored document size.
+    const {changes}=await input(request,4000000);validateChanges(changes);
+    if(changes.some(c=>['auth','majAt','majBy'].includes(String(c.path[0]))))fail(403,'Ce champ est géré par le serveur.');
+    for(let attempt=0;attempt<6;attempt++){
+      const current=attempt?await readPortal(env):row,document=JSON.parse(current.payload);
+      const next=applyRecordChanges(portalView(document,session.email),changes);
+      const result=merge(document,next,session.email);
+      if(!session.admin)await checkNewFiles(env,document,result,session.email);
+      if(!changes.length)return reply(200,{version:current.version});
+      const saved=await saveRecordSource(env.BUDGETS_DB.withSession('first-primary'),'portal',document,result,current.version,session.email);
+      if(saved!==null)return reply(200,{version:saved,majAt:result.majAt,majBy:result.majBy});
+    }
+    return reply(409,{error:'Plusieurs enregistrements sont en cours. Votre copie est conservée. Réessayez.'});
+  }
   if(path==='/api/v1/portal'&&request.method==='PUT'){
     const expected=version(request);if(expected!==row.version)fail(409,'Le portail a changé. Vos modifications locales sont conservées.');
     const result=merge(p,await input(request),session.email);
-    if(!session.admin){
-      const keys=(value:unknown,out=new Set<string>()):Set<string>=>{if(typeof value==='string'){try{const u=new URL(value);if(u.pathname.startsWith('/files/'))out.add(decodeURIComponent(u.pathname.slice(7)));}catch{}}else if(value&&typeof value==='object')Object.values(value).forEach(v=>keys(v,out));return out;};
-      const previous=keys(portalView(p,session.email));
-      for(const key of keys(portalView(result,session.email)))if(!previous.has(key)){
-        const metadata=await (env.CET_FILES as any).head(key);
-        if(metadata?.customMetadata?.owner!==session.email)fail(403,'Vous ne pouvez joindre que les fichiers de votre dossier.');
-      }
-    }
+    if(!session.admin)await checkNewFiles(env,p,result,session.email);
     const v=await writePortal(env,result,expected,session.email);
     return reply(200,{version:v,majAt:result.majAt,majBy:result.majBy});
   }

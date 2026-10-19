@@ -543,7 +543,7 @@ body:has(.agenda-shell) .topbar{flex-wrap:wrap;row-gap:12px}
 
 .mk-ai-proposals>div{min-width:0;overflow-wrap:anywhere}.mk-ai-proposals span{white-space:pre-wrap}.mk-panel,.mk-ai-result{min-width:0;max-width:100%;box-sizing:border-box}
 </style>
-<script src="./platform/workspace-client.js"></script>
+<script src="./platform/workspace-client.js?v=records1"></script>
 </head>
 <body>
 <div class="app">
@@ -4781,6 +4781,13 @@ setView('dashboard');
 
 
 
+
+
+
+
+
+
+
 /* CDI_PORTAL_START */
 /* Server-authorised bridge for the remaining portal controllers. No credential
    verifier is downloaded or persisted by this client. Built into the classic shell. */
@@ -4833,7 +4840,8 @@ async function cloudPush(){
     try{
       while(AUTH_USER===user&&portalEpoch===epoch&&JSON.stringify(state)!==portalClean){
         const snapshot=JSON.stringify(state);setSync('busy','Envoi…');
-        const response=await portalFetch(cloudURL(),{method:'PUT',headers:{'Content-Type':'application/json','If-Match':String(portalVersion)},body:snapshot});
+        const changes=CDIPlatform.recordChanges(JSON.parse(portalClean),JSON.parse(snapshot)).filter(c=>!['majAt','majBy'].includes(c.path[0]));
+        const response=await portalFetch(cloudURL(),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({changes})});
         const result=await response.json();if(AUTH_USER!==user||portalEpoch!==epoch)return false;
         portalVersion=result.version;portalClean=snapshot;
       }
