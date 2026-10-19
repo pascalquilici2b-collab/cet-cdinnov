@@ -2,6 +2,8 @@
 
 Cette branche introduit l'édition et les PDF de brouillons de factures et devis dans le portail existant. Elle n'est pas déployée. L'émission, la numérotation définitive, les fichiers immuables et l'export Factur-X des nouveaux documents restent à raccorder.
 
+Le socle interne de réservation est maintenant présent dans `billing-issuance.ts` et `billing-issuance-schema.mjs` : série explicite, attribution transactionnelle, verrouillage de l'instantané, journal et reprise avec rejet des réponses tardives. Il n'est pas encore accessible par l'interface ou l'API ; ses conditions de raccordement sont décrites dans [BILLING-ISSUANCE.md](BILLING-ISSUANCE.md).
+
 ## Parcours disponible
 
 La rubrique Facturation ouvre les factures puis les devis. L'éditeur conserve un aperçu du document à côté de la saisie ; sur petit écran, les boutons Saisie et Aperçu choisissent la vue. Les données sont enregistrées par l'API authentifiée, avec un numéro de version. Un conflit conserve la saisie et propose un nouveau brouillon ou le rechargement du serveur.
@@ -50,6 +52,7 @@ Les tests exécutent les XSD et Schematrons de factur-x 6.8, dont les règles Fr
 node platform/build.mjs
 node platform/node_modules/typescript/bin/tsc -p platform/tsconfig.json
 node --test platform/billing-domain-test.mjs platform/facturx-integrity-test.mjs platform/billing-test.mjs platform/billing-pdf-test.mjs
+node --test platform/billing-issuance-test.mjs
 $env:BILLING_TEST_PYTHON = '<interpréteur avec requirements-lock.txt installé>'
 node --test platform/billing-contract-test.mjs
 $env:PYTHONPATH = 'facturx-service'
@@ -69,7 +72,7 @@ Le test `billing-pdf-integration-test.mjs` démarre son propre moteur FastAPI lo
 ## Prochains lots
 
 1. Prévisualisation paginée du PDF dans l'éditeur, modèles et identité visuelle définitive.
-2. Numérotation configurable après contrôle des séquences existantes, émission atomique et instantané immuable, stockage privé des fichiers et empreintes.
+2. Raccorder le registre de réservation testé à la finalisation et à l'état affiché par l'API/UI ; contrôler les séquences existantes puis configurer les séries, et relier les fichiers privés et leurs empreintes.
 3. Appeler le pipeline complet Factur-X existant à partir du PDF émis, conserver ses rapports et gérer les reprises sans modifier le document.
 4. Cycle des devis, avoirs, acomptes, règlements, puis rattachements aux engagements.
 5. Exploiter l'observation authentifiée AGIRIS/Cecurity, puis valider le dépôt et le suivi d'un document autorisé. L'export local ne prouve pas la réception par AGIRIS.
