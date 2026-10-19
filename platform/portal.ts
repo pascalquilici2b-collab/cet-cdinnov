@@ -183,6 +183,7 @@ export async function filesRoute(request:Request,env:Environment,headers:Headers
   const session=await sessionIdentity(request,env);if(!session)return reply(401,{error:'Connexion requise.'});
   let key:string;try{key=decodeURIComponent(new URL(request.url).pathname.slice('/files/'.length));}catch{return reply(400,{error:'Clé invalide.'});}
   if(!key||key.length>500||/[\x00-\x1f]/.test(key))return reply(400,{error:'Clé invalide.'});
+  if(key.startsWith('billing/'))return reply(403,{error:'Les documents émis sont accessibles uniquement depuis la facturation.'});
   const bucket=env.CET_FILES as any;
   if(request.method==='PUT'){
     const bytes=await boundedBody(request,20*1024*1024);

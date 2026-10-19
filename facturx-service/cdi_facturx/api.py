@@ -21,6 +21,7 @@ from . import server_auth
 from .models import GenerationRequest
 from .billing_document import PreviewRequest
 from .document_pdf import render_document, DocumentPDFError
+from .billing_issuance import IssuedRequest, preflight as billing_preflight, generate_issued
 from .pdf_import import MAX_BYTES, extract_pdf, preview_pdf
 from .service import ROOT, ConversionError, generate, health
 from .recipient_lookup import RecipientQuery, LookupError, lookup_recipient
@@ -44,7 +45,7 @@ class BodyLimitMiddleware:
             nonlocal size
             message = await receive()
             size += len(message.get('body', b''))
-            maximum = 300000 if scope.get('path') == '/api/billing/preview-pdf' else MAX_BYTES + 2 * 1024 * 1024
+            maximum = 300000 if scope.get('path', '').startswith('/api/billing/') else MAX_BYTES + 2 * 1024 * 1024
             if size > maximum:
                 raise HTTPException(413, 'Requête trop volumineuse (PDF 20 Mo maximum).')
             return message
@@ -225,6 +226,36 @@ def json_result(result):
     return {**result['report'], 'filename': result['filename'],
             'pdf_base64': base64.b64encode(result['pdf']).decode(), 'xml': result['xml'].decode('utf-8'),
             'verapdf_report': result['verapdf'].decode('utf-8')}
+
+
+def billing_machine(request, operation, payload):
+    # User bearer tokens for the historical converter cannot assert issued numbers.
+    key = os.getenv('FACTURX_API_KEY', '')
+    if len(key) < 32 or not secrets.compare_digest(request.headers.get('x-api-key', ''), key):
+        raise HTTPException(403, 'Accès réservé au serveur de facturation.')
+    if not SLOTS.acquire(blocking=False):
+        raise HTTPException(503, 'Le service traite un autre document. Réessayez dans un instant.')
+    try:
+        return operation(payload)
+    except ConversionError as exc:
+        raise HTTPException(503 if exc.unavailable else 422, {'stage': exc.stage, 'message': exc.message, 'errors': exc.details}) from exc
+    except (ValueError, DocumentPDFError) as exc:
+        raise HTTPException(422, str(exc)[:1500]) from exc
+    except Exception as exc:
+        logging.getLogger('cdi_facturx').warning('billing_generation_failed error_type=%s', type(exc).__name__)
+        raise HTTPException(503, 'La génération du document a échoué. Réessayez.') from exc
+    finally:
+        SLOTS.release()
+
+
+@app.post('/api/billing/preflight')
+def billing_preflight_route(payload: PreviewRequest, request: Request):
+    return billing_machine(request, billing_preflight, payload)
+
+
+@app.post('/api/billing/generate-issued')
+def billing_generate_route(payload: IssuedRequest, request: Request):
+    return billing_machine(request, generate_issued, payload)
 
 
 def conversion_stream(data, request):

@@ -5,6 +5,8 @@ import {spawnSync} from 'node:child_process';
 import {test} from 'node:test';
 import {blankDraft,newLine,normalizeDraft,calculateBilling} from './billing-domain.ts';
 import {invoiceForFacturX} from './billing-facturx.ts';
+import {billingCanonicalJSON} from './billing-issuance.ts';
+import {createHash} from 'node:crypto';
 const interpreter=process.env.BILLING_TEST_PYTHON;
 if(!interpreter)throw new Error('Set BILLING_TEST_PYTHON to a Python with facturx-service/requirements-lock.txt installed.');
 function python(program,input){
@@ -48,6 +50,14 @@ test('l’adaptateur Factur-X préserve prix, remises, références et notes san
  assert.equal(invoiceForFacturX({...d,lines:[{...d.lines[0],quantity:'1.833300'}]},'F-1').lines[0].quantity,'1.8333');
  const result=python(`import json,sys,tempfile\nfrom pathlib import Path\nfrom cdi_facturx.models import Invoice\nfrom cdi_facturx.xml_invoice import create_xml\nfrom cdi_facturx.validate_worker import validate\nv=Invoice.model_validate(json.load(sys.stdin))\nxml=create_xml(v,'en16931')\nwith tempfile.TemporaryDirectory() as folder:\n path=Path(folder)/'factur-x.xml';path.write_bytes(xml);report=validate(str(path),'en16931')\nprint(json.dumps({'totals':{k:str(v) for k,v in v.calculated()[0].items()},'checks':report['checks'],'errors':report['errors'],'price':str(v.lines[0].unit_price),'discount':str(v.lines[0].discount_percent)}))`,invoice);
  assert.deepEqual(result.checks,{schematron:true,france:true});assert.deepEqual(result.errors,[]);assert.equal(result.price,'123.456789');assert.equal(result.discount,'12.34');assert.deepEqual(result.totals,{net:invoice.totals.net,vat:invoice.totals.vat,gross:invoice.totals.gross,due:invoice.totals.due});
+});
+
+test('les adaptateurs indépendants et les empreintes canoniques Python/TypeScript restent identiques',()=>{
+ const documents=[complete(),{...complete(),paymentMeans:'58',iban:'FR14 2004 1010 0505 0001 3M02 606',bic:'PSSTFRPPPAR'},
+  {...complete(),lines:[{...complete().lines[0],quantity:'001.833300',unitPrice:'00123.456789',discountPercent:'0.00',vatCategory:'Z',vatRate:'0.00'}]}];
+ const values=documents.map(raw=>{const document=normalizeDraft(raw);return {document,invoice:invoiceForFacturX(document,'TEST-2026-001'),hash:createHash('sha256').update(billingCanonicalJSON({schemaVersion:1,document,totals:calculateBilling(document)})).digest('hex')};});
+ const result=python(`import json,sys\nfrom cdi_facturx.billing_document import DraftDocument\nfrom cdi_facturx.billing_issuance import invoice_from_document,snapshot_hash\nfrom cdi_facturx.models import Invoice\nresults=[]\nfor v in json.load(sys.stdin):\n d=DraftDocument.model_validate(v['document'])\n expected=Invoice.model_validate(v['invoice']).model_dump(mode='json')\n actual=invoice_from_document(d,'TEST-2026-001').model_dump(mode='json')\n assert actual==expected,(actual,expected)\n assert snapshot_hash(d)==v['hash']\n results.append(True)\nprint(json.dumps(results))`,values);
+ assert.deepEqual(result,[true,true,true]);
 });
 
 test('le service authentifié produit un vrai PDF sans accepter de numéro ni de total imposé',()=>{

@@ -38,10 +38,13 @@ export interface BillingTotals {
   netMinor:string; taxMinor:string; grossMinor:string; discountMinor:string;
 }
 export interface BillingDocument {
-  id:string; version:number; status:'draft'; data:BillingDraft;
+  id:string; version:number; status:'draft'|'finalizing'|'issue_failed'|'issued'; data:BillingDraft;
+  issuance:BillingIssuanceSummary|null;
   sourceDocumentId:string|null; createdAt:string; updatedAt:string; createdBy:string; updatedBy:string;
   totals:BillingTotals|null; issues:BillingIssue[];
 }
+export interface BillingIssuanceSummary {id:string;number:string;state:'pending'|'rendering'|'failed'|'ready';attempts:number;errorCode:string|null;createdAt:string;updatedAt:string;files:string[];}
+export interface BillingNumberSeries {id:string;issuer_siren:string;kind:BillingKind;prefix:string;width:number;first_value:number;next_value:number;start_date:string;end_date:string;last_issue_date:string|null;version:number;}
 export interface BillingPage {documents:BillingDocument[]; total:number; limit:number; offset:number;}
 export interface BillingContext {
   clients:{id:string; name:string}[];
@@ -60,4 +63,9 @@ export interface BillingTransport {
   settings():Promise<BillingSettings>;
   saveSettings(version:number,data:BillingSettingsData):Promise<BillingSettings>;
   previewPDF(id:string,version:number):Promise<Blob>;
+  numberSeries():Promise<BillingNumberSeries[]>;
+  createNumberSeries(data:{id:string;issuerSiren:string;kind:BillingKind;prefix:string;width:number;firstValue:number;startDate:string;endDate:string}):Promise<BillingNumberSeries>;
+  issue(id:string,version:number,attemptId:string,seriesId:string):Promise<BillingDocument>;
+  finalize(id:string,version:number):Promise<BillingDocument>;
+  issuedFile(id:string,kind:string):Promise<Blob>;
 }

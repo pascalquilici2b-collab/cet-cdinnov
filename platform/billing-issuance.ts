@@ -6,6 +6,12 @@ import {invoiceForFacturX} from './billing-facturx.ts';
 
 const fail=(status:number,message:string):never=>{throw Object.assign(new Error(message),{status});};
 const hash=(value:string)=>createHash('sha256').update(value).digest('hex');
+/** Identical JSON form in the Worker and Python: sorted object keys, preserved array order, UTF-8. */
+export function billingCanonicalJSON(value:unknown):string {
+ if(Array.isArray(value))return '['+value.map(billingCanonicalJSON).join(',')+']';
+ if(value!==null&&typeof value==='object')return '{'+Object.keys(value).sort().map(key=>JSON.stringify(key)+':'+billingCanonicalJSON((value as Record<string,unknown>)[key])).join(',')+'}';
+ return JSON.stringify(value);
+}
 const id=(value:unknown)=>billingId(value)?value.toLowerCase():fail(400,'Identifiant de facturation invalide.');
 const actor=(value:string)=>typeof value==='string'&&value.trim()&&value.length<=320?value:fail(400,'Auteur requis.');
 const integer=(value:number,min:number,max:number)=>Number.isSafeInteger(value)&&value>=min&&value<=max;
@@ -34,7 +40,7 @@ export interface IssuanceManifest {schemaVersion:1;envelopeSha256:string;generat
 const unpack=(r:IssuanceRow):Issuance=>({id:r.id,documentId:r.document_id,documentVersion:r.document_version,seriesId:r.series_id,
  issuerSiren:r.issuer_siren,sequenceValue:r.sequence_value,number:r.number,issueDate:r.issue_date,snapshot:JSON.parse(r.snapshot_json),
  totals:JSON.parse(r.totals_json),snapshotSha256:r.snapshot_sha256,
- envelopeSha256:hash(JSON.stringify({schemaVersion:1,id:r.id,documentId:r.document_id,version:r.document_version,issuerSiren:r.issuer_siren,number:r.number,issueDate:r.issue_date,snapshotSha256:r.snapshot_sha256})),
+ envelopeSha256:hash(billingCanonicalJSON({schemaVersion:1,id:r.id,documentId:r.document_id,version:r.document_version,issuerSiren:r.issuer_siren,number:r.number,issueDate:r.issue_date,snapshotSha256:r.snapshot_sha256})),
  createdAt:r.created_at,createdBy:r.created_by});
 const readRow=(db:Database,issuanceId:string)=>db.prepare('SELECT * FROM billing_issuances WHERE id=?').bind(issuanceId).first<IssuanceRow>();
 export const readIssuanceJob=(db:Database,issuanceId:string)=>db.prepare('SELECT * FROM billing_issue_jobs WHERE issuance_id=?').bind(id(issuanceId)).first<IssuanceJob>();
@@ -62,7 +68,7 @@ export async function createNumberSeries(db:Database,input:NumberSeriesInput,use
  return fail(503,'La série n’a pas pu être enregistrée.');
 }
 
-/** Internal reservation boundary, not an HTTP endpoint. Invoke only after the final-service preflight. */
+/** Atomic reservation boundary. The HTTP caller must first run the service preflight. */
 export async function reserveIssuance(db:Database,input:{id:string;documentId:string;documentVersion:number;seriesId:string},user:string):Promise<Issuance>{
  if(!input||typeof input!=='object'||Object.keys(input).sort().join()!==['id','documentId','documentVersion','seriesId'].sort().join())return fail(400,'Demande d’émission invalide.');
  const issuanceId=id(input.id),documentId=id(input.documentId),seriesId=id(input.seriesId);actor(user);
@@ -80,7 +86,7 @@ export async function reserveIssuance(db:Database,input:{id:string;documentId:st
  // The number-independent adapter gates run now. The actual number is generated in the database below.
  if(snapshot.kind==='invoice')invoiceForFacturX(snapshot,'PREFLIGHT');
  const snapshotJSON=JSON.stringify(snapshot),totalsJSON=JSON.stringify(calculateBilling(snapshot));
- const snapshotHash=hash(JSON.stringify({schemaVersion:1,document:snapshot,totals:JSON.parse(totalsJSON)}));
+ const snapshotHash=hash(billingCanonicalJSON({schemaVersion:1,document:snapshot,totals:JSON.parse(totalsJSON)}));
  const stamp=new Date().toISOString();
  try{
   // The SELECT and insert triggers run in one SQLite statement: no read/increment/write gap.
