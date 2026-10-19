@@ -1,6 +1,7 @@
 import type {Database, Reply, WorkspaceRow} from './contracts';
 import {budgetCollections} from './contracts';
 import {addClientNames, jsonBody} from '../server/legacy-runtime.mjs';
+import {readRecordSource,saveRecordSource} from './record-writes';
 
 const empty = '{"demo":false,"clients":[],"projects":[],"budgetLines":[],"expenses":[],"drs":[],"imports":[]}';
 
@@ -24,22 +25,13 @@ export async function syncClientNames(request: Request, db: Database, email: str
   if (!Array.isArray(names) || names.length > 10000 || names.some((n: unknown) => typeof n !== 'string' || n.length > 300))
     return reply(400,{error:'Liste de clients invalide.'});
   for (let attempt=0; attempt<4; attempt++) {
-    // The SQL projection avoids moving project logos/reports into the Worker just to add a client.
-    const row = await db.prepare("SELECT json_extract(payload,'$.clients') AS clients,version,length(CAST(payload AS BLOB)) AS bytes FROM budgets_workspace WHERE id='shared'")
-      .first<{clients:string;version:number;bytes:number}>();
-    const current = row ? JSON.parse(row.clients) : [];
+    const row=await readRecordSource(db,'budgets',JSON.parse(empty),0);
+    const current = row.document.clients;
     const clients = addClientNames(current, names);
-    const version = row?.version || 0;
+    const version = row.version;
     if (clients.length === current.length) return reply(200,{clients,version});
-    const serialized = JSON.stringify(clients), stamp = new Date().toISOString();
-    const nextBytes = (row?.bytes || new TextEncoder().encode(empty).length) + new TextEncoder().encode(serialized).length - new TextEncoder().encode(row?.clients || '[]').length;
-    if (nextBytes > 1500000) return reply(413,{error:'Le répertoire dépasse la capacité de cet espace. Réduisez la taille des logos.'});
-    const saved = version===0
-      ? await db.prepare("INSERT INTO budgets_workspace(id,payload,version,updated_at,updated_by) VALUES('shared',json_set(?,'$.clients',json(?)),1,?,?) ON CONFLICT(id) DO NOTHING RETURNING version")
-          .bind(empty,serialized,stamp,email).first<{version:number}>()
-      : await db.prepare("UPDATE budgets_workspace SET payload=json_set(payload,'$.clients',json(?)),version=version+1,updated_at=?,updated_by=? WHERE id='shared' AND version=? RETURNING version")
-          .bind(serialized,stamp,email,version).first<{version:number}>();
-    if (saved) return reply(200,{clients,version:saved.version});
+    const saved=await saveRecordSource(db,'budgets',row.document,{...row.document,clients},version,email,row.exists);
+    if (saved!==null) return reply(200,{clients,version:saved});
   }
   return reply(409,{error:'Le répertoire est en cours de modification. Réessayez.'});
 }

@@ -2,7 +2,7 @@ import {createHash,randomBytes} from 'node:crypto';
 import {Buffer} from 'node:buffer';
 import type {Environment,Reply,WorkspaceRow} from './contracts';
 import {admins,sessionIdentity} from './identity.ts';
-import {applyRecordChanges,validateChanges} from './record-changes';
+import {applyRecordChanges,validateChanges,equalRecordValue} from './record-changes';
 import {saveRecordSource} from './record-writes';
 // The compatibility document keeps all unknown fields. Only explicitly granted fields
 // leave the server for a collaborator; credential verifiers never leave normal APIs.
@@ -10,7 +10,7 @@ type Document = Record<string,any>;
 const fail=(status:number,message:string):never=>{throw Object.assign(new Error(message),{status});};
 const norm=(s:unknown)=>String(s||'').trim().toLowerCase();
 const object=(v:unknown):v is Document=>!!v&&typeof v==='object'&&!Array.isArray(v);
-const same=(a:unknown,b:unknown)=>JSON.stringify(a)===JSON.stringify(b);
+const same=equalRecordValue;
 const digest=(s:string)=>createHash('sha256').update(s).digest('hex');
 const assignments:Record<string,string>={'quilici.pascal@cdinnov.com':'001','pasqualini.david@cdinnov.com':'002','boulanger.albert@cdinnov.com':'003','calendini.matthieu@cdinnov.com':'004','vincenti.paulmichel@cdinnov.com':'005'};
 const employee=(p:Document,email:string)=>p.salaries?.find((s:Document)=>norm(s.email)===email)?.matricule||assignments[email];
@@ -30,7 +30,14 @@ export async function readPortal(env:Environment):Promise<WorkspaceRow>{
 export function portalEnvironment(source:Environment):Environment {
   let current:Promise<WorkspaceRow>|undefined;
   const kv=source.CET_KV as {get(key:string,mode?:string):Promise<unknown>};
-  return {...source,CET_KV:{async get(key:string,mode?:string){
+  return {...source,async PORTAL_ACCOUNT_LOOKUP(email:string){
+    const row=await source.BUDGETS_DB.withSession('first-primary').prepare(`SELECT
+      (SELECT data_json FROM portal_accounts WHERE map_key=? LIMIT 1) AS account,
+      (SELECT json_group_array(json(data_json)) FROM portal_allowed_accounts) AS allowed
+      FROM app_domain_state WHERE domain='portal'`).bind(email).first<{account:string|null;allowed:string}>();
+    if(!row)return fail(503,'Le service de connexion CDInnov est indisponible.');
+    return {accounts:row.account?{[email]:JSON.parse(row.account)}:{},allowed:JSON.parse(row.allowed)};
+  },CET_KV:{async get(key:string,mode?:string){
     if(key!==source.CET_WORKSPACE_KEY)return kv.get(key,mode);
     const row=await(current??=readPortal(source));return mode==='json'?JSON.parse(row.payload):row.payload;
   }}};

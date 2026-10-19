@@ -6,7 +6,7 @@ import {readWorkspace, readRecords, syncClientNames} from './budgets';
 import {dashboardEnvironment, readDashboard} from './dashboard';
 import {portalEnvironment,portalRoute,filesRoute,notificationRequest} from './portal';
 import {createHash} from 'node:crypto';
-import {workspaceRecords} from './workspace-records';
+import {workspaceRecords,workspacePut} from './workspace-records';
 
 /** One deployable entry; modern and compatibility routes share the typed identity module. */
 export default {
@@ -21,10 +21,10 @@ export default {
       if(path==='/api/v1/portal'||path.startsWith('/api/v1/portal/'))return await portalRoute(request,env,reply);
       if(path.startsWith('/files/'))return await filesRoute(request,env,headers,reply);
       if(path==='/notify')return await legacy.fetch(await notificationRequest(request,env),env,ctx);
-      if(request.method==='PATCH'&&(path==='/budgets/workspace'||path==='/sheets/state')){
+      if(['PATCH','PUT'].includes(request.method)&&(path==='/budgets/workspace'||path==='/sheets/state')){
         const email=await identity(request,env);
         if(!email)return reply(401,{error:'Votre connexion CDInnov a expiré. Reconnectez-vous.'});
-        return await workspaceRecords(request,env.BUDGETS_DB.withSession('first-primary'),path==='/sheets/state'?'sheets':'budgets',email,reply);
+        return await (request.method==='PATCH'?workspaceRecords:workspacePut)(request,env.BUDGETS_DB.withSession('first-primary'),path==='/sheets/state'?'sheets':'budgets',email,reply);
       }
       if(!['/api/v1/session','/budgets/workspace','/budgets/clients','/api/v1/budget-records','/api/v1/dashboard'].includes(path)){
         if(path.startsWith('/budgets/')||path==='/sheets/state'||path==='/sheets/session')return await legacy.fetch(request,env,ctx);
@@ -43,7 +43,7 @@ export default {
         const session=await sessionIdentity(request,env);
         return session ? reply(200,session) : reply(401,{error:'Votre connexion CDInnov a expiré. Reconnectez-vous.'});
       }
-      if(path==='/budgets/workspace' && request.method!=='GET') return legacy.fetch(request,env,ctx);
+      if(path==='/budgets/workspace' && request.method!=='GET') return reply(405,{error:'Méthode non autorisée.'});
       if(path==='/api/v1/dashboard') env=dashboardEnvironment(env);
       const email = await identity(request,env);
       if(!email) return reply(401,{error:'Votre connexion CDInnov a expiré. Reconnectez-vous.'});

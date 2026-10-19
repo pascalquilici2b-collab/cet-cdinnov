@@ -5,7 +5,7 @@ export interface Statement {
   all<T = Record<string, unknown>>(): Promise<{results: T[]}>;
   run(): Promise<unknown>;
 }
-export interface Database { prepare(sql: string): Statement; }
+export interface Database { prepare(sql: string): Statement; batch(statements:Statement[]):Promise<unknown>; }
 export interface Environment {
   BUDGETS_DB: Database & {withSession(mode: string): Database};
   BUDGETS_ALLOWED_ORIGINS?: string;

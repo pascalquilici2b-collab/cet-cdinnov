@@ -66,7 +66,7 @@ try{
   assert.deepEqual((await(await call('workspace')).json()).workspace.reportExpenseLinks,data.reportExpenseLinks);
  });
  await check('Échec de projection annule aussi la sauvegarde source',async()=>{
-  await ctx.db.prepare("CREATE TRIGGER test_failure BEFORE INSERT ON app_budget_records WHEN NEW.record_id='reject-test' BEGIN SELECT RAISE(ABORT,'test failure'); END").run();
+  await ctx.db.prepare("CREATE TRIGGER test_failure BEFORE INSERT ON budget_clients WHEN NEW.business_id='reject-test' BEGIN SELECT RAISE(ABORT,'test failure'); END").run();
   const before=await(await call('workspace')).json();const data=structuredClone(before.workspace);data.clients.push({id:'reject-test',name:'Failure'});
   assert.equal((await put(data,before.version)).status,503);
   assert.deepEqual(await(await call('workspace')).json(),before);
@@ -87,7 +87,6 @@ try{
   await assert.rejects(()=>pending,/session ou le budget a changé/);
  });
  await check('Smartsheet conserve lecture, sauvegarde et protection contre les écrasements',async()=>{
-  await ctx.db.prepare('CREATE TABLE cdinnov_sheets_workspace(id TEXT PRIMARY KEY,payload TEXT NOT NULL,revision INTEGER NOT NULL,updated_at TEXT NOT NULL,updated_by TEXT NOT NULL)').run();
   const sheets=(options={})=>ctx.worker.dispatchFetch('https://test/sheets/state',{...options,headers:{Origin:'https://app.cdinnov.eu','Content-Type':'application/json',...headers,...options.headers}});
   const initial=await(await sheets()).json();assert.equal(initial.revision,1);assert.equal(initial.state.sheets.length,0);
   const saved=await sheets({method:'PUT',body:JSON.stringify({state:initial.state,revision:1})});assert.equal(saved.status,200);

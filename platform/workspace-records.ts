@@ -1,9 +1,25 @@
 import type {Database,Reply} from './contracts';
 import {applyRecordChanges,validateChanges,type RecordPath} from './record-changes';
 import {readRecordSource,saveRecordSource} from './record-writes';
+import {saveBusinessDocument} from './business-schema.mjs';
 import {jsonBody,validateWorkspace,validateState} from '../server/legacy-runtime.mjs';
 const emptyBudget={demo:false,clients:[],projects:[],budgetLines:[],expenses:[],drs:[],imports:[]};
 const emptySheets={version:1,sampleData:false,profile:{name:'Équipe',organization:'CD Innovation'},workspaces:[],sheets:[],dashboards:[],activity:[]};
+/** Old full-document clients keep their global revision precondition. All writes
+ * use the same business tables as PATCH; there is no second persistence path. */
+export async function workspacePut(request:Request,db:Database,domain:'budgets'|'sheets',email:string,reply:Reply){
+  if(request.method!=='PUT')return reply(405,{error:'Méthode non autorisée.'});
+  const body=await jsonBody(request,1500000),next=domain==='sheets'?body.state:body;
+  const raw=domain==='sheets'?body.revision:request.headers.get('if-match');
+  if(raw===null||raw===undefined||!/^\d+$/.test(String(raw))||!Number.isSafeInteger(Number(raw))||(domain==='sheets'&&Number(raw)<1))return reply(domain==='sheets'?400:428,{error:'Version de sauvegarde requise.'});
+  if(domain==='budgets'&&!validateWorkspace(next))return reply(400,{error:'Structure des budgets invalide.'});
+  if(domain==='sheets')try{validateState(next);}catch(error){return reply(400,{error:error instanceof Error?error.message:'Structure Smartsheet invalide.'});}
+  const current=await readRecordSource(db,domain,domain==='budgets'?emptyBudget:emptySheets,domain==='budgets'?0:1);
+  if(current.version!==Number(raw))return reply(409,{error:'Un collègue a modifié les données. Votre copie est conservée.'});
+  const saved=await saveBusinessDocument(db,domain,current.document,next,current.version,email,current.exists,undefined,current.version+1,true);
+  if(saved===null)return reply(409,{error:'Un collègue a modifié les données. Votre copie est conservée.'});
+  return reply(200,domain==='budgets'?{saved:true,version:saved}:{ok:true,revision:saved});
+}
 function brokenBudgetLinks(doc:Record<string,any>){
   const broken=new Set<string>();
   for(const [collection,field,target] of [['projects','clientId','clients'],['budgetLines','projectId','projects'],['expenses','projectId','projects'],['expenses','budgetLineId','budgetLines'],['drs','projectId','projects'],['imports','projectId','projects'],['partnerReports','projectId','projects']]){

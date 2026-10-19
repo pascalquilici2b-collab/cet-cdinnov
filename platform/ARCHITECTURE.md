@@ -7,13 +7,13 @@ Ce document fixe la cible technique pour l’ensemble de l’application et dist
 
 ## Point d’avancement du 19 octobre
 
-Les principaux écrans sont migrés. Les sauvegardes ciblées sont maintenant implémentées pour le portail, les budgets et Smartsheet. Le travail restant porte surtout sur la normalisation SQL, les rôles configurables et le cycle complet de facturation. La cible reste **React/TypeScript + Cloudflare Workers + D1 + R2**, sans nouvel abonnement.
+Les principaux écrans sont migrés. Le portail, les budgets et Smartsheet utilisent désormais des tables par entité, avec des sauvegardes ciblées et atomiques. Le travail restant porte surtout sur les lectures plus fines, les rôles configurables et le cycle complet de facturation. La cible reste **React/TypeScript + Cloudflare Workers + D1 + R2**, sans nouvel abonnement.
 
 La tranche précédente a placé le portail, les fichiers historiques et les notifications derrière la session commune. Les comptes et leurs mots de passe sont conservés. D1 reste la seule source active du portail. L’ancien document KV est conservé comme point de reprise, sans route publique de lecture ou d’écriture.
 
 La tranche actuelle envoie les seules modifications, avec une précondition sur chaque valeur concernée. Des utilisateurs peuvent enregistrer des lignes différentes depuis une même ancienne lecture. Un conflit bloque toute la requête et conserve la copie locale. Les droits, les références et les validations restent contrôlés par le serveur. Les anciens onglets gardent leurs sauvegardes versionnées compatibles. Les nouvelles saisies des collègues apparaissent au rechargement ; il n’y a pas de synchronisation collaborative en temps réel ajoutée.
 
-Les écritures SQLite ciblent les champs/enregistrements modifiés et conservent les triggers de projection. Les documents JSON restent les sources de vérité internes : la normalisation en tables par entité reste à réaliser. La publication de ce lot ne déplace aucune donnée et ne modifie aucun schéma.
+Les écritures SQLite ciblent les enregistrements modifiés dans 56 tables d’entités et de métadonnées. Les trois documents globaux sont remplacés par des vues SQL de compatibilité, reconstruites à la lecture. Les anciennes tables sont archivées en lecture seule. Chaque entité conserve ses propriétés JSON pour préserver les champs facultatifs et historiques ; les identifiants et champs métier utiles sont exposés par des colonnes SQL générées et indexées. Ce lot ne prétend pas avoir converti tous les champs historiques en colonnes SQL typées.
 
 Les formulaires de congés et déplacements utilisent les couleurs du thème sombre pour les titres, champs, listes et encarts. Le bloc « Organisation de l’équipe / Un agenda partagé, une vue d’ensemble » est retiré. Aucun abonnement ni fournisseur supplémentaire n’est ajouté.
 
@@ -33,7 +33,7 @@ Conserver l’infrastructure en place et remplacer progressivement les composant
 | Construction | Node.js et pnpm en développement ; esbuild et Vite selon les modules | Scripts reproductibles dans le dépôt commun |
 | Hébergement statique | Publication GitHub Pages existante sur le domaine de l’application | Conservée ; pas de nouvel hébergeur |
 | API | TypeScript sur Cloudflare Workers, organisé par domaine | Entrée commune typée ; délégation à des services JavaScript historiques |
-| Données métier | D1, SQL paramétré, migrations versionnées et tables par entité | Tables Marchés/Agenda ; projection Budgets ; plusieurs documents JSON encore sources d’écriture |
+| Données métier | D1, SQL paramétré, migrations versionnées et tables par entité | Tables Marchés/Agenda ; sources Portail, Budgets et Smartsheet par entité ; documents globaux reconstruits à la lecture |
 | Fichiers | R2 privé, références et empreintes dans la base | Stockage existant conservé ; pièces Marchés encore en blocs dans D1 |
 | Identité | Session commune, habilitations contrôlées sur chaque route serveur | Connexion et autorisations serveur en TypeScript ; comptes conservés, sessions révocables, portail et fichiers protégés |
 | Analyse documentaire | Qwen3 via Workers AI, propositions sourcées et validation humaine | Déjà intégré aux marchés |
@@ -53,7 +53,7 @@ flowchart TD
   L[Lecture locale PDF / OCR / Office]
   API[Entrée API TypeScript : Workers]
   LEG[Services historiques maintenus]
-  SQL[(D1 : tables et documents JSON)]
+  SQL[(D1 : tables métier et vues de compatibilité)]
   KV[(KV : instantané historique conservé, non modifiable par le portail)]
   R2[(R2 : fichiers existants)]
   AI[Qwen3 : propositions documentaires]
@@ -71,18 +71,18 @@ flowchart TD
   UI --> FX
 ```
 
-Les services de compatibilité passent par la même identité et lisent désormais le portail dans D1. Le KV n’est plus une source active pour ces services. La suite consiste à réduire les documents JSON globaux à des échanges par enregistrement.
+Les services de compatibilité passent par la même identité et lisent le portail dans D1. Le KV n’est plus une source active. Les vues SQL permettent de conserver les écrans et exports actuels pendant la reprise progressive des lectures par entité.
 
 ## 3. Ce qui est migré, module par module
 
 | Domaine | Reprise livrée de l’interface | Travail restant |
 |---|---|---|
 | Tableau de bord | Planning équipe, périodes de congés, demandes, derniers documents, portraits, responsive | Évolutions métier et intégration aux futurs engagements |
-| CET et salariés | Listes, mouvements, paramètres et principaux formulaires en React/TS | Calculs et imports à extraire des contrôleurs ; écritures métier par enregistrement à poursuivre |
+| CET et salariés | Listes, mouvements, paramètres et principaux formulaires en React/TS ; tables par entité | Calculs et imports à extraire des contrôleurs |
 | Congés et déplacements | Calendrier, listes, soldes, demandes et formulaires en React/TS | Certains détails et contrôleurs de sélection restent historiques |
-| Notes de frais et facturier | Listes et formulaires React/TS, filtres, tris et pagination | Contrôleurs exports/signature/Factur-X à typer ; stockage normalisé à poursuivre |
-| Outil budgets | Sources et build React/TS réunis dans le dépôt ; thèmes et responsive | Écritures par entité ; remplacement progressif du document global |
-| Smartsheet | Application reconstruite depuis les déclarations du bundle en service ; vues, formulaires, tableaux de bord et sauvegardes | Typage strict intégral des composants repris ; écriture par feuille/ligne |
+| Notes de frais et facturier | Listes et formulaires React/TS, filtres, tris, pagination ; notes, lignes et factures dans leurs tables | Contrôleurs exports/signature/Factur-X à typer ; cycle CCIC |
+| Outil budgets | Sources et build React/TS réunis dans le dépôt ; thèmes, responsive et tables par entité | Lectures ciblées plus fines et règles métier complémentaires |
+| Smartsheet | Application reprise avec vues, formulaires, tableaux de bord et sauvegardes ; feuilles, lignes et cellules séparées en base | Typage strict intégral des composants repris ; lectures ciblées |
 | Marchés et contrats | Neuf rubriques en React/TS : assistant, identité, pièces, tarifs, plafonds, périodes, conditions, points à confirmer, historique | Contrôleur et moteur métier encore JavaScript ; déplacement des pièces vers R2 ; parcours commandes/interventions/factures |
 | Connexion et navigation | Interface harmonisée, mode nuit, profil en bas du menu ; serveur de session partagé en TypeScript | Reprise de la coque et du formulaire en React/TS ; permissions configurables |
 
@@ -92,22 +92,25 @@ Smartsheet dispose d’un contrôle TypeScript de toutes ses sources et d’un c
 
 ## 4. Données, cohérence et conservation
 
-Une seule source accepte les écritures pour chaque domaine. La projection SQL Budgets est alimentée par des triggers dans la transaction du document source : elle n’est pas un second stockage modifiable indépendamment. La migration future doit conserver cette propriété.
+Une seule source accepte les écritures pour chaque domaine : ses tables métier. La révision de domaine, les changements d’enregistrements et leurs relations sont enregistrés dans une seule transaction D1. Les vues des anciens documents et de l’ancien répertoire Budgets ne sont pas des copies stockées ni des sources modifiables indépendamment.
 
 | Stockage actuel | Conservation actuelle | Cible |
 |---|---|---|
-| `app_portal_workspace` (D1) | Document historique conservé ; écritures ciblées atomiques, droits et réponses filtrées | Tables métier normalisées et lectures compatibles |
+| `portal_*` et `app_portal_meta` | Salariés, congés, CET, notes/lignes, codes, factures, paramètres et comptes séparés ; droits et réponses filtrées | Lectures métier plus fines |
 | Portail KV | Instantané conservé, fermé aux anciennes routes ; aucun écrivain actif | Archive de reprise ; aucun retour automatique vers cette source |
 | `app_session_revocations` (D1) | Jetons déconnectés refusés jusqu’à expiration ; empreintes uniquement | Politique de session et rôles configurables |
-| `budgets_workspace` | Document source, ETag et écritures ciblées sur clients, projets, lignes, dépenses et rapports | Faire des tables par entité la source de vérité après réconciliation |
-| `app_budget_records` | Projection indexée, synchronisée dans la même transaction | Transition vers les enregistrements faisant autorité après réconciliation |
-| Espace Smartsheet | Espaces, feuilles, lignes, colonnes et champs modifiables séparément ; document compatible et révision conservés | Tables par entité, préservation des ordres et des extensions |
+| `budget_*` et `app_budgets_meta` | Clients, comptes clients, projets/périodes, postes, dépenses/paiements, DR, imports, rapports et liens JEMS dans leurs tables | Contrats SQL typés supplémentaires selon les futurs usages |
+| `app_portal_workspace`, `budgets_workspace`, `cdinnov_sheets_workspace`, `app_budget_records` | Vues de compatibilité construites depuis les tables ; révisions, ETag, pagination et exports conservés | Réduire les lectures complètes quand les écrans le permettent |
+| `sheet_*` et `app_sheets_meta` | Espaces, dossiers, feuilles, colonnes, lignes, cellules, commentaires, formulaires/champs, automatisations et tableaux de bord séparés | Lectures par feuille et cellule |
+| `archive_*` | Anciennes tables figées, non utilisées par les lectures ou sauvegardes de l’application | Point de comparaison ; jamais restaurer par-dessus les nouvelles saisies |
 | Marchés | Versions, pièces, lectures et analyses conservées | Relations vers commandes, interventions et factures ; pièces privées dans R2 |
 | Agenda | Déplacements et versions en base | Référentiels et droits communs |
 
 La migration des interfaces ne modifie pas ces sources de données. Les nouvelles vues restent compatibles avec les sauvegardes et contrôles de version existants. Un conflit doit conserver la saisie locale, présenter une erreur et permettre son export ; il ne doit pas écraser automatiquement la version d’un autre utilisateur.
 
-Les écritures `PATCH` portent sur les différences depuis la dernière copie locale confirmée. Le serveur les applique à la source actuelle, puis sauvegarde par une instruction SQL atomique, avec relance bornée si la version change pendant la requête. Les ajouts et suppressions ne se fondent pas sur un indice périmé. Un réordonnancement ambigu est refusé ; les collections sans identifiant fiable restent des blocs conservés intégralement. Les anciens `PUT` gardent la précondition de version globale. La limite stockée de 1,5 Mo reste en place ; les requêtes différentielles acceptent 4 Mo pour les anciennes et nouvelles valeurs de gros champs.
+Les écritures `PATCH` portent sur les différences depuis la dernière copie locale confirmée. Le serveur les applique à la vue actuelle, puis ne transmet à SQL que les enregistrements modifiés. Un lot D1 transactionnel vérifie la révision avant toute écriture ; une erreur annule le lot. Les ajouts et suppressions ne se fondent pas sur un indice client périmé. Les données sans identifiant et les doublons historiques gardent des clés internes distinctes et leur ordre, sans ajouter de champ aux exports. Les anciens `PUT` gardent la précondition de version globale. La capacité de 1,5 Mo du document échangé reste volontairement inchangée ; les requêtes différentielles acceptent 4 Mo pour les anciennes et nouvelles valeurs de gros champs.
+
+Les relations de contenance entre tables ont des clés étrangères. Les références métier historiques sont conservées telles quelles ; les validations existantes continuent d’empêcher les nouveaux liens invalides sur les routes concernées. La connexion lit directement les tables des comptes et habilitations, sans reconstituer le portail financier. Voir [ADR-0005](decisions/0005-business-tables.md) pour le schéma, la bascule et les limites.
 
 Le déplacement d’une pièce devra procéder par copie, comparaison de taille et d’empreinte, puis changement de référence. Aucun original ne doit être supprimé avant vérification et maintien d’une lecture compatible pendant la transition.
 
@@ -117,8 +120,8 @@ La connexion vérifie la preuve côté serveur. Le navigateur ne télécharge pl
 
 | Surface | Protection livrée | Limite / suite |
 |---|---|---|
-| Portail | Session requise ; salarié limité à son dossier, annuaire et planning partagés ; comptes résumés sans vérificateurs | Document interne encore global, avec écritures JSON ciblées |
-| Sauvegardes | Préconditions par valeur pour les nouveaux clients ; version globale pour les anciens ; conflits atomiques, copie locale et export conservés | Normalisation SQL et résolution assistée des conflits |
+| Portail | Session requise ; salarié limité à son dossier, annuaire et planning partagés ; comptes résumés sans vérificateurs | Lectures plus fines à poursuivre |
+| Sauvegardes | Préconditions par valeur pour les nouveaux clients ; version globale pour les anciens ; transactions multi-tables, copie locale et export conservés | Résolution assistée des conflits |
 | Pièces R2 | Lecture autorisée par référence accessible ou propriétaire du dépôt ; fichiers joints à un autre dossier refusés ; dépôt existant non écrasable | Inventaire périodique des fichiers devenus orphelins |
 | Suppression de pièces | Une référence encore utilisée interdit la suppression ; annulation d’un formulaire conserve l’original | Nettoyage différé automatisé à concevoir |
 | Notifications | Session, destinataires internes contrôlés et limitation de fréquence | Évènements métier serveur à terme |
@@ -192,7 +195,7 @@ Après cette bascule de sécurité, republier l’ancien frontend non authentifi
 ## 9. Ordre de clôture de la migration
 
 1. **Identité et fichiers communs** : accès du portail et des fichiers sécurisés ; suivi des habilitations et revue périodique à maintenir.
-2. **Normalisation SQL** : écritures ciblées du portail, des budgets et de Smartsheet livrées ; supprimer progressivement les documents globaux comme sources de vérité après réconciliation des tables par entité et reprise des lecteurs.
+2. **Tables métier** : documents globaux remplacés comme sources de vérité ; poursuivre les lectures ciblées et le typage des propriétés métier au rythme des fonctionnalités.
 3. **Cycle métier CCIC** : devis, commandes, engagements, interventions, factures, relevés, règlements et alertes, avec transactions et cas de concurrence.
 4. **Derniers composants historiques** : coque, connexion, détails de planning, imports et intégrations ; généraliser le typage strict et retirer les chemins de compatibilité devenus inutiles.
 5. **Exploitation** : mesure des quotas et du CPU par route, essai de restauration, revue des accès et recette utilisateur de bout en bout.
@@ -205,10 +208,11 @@ La migration sera considérée comme terminée quand les accès privés seront c
 |---|---|---|
 | Livré | Portail et fichiers derrière la session commune | Lectures filtrées, droits par dossier/pièce, anciennes voies fermées, invitations, export et restauration métier contrôlés |
 | Livré | Écritures ciblées des trois modules | Préconditions par enregistrement/champ, conflits atomiques, conservation des données et compatibilité des anciens clients |
-| P1 | Tables métier et rôles configurables | Remplacer les documents sources par des tables normalisées après réconciliation ; poursuivre le modèle de rôles |
+| Livré | Tables métier des trois modules | Sources par entité, clés étrangères de contenance, vues compatibles, archives figées et reprise réconciliée |
+| P1 | Rôles configurables | Remplacer progressivement les correspondances historiques par des habilitations explicites |
 | P1 | Devis et commandes CCIC | Devis versionnés ; commande rattachée au marché et à une période ; plafond annuel et engagement suivis séparément |
 | P1 | Interventions et factures CCIC | Tâches prédéfinies + texte libre ; temps et périodes ; facture partielle/finale et relevé associé ; émission atomique, historique figé |
 | P2 | Fin de reprise technique | Coque et détails de planning typés ; composants Smartsheet en mode strict ; anciens contrôleurs retirés après parité |
 | P2 | Exploitation | Restauration répétable, mesures CPU/quotas par route, suivi des erreurs et recette métier complète |
 
-Les décisions techniques figurent dans [ADR-0002](decisions/0002-shared-identity.md), [ADR-0003](decisions/0003-protected-portal.md) et [ADR-0004](decisions/0004-record-writes.md). Les preuves de sauvegarde et de conservation restent dans le dossier privé de livraison ; aucune sauvegarde de données ou de comptes n’est publiée avec le site.
+Les décisions techniques figurent dans [ADR-0002](decisions/0002-shared-identity.md), [ADR-0003](decisions/0003-protected-portal.md), [ADR-0004](decisions/0004-record-writes.md) et [ADR-0005](decisions/0005-business-tables.md). Les preuves de sauvegarde et de conservation restent dans le dossier privé de livraison ; aucune sauvegarde de données ou de comptes n’est publiée avec le site.

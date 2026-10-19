@@ -1,5 +1,6 @@
 import type {Database} from './contracts';
 import {equalRecordValue} from './record-changes.ts';
+import {saveBusinessDocument} from './business-schema.mjs';
 type Doc=Record<string,any>;
 export type RecordDomain='portal'|'budgets'|'sheets';
 export const recordSources={portal:{table:'app_portal_workspace',revision:'version'},budgets:{table:'budgets_workspace',revision:'version'},sheets:{table:'cdinnov_sheets_workspace',revision:'revision'}} as const;
@@ -50,23 +51,6 @@ export async function readRecordSource(db:Database,domain:RecordDomain,empty:Doc
   return {document:row?JSON.parse(row.payload):structuredClone(empty),version:row?.version??initial,exists:!!row};
 }
 export async function saveRecordSource(db:Database,domain:RecordDomain,before:Doc,after:Doc,version:number,email:string,exists=true):Promise<number|null>{
-  const {table,revision}=recordSources[domain],stamp=new Date().toISOString();
   if(new TextEncoder().encode(JSON.stringify(after)).length>1500000)throw Object.assign(new Error('Cet espace dépasse 1,5 Mo. Réduisez la taille des fichiers intégrés avant de réessayer.'),{status:413});
-  const edits=storageEdits(before,after);
-  if(!edits.length&&exists)return version;
-  if(!exists){const row=await db.prepare(`INSERT INTO ${table}(id,payload,${revision},updated_at,updated_by) VALUES('shared',?,?,?,?) ON CONFLICT(id) DO NOTHING RETURNING ${revision} AS version`).bind(JSON.stringify(after),version+1,stamp,email).first<{version:number}>();return row?.version??null;}
-  // One statement is atomic with all existing triggers. The revision guards the
-  // short read/validate/write race, not unrelated edits made since the user's GET.
-  // A recursive CTE avoids SQL/binding limits on multi-record imports.
-  const row=await db.prepare(`WITH RECURSIVE changes AS (SELECT key AS n,value AS edit FROM json_each(?)),
-    patched(n,document) AS (
-      SELECT 0,payload FROM ${table} WHERE id='shared' AND ${revision}=?
-      UNION ALL SELECT patched.n+1,CASE WHEN json_extract(edit,'$.remove')=1
-        THEN json_remove(document,json_extract(edit,'$.path'))
-        ELSE json_set(document,json_extract(edit,'$.path'),json(edit -> '$.value')) END
-      FROM patched JOIN changes ON changes.n=patched.n
-    ) UPDATE ${table} SET payload=(SELECT document FROM patched ORDER BY n DESC LIMIT 1),
-      ${revision}=${revision}+1,updated_at=?,updated_by=? WHERE id='shared' AND ${revision}=? RETURNING ${revision} AS version`)
-    .bind(JSON.stringify(edits),version,stamp,email,version).first<{version:number}>();
-  return row?.version??null;
+  return saveBusinessDocument(db,domain,before,after,version,email,exists);
 }

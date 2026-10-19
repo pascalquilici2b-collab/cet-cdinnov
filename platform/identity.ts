@@ -51,7 +51,10 @@ function decode(value:unknown,key:string,audience:string,now:number):Claims|null
 async function account(env:Environment,email:string):Promise<Account|null> {
   const kv=env.CET_KV as {get(key:string,mode:'json'):Promise<unknown>}|undefined;
   if(!kv || typeof env.CET_WORKSPACE_KEY!=='string') throw Object.assign(new Error('Le service de connexion CDInnov est indisponible.'),{status:503});
-  const portal=object(await kv.get(env.CET_WORKSPACE_KEY,'json')),auth=object(portal?.auth);
+  // The deployed portal supplies an indexed account lookup. Standalone adapters
+  // keep the original interface; production never consults the frozen KV copy.
+  const lookup=env.PORTAL_ACCOUNT_LOOKUP as ((email:string)=>Promise<unknown>)|undefined;
+  const auth=lookup?object(await lookup(email)):object(object(await kv.get(env.CET_WORKSPACE_KEY,'json'))?.auth);
   const allowed=Array.isArray(auth?.allowed) ? auth.allowed.map(normalize) : [];
   if(!seededAccounts.includes(email) && !allowed.includes(email)) return null;
   const accounts=object(auth?.accounts);

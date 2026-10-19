@@ -7,6 +7,7 @@ import vm from 'node:vm';
 import {schema} from '../server/budget-service-source.mjs';
 import {emptyMarket,validateMarket,minor,activationBlockers,suggestFromText} from './domain.mjs';
 import {migrateLocal} from '../platform/migrations.mjs';
+import {migrateBusiness,seedBusinessDocument} from '../platform/business-migration.mjs';
 
 const require=createRequire(process.env.MARCHES_BUILD_PACKAGE||new URL('../package.json',import.meta.url));
 const {build}=require('esbuild'),{Miniflare}=require('miniflare');
@@ -24,11 +25,12 @@ export async function testEnvironment(options={}){
  for(const sql of schema)await db.prepare(sql).run();
  await migrateLocal(db);
  await db.prepare("INSERT INTO app_portal_workspace(id,payload,version,updated_at,updated_by) VALUES ('shared',?,1,?,'fixture')").bind(await kv.get('markets-test'),new Date().toISOString()).run();
+ if(!options.beforeBusinessMigration)await migrateBusiness(db);
  const migration=(await readFile(new URL('schema.sql',import.meta.url),'utf8'))+'\n'+(await readFile(new URL('ai-schema.sql',import.meta.url),'utf8'));
  for(const sql of migration.split(/;(?=\s*(?:CREATE|$))/).map(s=>s.trim()).filter(Boolean))await db.prepare(sql).run();
  const call=async(path,options={})=>{if(options.body instanceof FormData){const serialized=new Request('https://preview.example',{method:'POST',body:options.body});options={...options,body:Buffer.from(await serialized.arrayBuffer()),headers:{...options.headers,'Content-Type':serialized.headers.get('content-type')}};}return worker.dispatchFetch('https://preview.example/budgets/'+path,{...options,headers:{Origin:'http://127.0.0.1:5196','Content-Type':'application/json',...options.headers}});};
  const login=async email=>{const c=await(await call('session',{method:'POST',body:JSON.stringify({email,action:'challenge'})})).json();const proof=createHmac('sha256',pbkdf2Sync(password,Buffer.from(c.salt,'hex'),c.iter,32,'sha256')).update(c.challenge).digest('hex');const r=await call('session',{method:'POST',body:JSON.stringify({email,action:'verify',challenge:c.challenge,proof})});assert.equal(r.status,200);return r.json();};
- const setPortal=async payload=>{await kv.put('markets-test',payload);await db.prepare("UPDATE app_portal_workspace SET payload=?,version=version+1 WHERE id='shared'").bind(payload).run();};
+ const setPortal=async payload=>{await kv.put('markets-test',payload);const row=await db.prepare("SELECT version FROM app_portal_workspace WHERE id='shared'").first();await seedBusinessDocument(db,'portal',JSON.parse(payload),(row?.version||0)+1);};
  return {worker,db,kv,accounts,password,sessionSecret,call,login,setPortal};
 }
 export const fixture=()=>({...emptyMarket(),title:'Accompagnement de projet — cas fictif',clientName:'Client de test',reference:'TEST-2026',prices:[{id:'price-1',label:'Assistance',profile:'Senior',location:'Corse',unit:'day',amountMinor:70000,startDate:'',endDate:'',status:'proposed',notes:'',source:{documentId:'',locator:'',note:''}}],ceilings:[{id:'limit-1',label:'Maximum annuel',scope:'annual',periodId:'',amountMinor:10000000,basis:'HT',consumptionBasis:'orders',notes:'',status:'proposed',source:{documentId:'',locator:'',note:''}}],periods:[{id:'period-1',label:'Année initiale',startDate:'',endDate:'',status:'proposed',decision:'',source:{documentId:'',locator:'',note:''}}]});

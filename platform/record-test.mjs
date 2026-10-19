@@ -53,7 +53,7 @@ try{
  const getBudget=async()=>(await ok(await call('/budgets/workspace',admin))).workspace;
  await check('Budget edit transfers only changed fields and SQLite updates no untouched projection rows',async()=>{
   await ctx.db.prepare('CREATE TABLE test_record_events(collection TEXT,id TEXT)').run();
-  await ctx.db.prepare('CREATE TRIGGER test_record_update AFTER UPDATE ON app_budget_records BEGIN INSERT INTO test_record_events VALUES(NEW.collection,NEW.record_id); END').run();
+  await ctx.db.prepare("CREATE TRIGGER test_record_update AFTER UPDATE ON budget_clients BEGIN INSERT INTO test_record_events VALUES('clients',NEW.business_id); END").run();
   const next=structuredClone(budget);next.clients[0].name='Renamed';const changes=recordChanges(budget,next),edits=storageEdits(budget,next);
   assert.ok(JSON.stringify(changes).length<200);assert.ok(JSON.stringify(edits).length<100);
   await ok(await patch('/budgets/workspace',admin,changes));assert.deepEqual(await getBudget(),next);
@@ -93,11 +93,10 @@ try{
   await ok(await patch('/budgets/workspace',admin,recordChanges(before,next)));assert.deepEqual(await getBudget(),next);
  });
  await check('Projection failure rolls back the whole multi-record write',async()=>{
-  await ctx.db.prepare("CREATE TRIGGER test_record_failure BEFORE UPDATE ON app_budget_records WHEN NEW.record_id='b2' BEGIN SELECT RAISE(ABORT,'failure'); END").run();
+  await ctx.db.prepare("CREATE TRIGGER test_record_failure BEFORE UPDATE ON budget_lines WHEN NEW.business_id='b2' BEGIN SELECT RAISE(ABORT,'failure'); END").run();
   const before=await getBudget(),next=structuredClone(before);next.budgetLines[0].amount=777;next.budgetLines[1].amount=888;
   assert.equal((await patch('/budgets/workspace',admin,recordChanges(before,next))).status,503);assert.deepEqual(await getBudget(),before);await ctx.db.prepare('DROP TRIGGER test_record_failure').run();
  });
- await ctx.db.prepare('CREATE TABLE cdinnov_sheets_workspace(id TEXT PRIMARY KEY,payload TEXT NOT NULL,revision INTEGER NOT NULL,updated_at TEXT NOT NULL,updated_by TEXT NOT NULL)').run();
  const now='2026-10-19T08:00:00.000Z';
  const sheets={version:1,sampleData:false,profile:{name:'Test',organization:'CDInnov'},workspaces:[{id:'w1',name:'Workspace',folders:[]}],sheets:[{id:'s1',name:'Sheet',workspaceId:'w1',folderId:null,favorite:false,columns:[{id:'col',title:'Name',type:'text',width:200}],rows:[{id:'r1',parentId:null,cells:{col:'One'}},{id:'r2',parentId:null,cells:{col:'Two'}}],comments:[],forms:[],automations:[],lastView:'grid',createdAt:now,updatedAt:now}],dashboards:[],activity:[]};
  await ok(await call('/sheets/state',admin,{method:'PUT',body:JSON.stringify({state:sheets,revision:1})}));
