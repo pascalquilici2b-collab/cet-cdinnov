@@ -45,6 +45,30 @@ try{
  await page.locator('#fvSearch').fill('');await page.getByRole('button',{name:'Ajouter une facture',exact:true}).click();await page.locator('#fvNum').fill('MANUAL-KEEP');await page.locator('#fvPdfInput').setInputFiles({name:'test.pdf',mimeType:'application/pdf',buffer:Buffer.from('%PDF-1.7\nsynthetic fixture')});await page.locator('#fvPdfStatus').filter({hasText:'champs préremplis'}).waitFor();assert.equal(await page.locator('#fvNum').inputValue(),'MANUAL-KEEP');assert.equal(await page.locator('#fvHT').inputValue(),'250');await page.getByRole('button',{name:'Créer la facture',exact:true}).click();await page.locator('#overlay').waitFor({state:'hidden'});const added=await page.evaluate(()=>factures().find(f=>f.number==='MANUAL-KEEP'));assert.ok(added.createdAt);assert.match(added.pdfSource.url,/^idb:/);assert.equal(added.ht,250);step('Invoice editing, timestamps, PDF prefill respects manual fields and stores original');
  await page.screenshot({path:join(out,'factures-react-desktop.png'),fullPage:true});
  await page.locator('.sidebar [data-view="notesfrais"]').click();await page.locator('[data-react-finance="notesfrais"]').waitFor();
+
+ // A cached/missing global theme must not remove expense-specific sizing or workflow colours.
+ await page.evaluate(()=>{
+  const canvas=document.createElement('canvas');canvas.width=800;canvas.height=600;
+  const c=canvas.getContext('2d');c.fillStyle='#4c718b';c.fillRect(0,0,800,600);c.fillStyle='#ddeaf3';c.beginPath();c.arc(400,230,120,0,Math.PI*2);c.fill();
+  const portrait=canvas.toDataURL('image/png');state.salaries.forEach(s=>s.photo=portrait);
+  document.querySelector('link[href^="design/apple.css"]').disabled=true;setView('notesfrais');
+ });
+ await page.locator('.cdi-employee-identity img').first().waitFor();
+ for(const width of [1440,390,320])for(const theme of ['light','dark']){
+  await page.setViewportSize({width,height:900});await page.evaluate(theme=>CDITheme.set(theme),theme);
+  await page.waitForFunction(()=>Array.from(document.querySelectorAll('.cdi-employee-identity img')).every(i=>i.complete&&i.naturalWidth===800));
+  const portraits=await page.locator('.cdi-employee-identity img').evaluateAll(imgs=>imgs.map(i=>({width:i.getBoundingClientRect().width,height:i.getBoundingClientRect().height,radius:getComputedStyle(i).borderRadius,fit:getComputedStyle(i).objectFit})));
+  await page.screenshot({path:join(out,'expense-without-global-theme-'+theme+'-'+width+'.png'),fullPage:true});
+  assert.ok(portraits.length>0&&portraits.every(p=>p.width<=32&&p.height<=32&&Math.abs(p.width-p.height)<1&&p.radius==='50%'&&p.fit==='cover'),'Expense portraits stay small and circular even without the global theme: '+JSON.stringify(portraits));
+  for(const [state,color] of [['sent',theme==='light'?'rgb(7, 91, 181)':'rgb(145, 200, 255)'],['paid',theme==='light'?'rgb(23, 102, 59)':'rgb(164, 228, 194)']]){
+   const status=page.locator('.expense-status.is-'+state);assert.equal(await status.evaluate(e=>getComputedStyle(e).color),color);
+   const icon=status.locator('svg');assert.equal(await icon.count(),1);assert.equal((await icon.boundingBox()).width,15);
+   assert.equal(await icon.evaluate(e=>getComputedStyle(e).stroke),color);
+  }
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+ }
+ await page.evaluate(()=>{document.querySelector('link[href^="design/apple.css"]').disabled=false;CDITheme.set('light')});await page.setViewportSize({width:1440,height:1000});
+ step('Large source portraits and workflow icons retain size, circular crop and colour with a missing global theme');
  // Reproduce the reported long-form transparency: the footer must remain inside the opaque modal.
  for(const theme of ['light','dark']){
   await page.evaluate(theme=>CDITheme.set(theme),theme);

@@ -4,6 +4,7 @@ import type {DashboardAction, DashboardData, DocumentSummary, Member} from '../d
 import './dashboard.css';
 import {Icon} from './icon';
 import {ExpenseStatus} from './expense-status';
+import {ExpensePresentationStyle} from './expense-presentation';
 
 interface Props {load:(week:string,signal:AbortSignal)=>Promise<DashboardData>; open:(action:DashboardAction)=>Promise<void>|void; portrait?:(member:Member)=>string;}
 const add=(day:string,n:number)=>new Date(Date.parse(day+'T12:00:00Z')+n*86400000).toISOString().slice(0,10);
@@ -53,6 +54,7 @@ function Dashboard({load,open,portrait}:Props){
   </section>;}
 
   return <div className="cdi-dashboard" aria-busy={busy}>
+    <ExpensePresentationStyle/>
     <div className="db-heading"><div><span className="db-eyebrow">CDInnov · Vue d’ensemble</span><h2>L’activité de votre équipe</h2><p>{date(data?.today||parisDay(),{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</p></div>
       <div className="db-update"><button className="db-button" disabled={busy} onClick={()=>refresh(r=>r+1)}><Icon name="refresh"/> {busy?'Actualisation…':'Actualiser'}</button>{data&&<small>Mis à jour à {date(data.generatedAt,{hour:'2-digit',minute:'2-digit'})}</small>}</div>
     </div>

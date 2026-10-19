@@ -1126,7 +1126,7 @@ function renderDashboard(){
   $('#content').innerHTML='<div id="dashboardRoot"><div class="card card-pad" role="status">Chargement du tableau de bord…</div></div>';
   const element=$('#dashboardRoot');
   if(!document.getElementById('dashboardStyle')){const css=document.createElement('link');css.id='dashboardStyle';css.rel='stylesheet';css.href='platform/dashboard.css';document.head.append(css);}
-  dashboardModule ||= import('./platform/dashboard.js?v=expenseui1').catch(error=>{dashboardModule=null;throw error;});
+  dashboardModule ||= import('./platform/dashboard.js?v=expensepresentation2').catch(error=>{dashboardModule=null;throw error;});
   dashboardModule.then(module=>{
     if(epoch!==dashboardEpoch||AUTH_USER!==user||currentView!=='dashboard'||!element.isConnected)return;
     dashboardDispose=module.mountDashboard(element,{
@@ -2497,7 +2497,7 @@ let financeEditorDispose=null,financeEditorEpoch=0,financeClientStatus='',financ
 let nfPage=1,nfPer=20;
 function financeModule(){
   if(!$('#financeStyle')){const link=document.createElement('link');link.id='financeStyle';link.rel='stylesheet';link.href='platform/finance.css?v=expenseui1';document.head.append(link);}
-  return financeModulePromise ||= import('./platform/finance.js?v=expenseui1').catch(error=>{financeModulePromise=null;throw error;});
+  return financeModulePromise ||= import('./platform/finance.js?v=expensepresentation2').catch(error=>{financeModulePromise=null;throw error;});
 }
 function financeForget(){financeEpoch++;financeMounted?.dispose();financeMounted=null;financeView=null;$('#financeRoot')?.remove();}
 function financeEditorForget(){financeEditorEpoch++;if(financeEditorDispose){financeEditorDispose();financeEditorDispose=null;}}

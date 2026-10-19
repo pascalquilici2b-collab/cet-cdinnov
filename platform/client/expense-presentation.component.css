@@ -1,0 +1,10 @@
+/* Shipped inside the React module so old cached theme CSS cannot break expenses. */
+body .cdi-employee-identity{display:inline-flex;align-items:center;gap:9px}
+body .cdi-employee-identity img{display:block;width:30px;height:30px;min-width:30px;max-width:30px;flex:0 0 30px;box-sizing:border-box;border:1px solid var(--line,#d8d8df);border-radius:50%;object-fit:cover;overflow:hidden;background:var(--paper-tint,#f0f0f2)}
+body .expense-status{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:5px 9px;white-space:nowrap;font-size:11px;font-weight:600;line-height:1.2;background:var(--paper-tint,#f0f0f2);color:var(--muted,#6e6e73)}
+body .expense-status .cdi-icon-wrap{display:inline-flex;width:15px;height:15px;flex:0 0 15px}
+body .expense-status svg{display:block;width:15px;height:15px;min-width:15px;max-width:15px;flex:0 0 15px;stroke:currentColor}
+body .expense-status.is-sent{background:#e6f1ff;color:#075bb5}
+body .expense-status.is-paid{background:#e5f5eb;color:#17663b}
+:root[data-theme=dark] body .expense-status.is-sent{background:#193653;color:#91c8ff}
+:root[data-theme=dark] body .expense-status.is-paid{background:#203e32;color:#a4e4c2}
