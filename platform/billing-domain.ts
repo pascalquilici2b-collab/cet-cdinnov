@@ -36,6 +36,7 @@ function legalNotes(raw:unknown):BillingLegalNotes {
   const value=object(raw,['recovery','penalties','discount'],'Mentions de paiement');
   return {recovery:textField(value,'recovery',2000),penalties:textField(value,'penalties',2000),discount:textField(value,'discount',2000)};
 }
+export const normalizeBillingParty=(raw:unknown):BillingParty=>party(raw);
 function commercial(value:Record<string,unknown>){
   if(typeof value.paymentMeans!=='string'||!['30','58','10','48'].includes(value.paymentMeans)||typeof value.vatDue!=='string'||!['','invoice','payment','delivery'].includes(value.vatDue))fail('Mode de paiement ou exigibilité TVA non pris en charge.');
   if(!billingBusinessProcesses.includes(value.businessProcess as BillingBusinessProcess))fail('Mode de facturation non pris en charge.');

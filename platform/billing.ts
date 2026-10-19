@@ -7,6 +7,7 @@ import {boundedBody} from './portal';
 import {draftPDF} from './billing-pdf';
 import {createNumberSeries,reserveIssuance} from './billing-issuance';
 import {preflightIssuance,generateIssuance,issuedFile} from './billing-generation';
+import {billingDirectoryRoute} from './billing-directory';
 
 interface Row {
  id:string; kind:'invoice'|'quote'; status:'draft'; version:number; data_json:string;
@@ -107,6 +108,7 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
  if(!session)return reply(401,{error:'Votre connexion CDInnov a expiré. Reconnectez-vous.'});
  if(!session.admin)return reply(403,{error:'La facturation est réservée à la direction.'});
  const path=new URL(request.url).pathname,db=env.BUDGETS_DB.withSession('first-primary');
+ if(/^\/api\/v1\/billing\/(clients|services)(?:\/|$)/.test(path))return billingDirectoryRoute(request,db,session.email,reply);
  if(path==='/api/v1/billing/settings')return settingsRoute(request,db,session.email,reply);
  if(path==='/api/v1/billing/number-series'){
   if(request.method==='GET')return reply(200,(await db.prepare('SELECT id,issuer_siren,kind,prefix,width,first_value,next_value,start_date,end_date,last_issue_date,version FROM billing_number_series ORDER BY start_date DESC,kind,id').all()).results);

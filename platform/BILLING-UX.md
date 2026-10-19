@@ -8,6 +8,7 @@ Une interface de travail calme, lisible et cohérente avec le portail CDInnov : 
 
 ## Parcours implémentés
 
+- **Réutiliser** : carnets clients et prestations recherchables ; devis ou facture depuis une fiche client ; création et sélection dans un dialogue sans perdre la saisie du document. Les coordonnées et tarifs sont copiés et restent ajustables.
 - **Préparer** : objet, dates, client, prestations, totaux en direct. Les coordonnées de l’émetteur déjà remplies et les conditions sont repliables. Affaires, marchés et références constituent une section secondaire facultative.
 - **Enregistrer** : état de sauvegarde visible, navigation protégée, conflit expliqué sans perte de la saisie. Les paramètres sont copiés dans chaque nouveau document.
 - **Vérifier** : aperçu en direct pendant la saisie ; vrai PDF paginé après enregistrement, pages précédente/suivante, zoom et ajustement à la largeur. Une modification invalide l’aperçu enregistré.
@@ -21,4 +22,4 @@ Le téléchargement et l’émission ne sont pas présentés comme une transmiss
 
 Les tests navigateur vérifient sauvegarde, conflit, conservation des données, conversion, erreurs et reprises, pagination PDF, zoom, changement de thème, mobile et déconnexion. Le lecteur PDF reçoit les octets par l’API authentifiée ; aucun jeton n’apparaît dans une URL, aucune réponse tardive ne remonte après démontage.
 
-À poursuivre : fiches clients réutilisables pour éviter la ressaisie, catalogue de prestations, erreurs de validation reliées aux champs, suivi des devis et des règlements, filtres métier. Une revue utilisateur sur ces parcours reste nécessaire avant la recette finale. Les captures de démonstration utilisent uniquement des données fictives.
+À poursuivre : erreurs de validation reliées aux champs, suivi des devis et des règlements, filtres métier. Une revue utilisateur sur ces parcours reste nécessaire avant la recette finale. Les captures de démonstration utilisent uniquement des données fictives.

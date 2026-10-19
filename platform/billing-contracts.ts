@@ -45,6 +45,12 @@ export interface BillingDocument {
 }
 export interface BillingIssuanceSummary {id:string;number:string;state:'pending'|'rendering'|'failed'|'ready';attempts:number;errorCode:string|null;createdAt:string;updatedAt:string;files:string[];}
 export interface BillingNumberSeries {id:string;issuer_siren:string;kind:BillingKind;prefix:string;width:number;first_value:number;next_value:number;start_date:string;end_date:string;last_issue_date:string|null;version:number;}
+export type BillingDirectoryKind='clients'|'services';
+export interface BillingClientData {schemaVersion:1;party:BillingParty;notes:string;archived:boolean;}
+export interface BillingServiceData {schemaVersion:1;reference:string;label:string;description:string;unitCode:string;unitPrice:string;vatRate:string;vatCategory:VatCategory;exemptionReason:string;archived:boolean;}
+export type BillingDirectoryData=BillingClientData|BillingServiceData;
+export type BillingDirectoryRecord={id:string;version:number;updatedAt:string|null;} & ({kind:'clients';data:BillingClientData;}|{kind:'services';data:BillingServiceData;});
+export interface BillingDirectoryPage {records:BillingDirectoryRecord[];total:number;offset:number;limit:number;}
 export interface BillingPage {documents:BillingDocument[]; total:number; limit:number; offset:number;}
 export interface BillingContext {
   clients:{id:string; name:string}[];
@@ -54,6 +60,10 @@ export interface BillingContext {
   settings:BillingSettings;
 }
 export interface BillingTransport {
+  directoryList(kind:BillingDirectoryKind,query:{q:string;offset:number;limit:number;archived:boolean}):Promise<BillingDirectoryPage>;
+  directoryGet(kind:BillingDirectoryKind,id:string):Promise<BillingDirectoryRecord>;
+  directoryCreate(kind:BillingDirectoryKind,id:string,data:BillingDirectoryData):Promise<BillingDirectoryRecord>;
+  directorySave(kind:BillingDirectoryKind,id:string,version:number,data:BillingDirectoryData):Promise<BillingDirectoryRecord>;
   list(query:{kind:BillingKind; q:string; offset:number; limit:number}):Promise<BillingPage>;
   get(id:string):Promise<BillingDocument>;
   create(id:string,data:BillingDraft):Promise<BillingDocument>;

@@ -1,6 +1,6 @@
 # Facturation CDInnov — état du chantier
 
-Cette branche introduit l’édition de factures et devis dans le portail existant, l’aperçu PDF paginé, la numérotation explicite, l’émission immuable et le Factur-X des nouveaux documents. Elle est vérifiée localement et n’est pas déployée. Les clients/catalogues complets, cycles de paiement/correction, qualification AGIRIS et reprise de production restent à réaliser.
+Cette branche introduit l’édition de factures et devis dans le portail existant, l’aperçu PDF paginé, la numérotation explicite, l’émission immuable et le Factur-X des nouveaux documents. Elle est vérifiée localement et n’est pas déployée. Les fiches clients et le catalogue sont disponibles. Les cycles de paiement/correction, la qualification AGIRIS et la reprise de production restent à réaliser.
 
 Le registre `billing-issuance.ts` et son schéma attribuent le numéro dans une transaction et conservent un instantané immuable. L’interface appelle le précontrôle, la réservation, la génération et la reprise sur ce même instantané. [BILLING-ISSUANCE.md](BILLING-ISSUANCE.md) décrit les contrôles et les fichiers privés.
 
@@ -32,7 +32,7 @@ Historique & dossiers donne accès aux factures importées et à leur convertiss
 - `facturx-service/cdi_facturx/billing_document.py` : contrat strict des brouillons et calculs entiers équivalents au Worker.
 - `facturx-service/cdi_facturx/document_pdf.py` : rendu paginé, police embarquée, échappement des textes et rejet des caractères non couverts.
 
-Les documents nouveaux ne sont pas ajoutés au tableau historique `portal_invoices`. Leur identité et leur historique restent dans `billing_documents` et `billing_document_versions`. Les clients, affaires et marchés sont lus dans les tables existantes. Le répertoire fournit actuellement le nom du client, pas des coordonnées de facturation certifiées. Aucun émetteur n'est déduit silencieusement d'un ancien PDF.
+Les documents nouveaux ne sont pas ajoutés au tableau historique `portal_invoices`. Leur identité et leur historique restent dans `billing_documents` et `billing_document_versions`. Les affaires et marchés sont lus dans les tables existantes. Les clients Budgets sont proposés sous leur identifiant existant puis complétés par des profils de facturation indépendants. Les nouvelles fiches clients et prestations utilisent un répertoire versionné ; elles ne modifient jamais les documents déjà créés. Les coordonnées restent des informations saisies, sans certification externe. Voir [BILLING-DIRECTORY.md](BILLING-DIRECTORY.md). Aucun émetteur n'est déduit silencieusement d'un ancien PDF.
 
 Le document v2 ajoute les informations commerciales et électroniques. La lecture d'un brouillon v1 le normalise sans réécrire son historique. Un nouvel enregistrement produit une nouvelle version v2 ; les reprises d'une création ancienne restent idempotentes.
 
@@ -56,13 +56,14 @@ Les tests exécutent les XSD et Schematrons de factur-x 6.8, dont les règles Fr
 node platform/build.mjs
 node platform/node_modules/typescript/bin/tsc -p platform/tsconfig.json
 node --test platform/billing-domain-test.mjs platform/facturx-integrity-test.mjs platform/billing-test.mjs platform/billing-pdf-test.mjs
-node --test platform/billing-issuance-test.mjs platform/billing-generation-test.mjs
+node --test platform/billing-issuance-test.mjs platform/billing-generation-test.mjs platform/billing-directory-test.mjs
 $env:BILLING_TEST_PYTHON = '<interpréteur avec requirements-lock.txt installé>'
 node --test platform/billing-contract-test.mjs
 $env:PYTHONPATH = 'facturx-service'
 & $env:BILLING_TEST_PYTHON -m pytest facturx-service/tests -q
 $env:PORTAL_QA = '<dossier privé de captures>'
 node platform/billing-browser-test.mjs
+node platform/billing-directory-browser-test.mjs
 node platform/finance-browser-test.mjs
 node platform/billing-pdf-integration-test.mjs
 # Avec les variables FACTURX_JAVA, FACTURX_GHOSTSCRIPT, FACTURX_ICC et FACTURX_VERAPDF_JAR :
@@ -78,7 +79,7 @@ Le test `billing-pdf-integration-test.mjs` démarre son propre moteur FastAPI lo
 
 ## Prochains lots
 
-1. Répertoire clients complet et catalogue de prestations, validation guidée des champs et navigation de suivi.
+1. Validation guidée des champs et navigation de suivi ; rapprochement des clients avec les autres répertoires et gestion des contacts/établissements liés.
 2. Cycle des devis (acceptation, refus, expiration), avoirs, acomptes, règlements et allocations.
 3. Qualification AGIRIS : profil, destinataire, annexes, dépôt et résultat réel d’un document de test autorisé.
 4. Vérification source/déploiement, reprise des archives, séries réelles, migration et sauvegarde restaurable.

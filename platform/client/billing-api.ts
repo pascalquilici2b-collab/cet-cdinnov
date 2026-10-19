@@ -1,4 +1,4 @@
-import type {BillingTransport,BillingDraft,BillingDocument,BillingContext,BillingPage,BillingSettings,BillingNumberSeries} from '../billing-contracts';
+import type {BillingTransport,BillingDraft,BillingDocument,BillingContext,BillingPage,BillingSettings,BillingNumberSeries,BillingDirectoryRecord,BillingDirectoryPage} from '../billing-contracts';
 export function createBillingTransport(options:{baseUrl:string;getToken:()=>Promise<string>;isActive:()=>boolean}):BillingTransport & {dispose:()=>void} {
   let disposed=false;const controllers=new Set<AbortController>();
   const active=()=>{if(disposed||!options.isActive())throw new Error('Votre session ou la page a changé.');};
@@ -11,10 +11,14 @@ export function createBillingTransport(options:{baseUrl:string;getToken:()=>Prom
       const data=response.ok&&binary?await response.blob():await response.json();active();
       if(!response.ok)throw Object.assign(new Error(data.error||'La sauvegarde n’a pas abouti. Vos modifications sont conservées.'),{status:response.status});
       return data as T;
-    }catch(error){active();if(controller.signal.aborted)throw new Error('Le service ne répond pas. Vos modifications sont conservées ; vous pouvez réessayer.');throw error;}
+    }catch(error){active();if(controller.signal.aborted)throw new Error('Le service ne répond pas. Vos modifications sont conservées ; vous pouvez réessayer.');if(error instanceof TypeError)throw new Error('La connexion au serveur a été interrompue. Votre saisie est conservée ; vous pouvez réessayer.');if(error instanceof SyntaxError)throw new Error('La réponse du serveur est illisible. Votre saisie est conservée ; vous pouvez réessayer.');throw error;}
     finally{clearTimeout(timer);controllers.delete(controller);}
   }
   return {
+    directoryList:(kind,query)=>request<BillingDirectoryPage>('/'+kind+'?'+new URLSearchParams({q:query.q,offset:String(query.offset),limit:String(query.limit),archived:String(query.archived)})),
+    directoryGet:(kind,id)=>request<BillingDirectoryRecord>('/'+kind+'/'+encodeURIComponent(id)),
+    directoryCreate:(kind,id,data)=>request<BillingDirectoryRecord>('/'+kind,'POST',{id,data}),
+    directorySave:(kind,id,version,data)=>request<BillingDirectoryRecord>('/'+kind+'/'+encodeURIComponent(id),'PUT',{data},version),
     list:query=>request<BillingPage>('/documents?'+new URLSearchParams({kind:query.kind,q:query.q,offset:String(query.offset),limit:String(query.limit)})),
     get:id=>request<BillingDocument>('/documents/'+encodeURIComponent(id)),
     create:(id:string,data:BillingDraft)=>request<BillingDocument>('/documents','POST',{id,data}),

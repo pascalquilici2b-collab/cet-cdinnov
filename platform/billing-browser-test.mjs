@@ -34,7 +34,7 @@ try{
  await page.getByLabel('Émetteur — Code postal',{exact:true}).fill('20000');
  await page.getByLabel('Émetteur — Ville',{exact:true}).fill('Ajaccio');
  await page.getByLabel('Émetteur — N° de TVA',{exact:true}).fill('FR00123456789');
- await page.getByLabel(/^Retrouver un client/).selectOption('client-test');
+ await page.getByRole('button',{name:'Choisir un client',exact:true}).click();await page.getByRole('dialog',{name:'Choisir un client',exact:true}).getByRole('button',{name:'Choisir Client fictif',exact:true}).click();
  await page.getByLabel('Client — Adresse',{exact:true}).fill('2 avenue du Test');
  await page.getByLabel('Client — Code postal',{exact:true}).fill('20200');
  await page.getByLabel('Client — Ville',{exact:true}).fill('Bastia');

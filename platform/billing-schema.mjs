@@ -1,4 +1,5 @@
 import {billingIssuanceSchema} from './billing-issuance-schema.mjs';
+import {billingDirectorySchema} from './billing-directory-schema.mjs';
 /** Explicit migration only: HTTP requests never create or alter billing tables. */
 export const billingSchema = [
  `CREATE TABLE IF NOT EXISTS billing_settings (
@@ -66,5 +67,5 @@ export const billingSchema = [
 ];
 export async function migrateBilling(db) {
  // D1 batch is transactional: failure leaves neither half a schema nor a lost history trigger.
- await db.batch([...billingSchema,...billingIssuanceSchema].map(sql=>db.prepare(sql)));
+ await db.batch([...billingSchema,...billingIssuanceSchema,...billingDirectorySchema].map(sql=>db.prepare(sql)));
 }
