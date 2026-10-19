@@ -1,0 +1,126 @@
+import type {BillingDraft,BillingKind,BillingLine,BillingParty,BillingReferences,BillingTotals,BillingIssue,VatCategory} from './billing-contracts';
+
+const uuid=()=>crypto.randomUUID();
+export const billingId=(v:unknown):v is string=>typeof v==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+export const blankParty=():BillingParty=>({name:'',addressLine1:'',addressLine2:'',postalCode:'',city:'',country:'FR',siret:'',vatId:'',email:'',legal:''});
+export const newLine=():BillingLine=>({id:uuid(),description:'',quantity:'1',unitCode:'DAY',unitPrice:'',discountPercent:'0',vatRate:'20',vatCategory:'S',exemptionReason:''});
+export function blankDraft(kind:BillingKind,today=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Paris'}).format(new Date())):BillingDraft {
+  return {schemaVersion:1,kind,title:'',currency:'EUR',issueDate:today,dueDate:'',validUntil:'',clientId:'',seller:blankParty(),buyer:blankParty(),lines:[newLine()],references:{businessCode:'',marketId:'',marketReference:'',orderReference:'',project:'',serviceCode:'',engagement:''},paymentTerms:'',iban:'',bic:'',notes:''};
+}
+const fail=(message:string):never=>{throw Object.assign(new Error(message),{status:422});};
+function object(value:unknown,allowed:string[],name:string):Record<string,unknown> {
+  if(!value||typeof value!=='object'||Array.isArray(value))return fail(name+' : objet attendu.');
+  for(const key of Object.keys(value))if(!allowed.includes(key))fail(name+' : champ non reconnu « '+key+' ».');
+  return value as Record<string,unknown>;
+}
+function textField(obj:Record<string,unknown>,key:string,max:number):string {
+  const value=obj[key];
+  if(typeof value!=='string'||value.length>max||/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(value))return fail(key+' : texte invalide ou trop long ('+max+' caractères maximum).');
+  return value.normalize('NFC');
+}
+const partyKeys=['name','addressLine1','addressLine2','postalCode','city','country','siret','vatId','email','legal'];
+function party(raw:unknown):BillingParty {
+  const value=object(raw,partyKeys,'Coordonnées');
+  return Object.fromEntries(partyKeys.map(k=>[k,textField(value,k,k==='legal'?1000:k==='country'?2:k==='siret'?30:k==='vatId'?40:300)])) as unknown as BillingParty;
+}
+const referenceKeys=['businessCode','marketId','marketReference','orderReference','project','serviceCode','engagement'];
+const lineKeys=['id','description','quantity','unitCode','unitPrice','discountPercent','vatRate','vatCategory','exemptionReason'];
+const categories:VatCategory[]=['S','Z','E','AE','O'];
+/** Validate the storage boundary, independently of whether an unfinished draft can be issued. */
+export function normalizeDraft(raw:unknown):BillingDraft {
+  const value=object(raw,['schemaVersion','kind','title','currency','issueDate','dueDate','validUntil','clientId','seller','buyer','lines','references','paymentTerms','iban','bic','notes'],'Document');
+  if(value.schemaVersion!==1||!['invoice','quote'].includes(String(value.kind))||value.currency!=='EUR')fail('Type, version ou devise de document non pris en charge.');
+  if(!Array.isArray(value.lines)||value.lines.length>200)fail('Un document accepte au maximum 200 lignes.');
+  const seen=new Set<string>();
+  const lines=(value.lines as unknown[]).map(rawLine=>{
+    const row=object(rawLine,lineKeys,'Ligne');
+    if(!billingId(row.id))fail('Identifiant de ligne invalide ou en double.');
+    const id=(row.id as string).toLowerCase();
+    if(seen.has(id))fail('Identifiant de ligne invalide ou en double.');
+    seen.add(id);
+    if(!categories.includes(row.vatCategory as VatCategory))fail('Catégorie de TVA non reconnue.');
+    return {...Object.fromEntries(lineKeys.map(k=>[k,textField(row,k,k==='description'?4000:k==='exemptionReason'?1000:k==='id'?36:k==='unitCode'?3:40)])),id} as unknown as BillingLine;
+  });
+  const references=object(value.references,referenceKeys,'Références');
+  return {
+    schemaVersion:1,kind:value.kind as BillingKind,currency:'EUR',
+    title:textField(value,'title',300),issueDate:textField(value,'issueDate',10),dueDate:textField(value,'dueDate',10),validUntil:textField(value,'validUntil',10),clientId:textField(value,'clientId',200),
+    seller:party(value.seller),buyer:party(value.buyer),lines,
+    references:Object.fromEntries(referenceKeys.map(k=>[k,textField(references,k,300)])) as unknown as BillingReferences,
+    paymentTerms:textField(value,'paymentTerms',4000),iban:textField(value,'iban',50),bic:textField(value,'bic',20),notes:textField(value,'notes',10000)
+  };
+}
+
+/** Unsigned decimal -> fixed integer. Empty, exponent, negative and excessive precision fail explicitly. */
+export function billingDecimal(value:string,places:number,label:string):bigint {
+  const s=value.trim().replace(',','.');
+  if(!new RegExp('^\\d{1,10}(?:\\.\\d{1,'+places+'})?$').test(s))return fail(label+' : nombre positif, avec au plus '+places+' décimales.');
+  const [whole,fraction='']=s.split('.');
+  return BigInt(whole)*10n**BigInt(places)+BigInt(fraction.padEnd(places,'0'));
+}
+const round=(value:bigint,denominator:bigint)=>(value+denominator/2n)/denominator;
+const decimalRate=(n:bigint)=>String(n/100n)+(n%100n?'.'+String(n%100n).padStart(2,'0').replace(/0$/,''):'');
+const totalLimit=99999999999999n;
+function lineAmounts(line:BillingLine,index:number){
+  const label='Ligne '+(index+1),quantity=billingDecimal(line.quantity,6,label+' : quantité'),price=billingDecimal(line.unitPrice,6,label+' : prix unitaire'),rate=billingDecimal(line.vatRate,2,label+' : TVA'),discount=billingDecimal(line.discountPercent,2,label+' : remise');
+  if(rate>10000n||discount>10000n)fail(label+' : TVA et remise doivent rester entre 0 et 100 %.');
+  if(line.vatCategory==='S'&&rate===0n)fail(label+' : une TVA standard doit avoir un taux positif.');
+  if(line.vatCategory!=='S'&&rate!==0n)fail(label+' : cette catégorie de TVA exige un taux nul.');
+  // Round the exact discounted line once, then calculate tax on the sum of bases per category/rate.
+  const base=quantity*price,net=round(base*(10000n-discount),100000000000000n),undiscounted=round(base,10000000000n);
+  if(net>totalLimit||undiscounted>totalLimit)fail(label+' : montant trop élevé.');
+  return {net,discount:undiscounted-net,rate,quantity};
+}
+export function calculateBilling(d:BillingDraft):BillingTotals {
+  let net=0n,discount=0n;
+  const groups=new Map<string,{category:VatCategory;rate:bigint;base:bigint;reason:string}>();
+  const lines=d.lines.map((line,index)=>{
+    const a=lineAmounts(line,index);net+=a.net;discount+=a.discount;
+    const key=line.vatCategory+':'+a.rate,reason=line.exemptionReason.trim(),previous=groups.get(key);
+    if(previous&&previous.reason!==reason)fail('Un même groupe de TVA doit avoir le même motif d’exonération.');
+    groups.set(key,{category:line.vatCategory,rate:a.rate,base:(previous?.base||0n)+a.net,reason});
+    return {id:line.id,netMinor:String(a.net),discountMinor:String(a.discount)};
+  });
+  let tax=0n;
+  const taxes=[...groups.values()].sort((a,b)=>a.category.localeCompare(b.category)||Number(a.rate-b.rate)).map(group=>{
+    const amount=round(group.base*group.rate,10000n);tax+=amount;
+    return {category:group.category,rate:decimalRate(group.rate),baseMinor:String(group.base),taxMinor:String(amount)};
+  });
+  if(net+tax>totalLimit)fail('Le total du document dépasse la limite autorisée.');
+  return {lines,taxes,netMinor:String(net),taxMinor:String(tax),grossMinor:String(net+tax),discountMinor:String(discount)};
+}
+export const validBillingDate=(s:string)=>/^\d{4}-\d{2}-\d{2}$/.test(s)&&Number(s.slice(0,4))>=1900&&Number(s.slice(0,4))<=9999&&!Number.isNaN(Date.parse(s))&&new Date(s).toISOString().slice(0,10)===s;
+/** Guidance for incomplete drafts. Issuance and legal qualification require additional server gates. */
+export function inspectDraft(d:BillingDraft):BillingIssue[] {
+  const issues:BillingIssue[]=[],add=(path:string,message:string)=>issues.push({path,message});
+  if(!validBillingDate(d.issueDate))add('issueDate','Renseignez une date valide.');
+  if(d.kind==='quote'&&!validBillingDate(d.validUntil))add('validUntil','Renseignez la date de validité du devis.');
+  if(d.validUntil&&(!validBillingDate(d.validUntil)||d.validUntil<d.issueDate))add('validUntil','La validité doit suivre la date du devis.');
+  if(d.dueDate&&(!validBillingDate(d.dueDate)||d.dueDate<d.issueDate))add('dueDate','L’échéance doit suivre la date du document.');
+  if(d.kind==='invoice'&&!d.dueDate&&!d.paymentTerms.trim())add('paymentTerms','Précisez une échéance ou les conditions de paiement.');
+  for(const [key,label] of [['seller','Émetteur'],['buyer','Client']] as const){
+    const p=d[key];
+    for(const field of ['name','addressLine1','postalCode','city'] as const)if(!p[field].trim())add(key+'.'+field,label+' : '+({name:'nom',addressLine1:'adresse',postalCode:'code postal',city:'ville'}[field])+' à compléter.');
+    if(!/^[A-Z]{2}$/.test(p.country))add(key+'.country',label+' : code pays sur deux lettres requis.');
+    if(p.email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.email))add(key+'.email',label+' : adresse e-mail invalide.');
+    if(p.siret&&!/^\d{14}$/.test(p.siret.replace(/\s/g,'')))add(key+'.siret',label+' : le SIRET comporte 14 chiffres.');
+  }
+  if(!d.lines.length)add('lines','Ajoutez au moins une prestation.');
+  d.lines.forEach((line,i)=>{
+    const path='lines.'+i;
+    if(!line.description.trim())add(path+'.description','Ligne '+(i+1)+' : désignation à compléter.');
+    if(!/^[A-Z0-9]{2,3}$/.test(line.unitCode))add(path+'.unitCode','Ligne '+(i+1)+' : unité invalide.');
+    try{if(lineAmounts(line,i).quantity===0n)add(path+'.quantity','Ligne '+(i+1)+' : la quantité doit être supérieure à zéro.');}catch(error){add(path,(error as Error).message);}
+    if(['E','AE','O'].includes(line.vatCategory)&&!line.exemptionReason.trim())add(path+'.exemptionReason','Précisez le motif pour cette catégorie de TVA.');
+    if(['S','Z'].includes(line.vatCategory)&&line.exemptionReason.trim())add(path+'.exemptionReason','La TVA standard ou à taux zéro ne comporte pas de motif d’exonération.');
+  });
+  if(d.lines.some(l=>l.vatCategory==='S')&&!d.seller.vatId.trim())add('seller.vatId','Renseignez le numéro de TVA de l’émetteur.');
+  if(d.lines.some(l=>l.vatCategory==='AE')&&!d.buyer.vatId.trim())add('buyer.vatId','Renseignez le numéro de TVA du client pour l’autoliquidation.');
+  if(d.lines.some(l=>l.vatCategory==='O')&&(d.lines.some(l=>l.vatCategory!=='O')||d.seller.vatId||d.buyer.vatId))add('lines','Hors champ : ne mélangez pas les catégories ni les identifications TVA.');
+  try{calculateBilling(d);}catch(error){if(!issues.some(i=>i.message===(error as Error).message))add('lines',(error as Error).message);}
+  return issues;
+}
+export function formatMinor(value:string):string {
+  const n=BigInt(value),absolute=n<0n?-n:n;
+  return (n<0n?'−':'')+(absolute/100n).toLocaleString('fr-FR')+','+String(absolute%100n).padStart(2,'0')+' €';
+}

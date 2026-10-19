@@ -7,7 +7,7 @@ window.addEventListener('storage',event=>{
   let email;try{email=JSON.parse(event.newValue)?.email;}catch{}
   if(email===AUTH_USER)return;
   if(portalClean&&JSON.stringify(state)!==portalClean)portalRemember();
-  dashboardForget();financeForget();personnelForget();closeModal();nfDraft=null;marchesForget();agendaForget();budgetsForget();facturxForgetAuth();
+  dashboardForget();financeForget();billingForget();personnelForget();closeModal();nfDraft=null;marchesForget();agendaForget();budgetsForget();facturxForgetAuth();
   AUTH_USER=null;movAccess=null;salariesUnlocked=false;portalClear();document.body.classList.remove('authed');renderUserChip();authBack();
 });
 function load(){return freshState();}

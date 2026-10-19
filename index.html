@@ -959,7 +959,7 @@ const VIEW_META = {
   salaries:{title:'Salariés', sub:'Bénéficiaires du dispositif CET', action:'Nouveau salarié', actFn:()=>openSalarie()},
   conges:{title:'Congés payés', sub:'', action:'Poser une période', actFn:()=>openConge()},
   notesfrais:{title:'Note de frais', sub:'Création, suivi et archivage des notes de frais', action:'Créer une note de frais', actFn:()=>openNoteFrais()},
-  facturier:{title:'Logiciel de facturation', sub:'Codes affaires et suivi de facturation', action:null},
+  facturier:{title:'Facturation', sub:'Factures, devis et suivi clients', action:null},
   parametres:{title:'Paramètres & données', sub:'Plafonds, types de mouvements, sauvegardes', action:null}
 };
 
@@ -980,13 +980,17 @@ $('.sidebar').addEventListener('keydown',e=>{
 });
 matchMedia('(max-width:880px)').addEventListener('change',()=>toggleSidebar(false));
 $$('.nav-item[data-view]').forEach(n=>{n.setAttribute('role','button');n.tabIndex=0;n.addEventListener('click',()=>{setView(n.dataset.view);toggleSidebar(false);});if(!n.hasAttribute('onkeydown'))n.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();n.click();}});});
-function setView(v){
+function setView(v,billingSection='modern'){
+  if(billingLogoutPending)return;
+  const nextBillingMode=billingSection==='modern'?'modern':'legacy';
+  if(currentView==='facturier'&&(v!==currentView||billingMode!==nextBillingMode)&&!billingLeave())return;
   if(currentView==='marches'&&v!==currentView&&!marchesLeave())return;
   if(v!=='marches')marchesUnmount();
   if(v==='conges')v='agenda';
   if(typeof budgetsDirty!=='undefined'&&currentView==='budgetsprojets'&&v!==currentView&&!budgetsLeave())return;
   document.querySelector('.year-pick').style.display=['dashboard','budgetsprojets','marches','facturier'].includes(v)?'none':'';
   if(v!=='agenda'){clearInterval(agendaTimer);agendaTimer=null;}
+  if(v==='facturier'){billingMode=nextBillingMode;if(nextBillingMode==='legacy')factTab=billingSection;}
   currentView=v;document.body.dataset.view=v;
   $$('.nav-item').forEach(n=>{const active=n.dataset.view===v||(v==='marches'&&n.dataset.view==='facturier')||(v==='cet'&&n.dataset.view==='mouvements');n.classList.toggle('active',active);if(active)n.setAttribute('aria-current','page');else n.removeAttribute('aria-current');});
   const meta=VIEW_META[v];
@@ -1015,6 +1019,7 @@ function render(){
   if(currentView!=='agenda')agendaReactForget();
   if(currentView!=='dashboard')dashboardForget();
   if(!['facturier','notesfrais'].includes(currentView))financeForget();
+  if(currentView!=='facturier'||billingMode!=='modern')billingForget();
   if(!['cet','mouvements','salaries','parametres'].includes(currentView))personnelForget();
   migrateTypes();
   renderUserChip();
@@ -1093,7 +1098,7 @@ function renderDashboard(){
           if(action.kind==='expense'&&!isAdmin(user)&&item.matricule!==AUTH_USER_MAT[user])throw new Error('Cette note appartient à un autre collaborateur.');
         }
         if(action.kind==='invoice'||action.kind==='invoices'){
-          if(!isAdmin(user))return;factTab='factures';factYear='all';factMonth='all';factQ='';setView('facturier');if(action.id)openFacture(action.id);
+          if(!isAdmin(user))return;factTab='factures';factYear='all';factMonth='all';factQ='';setView('facturier','factures');if(action.id&&currentView==='facturier'&&billingMode==='legacy')openFacture(action.id);
         }else{nfFilter={sal:'',statut:'',q:''};setView('notesfrais');if(action.id)openNoteFrais(action.id);}
       }
     });
@@ -2227,14 +2232,11 @@ function caCodeKey(c){ return String(c.code1==null?'':c.code1)+String(c.code2==n
 function eurHT(n){ return (Number(n)||0).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'; }
 function moisAnnee(d){ if(!d) return '—'; const dd=new Date(String(d).slice(0,10)+'T00:00:00'); if(isNaN(dd)) return '—'; return MOIS_FR[dd.getMonth()]+' '+dd.getFullYear(); }
 function billingNavigation(active){
-  return '<nav class="billing-nav no-print" aria-label="Rubriques du logiciel de facturation">'+[['marches','Marchés et contrats'],['codes','Codes affaires'],['factures','Factures']].map(([id,label])=>`<button type="button" class="btn btn-ghost" onclick="setBillingSection('${id}')" ${active===id?'aria-current="page"':''}>${label}</button>`).join('')+'</nav>';
+  return '<nav class="billing-nav no-print" aria-label="Rubriques du logiciel de facturation">'+[['modern','Facturation'],['factures','Factures importées'],['codes','Codes affaires'],['marches','Marchés et contrats']].map(([id,label])=>`<button type="button" class="btn btn-ghost" onclick="setBillingSection('${id}')" ${active===id?'aria-current="page"':''}>${label}</button>`).join('')+'</nav>';
 }
 function setBillingSection(section){
   if(section==='marches'){setView('marches');return;}
-  // Let setView preserve the market editor's unsaved-change confirmation.
-  setView('facturier');
-  if(currentView!=='facturier')return;
-  setFactTab(section);
+  setView('facturier',section);
 }
 function setFactTab(t){ factTab=t; if(t==='codes') codePage=1; else factPage=1; renderFacturier(); }
 function factYears(){
@@ -2255,7 +2257,7 @@ function facturesFiltered(){
   if(q) l=l.filter(f=>[f.code,f.number,f.client].join(' ').toLowerCase().includes(q));
   return l.sort((a,b)=>(b.dateFacture||'').localeCompare(a.dateFacture||''));
 }
-function renderFacturier(){renderReactFinance('facturier');}
+function renderFacturier(){if(billingMode==='modern')renderBillingWorkspace();else {billingForget();renderReactFinance('facturier');}}
 
 /* ---- CRUD codes affaires ---- */
 function openCodeAffaire(id){
@@ -2417,7 +2419,7 @@ function financeEditorForget(){financeEditorEpoch++;if(financeEditorDispose){fin
 function financeExpenseAllowed(note){return !!(note&&AUTH_USER&&(isAdmin(AUTH_USER)||AUTH_USER_MAT[AUTH_USER]&&note.matricule===AUTH_USER_MAT[AUTH_USER]));}
 function financeProps(view,user){
   const admin=isAdmin(user),matricule=AUTH_USER_MAT[user]||null;
-  return {snapshot:{view,admin,matricule,codes:admin?codesAff().slice():[],invoices:admin?factures().map(f=>({...f,validFacturx:!!(f.facturx&&f.facturx.snapshot===facturxSignature(f))})):[],expenses:notesFrais().filter(financeExpenseAllowed),employees:state.salaries.map(({matricule,nom,prenom,photo})=>({matricule,nom,prenom,photo:photoURL(photo)})),clients:budgetsClients,clientStatus:financeClientStatus,clientError:financeClientError,filters:{tab:factTab,codeQ,factQ,year:factYear,month:factMonth,codePage,codePer,factPage,factPer,expenseQ:nfFilter.q,expensePerson:nfFilter.sal,expenseStatus:nfFilter.statut,expensePage:nfPage,expensePer:nfPer}},
+  return {snapshot:{view,admin,matricule,codes:admin?codesAff().slice():[],invoices:admin?factures().map(f=>({...f,validFacturx:!!(facturxSnapshotMatches(f))})):[],expenses:notesFrais().filter(financeExpenseAllowed),employees:state.salaries.map(({matricule,nom,prenom,photo})=>({matricule,nom,prenom,photo:photoURL(photo)})),clients:budgetsClients,clientStatus:financeClientStatus,clientError:financeClientError,filters:{tab:factTab,codeQ,factQ,year:factYear,month:factMonth,codePage,codePer,factPage,factPer,expenseQ:nfFilter.q,expensePerson:nfFilter.sal,expenseStatus:nfFilter.statut,expensePage:nfPage,expensePer:nfPer}},
     filter:patch=>{
       if(AUTH_USER!==user||currentView!==view)return;
       if('codeQ'in patch)codeQ=patch.codeQ;if('factQ'in patch)factQ=patch.factQ;
@@ -2437,6 +2439,7 @@ function financeProps(view,user){
 }
 function renderReactFinance(view){
   if(!AUTH_USER||currentView!==view)return;
+  if(view==='facturier'&&billingMode!=='legacy')return;
   const user=AUTH_USER,entering=financeView!==view;financeView=view;
   if(financeMounted&&$('#financeRoot')){financeMounted.update(financeProps(view,user));}
   else{
@@ -2789,15 +2792,19 @@ function unlockApp(email){
   setTimeout(()=>{if(new URLSearchParams(location.search).get('view')==='agenda'&&currentView!=='agenda')setView('agenda');else if(currentView==='agenda')agendaEnter();},0);
 }
 async function authLogout(){
+  if(billingLogoutPending)return;
+  if(!billingLeave())return;
   if(!marchesLeave())return;
   if(!budgetsLeave())return;
+  billingLockForLogout();
+  try{
   if(cloudEnabled()&&portalClean&&JSON.stringify(state)!==portalClean&&!await cloudPush()){
     toast('Enregistrement impossible. Conservez vos modifications avant de vous déconnecter.');return;
   }
   const oldSession=budgetsCurrentSession();
-  if(cloudEnabled()&&oldSession)try{await fetch(CLOUD_ENDPOINT.replace(/\/$/,'')+'/api/v1/session',{method:'DELETE',headers:{Authorization:'Bearer '+oldSession.token}});}catch{}
+  if(cloudEnabled()&&oldSession)try{await fetch(CLOUD_ENDPOINT.replace(/\/$/,'')+'/api/v1/session',{method:'DELETE',headers:{Authorization:'Bearer '+oldSession.token},signal:AbortSignal.timeout(10000)});}catch{}
   toggleSidebar(false);
-  dashboardForget();financeForget();personnelForget();closeModal();nfDraft=null;
+  dashboardForget();financeForget();billingForget();personnelForget();closeModal();nfDraft=null;
   marchesForget();
   agendaForget();
   budgetsForget();
@@ -2808,6 +2815,7 @@ async function authLogout(){
   renderUserChip();
   const e=$('#authEmail'); if(e) e.value='';
   authBack();
+  }finally{billingUnlockLogout();}
 }
 function renderUserChip(){
   document.querySelectorAll('.nav-item[data-view="marches"]').forEach(e=>e.style.display=isAdmin(AUTH_USER)?'':'none');
@@ -3003,9 +3011,7 @@ async function facturxApi(path, options={}) {
 function facturxDigest(data) {
   return crypto.subtle.digest('SHA-256',data).then(hash=>Array.from(new Uint8Array(hash),b=>b.toString(16).padStart(2,'0')).join(''));
 }
-function facturxSignature(f) {
-  return JSON.stringify([f.id,f.number,f.dateFacture,f.client,f.code,String(f.ht),String(f.ttc),f.datePaiement,f.pdfSource?.sha256]);
-}
+
 function facturxMatchesRecord(invoice,f) {
   const cents=value=>value!==null&&value!==undefined&&value!==''&&Number.isFinite(Number(value))?Math.round(Number(value)*100):null;
   return invoice?.number===f.number && invoice?.issue_date===f.dateFacture &&
@@ -3086,7 +3092,7 @@ function facturxRowActions(f){
   if(!f.pdfSource)return `<span class="facturx-actions"><button class="btn btn-ghost btn-sm" title="Téléverser un PDF dans cette facture" onclick="openFacturePdf('${id}')">Téléverser</button></span>`;
   return `<span class="facturx-actions"><span class="facturx-file"><button class="btn btn-ghost btn-sm" title="Visualiser le PDF original" onclick="facturxOriginal('${id}')">${facturxFileIcon(true)}PDF</button><button type="button" class="facturx-file-remove" aria-label="Supprimer le PDF" title="${f.facturx?'Supprimer le PDF et son Factur-X associé':'Supprimer le PDF'}" onclick="event.stopPropagation();facturxRemovePdf('${id}')"><span aria-hidden="true">×</span></button></span>`+
     `<button class="btn btn-primary btn-sm" style="--accent:#1d4ed8;--accent-strong:#1e40af" title="Créer un Factur-X à partir du PDF" onclick="openFacturX('${id}')">Créer Factur-X</button>`+
-    (f.facturx&&f.facturx.snapshot===facturxSignature(f)?`<span class="facturx-file"><button class="btn btn-ghost btn-sm" title="Télécharger le Factur-X validé" onclick="facturxFinal('${id}')">${facturxFileIcon()}Factur-X</button><button type="button" class="facturx-file-remove" aria-label="Supprimer le Factur-X" title="Supprimer le Factur-X uniquement" onclick="event.stopPropagation();facturxRemoveFinal('${id}')"><span aria-hidden="true">×</span></button></span>`:'')+'</span>';
+    (facturxSnapshotMatches(f)?`<span class="facturx-file"><button class="btn btn-ghost btn-sm" title="Télécharger le Factur-X validé" onclick="facturxFinal('${id}')">${facturxFileIcon()}Factur-X</button><button type="button" class="facturx-file-remove" aria-label="Supprimer le Factur-X" title="Supprimer le Factur-X uniquement" onclick="event.stopPropagation();facturxRemoveFinal('${id}')"><span aria-hidden="true">×</span></button></span>`:'')+'</span>';
 }
 function facturxRemoveFinal(id){
   if(!facturierAdmin())return;
@@ -3151,7 +3157,7 @@ async function facturxViewPage(delta){
   }catch(e){if(s.image.isConnected){s.status.hidden=false;s.status.textContent=e.message;}}
   finally{if(_facturxViewer===s&&s.image.isConnected){s.busy=false;facturxViewControls(s);}}
 }
-function facturxFinal(id){const f=factures().find(x=>x.id===id);if(f?.facturx&&f.facturx.snapshot===facturxSignature(f))facturxDownload(f.facturx.pdfUrl,f.facturx.filename);}
+function facturxFinal(id){const f=factures().find(x=>x.id===id);if(facturxSnapshotMatches(f))facturxDownload(f.facturx.pdfUrl,f.facturx.filename);}
 
 async function openFacturX(id){
   if(!facturierAdmin()){toast('Accès réservé à la direction.');return;}
@@ -4775,7 +4781,16 @@ function agendaNotificationHTML(t){
 
 /* CDI_MARKETS_END */
 /* ===================== boot ===================== */
-setView('dashboard');
+/* Initial view is rendered after the authenticated module bridges are ready. */
+
+
+
+
+
+
+
+
+
 
 
 
@@ -4798,7 +4813,7 @@ window.addEventListener('storage',event=>{
   let email;try{email=JSON.parse(event.newValue)?.email;}catch{}
   if(email===AUTH_USER)return;
   if(portalClean&&JSON.stringify(state)!==portalClean)portalRemember();
-  dashboardForget();financeForget();personnelForget();closeModal();nfDraft=null;marchesForget();agendaForget();budgetsForget();facturxForgetAuth();
+  dashboardForget();financeForget();billingForget();personnelForget();closeModal();nfDraft=null;marchesForget();agendaForget();budgetsForget();facturxForgetAuth();
   AUTH_USER=null;movAccess=null;salariesUnlocked=false;portalClear();document.body.classList.remove('authed');renderUserChip();authBack();
 });
 function load(){return freshState();}
@@ -4952,7 +4967,62 @@ async function bootAuth(){
   catch{AUTH_USER=null;clearSession();authBack();}
 }
 
+/* An export is tied to the invoice content; subsequent payment tracking is separate. */
+function facturxDocumentCore(f){
+  return [f.id??'',f.number??'',f.dateFacture??'',f.client??'',f.code??'',String(f.ht),String(f.ttc),f.pdfSource?.sha256??''];
+}
+function facturxSignature(f){
+  return JSON.stringify({version:2,document:facturxDocumentCore(f)});
+}
+function facturxSnapshotMatches(f){
+  if(!f?.facturx||typeof f.facturx.snapshot!=='string')return false;
+  if(f.facturx.snapshot===facturxSignature(f))return true;
+  // Legacy snapshots included a payment date at index 7. Preserve the archived
+  // export only when every actual document field and the source hash still match.
+  try{
+    const old=JSON.parse(f.facturx.snapshot);
+    return Array.isArray(old)&&old.length===9&&JSON.stringify([...old.slice(0,5).map(v=>v??''),old[5],old[6],old[8]??''])===JSON.stringify(facturxDocumentCore(f));
+  }catch{return false;}
+}
+
 /* CDI_PORTAL_END */
+/* CDI_BILLING_START */
+/* Modern billing runs inside the authenticated CDInnov shell. */
+let billingMode='modern',billingModulePromise=null,billingMounted=null,billingTransport=null,billingEpoch=0,billingLogoutPending=false;
+function billingLockForLogout(){billingLogoutPending=true;$('#content').inert=true;}
+function billingUnlockLogout(){billingLogoutPending=false;$('#content').inert=false;}
+function billingModule(){
+  if(!$('#billingStyle')){const link=document.createElement('link');link.id='billingStyle';link.rel='stylesheet';link.href='platform/billing.css?v=billing1';document.head.append(link);}
+  return billingModulePromise ||= import('./platform/billing.js?v=billing1').catch(error=>{billingModulePromise=null;throw error;});
+}
+function billingLeave(){return billingMounted?.canLeave?.()!==false;}
+function billingForget(){
+  billingEpoch++;billingTransport?.dispose();billingTransport=null;
+  billingMounted?.dispose();billingMounted=null;$('#billingRoot')?.remove();
+}
+function renderBillingWorkspace(){
+  if(!AUTH_USER||currentView!=='facturier'||billingMode!=='modern')return;
+  financeForget();
+  if(!isAdmin(AUTH_USER)){billingForget();$('#content').innerHTML='<div class="card card-pad" role="alert">La facturation est réservée à la direction.</div>';return;}
+  if(billingMounted&&$('#billingRoot'))return;
+  const epoch=++billingEpoch,user=AUTH_USER;
+  $('#content').innerHTML='<div id="billingRoot"><div class="card card-pad" role="status">Chargement de la facturation…</div></div>';
+  const element=$('#billingRoot');
+  const active=()=>epoch===billingEpoch&&AUTH_USER===user&&currentView==='facturier'&&billingMode==='modern'&&element.isConnected;
+  billingModule().then(module=>{
+    if(!active())return;
+    billingTransport=module.createBillingTransport({baseUrl:budgetsApi().replace(/\/budgets\/?$/,''),getToken:async()=>(await budgetsEnsureSession()).token,isActive:active});
+    billingMounted=module.mountBilling(element,{transport:billingTransport,onLegacy:section=>{
+      if(active())setBillingSection(({invoices:'factures',codes:'codes',markets:'marches'})[section]);
+    }});
+  }).catch(()=>{
+    if(!active())return;
+    element.innerHTML='<div class="card card-pad" role="alert">Le chargement de la facturation a échoué. <button type="button" class="btn btn-ghost" onclick="billingForget();render()">Réessayer</button></div>';
+  });
+}
+
+setView('dashboard');
+/* CDI_BILLING_END */
 bootAuth();
 </script>
 </body>

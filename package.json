@@ -17,6 +17,8 @@
     "test:business": "node platform/business-test.mjs",
     "test:dashboard": "node platform/dashboard-test.mjs",
     "test:finance": "node platform/finance-test.mjs",
+    "test:billing": "node --test platform/billing-domain-test.mjs platform/facturx-integrity-test.mjs && node platform/billing-test.mjs",
+    "test:billing:browser": "node platform/billing-browser-test.mjs",
     "test:markets": "node marches/test.mjs && node marches/ai-test.mjs",
     "test:agenda": "node --test agenda/leave-periods.test.mjs",
     "test:agenda:browser": "node platform/agenda-browser-test.mjs",
