@@ -1,4 +1,4 @@
-@import url('./tokens.css?v=20261019');
+@import url('./tokens.css?v=apple1');
 body.cdi-sheets-app{font-family:var(--font-sans);color:var(--ink);background:var(--paper)}
 .cdi-sheets-app :is(button,input,select,textarea){font-family:inherit}
 .cdi-sheets-app :is(.sv-root,.bv-root){font-family:var(--font-sans);color:var(--ink)}

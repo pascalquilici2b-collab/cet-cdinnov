@@ -1,6 +1,6 @@
-@import url('./tokens.css?v=20261019');
+@import url('./tokens.css?v=apple1');
 /* Application density uses smaller headings than the editorial website. */
-:root{--bg:var(--paper);--panel:var(--surface);--panel-2:var(--paper-tint);--muted-2:var(--muted-alt);--line-strong:var(--field-border);--accent:var(--cyan);--accent-strong:var(--cyan-hover);--accent-soft:var(--paper-tint);--font:var(--font-sans);--font-head:var(--font-sans);--radius:3px;--shadow:none;--shadow-lg:var(--shadow-menu)}
+:root{--bg:var(--paper);--panel:var(--surface);--panel-2:var(--paper-tint);--muted-2:var(--muted-alt);--line-strong:var(--field-border);--accent:var(--cyan);--accent-strong:var(--cyan-hover);--accent-soft:var(--paper-tint);--font:var(--font-sans);--font-head:var(--font-sans);--radius:18px;--shadow:none;--shadow-lg:var(--shadow-menu)}
 body{font-family:var(--font-sans)}
 body :is(button,input,select,textarea){font-family:var(--font-sans)}
 .sidebar,.topbar{background:var(--surface);border-color:var(--line);border-radius:var(--radius-field);box-shadow:none;backdrop-filter:none}

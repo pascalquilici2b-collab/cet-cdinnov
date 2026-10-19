@@ -12,7 +12,7 @@ process.env.MARCHES_TEST_WORKER=fileURLToPath(new URL('../.build/entry.mjs',impo
 process.env.MARCHES_TEST_COMPATIBILITY_DATE='2026-06-09';
 const ctx=await testEnvironment();
 const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Paris',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
-const fixture=dashboardFixture(ctx.accounts,today);fixture.salaries[0].photo=null;fixture.notesFrais[0].signature=null;await ctx.kv.put('markets-test',JSON.stringify(fixture));
+const fixture=dashboardFixture(ctx.accounts,today);fixture.salaries[0].photo='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l1sAAAAASUVORK5CYII=';fixture.notesFrais[0].signature=null;await ctx.kv.put('markets-test',JSON.stringify(fixture));
 await insertDashboardTrips(ctx.db,today,users[0],users[1]);
 const sessions=await Promise.all(users.map(email=>ctx.login(email)));
 const root=fileURLToPath(new URL('../',import.meta.url)).replace(/[\\/]$/,'');
@@ -54,6 +54,19 @@ try{
  assert.equal(await page.locator('.applications-label').innerText(),'APPLICATIONS');
  assert.match(await page.locator('#cdiSheetsLink').innerText(),/Smartsheet/);
  await page.screenshot({path:join(out,'tableau-de-bord-desktop.png'),fullPage:true});
+ assert.equal(await page.locator('.db-person-row').first().locator('.db-avatar img').count(),1);
+ await page.waitForFunction(()=>document.querySelector('.db-person-row .db-avatar img')?.naturalWidth===1);
+ await page.locator('[data-theme-toggle]').click();assert.equal(await page.locator('html').getAttribute('data-theme'),'dark');
+ assert.equal(await page.locator('[data-theme-toggle]').getAttribute('aria-pressed'),'true');
+ await page.screenshot({path:join(out,'dashboard-dark-1440.png'),fullPage:true});
+ for(const view of ['salaries','mouvements','notesfrais','facturier','parametres']){
+  await page.evaluate(view=>setView(view),view);await page.waitForTimeout(300);
+  await page.screenshot({path:join(out,view+'-dark-1440.png'),fullPage:true});
+ }
+ await page.evaluate(()=>setView('dashboard'));await page.getByRole('heading',{name:'Dernières factures',exact:true}).waitFor();
+ await page.reload();await page.getByRole('heading',{name:'Dernières factures',exact:true}).waitFor();assert.equal(await page.locator('html').getAttribute('data-theme'),'dark');
+ await page.setViewportSize({width:390,height:844});await page.getByRole('button',{name:'Menu',exact:true}).click();await page.getByRole('button',{name:'Activer le mode clair',exact:true}).click();assert.equal(await page.locator('html').getAttribute('data-theme'),'light');await page.getByRole('button',{name:'Fermer le menu',exact:true}).click();
+ await page.setViewportSize({width:1440,height:1100});
  const firstRequests=requests.filter(r=>r.path==='/api/v1/dashboard').length;await page.evaluate(()=>render());
  assert.equal(requests.filter(r=>r.path==='/api/v1/dashboard').length,firstRequests,'Generic repaint must not trigger a summary refetch');
  for(const width of [390,320]){

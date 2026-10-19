@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "strict": true },
+  "include": [
+    "src/contracts.ts",
+    "src/api.ts",
+    "src/workspace-store.ts",
+    "src/use-workspace.ts",
+    "src/*-domain.tsx"
+  ]
+}

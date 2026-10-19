@@ -102,11 +102,11 @@ Une sauvegarde est un point de récupération, pas une synchronisation future. L
 | Étape | Critère de passage |
 |---|---|
 | Socle TS, build complet, premières lectures indexées | Livré dans cette tranche ; anciennes écritures encore compatibles |
-| Réunir les sources React Budgets et Smartsheet dans le dépôt de référence | Reproduire les écrans actuellement déployés avant leur prochaine modification |
+| Réunir les sources React Budgets et Smartsheet dans le dépôt de référence | Livré : Budgets repris depuis les sources existantes ; Smartsheet reconstruit depuis le bundle en service, avec tests différentiels et contrôle TypeScript. Voir `apps/budgets/README.md` et `apps/sheets/README.md`. |
 | Identité, habilitations et fichiers communs | Remplacer les anciens accès au portail/fichiers par des contrôles serveur, sans bloquer les sessions et liens existants |
 | Écritures unitaires Budgets et référentiel clients | Édition par enregistrement, opérations atomiques et exports compatibles ; supprimer le gros document seulement après validation et retour arrière éprouvé |
 | Commandes, interventions, factures et règlements | Parcours CCIC testé, règles déterministes, soldes et plafonds cohérents |
-| Congés/CET, frais, facturier historique puis Smartsheet | Reprise exhaustive, calculs comparés, écrans React remplacés progressivement |
+| Congés/CET, frais, facturier historique puis Smartsheet | Écrans React repris ; intégrations historiques de fichiers, identité et écritures unitaires encore à poursuivre. |
 | Factur-X et contrôle de pièces | Conserver les capacités Python/OCR ; revoir leur intégration après mesure, sans migration imposée vers un hébergement payant |
 
 L’identité historique et les anciens accès KV/R2 restent une dette connue de compatibilité ; la normalisation des budgets ne constitue pas une refonte de leurs autorisations. Aucun abonnement ni fournisseur supplémentaire n’est activé. Les quotas IA existants restent inchangés. Cette tranche réduit des lectures et transferts précis ; elle ne démontre pas encore que toutes les requêtes de l’application respectent la limite CPU de l’offre gratuite.

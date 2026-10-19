@@ -1,0 +1,532 @@
+{
+  "origin": "feuilles/assets/index-aZxjrxkf.js",
+  "sha256": "3393cf6146529f36bfd38c51f70298fb1354432c7adb7848da67e6433251e52b",
+  "method": "AST extraction of all application declarations; React and icon dependencies restored as package imports. Runtime logic preserved before typed refactoring.",
+  "declarations": [
+    {
+      "original": "Uy",
+      "name": "buildEnvironment",
+      "module": "api"
+    },
+    {
+      "original": "gd",
+      "name": "isCloud",
+      "module": "api"
+    },
+    {
+      "original": "xd",
+      "name": "apiBase",
+      "module": "api"
+    },
+    {
+      "original": "bd",
+      "name": "sessionKey",
+      "module": "api"
+    },
+    {
+      "original": "_s",
+      "name": "readSession",
+      "module": "api"
+    },
+    {
+      "original": "dd",
+      "name": "expireSession",
+      "module": "api"
+    },
+    {
+      "original": "qy",
+      "name": "signOut",
+      "module": "api"
+    },
+    {
+      "original": "Po",
+      "name": "requestState",
+      "module": "api"
+    },
+    {
+      "original": "Hy",
+      "name": "hexToBytes",
+      "module": "api"
+    },
+    {
+      "original": "Ly",
+      "name": "bytesToHex",
+      "module": "api"
+    },
+    {
+      "original": "By",
+      "name": "signIn",
+      "module": "api"
+    },
+    {
+      "original": "fd",
+      "name": "statusOptions",
+      "module": "sheet-domain"
+    },
+    {
+      "original": "fc",
+      "name": "newId",
+      "module": "sheet-domain"
+    },
+    {
+      "original": "As",
+      "name": "clone",
+      "module": "sheet-domain"
+    },
+    {
+      "original": "Yy",
+      "name": "updateCell",
+      "module": "sheet-domain"
+    },
+    {
+      "original": "Qv",
+      "name": "rowDepth",
+      "module": "sheet-domain"
+    },
+    {
+      "original": "ws",
+      "name": "descendantIds",
+      "module": "sheet-domain"
+    },
+    {
+      "original": "Zv",
+      "name": "deleteRows",
+      "module": "sheet-domain"
+    },
+    {
+      "original": "Ha",
+      "name": "appendRow",
+      "module": "sheet-domain"
+    },
+    {
+      "original": "Kv",
+      "name": "insertRow",
+      "module": "sheet-domain"
+    },
+    {
+      "original": "Jv",
+      "name": "selectionBounds",
+      "module": "sheet-domain"
+    },
+    {
+      "original": "Vy",
+      "name": "navigateCell",
+      "module": "sheet-domain"
+    },
+    {
+      "original": "Gy",
+      "name": "parseClipboard",
+      "module": "sheet-domain"
+    },
+    {
+      "original": "Xy",
+      "name": "serializeClipboard",
+      "module": "sheet-domain"
+    },
+    {
+      "original": "Qy",
+      "name": "parseCellInput",
+      "module": "sheet-domain"
+    },
+    {
+      "original": "Zy",
+      "name": "pasteCells",
+      "module": "sheet-domain"
+    },
+    {
+      "original": "Ky",
+      "name": "clearCells",
+      "module": "sheet-domain"
+    },
+    {
+      "original": "Iv",
+      "name": "indentRow",
+      "module": "sheet-domain"
+    },
+    {
+      "original": "Jy",
+      "name": "visibleRows",
+      "module": "sheet-domain"
+    },
+    {
+      "original": "pc",
+      "name": "coerceCell",
+      "module": "sheet-domain"
+    },
+    {
+      "original": "Iy",
+      "name": "evaluateFormula",
+      "module": "sheet-domain"
+    },
+    {
+      "original": "Il",
+      "name": "cellValue",
+      "module": "sheet-domain"
+    },
+    {
+      "original": "gt",
+      "name": "dateSerial",
+      "module": "sheet-domain"
+    },
+    {
+      "original": "kl",
+      "name": "serialDate",
+      "module": "sheet-domain"
+    },
+    {
+      "original": "$y",
+      "name": "timelineRange",
+      "module": "sheet-domain"
+    },
+    {
+      "original": "md",
+      "name": "ganttBar",
+      "module": "sheet-domain"
+    },
+    {
+      "original": "Fy",
+      "name": "moveDates",
+      "module": "sheet-domain"
+    },
+    {
+      "original": "Wy",
+      "name": "dependencyLinks",
+      "module": "sheet-domain"
+    },
+    {
+      "original": "ed",
+      "name": "sheetViews",
+      "module": "sheet-view"
+    },
+    {
+      "original": "Py",
+      "name": "columnTypeLabels",
+      "module": "sheet-view"
+    },
+    {
+      "original": "Di",
+      "name": "statusClass",
+      "module": "sheet-view"
+    },
+    {
+      "original": "Jl",
+      "name": "displayDate",
+      "module": "sheet-view"
+    },
+    {
+      "original": "ct",
+      "name": "ToolButton",
+      "module": "sheet-view"
+    },
+    {
+      "original": "oc",
+      "name": "SheetModal",
+      "module": "sheet-view"
+    },
+    {
+      "original": "eg",
+      "name": "CellContent",
+      "module": "sheet-view"
+    },
+    {
+      "original": "tg",
+      "name": "CellEditor",
+      "module": "sheet-view"
+    },
+    {
+      "original": "lg",
+      "name": "ColumnDialog",
+      "module": "sheet-view"
+    },
+    {
+      "original": "ng",
+      "name": "SheetView",
+      "module": "sheet-view"
+    },
+    {
+      "original": "uc",
+      "name": "navigationTitles",
+      "module": "navigation"
+    },
+    {
+      "original": "ag",
+      "name": "NavigationPopover",
+      "module": "navigation"
+    },
+    {
+      "original": "td",
+      "name": "itemLabels",
+      "module": "browse"
+    },
+    {
+      "original": "Mn",
+      "name": "itemKey",
+      "module": "browse"
+    },
+    {
+      "original": "$v",
+      "name": "normalizeSearch",
+      "module": "browse"
+    },
+    {
+      "original": "ld",
+      "name": "itemDate",
+      "module": "browse"
+    },
+    {
+      "original": "ig",
+      "name": "itemSortDate",
+      "module": "browse"
+    },
+    {
+      "original": "Fv",
+      "name": "ItemKindIcon",
+      "module": "browse"
+    },
+    {
+      "original": "sg",
+      "name": "BrowseView",
+      "module": "browse"
+    },
+    {
+      "original": "mc",
+      "name": "statusColors",
+      "module": "dashboard-domain"
+    },
+    {
+      "original": "ug",
+      "name": "defaultWidgets",
+      "module": "dashboard-domain"
+    },
+    {
+      "original": "o0",
+      "name": "widgetId",
+      "module": "dashboard-domain"
+    },
+    {
+      "original": "cg",
+      "name": "normalizeStatus",
+      "module": "dashboard-domain"
+    },
+    {
+      "original": "d0",
+      "name": "isValidDate",
+      "module": "dashboard-domain"
+    },
+    {
+      "original": "rg",
+      "name": "localDay",
+      "module": "dashboard-domain"
+    },
+    {
+      "original": "hc",
+      "name": "numberValue",
+      "module": "dashboard-domain"
+    },
+    {
+      "original": "og",
+      "name": "summarizeSheets",
+      "module": "dashboard-domain"
+    },
+    {
+      "original": "_i",
+      "name": "formFields",
+      "module": "dashboard-domain"
+    },
+    {
+      "original": "dg",
+      "name": "createForm",
+      "module": "dashboard-domain"
+    },
+    {
+      "original": "fg",
+      "name": "validateForm",
+      "module": "dashboard-domain"
+    },
+    {
+      "original": "mg",
+      "name": "formValues",
+      "module": "dashboard-domain"
+    },
+    {
+      "original": "hg",
+      "name": "readFormData",
+      "module": "dashboard-domain"
+    },
+    {
+      "original": "vg",
+      "name": "reorderWidgets",
+      "module": "dashboard-domain"
+    },
+    {
+      "original": "f0",
+      "name": "formatInteger",
+      "module": "dashboard-view"
+    },
+    {
+      "original": "pg",
+      "name": "formatEuro",
+      "module": "dashboard-view"
+    },
+    {
+      "original": "yg",
+      "name": "metricLabels",
+      "module": "dashboard-view"
+    },
+    {
+      "original": "cc",
+      "name": "widgetLabels",
+      "module": "dashboard-view"
+    },
+    {
+      "original": "gg",
+      "name": "widgetIcons",
+      "module": "dashboard-view"
+    },
+    {
+      "original": "xg",
+      "name": "displayDashboardDate",
+      "module": "dashboard-view"
+    },
+    {
+      "original": "jd",
+      "name": "WidgetEmpty",
+      "module": "dashboard-view"
+    },
+    {
+      "original": "hd",
+      "name": "EditableText",
+      "module": "dashboard-view"
+    },
+    {
+      "original": "bg",
+      "name": "StatusChart",
+      "module": "dashboard-view"
+    },
+    {
+      "original": "jg",
+      "name": "ProgressChart",
+      "module": "dashboard-view"
+    },
+    {
+      "original": "Sg",
+      "name": "TaskList",
+      "module": "dashboard-view"
+    },
+    {
+      "original": "Ng",
+      "name": "DashboardView",
+      "module": "dashboard-view"
+    },
+    {
+      "original": "m0",
+      "name": "FormFieldInput",
+      "module": "forms"
+    },
+    {
+      "original": "Cg",
+      "name": "FormBuilder",
+      "module": "forms"
+    },
+    {
+      "original": "zg",
+      "name": "FormPreview",
+      "module": "forms"
+    },
+    {
+      "original": "Eg",
+      "name": "useWorkspace",
+      "module": "use-workspace"
+    },
+    {
+      "original": "Wt",
+      "name": "uuid",
+      "module": "workspace-domain"
+    },
+    {
+      "original": "h0",
+      "name": "defaultColumns",
+      "module": "workspace-domain"
+    },
+    {
+      "original": "v0",
+      "name": "createSheet",
+      "module": "workspace-domain"
+    },
+    {
+      "original": "Tg",
+      "name": "parseCSV",
+      "module": "workspace-domain"
+    },
+    {
+      "original": "Ag",
+      "name": "importCSV",
+      "module": "workspace-domain"
+    },
+    {
+      "original": "Wv",
+      "name": "exportCSV",
+      "module": "workspace-domain"
+    },
+    {
+      "original": "Pv",
+      "name": "duplicateSheet",
+      "module": "workspace-domain"
+    },
+    {
+      "original": "Ul",
+      "name": "IconButton",
+      "module": "shared-ui"
+    },
+    {
+      "original": "Ms",
+      "name": "DocumentIcon",
+      "module": "shared-ui"
+    },
+    {
+      "original": "Mg",
+      "name": "SheetSummary",
+      "module": "shared-ui"
+    },
+    {
+      "original": "on",
+      "name": "Modal",
+      "module": "shared-ui"
+    },
+    {
+      "original": "nd",
+      "name": "download",
+      "module": "shared-ui"
+    },
+    {
+      "original": "e0",
+      "name": "readRoute",
+      "module": "shared-ui"
+    },
+    {
+      "original": "Dg",
+      "name": "App",
+      "module": "app"
+    },
+    {
+      "original": "wg",
+      "name": "CreateDialog",
+      "module": "dialogs"
+    },
+    {
+      "original": "Og",
+      "name": "MoveDialog",
+      "module": "dialogs"
+    },
+    {
+      "original": "_g",
+      "name": "SettingsDialog",
+      "module": "dialogs"
+    },
+    {
+      "original": "Rg",
+      "name": "AuthGate",
+      "module": "auth-gate"
+    }
+  ]
+}

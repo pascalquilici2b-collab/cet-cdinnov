@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
+<script src="./platform/theme.js?v=apple1"></script>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>CDInnov - Gestion interne</title>
@@ -592,6 +593,7 @@ body:has(.agenda-shell) .topbar{flex-wrap:wrap;row-gap:12px}
       Paramètres & données
     </div>
     <div class="spacer"></div>
+    <button class="theme-toggle" type="button" data-theme-toggle aria-label="Activer le mode nuit" aria-pressed="false"><svg class="theme-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 13.1A9 9 0 0 1 10.9 3.2a9 9 0 1 0 9.9 9.9Z"/></svg><svg class="theme-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></svg><span data-theme-label>Mode clair</span><span class="theme-track" aria-hidden="true"></span></button>
     <div id="userChip" class="user-chip"></div>
   </aside>
   <div class="sidebar-backdrop" id="sidebarBackdrop" onclick="toggleSidebar(false)"></div>
@@ -693,7 +695,8 @@ body.authed .auth-gate{display:none}
 .agdot{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:5px;vertical-align:-1px}
 </style>
 <link rel="stylesheet" href="platform/design-system.css">
-<link rel="stylesheet" href="design/portal.css?v=20261019">
+<link rel="stylesheet" href="design/portal.css?v=apple1">
+<link rel="stylesheet" href="design/apple.css?v=apple1">
 <script src="platform/icons.js?v=20261019"></script>
 <div id="authGate" class="auth-gate">
   <div class="auth-card">
@@ -1126,10 +1129,11 @@ function renderDashboard(){
   $('#content').innerHTML='<div id="dashboardRoot"><div class="card card-pad" role="status">Chargement du tableau de bord…</div></div>';
   const element=$('#dashboardRoot');
   if(!document.getElementById('dashboardStyle')){const css=document.createElement('link');css.id='dashboardStyle';css.rel='stylesheet';css.href='platform/dashboard.css';document.head.append(css);}
-  dashboardModule ||= import('./platform/dashboard.js').catch(error=>{dashboardModule=null;throw error;});
+  dashboardModule ||= import('./platform/dashboard.js?v=apple1').catch(error=>{dashboardModule=null;throw error;});
   dashboardModule.then(module=>{
     if(epoch!==dashboardEpoch||AUTH_USER!==user||currentView!=='dashboard'||!element.isConnected)return;
     dashboardDispose=module.mountDashboard(element,{
+      portrait:member=>agendaPortrait(member.email||salEmail(member.id)),
       load:async(week,signal)=>{
         const session=await budgetsEnsureSession();
         if(AUTH_USER!==user||signal.aborted)throw new Error('La session a changé.');

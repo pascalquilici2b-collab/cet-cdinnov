@@ -18,7 +18,10 @@
     "test:personnel": "node platform/personnel-test.mjs",
     "build:budgets": "node apps/build.mjs",
     "typecheck:budgets": "tsc -p apps/budgets/tsconfig.json",
-    "test:applications:browser": "node platform/applications-browser-test.mjs"
+    "test:applications:browser": "node platform/applications-browser-test.mjs",
+    "build:sheets": "node apps/build-sheets.mjs",
+    "typecheck:sheets": "tsc -p apps/sheets/tsconfig.json && tsc -p apps/sheets/tsconfig.core.json",
+    "test:sheets": "node --test apps/sheets/test/*.test.mjs"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "4.2.1",

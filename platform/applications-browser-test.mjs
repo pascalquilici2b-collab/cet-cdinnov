@@ -11,6 +11,12 @@ const out=process.env.PORTAL_QA;assert.ok(out,'Private PORTAL_QA is required');a
 const periods=[{id:'P1',label:'Période 1',start:'2026-01-01',end:'2026-06-30'},{id:'P2',label:'Période 2',start:'2026-07-01',end:'2026-12-31'}];
 const workspace={demo:false,clients:[{id:'c1',name:'Client fictif',accounts:[]}],projects:Array.from({length:4},(_,i)=>({id:'p'+i,clientId:'c1',acronym:'PROJET '+(i+1),name:'Programme de vérification locale',start:'2026-01-01',end:'2026-12-31',periods,eligibleBudget:10000,federRate:80,advance:{requested:false,received:false,rate:25,recoveryPeriod:'P2',firstRecoveryRate:60},rules:{realRate:80,hrMode:'réel',hrRate:0,missionMode:'réel',missionRate:0,officeMode:'réel',officeRate:0}})),budgetLines:[{id:'b1',projectId:'p0',category:'Expertise externe',description:'Accompagnement de test',amount:10000,allocations:{P1:4000,P2:6000},subExpenses:[]}],expenses:[],drs:[],imports:[]};
 const fixture={workspaces:[{id:'w1',name:'Espace de vérification',folders:[]}],sheets:[{id:'s1',name:'Suivi de vérification',workspaceId:'w1',folderId:null,favorite:false,columns:[{id:'task',title:'Tâche',type:'text',width:330},{id:'status',title:'Statut',type:'dropdown',width:150,options:['À faire','En cours','Terminé']},{id:'start',title:'Début',type:'date',width:130},{id:'end',title:'Fin',type:'date',width:130}],rows:[{id:'r1',cells:{task:'Préparer le rapport',status:'En cours',start:'2026-10-19',end:'2026-10-23'}}],comments:[],forms:[],automations:[],lastView:'grid',createdAt:'2026-10-19T10:00:00Z',updatedAt:'2026-10-19T10:00:00Z'}],dashboards:[],activity:[],settings:{},sampleData:false};
+fixture.profile={name:'Équipe de vérification',organization:'Organisation fictive'};
+fixture.version=1;fixture.sheets[0].columns[1].type='select';
+fixture.dashboards=[{id:'d1',name:'Indicateurs de vérification',workspaceId:'w1',sheetIds:['s1'],widgets:[{id:'total',type:'metric',metric:'total',title:'Tâches suivies'},{id:'chart',type:'chart',chart:'status',title:'Répartition des statuts'}]}];
+fixture.customMetadata={retained:true};fixture.sheets[0].customMetadata={legacy:'retained'};
+fixture.sheets[0].rows[0].formats={task:{bold:true,color:'#203c68',background:'#eaf4ff'}};
+fixture.sheets[0].rows[0].cells.unlisted='champ historique';
 let sheetState=structuredClone(fixture),revision=1;const writes=[];
 const host=`<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0"><iframe id="budget" title="Outil budgets" src="/budgets-projets/" style="border:0;width:100%;height:100vh"></iframe><script>window.workspace=${JSON.stringify(workspace)};window.saved=[];let version=1;addEventListener('message',e=>{if(e.source!==document.querySelector('iframe').contentWindow||e.origin!==location.origin)return;const m=e.data;if(m.type==='cdi-budget-request'){if(m.method==='PUT'){window.workspace=m.workspace;window.saved.push(m.workspace);version++}e.source.postMessage({type:'cdi-budget-response',id:m.id,result:{workspace:window.workspace,version}},location.origin)}if(m.type==='cdi-budget-fullscreen')e.source.postMessage({type:'cdi-budget-fullscreen',fullscreen:!!m.fullscreen},location.origin)});</script></body></html>`;
 const mime={'.html':'text/html; charset=utf-8','.js':'application/javascript','.mjs':'application/javascript','.css':'text/css','.svg':'image/svg+xml','.png':'image/png','.woff2':'font/woff2'};
@@ -20,13 +26,21 @@ const browser=await chromium.launch({channel:'msedge',headless:true}),errors=[],
 async function audit(page,frame,name,width){
  await page.setViewportSize({width,height:1000});await page.waitForTimeout(120);
  const result=await frame.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth,font:getComputedStyle(document.body).fontFamily,icons:[...document.querySelectorAll('svg.lucide,svg.cdi-icon')].filter(e=>e.getBoundingClientRect().width>0).map(e=>({name:e.getAttribute('class'),w:e.getBoundingClientRect().width,h:e.getBoundingClientRect().height})).filter(e=>e.w>34||e.h>34)}));
- checks.push({name,...result});assert.ok(result.scroll<=result.width+1,`${name} overflow at ${width}: ${result.scroll}`);assert.deepEqual(result.icons,[],`${name} oversized icons at ${width}`);assert.match(result.font,/Manrope/);
- if([1920,390].includes(width))await page.screenshot({path:join(out,`${name}-${width}.png`),fullPage:false});
+ checks.push({name,...result});assert.ok(result.scroll<=result.width+1,`${name} overflow at ${width}: ${result.scroll}`);assert.deepEqual(result.icons,[],`${name} oversized icons at ${width}`);assert.match(result.font,/Inter Variable/);
+ if([1920,390].includes(width)){
+  await page.screenshot({path:join(out,`${name}-${width}.png`),fullPage:false,timeout:30000});
+  await frame.evaluate(()=>CDITheme.set('dark'));await page.waitForTimeout(80);
+  assert.equal(await frame.evaluate(()=>document.documentElement.dataset.theme),'dark');
+  await page.screenshot({path:join(out,`${name}-dark-${width}.png`),fullPage:false,timeout:30000});
+  const surfaces=await frame.evaluate(()=>[...document.querySelectorAll('body *')].filter(e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>80&&r.height>25&&s.visibility!=='hidden'&&/^rgb\(2[3-5]\d, 2[3-5]\d, 2[3-5]\d\)$/.test(s.backgroundColor)}).map(e=>({tag:e.tagName,cls:e.className,style:e.getAttribute('style'),color:getComputedStyle(e).color})).slice(0,100));
+  await writeFile(join(out,`${name}-dark-surfaces.json`),JSON.stringify(surfaces,null,2));
+  await frame.evaluate(()=>CDITheme.set('light'));
+ }
 }
 try{
  const context=await browser.newContext({viewport:{width:1920,height:1000},locale:'fr-FR'});
  await context.route('**/*',async route=>{const u=new URL(route.request().url());if(u.origin===base)return route.continue();if(u.pathname==='/sheets/session')return route.fulfill({json:{ok:true}});if(u.pathname==='/sheets/state'){if(route.request().method()==='GET')return route.fulfill({json:{revision,state:sheetState}});const body=route.request().postDataJSON();writes.push(body);sheetState=body.state||body;revision++;return route.fulfill({json:{ok:true,revision,state:sheetState}})}return route.abort()});
- const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));await page.goto(base+'/budget-test');const frame=page.frameLocator('#budget');await frame.getByRole('button',{name:'Ouvrir le projet PROJET 1',exact:true}).waitFor();
+ const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));page.setDefaultTimeout(10000);await page.goto(base+'/budget-test');const frame=page.frameLocator('#budget');await frame.getByRole('button',{name:'Ouvrir le projet PROJET 1',exact:true}).waitFor();
  const budget=page.frames().find(f=>f.url().includes('/budgets-projets/'));
  for(const width of [2560,1920,1024,768,390,320])await audit(page,budget,'budgets-projets',width);
  await page.setViewportSize({width:1920,height:1000});await frame.getByRole('button',{name:'Ouvrir le projet PROJET 1',exact:true}).click();
@@ -59,6 +73,43 @@ try{
    await page.locator('.sv-view-button').click();await page.locator('.sv-menu').getByText(view==='Table'?/^Table\s*Nouveau$/:view,{exact:true}).click();
    for(const width of [1920,390,320])await audit(page,page,'smartsheet-'+view.toLowerCase(),width);
  }
+ await page.setViewportSize({width:1920,height:1000});
+ const saved=action=>Promise.all([page.waitForResponse(r=>r.url().endsWith('/sheets/state')&&r.request().method()==='PUT'),action()]);
+ await page.getByRole('button',{name:'Formulaires',exact:true}).click();
+ await saved(()=>page.getByRole('button',{name:'Créer un formulaire',exact:true}).first().click());
+ assert.equal(sheetState.sheets[0].forms.length,1);
+ for(const width of [1920,390,320])await audit(page,page,'smartsheet-editeur-formulaire',width);
+ await page.getByRole('button',{name:'Ouvrir pour remplir',exact:true}).click();
+ await page.getByRole('button',{name:'Envoyer',exact:true}).click();await page.getByText('Ce champ est obligatoire.',{exact:true}).waitFor();
+ assert.equal(sheetState.sheets[0].rows.length,1);
+ await page.locator('.iv-public-form').getByLabel('Tâche').fill('Réponse issue du formulaire');
+ await page.locator('.iv-public-form').getByLabel('Statut',{exact:true}).selectOption('En cours');
+ await saved(()=>page.getByRole('button',{name:'Envoyer',exact:true}).click());
+ await page.getByRole('heading',{name:'Réponse enregistrée',exact:true}).waitFor();
+ assert.equal(sheetState.sheets[0].rows.length,2);assert.equal(sheetState.sheets[0].rows[1].cells.task,'Réponse issue du formulaire');
+ for(const width of [1920,390])await audit(page,page,'smartsheet-reponse-formulaire',width);
+ await page.getByRole('button',{name:'Revenir à la feuille',exact:true}).click();
+ await page.getByRole('button',{name:'Fermer l’éditeur de formulaires',exact:true}).click();
+ await page.evaluate(()=>location.hash='/dashboard/d1');await page.getByText('Tâches suivies',{exact:true}).waitFor();
+ for(const width of [1920,390,320])await audit(page,page,'smartsheet-indicateurs',width);
+ await page.getByTitle('Compte et sauvegardes',{exact:true}).click();
+ for(const width of [1920,390])await audit(page,page,'smartsheet-sauvegarde',width);
+ const readDownload=async download=>{const chunks=[];for await(const chunk of await download.createReadStream())chunks.push(chunk);return Buffer.concat(chunks).toString('utf8')};
+ let downloaded=page.waitForEvent('download');await page.getByRole('button',{name:/Exporter une sauvegarde complète/}).click();const backup=JSON.parse(await readDownload(await downloaded));
+ assert.deepEqual(backup.sheets,sheetState.sheets);assert.deepEqual(backup.dashboards,sheetState.dashboards);assert.deepEqual(backup.customMetadata,fixture.customMetadata);
+ const chooser=page.waitForEvent('filechooser');await page.getByRole('button',{name:/Importer une feuille CSV/}).click();
+ await saved(async()=>{await(await chooser).setFiles({name:'Import de vérification.csv',mimeType:'text/csv',buffer:Buffer.from('Tâche;Budget;Début\nLigne importée;1900;19/10/2026')})});
+ await page.locator('.document-name').waitFor();assert.equal(sheetState.sheets.length,2);const imported=sheetState.sheets.find(s=>s.id!=='s1');assert.equal(imported.rows[0].cells.budget,1900);assert.equal(imported.rows[0].cells.start,'2026-10-19');
+ await page.setViewportSize({width:1920,height:1000});await page.getByRole('button',{name:'Menu Fichier',exact:true}).click();
+ downloaded=page.waitForEvent('download');await page.getByRole('button',{name:'Exporter au format CSV',exact:true}).click();assert.match(await readDownload(await downloaded),/Ligne importée/);
+ await page.getByTitle('Compte et sauvegardes',{exact:true}).click();
+ const restoreChooser=page.waitForEvent('filechooser');await page.getByRole('button',{name:/Restaurer une sauvegarde/}).click();await(await restoreChooser).setFiles({name:'backup.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(backup))});
+ await saved(()=>page.getByRole('button',{name:'Sauvegarder puis restaurer',exact:true}).click());
+ await page.locator('.home-hero').waitFor();assert.deepEqual(sheetState.sheets,backup.sheets);assert.deepEqual(sheetState.dashboards,backup.dashboards);
  await page.setViewportSize({width:390,height:1000});await page.locator('.cdi-app-home').click();await page.locator('.home-hero').waitFor();assert.ok(page.url().endsWith('#/home'));
+ await page.locator('[data-theme-toggle]').click();assert.equal(await page.locator('html').getAttribute('data-theme'),'dark');
+ await page.reload();await page.locator('.home-hero').waitFor();assert.equal(await page.locator('html').getAttribute('data-theme'),'dark');
+ await page.locator('[data-theme-toggle]').click();assert.equal(await page.locator('html').getAttribute('data-theme'),'light');
+ assert.deepEqual(sheetState.customMetadata,fixture.customMetadata);assert.deepEqual(sheetState.sheets[0].customMetadata,fixture.sheets[0].customMetadata);assert.deepEqual(sheetState.sheets[0].rows[0].formats,fixture.sheets[0].rows[0].formats);
  assert.deepEqual(errors,[]);await writeFile(join(out,'applications-checks.json'),JSON.stringify({checks,errors,writes},null,2));console.log('PASS: budget tabs and Excel export, Smartsheet login/home/table/Gantt/board/calendar, edit-save-reload preserving cells and columns; widths 320–2560, bounded icons and local font.');
-}finally{await browser.close();server.closeAllConnections();await new Promise(r=>server.close(r));}
+}catch(error){console.error(error);throw error}finally{await browser.close();server.closeAllConnections();await new Promise(r=>server.close(r));}

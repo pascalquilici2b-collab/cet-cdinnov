@@ -1,10 +1,10 @@
 import {useEffect, useState} from 'react';
 import {createRoot} from 'react-dom/client';
-import type {DashboardAction, DashboardData, DocumentSummary} from '../dashboard-contracts';
+import type {DashboardAction, DashboardData, DocumentSummary, Member} from '../dashboard-contracts';
 import './dashboard.css';
 import {Icon} from './icon';
 
-interface Props {load:(week:string,signal:AbortSignal)=>Promise<DashboardData>; open:(action:DashboardAction)=>Promise<void>|void;}
+interface Props {load:(week:string,signal:AbortSignal)=>Promise<DashboardData>; open:(action:DashboardAction)=>Promise<void>|void; portrait?:(member:Member)=>string;}
 const add=(day:string,n:number)=>new Date(Date.parse(day+'T12:00:00Z')+n*86400000).toISOString().slice(0,10);
 const parisDay=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Paris',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 const monday=(day:string)=>add(day,-((new Date(day+'T12:00:00Z').getUTCDay()+6)%7));
@@ -13,7 +13,13 @@ const range=(start:string,end:string)=>start===end?date(start):`${date(start)} �
 const euro=(amount:number)=>new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',maximumFractionDigits:2}).format(amount);
 const initials=(name:string)=>name.split(/\s+/).filter(Boolean).slice(0,2).map(n=>n[0]).join('');
 
-function Dashboard({load,open}:Props){
+function Avatar({member,portrait}:{member:Member;portrait?:Props['portrait']}){
+  const source=portrait?.(member)||'';
+  const [failed,setFailed]=useState('');
+  const safe=/^(https?:\/\/|data:image\/(png|jpeg|webp);base64,)/i.test(source);
+  return <span className="db-avatar" aria-hidden="true"><span>{initials(member.name)}</span>{safe&&failed!==source&&<img src={source} alt="" loading="lazy" referrerPolicy="no-referrer" onError={()=>setFailed(source)}/>}</span>;
+}
+function Dashboard({load,open,portrait}:Props){
   const [week,setWeek]=useState(()=>monday(parisDay()));
   const [data,setData]=useState<DashboardData|null>(null);
   const [revision,refresh]=useState(0),[busy,setBusy]=useState(true),[error,setError]=useState('');
@@ -63,17 +69,17 @@ function Dashboard({load,open}:Props){
           <div className="db-week-controls"><strong>{range(data.weekStart,add(data.weekStart,6))} {data.weekStart.slice(0,4)}</strong><div><button className="db-icon-button" aria-label="Semaine précédente" disabled={busy||week<='2000-01-08'} onClick={()=>setWeek(add(week,-7))}>‹</button><button className="db-button" disabled={busy} onClick={()=>setWeek(monday(parisDay()))}>Aujourd’hui</button><button className="db-icon-button" aria-label="Semaine suivante" disabled={busy||week>='2100-12-18'} onClick={()=>setWeek(add(week,7))}>›</button></div></div>
           <div className="db-timeline-scroll" tabIndex={0} role="region" aria-label="Planning hebdomadaire, défilement horizontal disponible"><div className="db-timeline">
             <div className="db-timeline-header"><span>Collaborateur</span><div>{days.map(day=><span key={day} className={day===data.today?'is-today':''}>{date(day,{weekday:'short'})}<b>{day.slice(8)}</b></span>)}</div></div>
-            {data.members.map(member=>{const events=bars(member.id);return <div className="db-person-row" key={member.id}><div className="db-person"><span className="db-avatar">{initials(member.name)}</span><strong>{member.name}</strong></div><div className="db-lanes">
+            {data.members.map(member=>{const events=bars(member.id);return <div className="db-person-row" key={member.id}><div className="db-person"><Avatar member={member} portrait={portrait}/><strong>{member.name}</strong></div><div className="db-lanes">
               <div className="db-day-lines" aria-hidden="true">{days.map(day=><i key={day} className={day===data.today?'is-today':''}/>)}</div>
               {events.length?events.map(event=>{const first=Math.max(0,Math.round((Date.parse(event.start)-Date.parse(data.weekStart))/86400000));const last=Math.min(6,Math.round((Date.parse(event.end)-Date.parse(data.weekStart))/86400000));return <div className="db-lane" key={event.id}><button className={'db-event is-'+event.kind} style={{gridColumn:`${first+1} / ${last+2}`}} title={`${member.name} · ${event.title} · ${range(event.start,event.end)}`} aria-label={`${member.name}, ${event.title}, ${range(event.start,event.end)}`} onClick={()=>navigate(event.action)}>{event.title}</button></div>;}):<div className="db-no-event">Aucun congé ou déplacement</div>}
             </div></div>;})}
             {!data.members.length&&<p className="db-empty">Aucun collaborateur enregistré.</p>}
           </div></div>
-          <div className="db-mobile-planning" aria-label="Planning de la semaine par collaborateur">{data.members.map(member=>{const events=bars(member.id);return <section key={member.id} className="db-mobile-person"><div className="db-person"><span className="db-avatar">{initials(member.name)}</span><strong>{member.name}</strong></div>{events.length?events.map(event=><button className={'db-mobile-event is-'+event.kind} key={event.id} onClick={()=>navigate(event.action)}><strong>{event.title}</strong><span>{range(event.start,event.end)} <span aria-hidden="true">↗</span></span></button>):<p>Aucun congé ou déplacement cette semaine.</p>}</section>;})}</div>
+          <div className="db-mobile-planning" aria-label="Planning de la semaine par collaborateur">{data.members.map(member=>{const events=bars(member.id);return <section key={member.id} className="db-mobile-person"><div className="db-person"><Avatar member={member} portrait={portrait}/><strong>{member.name}</strong></div>{events.length?events.map(event=><button className={'db-mobile-event is-'+event.kind} key={event.id} onClick={()=>navigate(event.action)}><strong>{event.title}</strong><span>{range(event.start,event.end)} <span aria-hidden="true">↗</span></span></button>):<p>Aucun congé ou déplacement cette semaine.</p>}</section>;})}</div>
           <div className="db-legend"><span className="is-leave">Congé validé</span><span className="is-trip">Déplacement</span><span className="is-pending">Congé en attente</span></div>
         </section>
         <section className="db-panel db-pending" aria-labelledby="db-pending-title"><header className="db-panel-head"><div><span className="db-eyebrow">À suivre</span><h2 id="db-pending-title">Congés en attente</h2></div><span className="db-count">{data.counts.pending}</span></header>
-          {data.pending.length?<><div className="db-pending-list">{data.pending.map(item=><div className="db-request" key={item.id}><div><strong>{item.name}</strong><span>{range(item.start,item.end)}{item.start===item.end&&item.startHalf===item.endHalf?(item.startHalf==='AM'?' · matin':' · après-midi'):''}</span><small>{item.type} · {item.days.toLocaleString('fr-FR')} j</small></div><button className="db-link" disabled={opening} onClick={()=>navigate({kind:'pending',id:item.id,date:item.start,memberId:item.memberId})}>{data.admin?'Examiner':'Consulter'} <span aria-hidden="true">›</span></button></div>)}</div><p className="db-footnote">Les demandes sont regroupées en périodes continues.</p></>:<div className="db-empty db-empty-pending"><span aria-hidden="true">✓</span><strong>Aucune demande en attente</strong><p>Les nouvelles demandes de congés apparaîtront ici.</p></div>}
+          {data.pending.length?<><div className="db-pending-list">{data.pending.map(item=><div className="db-request" key={item.id}><div className="db-request-person"><Avatar member={data.members.find(m=>m.id===item.memberId)||{id:item.memberId,name:item.name,email:''}} portrait={portrait}/><div><strong>{item.name}</strong><span>{range(item.start,item.end)}{item.start===item.end&&item.startHalf===item.endHalf?(item.startHalf==='AM'?' · matin':' · après-midi'):''}</span><small>{item.type} · {item.days.toLocaleString('fr-FR')} j</small></div></div><button className="db-link" disabled={opening} onClick={()=>navigate({kind:'pending',id:item.id,date:item.start,memberId:item.memberId})}>{data.admin?'Examiner':'Consulter'} <span aria-hidden="true">›</span></button></div>)}</div><p className="db-footnote">Les demandes sont regroupées en périodes continues.</p></>:<div className="db-empty db-empty-pending"><span aria-hidden="true">✓</span><strong>Aucune demande en attente</strong><p>Les nouvelles demandes de congés apparaîtront ici.</p></div>}
         </section>
       </div>
       <div className={'db-finance-grid '+(!data.admin?'is-personal':'')}>{data.invoices!==null&&documents('invoice',data.invoices)}{documents('expense',data.expenses)}</div>

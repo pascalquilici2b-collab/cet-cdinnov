@@ -1,6 +1,6 @@
 /* Dense application adaptation of the supplied CDInnov brand. Loaded after the build CSS. */
-@import url('./tokens.css?v=20261019');
-:root{--background:var(--paper);--foreground:var(--ink);--card:var(--surface);--card-foreground:var(--ink);--popover:var(--surface);--popover-foreground:var(--ink);--primary:var(--cyan);--primary-foreground:var(--on-cyan);--secondary:var(--paper-tint);--secondary-foreground:var(--ink);--muted:var(--paper-tint);--muted-foreground:var(--cdi-text-muted);--accent:var(--paper-tint);--accent-foreground:var(--ink);--border:var(--line);--input:var(--field-border);--ring:var(--cyan);--radius:3px;--font-sans:'Manrope Variable','Helvetica Neue',sans-serif}
+@import url('./tokens.css?v=apple1');
+:root{--background:var(--paper);--foreground:var(--ink);--card:var(--surface);--card-foreground:var(--ink);--popover:var(--surface);--popover-foreground:var(--ink);--primary:var(--cyan);--primary-foreground:var(--on-cyan);--secondary:var(--paper-tint);--secondary-foreground:var(--ink);--muted:var(--paper-tint);--muted-foreground:var(--cdi-text-muted);--accent:var(--paper-tint);--accent-foreground:var(--ink);--border:var(--line);--input:var(--field-border);--ring:var(--cyan);--radius:18px;--font-sans:-apple-system,BlinkMacSystemFont,'Inter Variable','Segoe UI',sans-serif}
 body.cdi-budget-app{font-family:var(--font-sans);color:var(--ink);background:var(--paper);font-size:14px}
 .cdi-budget-app :is(button,input,select,textarea){font-family:inherit}
 .cdi-budget-app .lucide{width:18px;height:18px;min-width:18px;flex-shrink:0;stroke-width:1.5;vertical-align:middle}
