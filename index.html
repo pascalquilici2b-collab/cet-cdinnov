@@ -2935,7 +2935,7 @@ function authLogout(){
   authBack();
 }
 function renderUserChip(){
-  document.querySelectorAll('[data-view="marches"]').forEach(e=>e.style.display=isAdmin(AUTH_USER)?'':'none');
+  document.querySelectorAll('.nav-item[data-view="marches"]').forEach(e=>e.style.display=isAdmin(AUTH_USER)?'':'none');
   const el=$('#userChip'); if(!el) return;
   if(!AUTH_USER){ el.innerHTML=''; return; }
   const nm=agendaName(AUTH_USER),photo=agendaPortrait(AUTH_USER),admin=isAdmin(AUTH_USER);

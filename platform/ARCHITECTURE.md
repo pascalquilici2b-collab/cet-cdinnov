@@ -5,6 +5,18 @@
 
 Ce document fixe la cible technique pour l’ensemble de l’application et distingue ce qui existe de ce qui reste à réaliser. Il remplace les passages devenus obsolètes des premiers rapports de comparaison. Il ne constitue pas un procès-verbal de fin de migration ni de recette complète du logiciel de facturation.
 
+## Point d’avancement du 19 octobre
+
+Les principaux écrans sont migrés. Le travail restant porte surtout sur le serveur, les droits d’accès, les sauvegardes par enregistrement et le cycle complet de facturation. La cible reste **React/TypeScript + Cloudflare Workers + D1 + R2**, sans nouvel abonnement.
+
+La tranche actuelle extrait la connexion et la vérification des sessions vers `platform/identity.ts`, commun aux API Budgets, Agenda, Marchés, Smartsheet et Tableau de bord. Elle conserve les comptes, mots de passe, droits existants et sessions signées antérieures. Elle ajoute une route commune `/api/v1/session` pour préparer la reprise de la coque du portail. **Le portail historique et ses fichiers ne sont pas encore intégralement placés derrière cette identité.**
+
+Les dernières corrections d’interface sont conservées : portraits ronds de 30 px dans les notes de frais, statut envoyé bleu avec enveloppe et payé vert avec billet. Ces styles voyagent avec leur composant React et résistent à une ancienne feuille de style générale. La proposition Poppins/Aptos reste un visuel séparé ; elle n’a pas remplacé la typographie de l’application.
+
+La recette de cette tranche corrige aussi un écran vide à la déconnexion depuis les Marchés : le sélecteur des éléments de menu touchait par erreur le corps de la page. Il est désormais limité aux entrées de navigation, avec un contrôle de non-régression dans le navigateur.
+
+L’inventaire a été relu dans la sauvegarde privée précédant cette tranche : portail, congés, déplacements, budgets, feuilles et marchés. Les volumes détaillés figurent uniquement dans la copie interne du rapport, sans être publiés avec le site. Ils constituent un instantané, pas une mesure du trafic ou du CPU. Aucun pourcentage global de migration n’est avancé : les tâches restantes n’ont pas toutes le même poids.
+
 ## 1. Décision et raisons
 
 Conserver l’infrastructure en place et remplacer progressivement les composants historiques. Les volumes observés lors de l’audit du 18 octobre restent compatibles avec une petite application d’équipe ; le principal travail porte sur les autorisations, les écritures ciblées et les règles métier.
@@ -17,7 +29,7 @@ Conserver l’infrastructure en place et remplacer progressivement les composant
 | API | TypeScript sur Cloudflare Workers, organisé par domaine | Entrée commune typée ; délégation à des services JavaScript historiques |
 | Données métier | D1, SQL paramétré, migrations versionnées et tables par entité | Tables Marchés/Agenda ; projection Budgets ; plusieurs documents JSON encore sources d’écriture |
 | Fichiers | R2 privé, références et empreintes dans la base | Stockage existant conservé ; pièces Marchés encore en blocs dans D1 |
-| Identité | Session commune, habilitations contrôlées sur chaque route serveur | Sessions signées pour les API modernes ; ancien mécanisme du portail encore à remplacer |
+| Identité | Session commune, habilitations contrôlées sur chaque route serveur | Connexion et vérification des API modernes en TypeScript strict ; ancien mécanisme du portail encore à remplacer |
 | Analyse documentaire | Qwen3 via Workers AI, propositions sourcées et validation humaine | Déjà intégré aux marchés |
 | PDF, OCR et Excel | Traitement dans le navigateur quand possible ; outils spécialisés conservés | PDF.js, Tesseract et lecteurs Office locaux ; service Python Factur-X séparé |
 
@@ -68,7 +80,7 @@ Les branchements historiques dans ce schéma sont encore actifs. La cible consis
 | Outil budgets | Sources et build React/TS réunis dans le dépôt ; thèmes et responsive | Écritures par entité ; remplacement progressif du document global |
 | Smartsheet | Application reconstruite depuis les déclarations du bundle en service ; vues, formulaires, tableaux de bord et sauvegardes | Typage strict intégral des composants repris ; écriture par feuille/ligne ; identité commune |
 | Marchés et contrats | Neuf rubriques en React/TS : assistant, identité, pièces, tarifs, plafonds, périodes, conditions, points à confirmer, historique | Contrôleur et moteur métier encore JavaScript ; déplacement des pièces vers R2 ; parcours commandes/interventions/factures |
-| Connexion et navigation | Interface harmonisée, mode nuit, symbole triangulaire de connexion corrigé | Reprise de la coque et remplacement du mécanisme d’identité historique |
+| Connexion et navigation | Interface harmonisée, mode nuit, profil en bas du menu ; serveur de session partagé en TypeScript | Reprise de la coque et du chargement initial des comptes ; droits serveur sur les anciennes routes et fichiers |
 
 Les composants Marchés sont vérifiés en TypeScript strict. Leur contrôleur conserve les endpoints, le numéro de version, les règles de validation et le format des enregistrements. React partage son runtime avec les autres écrans du portail et n’est chargé pour les marchés qu’après connexion et habilitation.
 
@@ -91,11 +103,28 @@ La migration des interfaces ne modifie pas ces sources de données. Les nouvelle
 
 Le déplacement d’une pièce devra procéder par copie, comparaison de taille et d’empreinte, puis changement de référence. Aucun original ne doit être supprimé avant vérification et maintien d’une lecture compatible pendant la transition.
 
-## 5. Identité et droits : prochain chantier prioritaire
+## 5. Identité et droits : tranche commencée, bascule incomplète
 
 Les nouvelles routes disposent de sessions signées et de vérifications de rôle. Cela ne suffit pas à qualifier l’ensemble du portail de totalement modernisé : les anciens accès globaux aux données et fichiers restent une dette de compatibilité.
 
-Le prochain lot doit construire puis tester une passerelle de session et de droits commune, sans exposer les comptes complets au navigateur. Il devra couvrir direction, comptabilité et collaborateur, avec contrôle serveur sur chaque opération et chaque pièce. La visibilité d’un bouton n’est jamais une autorisation suffisante.
+`platform/identity.ts` remplace le code de connexion et de vérification incorporé à `server/legacy-runtime.mjs`. L’ancienne route `POST /budgets/session` et la nouvelle `POST /api/v1/session` appellent la même fonction. Leur protocole challenge/preuve, leurs tables de limitation et leur format de jeton sont conservés. Les clients déjà ouverts continuent donc à fonctionner.
+
+`GET /api/v1/session` renvoie seulement l’adresse, le nom, l’échéance et l’indicateur administrateur du compte connecté. Aucun compte tiers, secret, sel, empreinte de mot de passe ou dossier salarié n’est inclus dans cette réponse. La lecture utilise un accès KV et aucune écriture SQL ; elle n’est pas appelée par polling. Les dérivations de mot de passe restent dans le navigateur, avec vérification de la preuve côté serveur.
+
+Les jetons exigent une signature valide, une audience précise, une expiration entière et future et des champs correctement formés. Chaque accès relit le compte. Les challenges sont consommés une seule fois, y compris après une preuve erronée. Les limites par adresse et par IP sont partagées entre les deux routes de connexion.
+
+| Surface | État de cette tranche | Reste à terminer |
+|---|---|---|
+| API Budgets, Agenda, Marchés, Smartsheet, Tableau de bord | Vérification commune en TypeScript ; droits existants maintenus | Permissions plus fines avec les écritures par entité |
+| Connexion de la coque | Compatible avec le nouveau serveur ; navigateur testé | Remplacer la vérification locale et le chargement global des comptes |
+| Document global du portail | Stockage et compatibilité conservés | Lectures filtrées et écritures ciblées authentifiées ; fermeture de la voie historique |
+| Pièces et notifications historiques | Intégrations conservées | Contrôler propriétaire et rôle sur chaque opération puis fermer les anciennes voies |
+| Déconnexion | Effacement local et rejet des réponses tardives | Révocation serveur d’une session individuelle : un jeton copié reste valable jusqu’à expiration ou changement du compte |
+| Attribution des rôles | Correspondances historiques conservées | Modèle direction/comptabilité/collaborateur et rapprochement des matricules |
+
+La prochaine bascule doit empêcher le chargement des comptes complets par le navigateur et protéger chaque opération et chaque pièce. Elle doit couvrir aussi gestion des comptes, imports/restaurations, justificatifs, bulletins, signatures et notifications. Ajouter une route protégée sans fermer ses anciennes alternatives ne constitue pas une migration complète des droits. La visibilité d’un bouton n’est jamais une autorisation suffisante.
+
+La suppression d’un compte ou le changement de ses identifiants invalide les jetons dès que la nouvelle valeur est visible dans KV. KV ayant une cohérence éventuelle, ce lot ne garantit pas une révocation immédiate dans tous les centres de données. Une identité et des sessions révocables dans un stockage cohérent restent à réaliser. [Comportement officiel de KV](https://developers.cloudflare.com/kv/concepts/how-kv-works/).
 
 Critères de recette : refus des appels anonymes, absence de lecture du dossier d’un autre salarié, maintien des profils et correspondances existants, expiration et déconnexion, réponse tardive ignorée après changement de compte, absence d’accès privé via une ancienne route de contournement. La bascule des anciens accès se fera après validation de tous les modules qui les utilisent.
 
@@ -144,16 +173,31 @@ Chaque livraison doit être construite depuis le dépôt, contrôlée en TypeScr
 
 Le parcours Marchés couvre la recherche sans requête supplémentaire, la conservation du focus, les montants, les sources obligatoires, les points à confirmer, les conditions, les pièces/doublons/téléchargements, l’application des propositions, les analyses périmées, les exports, les conflits de version, les thèmes et les droits. Le symbole de connexion est vérifié sur mobile et ordinateur.
 
+La tranche Identité ajoute 11 scénarios serveur sur le Worker complet : compatibilité, données mal formées, expiration, audience, preuve erronée, concurrence et rejeu, limitations et retrait de compte. Un test navigateur conserve la vraie dérivation PBKDF2 et la preuve HMAC de la page de connexion ; il couvre rechargement, profils, déconnexion et réponse retardée. Les suites Marchés construisent désormais par défaut l’entrée serveur maintenue, sans se rabattre sur l’ancien serveur partiel.
+
 Avant publication : sauvegarde privée des données et de la configuration ; revue de la différence ; conservation des anciens assets pour les onglets ouverts. Après publication : comparaison des fichiers servis au commit et comparaison des données avant/après. Pour une livraison d’interface, le Worker et les bases n’ont pas à être remplacés.
 
 Le retour arrière republie le frontend précédent. Il ne restaure pas une ancienne base par-dessus les nouvelles saisies. Une migration SQL exige en plus un essai de restauration et un rapprochement des nombres, montants, relations et empreintes avant bascule.
 
 ## 9. Ordre de clôture de la migration
 
-1. **Identité et fichiers communs** : remplacer les accès historiques par des autorisations serveur, avec compatibilité testée de tous les profils.
+1. **Identité et fichiers communs** : socle TypeScript partagé livré dans cette tranche ; reprendre le chargement initial du portail et fermer les anciennes routes après migration des droits et recette des profils.
 2. **Écritures ciblées** : Budgets, référentiels et Smartsheet, puis données du portail ; supprimer progressivement les documents globaux comme sources d’écriture après réconciliation.
 3. **Cycle métier CCIC** : devis, commandes, engagements, interventions, factures, relevés, règlements et alertes, avec transactions et cas de concurrence.
 4. **Derniers composants historiques** : coque, connexion, détails de planning, imports et intégrations ; généraliser le typage strict et retirer les chemins de compatibilité devenus inutiles.
 5. **Exploitation** : mesure des quotas et du CPU par route, essai de restauration, revue des accès et recette utilisateur de bout en bout.
 
 La migration sera considérée comme terminée quand les accès privés seront contrôlés par le serveur, les écritures métier ciblées et atomiques, les anciennes voies remplacées ou explicitement maintenues, les données réconciliées et les parcours complets testés. La seule conversion des écrans en React ne suffit pas à remplir ces critères.
+
+## 10. Prochains lots et critères de livraison
+
+| Priorité | Lot | Résultat attendu avant clôture |
+|---|---|---|
+| P0 | Portail et fichiers derrière la session commune | Aucun chargement global de comptes ; droits par salarié/pièce ; anciennes voies fermées ; comptes, import et export compatibles |
+| P1 | Identités et écritures cohérentes | Sessions révocables côté serveur ; écritures par enregistrement avec version ; absence d’écrasement entre collègues |
+| P1 | Devis et commandes CCIC | Devis versionnés ; commande rattachée au marché et à une période ; plafond annuel et engagement suivis séparément |
+| P1 | Interventions et factures CCIC | Tâches prédéfinies + texte libre ; temps et périodes ; facture partielle/finale et relevé associé ; émission atomique, historique figé |
+| P2 | Fin de reprise technique | Coque et détails de planning typés ; composants Smartsheet en mode strict ; anciens contrôleurs retirés après parité |
+| P2 | Exploitation | Restauration répétable, mesures CPU/quotas par route, suivi des erreurs et recette métier complète |
+
+La décision technique figure dans [ADR-0002](decisions/0002-shared-identity.md). Les preuves de sauvegarde et de conservation restent dans le dossier privé de livraison ; aucune sauvegarde de données ou de comptes n’est publiée avec le site.

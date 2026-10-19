@@ -1,6 +1,6 @@
 import { handleMarkets } from "../marches/worker.mjs";
 // work/deployment/worker/budget-service.mjs
-import { timingSafeEqual, createHash, createHmac, randomBytes } from "node:crypto";
+import {identity, login, admins} from "../platform/identity.ts";
 import { Buffer } from "node:buffer";
 var nameKey = (value) => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[’‘]/g, "'").replace(/[^a-z0-9]+/g, " ").trim();
 var clientCatalog = [
@@ -171,9 +171,6 @@ async function handleAgenda(request, db, email, admin, reply, jsonBody2, env) {
   if (request.method === "DELETE") await db.prepare("DELETE FROM agenda_notifications WHERE trip_id=?").bind(id2).run();
   return reply(collection ? 201 : 200, request.method === "DELETE" ? { deleted: true } : { trip: unpack(saved) });
 }
-var admins = ["quilici.pascal@cdinnov.com", "pasqualini.david@cdinnov.com", "boulanger.albert@cdinnov.com"];
-var portalAccounts = [...admins, "calendini.matthieu@cdinnov.com", "vincenti.paulmichel@cdinnov.com"];
-var normalize = (value) => String(value || "").trim().toLowerCase();
 var empty = { demo: false, clients: [], projects: [], budgetLines: [], expenses: [], drs: [], imports: [] };
 function addClientNames(clients, names) {
   const result = structuredClone(clients);
@@ -183,33 +180,6 @@ function addClientNames(clients, names) {
     if (!result.some((client) => [client.name, ...client.aliases || []].some((alias) => sameClientName(alias, name)))) result.push({ id: crypto.randomUUID(), name, accounts: [], ...value !== name ? { aliases: [value] } : {} });
   }
   return result;
-}
-var equal = (a, b) => typeof a === "string" && typeof b === "string" && a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
-var fingerprint = (acc) => createHash("sha256").update(JSON.stringify([acc.salt, acc.iter, acc.hash])).digest("hex");
-async function account(env, email) {
-  const data = await env.CET_KV.get(env.CET_WORKSPACE_KEY, "json");
-  const auth = data?.auth;
-  if (!portalAccounts.includes(email) && !auth?.allowed?.map(normalize).includes(email)) return null;
-  const acc = auth?.accounts?.[email];
-  if (!acc || !/^[a-f0-9]{32}$/i.test(acc.salt) || !/^[a-f0-9]{64}$/i.test(acc.hash) || !Number.isInteger(acc.iter) || acc.iter < 1e5 || acc.iter > 1e6) return null;
-  return acc;
-}
-function sign(payload, secret) {
-  return createHmac("sha256", secret).update(payload).digest("base64url");
-}
-async function identity(request, env) {
-  const token = request.headers.get("authorization")?.replace(/^Bearer /, "");
-  if (!token || token.length > 2e3) return null;
-  const [body, sig, extra] = token.split(".");
-  if (extra || !body || !sig || !equal(sign(body, env.BUDGETS_SESSION_SECRET), sig)) return null;
-  try {
-    const data = JSON.parse(Buffer.from(body, "base64url").toString());
-    if (data.aud !== "cdinnov-budgets" || data.exp < Date.now() || typeof data.email !== "string") return null;
-    const acc = await account(env, data.email);
-    return acc && equal(data.fingerprint, fingerprint(acc)) ? data.email : null;
-  } catch {
-    return null;
-  }
 }
 async function jsonBody(request, limit) {
   if (!request.headers.get("content-type")?.startsWith("application/json")) throw Object.assign(new Error("Format JSON requis."), { status: 415 });
@@ -248,42 +218,7 @@ var worker_default = {
     if (!env.BUDGETS_DB || !env.CET_KV || !env.CET_WORKSPACE_KEY || String(env.BUDGETS_SESSION_SECRET || "").length < 32) return reply(503, { error: "Le service Budgets projets doit \xEAtre configur\xE9 avant sa premi\xE8re utilisation." });
     try {
       const db = env.BUDGETS_DB.withSession("first-primary");
-      if (path === "/budgets/session") {
-        if (request.method !== "POST") return reply(405, { error: "M\xE9thode non autoris\xE9e." });
-        const input = await jsonBody(request, 4096), email2 = normalize(input.email);
-        if (!email2 || email2.length > 254 || !["challenge", "verify"].includes(input.action)) return reply(400, { error: "Identifiants invalides." });
-        const now = Date.now();
-        const limitKeys = ["email:" + email2, "ip:" + (request.headers.get("cf-connecting-ip") || "unknown")].map((v) => createHash("sha256").update(v).digest("hex"));
-        if (input.action === "challenge") for (const key of limitKeys) {
-          const limit = await db.prepare("INSERT INTO budgets_login_limits (id,attempts,until_at) VALUES (?,1,?) ON CONFLICT(id) DO UPDATE SET attempts=CASE WHEN until_at<? THEN 1 ELSE attempts+1 END, until_at=CASE WHEN until_at<? THEN excluded.until_at ELSE until_at END RETURNING attempts").bind(key, now + 9e5, now, now).first();
-          if (limit.attempts > 20) return reply(429, { error: "Trop de tentatives. R\xE9essayez dans 15 minutes." });
-        }
-        const acc = await account(env, email2);
-        if (input.action === "challenge") {
-          const body2 = Buffer.from(JSON.stringify({ aud: "cdinnov-budget-login", email: email2, exp: now + 6e4, fingerprint: acc ? fingerprint(acc) : randomBytes(32).toString("hex"), nonce: randomBytes(24).toString("hex") })).toString("base64url");
-          return reply(200, { challenge: body2 + "." + sign(body2, env.BUDGETS_SESSION_SECRET), salt: acc?.salt || randomBytes(16).toString("hex"), iter: acc?.iter || 15e4 });
-        }
-        const denied = () => reply(401, { error: "Connexion CDInnov invalide ou expir\xE9e. Reconnectez-vous." });
-        if (typeof input.challenge !== "string" || input.challenge.length > 2e3 || typeof input.proof !== "string" || !/^[a-f0-9]{64}$/.test(input.proof)) return denied();
-        const [challengeBody, challengeSignature, extra] = input.challenge.split(".");
-        if (extra || !challengeBody || !equal(sign(challengeBody, env.BUDGETS_SESSION_SECRET), challengeSignature)) return denied();
-        let challenge;
-        try {
-          challenge = JSON.parse(Buffer.from(challengeBody, "base64url").toString());
-        } catch {
-          return denied();
-        }
-        if (challenge.aud !== "cdinnov-budget-login" || challenge.email !== email2 || challenge.exp < now || !acc || !equal(challenge.fingerprint, fingerprint(acc))) return denied();
-        const consumed = await db.prepare("INSERT INTO budgets_login_challenges (nonce,expires_at) VALUES (?,?) ON CONFLICT(nonce) DO NOTHING RETURNING nonce").bind(challenge.nonce, challenge.exp).first();
-        if (!consumed) return denied();
-        await db.prepare("DELETE FROM budgets_login_challenges WHERE expires_at<?").bind(now).run();
-        const actual = createHmac("sha256", Buffer.from(acc.hash, "hex")).update(input.challenge).digest("hex");
-        if (!equal(actual, input.proof)) return denied();
-        const expiresAt = now + 8 * 60 * 60 * 1e3;
-        const body = Buffer.from(JSON.stringify({ aud: "cdinnov-budgets", email: email2, exp: expiresAt, fingerprint: fingerprint(acc), nonce: randomBytes(16).toString("hex") })).toString("base64url");
-        await db.prepare("DELETE FROM budgets_login_limits WHERE id=? OR until_at<?").bind(limitKeys[0], now).run();
-        return reply(200, { token: body + "." + sign(body, env.BUDGETS_SESSION_SECRET), expiresAt });
-      }
+      if (path === "/budgets/session") return await login(request, env, db, reply);
       const email = await identity(request, env);
       if (!email) return reply(401, { error: "Votre connexion CDInnov a expir\xE9. Reconnectez-vous \xE0 votre compte CDInnov." });
       if (path === "/budgets/markets" || path.startsWith("/budgets/markets/")) return await handleMarkets(request, db, email, admins.includes(email), reply, jsonBody, env);

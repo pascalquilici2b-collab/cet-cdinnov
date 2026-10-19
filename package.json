@@ -10,6 +10,8 @@
     "build": "node platform/build.mjs",
     "typecheck": "tsc -p platform/tsconfig.json",
     "test:platform": "node platform/test.mjs",
+    "test:identity": "node platform/identity-test.mjs",
+    "test:identity:browser": "node platform/identity-browser-test.mjs",
     "test:dashboard": "node platform/dashboard-test.mjs",
     "test:finance": "node platform/finance-test.mjs",
     "test:markets": "node marches/test.mjs && node marches/ai-test.mjs",

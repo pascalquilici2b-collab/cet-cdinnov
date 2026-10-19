@@ -1,4 +1,4 @@
-import {admins} from '../server/legacy-runtime.mjs';
+import {admins} from './identity.ts';
 import {leavePeriods} from '../agenda/leave-periods.mjs';
 import type {Database, Environment} from './contracts';
 import type {DashboardData, DocumentSummary, Leave, Member, Trip} from './dashboard-contracts';

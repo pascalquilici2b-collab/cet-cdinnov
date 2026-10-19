@@ -4,7 +4,7 @@ Statut : socle technique, principaux écrans du portail, Budgets, Smartsheet et 
 
 ## Entrée de production et commandes
 
-`platform/worker.ts` est désormais l’unique entrée à construire pour le serveur complet : portail/CET/congés/frais/facturier, budgets, agenda, Smartsheet et marchés. `server/legacy-runtime.mjs` reprend le serveur réellement en ligne avant la migration, avec son authentification et ses extensions ; seul son import Marchés est redirigé vers les sources maintenues. Ne pas publier `cloudflare-worker.js` ni `server/budget-service.mjs` seuls : ils ne contiennent pas tous les modules actifs.
+`platform/worker.ts` est l’unique entrée à construire pour le serveur complet : portail/CET/congés/frais/facturier, budgets, agenda, Smartsheet et marchés. `server/legacy-runtime.mjs` conserve les services historiques ; ses appels Marchés et Identité sont redirigés vers les sources maintenues. Ne pas publier `cloudflare-worker.js` ni `server/budget-service.mjs` seuls : ils ne contiennent pas tous les modules actifs.
 
 Depuis la racine, avec Node >=24 et pnpm :
 
@@ -13,6 +13,7 @@ pnpm install --frozen-lockfile
 pnpm typecheck
 pnpm build
 pnpm test:platform
+pnpm test:identity
 pnpm test:dashboard
 pnpm test:finance
 pnpm test:personnel
@@ -22,6 +23,14 @@ pnpm test:agenda
 Le Worker complet sort dans `.build/entry.mjs`. Le transport navigateur et les modules React du portail sont publiés avec `index.html` et les imports partagés de `platform/chunks/`. Conserver les anciens chunks pour les onglets déjà ouverts. `pnpm build` reconstruit aussi le contrôleur Marchés intégré au portail et son écran `platform/markets.js`. Budgets et Smartsheet sont construits séparément depuis leurs sources réunies : `pnpm build:budgets` et `pnpm build:sheets`.
 
 Pour les suites Marchés/IA sur le serveur complet, définir `MARCHES_TEST_WORKER` sur le chemin absolu de `.build/entry.mjs` et `MARCHES_TEST_COMPATIBILITY_DATE=2026-06-09`. Les tests navigateur demandent un répertoire privé `PORTAL_QA` et un Playwright installé (`PLAYWRIGHT_PACKAGE` peut désigner son package.json). `CDI_BUDGET_BACKUP`, facultatif, permet de tester localement une sauvegarde réelle ; toutes les sorties restent hors du dépôt.
+
+## Identité commune — tranche du 19 octobre 2026
+
+`identity.ts` porte en TypeScript strict le protocole challenge/preuve et la vérification de session auparavant inclus dans `server/legacy-runtime.mjs`. Les modules authentifiés utilisent tous cette même implémentation ; `POST /budgets/session` reste compatible et `POST /api/v1/session` propose le même contrat. `GET /api/v1/session` renvoie seulement le résumé du compte connecté. Il n’ajoute aucune écriture métier, table ou dépendance.
+
+`pnpm test:identity` couvre le protocole, les anciennes sessions, les droits, la validation des jetons, les limites et les challenges à usage unique. `pnpm test:identity:browser`, avec un `PORTAL_QA` privé, utilise la vraie connexion du portail et ses calculs cryptographiques dans le navigateur, avec un Worker et des comptes fictifs locaux.
+
+Les routes historiques du document global, des pièces et des notifications restent à reprendre. La déconnexion reste locale ; la révocation d’une session copiée et la cohérence des changements de comptes restent à traiter. Voir [ARCHITECTURE.md](ARCHITECTURE.md) et [ADR-0002](decisions/0002-shared-identity.md).
 
 ## Données et compatibilité
 
