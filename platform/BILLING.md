@@ -8,7 +8,7 @@ Le registre `billing-issuance.ts` et son schéma attribuent le numéro dans une 
 
 La rubrique Facturation ouvre les factures puis les devis. L'éditeur conserve un aperçu du document à côté de la saisie ; sur petit écran, les boutons Saisie et Aperçu choisissent la vue. Les données sont enregistrées par l'API authentifiée, avec un numéro de version. Un conflit conserve la saisie et propose un nouveau brouillon ou le rechargement du serveur.
 
-La conversion d'un devis crée une seule facture brouillon liée à sa source. Le client conserve l'identifiant de la tentative : une réponse perdue peut être récupérée sans doublon. Le devis reste inchangé.
+La conversion d'un devis crée une seule facture brouillon liée à sa source. Le client conserve l'identifiant de la tentative : une réponse perdue peut être récupérée sans doublon. Le devis reste inchangé. Pour un devis émis, un accord client doit être enregistré avant cette conversion. Le suivi conserve les envois déclarés, accords, refus et corrections dans un historique indépendant, avec expiration dérivée et filtres de liste. Voir [BILLING-QUOTES.md](BILLING-QUOTES.md).
 
 Les paramètres de facturation enregistrent les coordonnées de l'émetteur, ses adresses de facturation électronique, le mode de facturation, les conditions et mentions de paiement. Chaque nouveau document en reçoit une copie. Modifier ces paramètres ne réécrit jamais un document existant. Les paramètres sont eux-mêmes versionnés, avec historique et protection contre les modifications concurrentes.
 
@@ -57,6 +57,7 @@ node platform/build.mjs
 node platform/node_modules/typescript/bin/tsc -p platform/tsconfig.json
 node --test platform/billing-domain-test.mjs platform/facturx-integrity-test.mjs platform/billing-test.mjs platform/billing-pdf-test.mjs
 node --test platform/billing-issuance-test.mjs platform/billing-generation-test.mjs platform/billing-directory-test.mjs
+node --test platform/billing-quote-test.mjs
 $env:BILLING_TEST_PYTHON = '<interpréteur avec requirements-lock.txt installé>'
 node --test platform/billing-contract-test.mjs
 $env:PYTHONPATH = 'facturx-service'
@@ -64,6 +65,7 @@ $env:PYTHONPATH = 'facturx-service'
 $env:PORTAL_QA = '<dossier privé de captures>'
 node platform/billing-browser-test.mjs
 node platform/billing-directory-browser-test.mjs
+node platform/billing-quote-browser-test.mjs
 node platform/finance-browser-test.mjs
 node platform/billing-pdf-integration-test.mjs
 # Avec les variables FACTURX_JAVA, FACTURX_GHOSTSCRIPT, FACTURX_ICC et FACTURX_VERAPDF_JAR :
@@ -80,7 +82,7 @@ Le test `billing-pdf-integration-test.mjs` démarre son propre moteur FastAPI lo
 ## Prochains lots
 
 1. Validation guidée des champs et navigation de suivi ; rapprochement des clients avec les autres répertoires et gestion des contacts/établissements liés.
-2. Cycle des devis (acceptation, refus, expiration), avoirs, acomptes, règlements et allocations.
+2. Révisions commerciales des devis, avoirs, acomptes, règlements et allocations. Le suivi d’acceptation/refus/expiration est disponible.
 3. Qualification AGIRIS : profil, destinataire, annexes, dépôt et résultat réel d’un document de test autorisé.
 4. Vérification source/déploiement, reprise des archives, séries réelles, migration et sauvegarde restaurable.
 5. Recette finale, déploiement coordonné Worker, moteur Python et ressources statiques, puis vérification du service publié.

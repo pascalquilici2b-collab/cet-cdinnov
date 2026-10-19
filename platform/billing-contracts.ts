@@ -42,7 +42,14 @@ export interface BillingDocument {
   issuance:BillingIssuanceSummary|null;
   sourceDocumentId:string|null; createdAt:string; updatedAt:string; createdBy:string; updatedBy:string;
   totals:BillingTotals|null; issues:BillingIssue[];
+  quote:BillingQuoteSummary|null;
 }
+export type BillingQuoteAction='sent'|'accepted'|'refused'|'reopened';
+export type BillingQuoteState='prepared'|'sent'|'accepted'|'refused'|'expired';
+export type BillingListState='all'|'draft'|'finalizing'|'issue_failed'|'issued'|BillingQuoteState;
+export interface BillingQuoteSummary {version:number;state:BillingQuoteState;occurredOn:string|null;invoice:{id:string;number:string|null;state:BillingDocument['status']}|null;}
+export interface BillingQuoteEvent {id:string;version:number;action:BillingQuoteAction;occurredOn:string;note:string;recordedAt:string;recordedBy:string;}
+export interface BillingQuoteEventInput {id:string;documentVersion:number;action:BillingQuoteAction;occurredOn:string;note:string;}
 export interface BillingIssuanceSummary {id:string;number:string;state:'pending'|'rendering'|'failed'|'ready';attempts:number;errorCode:string|null;createdAt:string;updatedAt:string;files:string[];}
 export interface BillingNumberSeries {id:string;issuer_siren:string;kind:BillingKind;prefix:string;width:number;first_value:number;next_value:number;start_date:string;end_date:string;last_issue_date:string|null;version:number;}
 export type BillingDirectoryKind='clients'|'services';
@@ -64,7 +71,9 @@ export interface BillingTransport {
   directoryGet(kind:BillingDirectoryKind,id:string):Promise<BillingDirectoryRecord>;
   directoryCreate(kind:BillingDirectoryKind,id:string,data:BillingDirectoryData):Promise<BillingDirectoryRecord>;
   directorySave(kind:BillingDirectoryKind,id:string,version:number,data:BillingDirectoryData):Promise<BillingDirectoryRecord>;
-  list(query:{kind:BillingKind; q:string; offset:number; limit:number}):Promise<BillingPage>;
+  list(query:{kind:BillingKind; q:string; offset:number; limit:number;state?:BillingListState}):Promise<BillingPage>;
+  quoteEvents(id:string,before?:number):Promise<{events:BillingQuoteEvent[];nextBefore:number|null}>;
+  quoteEvent(id:string,version:number,data:BillingQuoteEventInput):Promise<BillingDocument>;
   get(id:string):Promise<BillingDocument>;
   create(id:string,data:BillingDraft):Promise<BillingDocument>;
   save(id:string,version:number,data:BillingDraft):Promise<BillingDocument>;
