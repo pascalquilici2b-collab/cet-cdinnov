@@ -1,11 +1,19 @@
-import type {BillingDraft,BillingKind,BillingLine,BillingParty,BillingReferences,BillingTotals,BillingIssue,VatCategory} from './billing-contracts';
+import type {BillingDraft,BillingKind,BillingLine,BillingParty,BillingReferences,BillingTotals,BillingIssue,VatCategory,BillingSettingsData,BillingLegalNotes,BillingPaymentMeans,BillingVatDue,BillingBusinessProcess} from './billing-contracts';
 
 const uuid=()=>crypto.randomUUID();
 export const billingId=(v:unknown):v is string=>typeof v==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
-export const blankParty=():BillingParty=>({name:'',addressLine1:'',addressLine2:'',postalCode:'',city:'',country:'FR',siret:'',vatId:'',email:'',legal:''});
+export const blankParty=():BillingParty=>({name:'',addressLine1:'',addressLine2:'',postalCode:'',city:'',country:'FR',siren:'',siret:'',vatId:'',email:'',legal:'',electronicAddress:'',electronicScheme:''});
+const blankLegal=():BillingLegalNotes=>({recovery:'',penalties:'',discount:''});
+export const billingBusinessProcesses:BillingBusinessProcess[]=['','S1','B1','M1','B2','S2','M2','S3','B4','S4','M4','S5','S6','B7','S7','B8','S8','M8','B9','S9','M9'];
+export const blankSettings=():BillingSettingsData=>({schemaVersion:1,seller:blankParty(),paymentTerms:'',iban:'',bic:'',paymentMeans:'30',vatDue:'',legalNotes:blankLegal(),businessProcess:''});
 export const newLine=():BillingLine=>({id:uuid(),description:'',quantity:'1',unitCode:'DAY',unitPrice:'',discountPercent:'0',vatRate:'20',vatCategory:'S',exemptionReason:''});
 export function blankDraft(kind:BillingKind,today=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Paris'}).format(new Date())):BillingDraft {
-  return {schemaVersion:1,kind,title:'',currency:'EUR',issueDate:today,dueDate:'',validUntil:'',clientId:'',seller:blankParty(),buyer:blankParty(),lines:[newLine()],references:{businessCode:'',marketId:'',marketReference:'',orderReference:'',project:'',serviceCode:'',engagement:''},paymentTerms:'',iban:'',bic:'',notes:''};
+  return {schemaVersion:2,kind,title:'',currency:'EUR',issueDate:today,dueDate:'',validUntil:'',clientId:'',seller:blankParty(),buyer:blankParty(),lines:[newLine()],references:{businessCode:'',marketId:'',marketReference:'',orderReference:'',project:'',serviceCode:'',engagement:''},paymentTerms:'',iban:'',bic:'',notes:'',paymentMeans:'30',vatDue:'',legalNotes:blankLegal(),businessProcess:''};
+}
+/** Settings are copied, never linked: later edits cannot rewrite an existing document. */
+export function draftWithSettings(kind:BillingKind,settings:BillingSettingsData):BillingDraft {
+  const {schemaVersion,...defaults}=structuredClone(settings);
+  return {...blankDraft(kind),...defaults};
 }
 const fail=(message:string):never=>{throw Object.assign(new Error(message),{status:422});};
 function object(value:unknown,allowed:string[],name:string):Record<string,unknown> {
@@ -18,18 +26,34 @@ function textField(obj:Record<string,unknown>,key:string,max:number):string {
   if(typeof value!=='string'||value.length>max||/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(value))return fail(key+' : texte invalide ou trop long ('+max+' caractères maximum).');
   return value.normalize('NFC');
 }
-const partyKeys=['name','addressLine1','addressLine2','postalCode','city','country','siret','vatId','email','legal'];
-function party(raw:unknown):BillingParty {
+const partyKeys=['name','addressLine1','addressLine2','postalCode','city','country','siren','siret','vatId','email','legal','electronicAddress','electronicScheme'];
+function party(raw:unknown,legacy=false):BillingParty {
+  if(legacy){const old=object(raw,partyKeys.filter(k=>!['siren','electronicAddress','electronicScheme'].includes(k)),'Coordonnées');raw={...old,siren:'',electronicAddress:'',electronicScheme:''};}
   const value=object(raw,partyKeys,'Coordonnées');
   return Object.fromEntries(partyKeys.map(k=>[k,textField(value,k,k==='legal'?1000:k==='country'?2:k==='siret'?30:k==='vatId'?40:300)])) as unknown as BillingParty;
+}
+function legalNotes(raw:unknown):BillingLegalNotes {
+  const value=object(raw,['recovery','penalties','discount'],'Mentions de paiement');
+  return {recovery:textField(value,'recovery',2000),penalties:textField(value,'penalties',2000),discount:textField(value,'discount',2000)};
+}
+function commercial(value:Record<string,unknown>){
+  if(typeof value.paymentMeans!=='string'||!['30','58','10','48'].includes(value.paymentMeans)||typeof value.vatDue!=='string'||!['','invoice','payment','delivery'].includes(value.vatDue))fail('Mode de paiement ou exigibilité TVA non pris en charge.');
+  if(!billingBusinessProcesses.includes(value.businessProcess as BillingBusinessProcess))fail('Mode de facturation non pris en charge.');
+  return {paymentMeans:value.paymentMeans as BillingPaymentMeans,vatDue:value.vatDue as BillingVatDue,legalNotes:legalNotes(value.legalNotes),businessProcess:value.businessProcess as BillingBusinessProcess};
+}
+export function normalizeSettings(raw:unknown):BillingSettingsData {
+  const v=object(raw,['schemaVersion','seller','paymentTerms','iban','bic','paymentMeans','vatDue','legalNotes','businessProcess'],'Paramètres de facturation');
+  if(v.schemaVersion!==1)fail('Version des paramètres non prise en charge.');
+  return {schemaVersion:1,seller:party(v.seller),paymentTerms:textField(v,'paymentTerms',4000),iban:textField(v,'iban',50),bic:textField(v,'bic',20),...commercial(v)};
 }
 const referenceKeys=['businessCode','marketId','marketReference','orderReference','project','serviceCode','engagement'];
 const lineKeys=['id','description','quantity','unitCode','unitPrice','discountPercent','vatRate','vatCategory','exemptionReason'];
 const categories:VatCategory[]=['S','Z','E','AE','O'];
 /** Validate the storage boundary, independently of whether an unfinished draft can be issued. */
 export function normalizeDraft(raw:unknown):BillingDraft {
-  const value=object(raw,['schemaVersion','kind','title','currency','issueDate','dueDate','validUntil','clientId','seller','buyer','lines','references','paymentTerms','iban','bic','notes'],'Document');
-  if(value.schemaVersion!==1||!['invoice','quote'].includes(String(value.kind))||value.currency!=='EUR')fail('Type, version ou devise de document non pris en charge.');
+  const legacy=!!raw&&typeof raw==='object'&&'schemaVersion' in raw&&raw.schemaVersion===1;
+  const value=object(raw,['schemaVersion','kind','title','currency','issueDate','dueDate','validUntil','clientId','seller','buyer','lines','references','paymentTerms','iban','bic','notes',...(legacy?[]:['paymentMeans','vatDue','legalNotes','businessProcess'])],'Document');
+  if((value.schemaVersion!==1&&value.schemaVersion!==2)||!['invoice','quote'].includes(String(value.kind))||value.currency!=='EUR')fail('Type, version ou devise de document non pris en charge.');
   if(!Array.isArray(value.lines)||value.lines.length>200)fail('Un document accepte au maximum 200 lignes.');
   const seen=new Set<string>();
   const lines=(value.lines as unknown[]).map(rawLine=>{
@@ -43,11 +67,12 @@ export function normalizeDraft(raw:unknown):BillingDraft {
   });
   const references=object(value.references,referenceKeys,'Références');
   return {
-    schemaVersion:1,kind:value.kind as BillingKind,currency:'EUR',
+    schemaVersion:2,kind:value.kind as BillingKind,currency:'EUR',
     title:textField(value,'title',300),issueDate:textField(value,'issueDate',10),dueDate:textField(value,'dueDate',10),validUntil:textField(value,'validUntil',10),clientId:textField(value,'clientId',200),
-    seller:party(value.seller),buyer:party(value.buyer),lines,
+    seller:party(value.seller,legacy),buyer:party(value.buyer,legacy),lines,
     references:Object.fromEntries(referenceKeys.map(k=>[k,textField(references,k,300)])) as unknown as BillingReferences,
-    paymentTerms:textField(value,'paymentTerms',4000),iban:textField(value,'iban',50),bic:textField(value,'bic',20),notes:textField(value,'notes',10000)
+    paymentTerms:textField(value,'paymentTerms',4000),iban:textField(value,'iban',50),bic:textField(value,'bic',20),notes:textField(value,'notes',10000),
+    ...commercial(legacy?{paymentMeans:'30',vatDue:'',legalNotes:blankLegal(),businessProcess:''}:value)
   };
 }
 
@@ -104,6 +129,9 @@ export function inspectDraft(d:BillingDraft):BillingIssue[] {
     if(!/^[A-Z]{2}$/.test(p.country))add(key+'.country',label+' : code pays sur deux lettres requis.');
     if(p.email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.email))add(key+'.email',label+' : adresse e-mail invalide.');
     if(p.siret&&!/^\d{14}$/.test(p.siret.replace(/\s/g,'')))add(key+'.siret',label+' : le SIRET comporte 14 chiffres.');
+    if(p.siren&&!/^\d{9}$/.test(p.siren.replace(/\s/g,'')))add(key+'.siren',label+' : le SIREN comporte 9 chiffres.');
+    if(p.siren&&p.siret&&!p.siret.replace(/\s/g,'').startsWith(p.siren.replace(/\s/g,'')))add(key+'.siret',label+' : le SIRET doit correspondre au SIREN.');
+    if(!!p.electronicAddress!==!!p.electronicScheme)add(key+'.electronicAddress',label+' : précisez ensemble l’adresse électronique de facturation et son schéma.');
   }
   if(!d.lines.length)add('lines','Ajoutez au moins une prestation.');
   d.lines.forEach((line,i)=>{

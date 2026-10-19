@@ -1,5 +1,27 @@
 /** Explicit migration only: HTTP requests never create or alter billing tables. */
 export const billingSchema = [
+ `CREATE TABLE IF NOT EXISTS billing_settings (
+  id TEXT PRIMARY KEY CHECK(id='default'),version INTEGER NOT NULL CHECK(version>=1),
+  data_json TEXT NOT NULL CHECK(json_valid(data_json)),updated_at TEXT NOT NULL,updated_by TEXT NOT NULL
+ )`,
+ `CREATE TABLE IF NOT EXISTS billing_settings_versions (
+  version INTEGER PRIMARY KEY,data_json TEXT NOT NULL,updated_at TEXT NOT NULL,updated_by TEXT NOT NULL
+ )`,
+ `CREATE TRIGGER IF NOT EXISTS billing_settings_initial BEFORE INSERT ON billing_settings BEGIN
+  SELECT CASE WHEN NEW.version<>1 THEN RAISE(ABORT,'BILLING_SETTINGS_INITIAL') END;
+ END`,
+ `CREATE TRIGGER IF NOT EXISTS billing_settings_guard BEFORE UPDATE ON billing_settings BEGIN
+  SELECT CASE WHEN NEW.id<>OLD.id OR NEW.version<>OLD.version+1 THEN RAISE(ABORT,'BILLING_SETTINGS_VERSION') END;
+ END`,
+ `CREATE TRIGGER IF NOT EXISTS billing_settings_insert AFTER INSERT ON billing_settings BEGIN
+  INSERT INTO billing_settings_versions VALUES(NEW.version,NEW.data_json,NEW.updated_at,NEW.updated_by);
+ END`,
+ `CREATE TRIGGER IF NOT EXISTS billing_settings_update AFTER UPDATE ON billing_settings BEGIN
+  INSERT INTO billing_settings_versions VALUES(NEW.version,NEW.data_json,NEW.updated_at,NEW.updated_by);
+ END`,
+ `CREATE TRIGGER IF NOT EXISTS billing_settings_no_delete BEFORE DELETE ON billing_settings BEGIN SELECT RAISE(ABORT,'BILLING_SETTINGS_HISTORY'); END`,
+ `CREATE TRIGGER IF NOT EXISTS billing_settings_history_no_update BEFORE UPDATE ON billing_settings_versions BEGIN SELECT RAISE(ABORT,'BILLING_SETTINGS_HISTORY'); END`,
+ `CREATE TRIGGER IF NOT EXISTS billing_settings_history_no_delete BEFORE DELETE ON billing_settings_versions BEGIN SELECT RAISE(ABORT,'BILLING_SETTINGS_HISTORY'); END`,
  `CREATE TABLE IF NOT EXISTS billing_documents (
   id TEXT PRIMARY KEY, kind TEXT NOT NULL CHECK(kind IN ('quote','invoice')),
   status TEXT NOT NULL DEFAULT 'draft' CHECK(status='draft'),

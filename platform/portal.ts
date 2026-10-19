@@ -53,7 +53,7 @@ export function portalView(p:Document,email:string):Document {
     notesFrais:(p.notesFrais||[]).filter((r:Document)=>own(r,mat)),codesAffaires:p.codesAffaires||[],factures:[],facturxPartyMemory:{seller:[],buyer:[]},majAt:p.majAt,majBy:p.majBy,auth};
 }
 
-export async function boundedBody(request:Request,max=1500000):Promise<Uint8Array>{
+export async function boundedBody(request:Pick<Request,'body'>,max=1500000):Promise<Uint8Array>{
   const chunks:Uint8Array[]=[],reader=request.body?.getReader();let size=0;
   if(reader)try{while(true){const {done,value}=await reader.read();if(done)break;size+=value.byteLength;if(size>max){await reader.cancel();fail(413,'Fichier ou données trop volumineux.');}chunks.push(value);}}finally{reader.releaseLock();}
   return Buffer.concat(chunks);

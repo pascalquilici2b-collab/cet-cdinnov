@@ -7,10 +7,10 @@ import {testEnvironment,users} from '../marches/test.mjs';
 import {dashboardFixture} from './dashboard-fixture.mjs';
 import {migrateBilling} from './billing-schema.mjs';
 import {seedBusinessDocument} from './business-migration.mjs';
-export async function billingPreview(){
+export async function billingPreview(testOptions={}){
   process.env.MARCHES_TEST_WORKER=fileURLToPath(new URL('../.build/entry.mjs',import.meta.url));
   process.env.MARCHES_TEST_COMPATIBILITY_DATE='2026-06-09';
-  const ctx=await testEnvironment();
+  const ctx=await testEnvironment(testOptions);
   try{
     await migrateBilling(ctx.db);
     const fixture=dashboardFixture(ctx.accounts,'2026-10-20');

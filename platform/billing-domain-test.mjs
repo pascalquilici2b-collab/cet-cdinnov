@@ -1,8 +1,22 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {blankDraft,newLine,normalizeDraft,calculateBilling,inspectDraft,formatMinor,billingDecimal,validBillingDate} from './billing-domain.ts';
+import {blankDraft,newLine,normalizeDraft,calculateBilling,inspectDraft,formatMinor,billingDecimal,validBillingDate,blankSettings,normalizeSettings,draftWithSettings} from './billing-domain.ts';
 
 function document(lines){const d=blankDraft('invoice','2026-10-19');d.lines=lines.map(row=>({...newLine(),description:'Prestation de test',unitPrice:'620',...row}));return d;}
+test('settings are explicit, normalized and copied without linking documents to later changes',()=>{
+  const s=blankSettings();s.seller.name='Socie\u0301te\u0301';s.legalNotes.discount='Sans escompte';
+  const normalized=normalizeSettings(s),one=draftWithSettings('invoice',normalized),two=draftWithSettings('quote',normalized);
+  assert.equal(one.seller.name,'Société');assert.equal(one.schemaVersion,2);assert.notEqual(one.lines[0].id,two.lines[0].id);
+  normalized.seller.name='Changé';one.legalNotes.discount='Personnel';assert.equal(two.seller.name,'Société');assert.equal(two.legalNotes.discount,'Sans escompte');
+  for(const bad of [{...s,schemaVersion:'1'},{...s,paymentMeans:30},{...s,paymentMeans:'99'},{...s,vatDue:'later'},{...s,legalNotes:{...s.legalNotes,other:'x'}}])assert.throws(()=>normalizeSettings(bad));
+  one.seller.electronicAddress='123456789';assert.ok(inspectDraft(one).some(x=>x.path==='seller.electronicAddress'));
+});
+test('legacy v1 upgrades explicitly while v2 cannot smuggle fields through a legacy version',()=>{
+  const old=document([{}]);old.schemaVersion=1;delete old.businessProcess;delete old.paymentMeans;delete old.vatDue;delete old.legalNotes;
+  for(const p of [old.seller,old.buyer]){delete p.siren;delete p.electronicAddress;delete p.electronicScheme;}
+  const before=JSON.stringify(old),upgraded=normalizeDraft(old);assert.equal(upgraded.schemaVersion,2);assert.equal(upgraded.paymentMeans,'30');assert.equal(upgraded.seller.siren,'');assert.equal(JSON.stringify(old),before);
+  for(const bad of [{...old,schemaVersion:'1'},{...old,schemaVersion:3},{...old,paymentMeans:'10'},{...old,buyer:{...old.buyer,siren:'123456789'}}])assert.throws(()=>normalizeDraft(bad));
+});
 test('fractional quantities and tax bases reproduce the reusable CCIC calculation',()=>{
   const d=document([{quantity:'4',unitPrice:'750'},{quantity:'3.875',unitPrice:'620'}]);
   assert.deepEqual(calculateBilling(d),{lines:[{id:d.lines[0].id,netMinor:'300000',discountMinor:'0'},{id:d.lines[1].id,netMinor:'240250',discountMinor:'0'}],taxes:[{category:'S',rate:'20',baseMinor:'540250',taxMinor:'108050'}],netMinor:'540250',taxMinor:'108050',grossMinor:'648300',discountMinor:'0'});

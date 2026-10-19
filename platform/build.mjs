@@ -17,8 +17,8 @@ let portal=await readFile(portalPath,'utf8');
 // Keep remaining classic controllers connected to the authenticated portal bridge.
 // Replace declarations structurally so no former public persistence path stays active.
 const ts=require('typescript'),bridge=(await readFile(path.join(root,'platform/client/portal-compat.js'),'utf8'))+'\n'+(await readFile(path.join(root,'platform/client/facturx-integrity.js'),'utf8'));
-portal=portal.replace(/\/\* CDI_PORTAL_START \*\/[\s\S]*?\/\* CDI_PORTAL_END \*\//,'');
-portal=portal.replace(/\/\* CDI_BILLING_START \*\/[\s\S]*?\/\* CDI_BILLING_END \*\//,'');
+portal=portal.replace(/(?:\r?\n)*\/\* CDI_PORTAL_START \*\/[\s\S]*?\/\* CDI_PORTAL_END \*\/(?:\r?\n)*/,'\n');
+portal=portal.replace(/(?:\r?\n)*\/\* CDI_BILLING_START \*\/[\s\S]*?\/\* CDI_BILLING_END \*\/(?:\r?\n)*/,'\n');
 const bridgeAst=ts.createSourceFile('bridge.js',bridge,ts.ScriptTarget.Latest,true,ts.ScriptKind.JS);
 const names=new Set(bridgeAst.statements.filter(ts.isFunctionDeclaration).map(n=>n.name.text));
 const scriptStart=portal.indexOf('>',portal.lastIndexOf('<script',portal.indexOf('function freshState()')))+1;

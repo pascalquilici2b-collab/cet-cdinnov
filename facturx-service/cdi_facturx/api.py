@@ -19,6 +19,8 @@ from starlette.datastructures import Headers
 from pydantic import BaseModel, Field, ValidationError
 from . import server_auth
 from .models import GenerationRequest
+from .billing_document import PreviewRequest
+from .document_pdf import render_document, DocumentPDFError
 from .pdf_import import MAX_BYTES, extract_pdf, preview_pdf
 from .service import ROOT, ConversionError, generate, health
 from .recipient_lookup import RecipientQuery, LookupError, lookup_recipient
@@ -42,7 +44,8 @@ class BodyLimitMiddleware:
             nonlocal size
             message = await receive()
             size += len(message.get('body', b''))
-            if size > MAX_BYTES + 2 * 1024 * 1024:
+            maximum = 300000 if scope.get('path') == '/api/billing/preview-pdf' else MAX_BYTES + 2 * 1024 * 1024
+            if size > maximum:
                 raise HTTPException(413, 'Requête trop volumineuse (PDF 20 Mo maximum).')
             return message
         await self.app(scope, limited, send)
@@ -199,6 +202,21 @@ def preview(pdf: Annotated[UploadFile, File()], page: int = 0):
         raise
     except Exception as exc:
         raise HTTPException(422,str(exc)[:1500]) from exc
+    finally:
+        SLOTS.release()
+
+
+@app.post('/api/billing/preview-pdf')
+def billing_preview(payload: PreviewRequest):
+    if not SLOTS.acquire(blocking=False):
+        raise HTTPException(503, 'Le service traite un autre document. Réessayez dans un instant.')
+    try:
+        document = payload.document
+        data = render_document(document.model_dump(), document.draft_totals(), issued=False)
+        return Response(data, media_type='application/pdf', headers={
+            'Content-Disposition': 'attachment; filename="brouillon.pdf"'})
+    except DocumentPDFError as exc:
+        raise HTTPException(422, str(exc)[:1500]) from exc
     finally:
         SLOTS.release()
 

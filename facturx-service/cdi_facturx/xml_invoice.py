@@ -55,9 +55,18 @@ def to_bt(inv: Invoice) -> dict:
             item['BT-120'] = group['reason']
         d['BG-23'].append(item)
     for n, line in enumerate(inv.lines, 1):
+        amounts = line.amounts()
         item = {'BT-126': str(n), 'BT-153': line.description, 'BT-129': str(line.quantity),
                 'BT-130': line.unit, 'BT-146': str(line.unit_price),
-                'BT-131': str(money(line.quantity * line.unit_price)), 'BT-151': line.vat_category}
+                'BT-131': str(amounts['net']), 'BT-151': line.vat_category}
+        if line.discount_percent:
+            # BG-27 is an allowance on the line, not a fictitious net unit price.
+            # Its monetary amount reconciles the two rounded line totals; this
+            # preserves the exact percentage calculation even at half-cent edges.
+            item['BG-27'] = [{'BT-136': str(amounts['discount']),
+                             'BT-137': str(amounts['base']),
+                             'BT-138': str(line.discount_percent),
+                             'BT-139': 'Remise de ligne'}]
         if line.vat_category != 'O':
             item['BT-152'] = str(line.vat_rate)
         d['BG-25'].append(item)
@@ -65,6 +74,8 @@ def to_bt(inv: Invoice) -> dict:
 
 
 def create_xml(inv: Invoice, profile: str) -> bytes:
+    if profile == 'basicwl' and any(line.discount_percent for line in inv.lines):
+        raise ValueError('Les remises de ligne nécessitent le profil BASIC ou EN16931 pour être conservées dans le XML.')
     if inv.totals.rounding and profile != 'en16931':
         raise ValueError('Cette facture comporte un arrondi de règlement : sélectionnez le profil EN16931 pour le conserver dans le XML.')
     # The upstream dictionary generator supports BASIC WL and EN16931, not BASIC.

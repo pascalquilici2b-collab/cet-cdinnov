@@ -1,0 +1,53 @@
+{
+  "number": "TEST-REMISES-1",
+  "issue_date": "2026-10-20",
+  "currency": "EUR",
+  "business_process": "S1",
+  "seller": {
+    "name": "Émetteur fictif",
+    "street": "1 rue du Test",
+    "postal_code": "20000",
+    "city": "Ajaccio",
+    "country": "FR",
+    "siren": "732829320",
+    "vat_number": "FR44732829320",
+    "electronic_address": "732829320",
+    "electronic_scheme": "0225"
+  },
+  "buyer": {
+    "name": "Client fictif",
+    "street": "2 rue du Test",
+    "postal_code": "20200",
+    "city": "Bastia",
+    "country": "FR",
+    "siren": "552100554",
+    "electronic_address": "552100554",
+    "electronic_scheme": "0225"
+  },
+  "lines": [
+    {
+      "description": "Prestation de test",
+      "quantity": "1.25",
+      "unit_price": "700",
+      "discount_percent": "12.5",
+      "vat_rate": "20",
+      "vat_category": "S"
+    }
+  ],
+  "payment": {
+    "means_code": "10",
+    "due_date": "2026-11-19",
+    "vat_due": "invoice"
+  },
+  "totals": {
+    "net": "765.63",
+    "vat": "153.13",
+    "gross": "918.76",
+    "due": "918.76"
+  },
+  "notes": {
+    "recovery": "Indemnité forfaitaire de recouvrement : 40 euros.",
+    "penalties": "Pénalités de retard selon les conditions convenues.",
+    "discount": "Pas d’escompte pour paiement anticipé."
+  }
+}

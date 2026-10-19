@@ -9,3 +9,6 @@ marches/.private/
 *.log
 .build/
 platform/.private/
+.private/
+__pycache__/
+.pytest_cache/

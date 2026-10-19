@@ -1,5 +1,5 @@
 from datetime import date
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, ROUND_HALF_UP, localcontext
 from typing import Annotated, Literal
 import re
 
@@ -9,6 +9,8 @@ from stdnum import iban
 from stdnum.eu import vat
 
 Text = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2000)]
+LongDescription = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=4000)]
+DocumentDescription = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=20000)]
 Money = Annotated[Decimal, Field(ge=0, max_digits=16, decimal_places=2, allow_inf_nan=False)]
 SignedMoney = Annotated[Decimal, Field(max_digits=16, decimal_places=2, allow_inf_nan=False)]
 Quantity = Annotated[Decimal, Field(gt=0, max_digits=16, decimal_places=6, allow_inf_nan=False)]
@@ -71,13 +73,25 @@ class Party(Model):
 
 
 class Line(Model):
-    description: Text
+    description: LongDescription
     quantity: Quantity
     unit_price: Price
+    discount_percent: Annotated[Decimal, Field(ge=0, le=100, max_digits=5, decimal_places=2, allow_inf_nan=False)] = Decimal('0')
     unit: Annotated[str, Field(pattern=r'^[A-Z0-9]{2,3}$')] = 'C62'
     vat_category: Literal['S', 'Z', 'E', 'AE', 'O'] = 'S'
     vat_rate: Annotated[Decimal, Field(ge=0, le=100, max_digits=5, decimal_places=2)] = Decimal('20')
     exemption_reason: Text | None = None
+
+    def amounts(self) -> dict[str, Decimal]:
+        # Keep six-decimal quantity/price and the percentage exact until the
+        # final line amount. Rounding a discounted unit price changes totals.
+        # 40 digits cover both 16-digit operands and the 5-digit percentage.
+        with localcontext() as context:
+            context.prec = 40
+            exact_base = self.quantity * self.unit_price
+            base = money(exact_base)
+            net = money(exact_base * (Decimal('100') - self.discount_percent) / Decimal('100'))
+            return {'base': base, 'net': net, 'discount': base - net}
 
     @model_validator(mode='after')
     def tax(self):
@@ -95,7 +109,7 @@ class Line(Model):
 class Payment(Model):
     means_code: Literal['30', '58', '10', '48'] = '30'
     due_date: date | None = None
-    terms: Text | None = None
+    terms: LongDescription | None = None
     iban: str | None = None
     bic: str | None = None
     prepaid: Money = Decimal('0')
@@ -136,7 +150,7 @@ class Notes(Model):
     recovery: Text
     penalties: Text
     discount: Text
-    description: Text | None = None
+    description: DocumentDescription | None = None
 
 
 class Invoice(Model):
@@ -165,7 +179,7 @@ class Invoice(Model):
             group = groups.setdefault(key, {'base': Decimal('0'), 'reason': line.exemption_reason})
             if group['reason'] != line.exemption_reason:
                 raise ValueError('Un même groupe de TVA doit avoir un motif d’exonération unique.')
-            group['base'] += money(line.quantity * line.unit_price)
+            group['base'] += line.amounts()['net']
         if self.allowance:
             allowance = self.allowance
             group = groups.get((allowance.vat_category, allowance.vat_rate))

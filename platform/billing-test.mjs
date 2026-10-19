@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
-import {randomUUID} from 'node:crypto';
+import {randomUUID,createHash} from 'node:crypto';
 import {test} from 'node:test';
 import {testEnvironment,users} from '../marches/test.mjs';
 import {migrateBilling} from './billing-schema.mjs';
-import {blankDraft} from './billing-domain.ts';
+import {blankDraft,blankSettings,draftWithSettings,normalizeDraft} from './billing-domain.ts';
 import {seedBusinessDocument} from './business-migration.mjs';
 
 const fixture=(kind='invoice',title='Mission fictive')=>{
@@ -39,7 +39,7 @@ await test('API de brouillons : identité, conservation, concurrence et traçabi
 
   await t.test('la direction seule accède aux routes, avec origine contrôlée',async()=>{
    const id=randomUUID();
-   for(const [method,path,payload] of [['GET','/documents'],['GET','/context'],['GET','/documents/'+id],['POST','/documents',{id,data:fixture()}],['PUT','/documents/'+id,{data:fixture()}],['POST','/documents/'+id+'/convert',{id:randomUUID()}]]){
+   for(const [method,path,payload] of [['GET','/settings'],['PUT','/settings',{data:blankSettings()}],['GET','/documents'],['GET','/context'],['GET','/documents/'+id],['POST','/documents',{id,data:fixture()}],['PUT','/documents/'+id,{data:fixture()}],['POST','/documents/'+id+'/convert',{id:randomUUID()}]]){
     const options={method,headers:{Authorization:''},...(payload?{body:JSON.stringify(payload)}:{})};
     await read(await call(path,options),401);
     await read(await call(path,{...options,headers:{Authorization:'Bearer '+consultant.token}}),403);
@@ -191,7 +191,51 @@ await test('API de brouillons : identité, conservation, concurrence et traçabi
    const result=await read(await call('/context'),200);
    assert.deepEqual(result.clients,[{id:'c-test',name:'Client contexte'}]);assert.deepEqual(result.businessCodes,[{id:'code-test',code:'31 AC',label:'Mission contexte',client:'Client contexte'}]);
    assert.deepEqual(result.markets,[{id:'market-context',title:'Marché contexte',reference:'M-TEST',clientName:'Client contexte'}]);
-   assert.ok(Object.values(result.seller).every(v=>v===''));assert.doesNotMatch(JSON.stringify(result),/never-expose|password|salt|hash|accounts/);
+   assert.deepEqual(result.seller,blankSettings().seller);assert.deepEqual(result.settings,{version:0,data:blankSettings(),updatedAt:null});assert.doesNotMatch(JSON.stringify(result),/never-expose|password|salt|hash|accounts/);
+  });
+
+  await t.test('paramètres versionnés : premier enregistrement concurrent, historique et instantané du document',async()=>{
+   const defaults=blankSettings();defaults.seller.name='Émetteur initial';defaults.legalNotes.discount='Pas d’escompte';
+   const settingsHistory=()=>ctx.db.prepare('SELECT * FROM billing_settings_versions ORDER BY version').all();
+   const put=(version,data)=>send('PUT','/settings',{data},{'If-Match':String(version)});
+   await read(await send('PUT','/settings',{data:defaults}),428);
+   for(const version of ['-1','01','1.5','"0"','9007199254740992'])await read(await put(version,defaults),400);
+   for(const data of [{...defaults,other:true},{...defaults,paymentMeans:30},{...defaults,vatDue:null},{...defaults,legalNotes:{...defaults.legalNotes,extra:true}}])await read(await put(0,data),400);
+   await read(await send('PUT','/settings',{data:defaults,updatedBy:'forged'},{'If-Match':'0'}),400);
+   const concurrent=await Promise.all([put(0,defaults),put(0,{...defaults,paymentTerms:'Autres conditions'})]);
+   assert.deepEqual(concurrent.map(r=>r.status).sort(),[200,409]);
+   const saved=await read(concurrent.find(r=>r.status===200),200);assert.equal(saved.version,1);assert.equal((await settingsHistory()).results.length,1);
+   const snapshot=draftWithSettings('invoice',saved.data),snapshotId=randomUUID();await read(await create(snapshotId,snapshot),201);
+   const next={...saved.data,seller:{...saved.data.seller,name:'Nouvelle dénomination'},legalNotes:{...saved.data.legalNotes,discount:'Autres conditions'}};
+   const updated=await read(await put(1,next),200);assert.equal(updated.version,2);
+   await read(await put(1,saved.data),409);await read(await put(0,saved.data),409);
+   assert.deepEqual((await read(await call('/documents/'+snapshotId),200)).data,snapshot);
+   assert.deepEqual(await read(await call('/settings'),200),updated);assert.deepEqual((await read(await call('/context'),200)).settings,updated);
+   const history=(await settingsHistory()).results;assert.equal(history.length,2);assert.deepEqual(JSON.parse(history[0].data_json),saved.data);
+   assert.equal(history[1].updated_by,users[0]);
+   await assert.rejects(()=>ctx.db.prepare("UPDATE billing_settings SET data_json='{}' WHERE id='default'").run(),/BILLING_SETTINGS_VERSION/);
+   await assert.rejects(()=>ctx.db.prepare('DELETE FROM billing_settings').run(),/BILLING_SETTINGS_HISTORY/);
+   await assert.rejects(()=>ctx.db.prepare("UPDATE billing_settings_versions SET updated_by='tamper'").run(),/BILLING_SETTINGS_HISTORY/);
+   await assert.rejects(()=>ctx.db.prepare('DELETE FROM billing_settings_versions').run(),/BILLING_SETTINGS_HISTORY/);
+   await ctx.db.prepare("CREATE TRIGGER test_reject_settings BEFORE INSERT ON billing_settings_versions WHEN NEW.version>2 BEGIN SELECT RAISE(ABORT,'TEST_HISTORY_FAILURE'); END").run();
+   try{await read(await put(2,defaults),503);}finally{await ctx.db.prepare('DROP TRIGGER test_reject_settings').run();}
+   assert.deepEqual(await read(await call('/settings'),200),updated);assert.deepEqual((await settingsHistory()).results,history);
+  });
+
+  await t.test('les anciens brouillons v1 se lisent en v2 sans réécrire leur historique et acceptent leurs reprises',async()=>{
+   const data=fixture('quote','Document historique v1');data.schemaVersion=1;
+   delete data.businessProcess;delete data.paymentMeans;delete data.vatDue;delete data.legalNotes;
+   for(const party of [data.seller,data.buyer]){delete party.siren;delete party.electronicAddress;delete party.electronicScheme;}
+   const legacyId=randomUUID(),json=JSON.stringify(data),hash=createHash('sha256').update(json).digest('hex');
+   await ctx.db.prepare("INSERT INTO billing_documents(id,kind,status,version,data_json,totals_json,issues_json,create_hash,created_at,updated_at,created_by,updated_by) VALUES(?,'quote','draft',1,?,NULL,'[]',?,'2026-10-20','2026-10-20','fixture','fixture')").bind(legacyId,json,hash).run();
+   const expected=normalizeDraft(data);
+   assert.deepEqual((await read(await call('/documents/'+legacyId),200)).data,expected);
+   assert.deepEqual((await read(await create(legacyId,data),200)).data,expected);
+   assert.deepEqual((await read(await create(legacyId,expected),200)).data,expected);
+   assert.equal((await history(legacyId)).results.length,1);assert.equal((await history(legacyId)).results[0].data_json,json);
+   const converted=await read(await convert(legacyId,1,randomUUID()),201);assert.equal(converted.data.schemaVersion,2);
+   await read(await save(legacyId,1,{...expected,title:'Mise à jour v2'}),200);
+   const records=(await history(legacyId)).results;assert.equal(records.length,2);assert.equal(records[0].data_json,json);assert.equal(JSON.parse(records[1].data_json).schemaVersion,2);
   });
 
   await t.test('suppression non exposée et révocation effective de la session',async()=>{
