@@ -100,7 +100,7 @@
 .bill-settings-heading{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:24px}
 .bill-settings-heading h2{font-size:22px;letter-spacing:-.5px}
 .bill-settings-heading p{color:var(--bill-muted);font-size:12px;margin-top:5px}
-.bill-settings-layout{display:grid;grid-template-columns:minmax(360px,720px) minmax(200px,310px);gap:28px;align-items:start}
+.bill-settings-layout{max-width:1100px}.bill-settings-layout>.bill-editor>fieldset{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.bill-settings-layout>.bill-editor>fieldset>.bill-section:first-child{border-right:1px solid var(--bill-line)}.bill-settings-layout .bill-settings-save-state{grid-column:1/-1}
 .bill-settings-aside{background:#edf5ef;border:1px solid #dce9df;border-radius:10px;padding:24px;color:#486555}
 .bill-settings-aside-icon{display:flex;align-items:center;justify-content:center;width:36px;height:36px;border:1px solid #c8dfcf;border-radius:8px;background:#e1eee5;color:#407955;margin-bottom:15px}
 .bill-settings-aside h3{font-size:14px;letter-spacing:-.2px;color:#31553e;margin-bottom:10px}
@@ -290,6 +290,18 @@ select.bill-status-filter{background:var(--bill-surface,#fff);color:var(--bill-i
 [data-theme=dark] .bill-field>small.bill-field-error{color:#ffb5a8}[data-theme=dark] .bill-field>[aria-invalid=true]{border-color:#d58a7f}[data-theme=dark] .bill-field>[aria-invalid=true]:focus{box-shadow:0 0 0 3px #b3644d30}
 @media(max-width:820px){.bill-review-groups{grid-template-columns:minmax(0,1fr);gap:18px}}
 @media(max-width:520px){.bill-review-heading{padding:17px 15px;align-items:stretch;flex-direction:column;gap:12px}.bill-review-heading .bill-button{min-height:44px;justify-content:center}.bill-review-content{padding:0 15px 17px}.bill-workspace .bill-field>input,.bill-workspace .bill-field>textarea,.bill-workspace .bill-field>select{font-size:16px;min-height:44px}.bill-mobile-tabs button{min-height:44px}}
+
+/* Specific explanations appear on demand, outside clipped cards and within modal dialogs. */
+.bill-app .bill-help{display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;flex:none;width:24px;height:24px;min-width:24px;padding:2px;border:0;border-radius:5px;background:transparent;color:var(--bill-muted);line-height:1;letter-spacing:0}
+.bill-help>span{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border:1px solid currentColor;border-radius:50%;font-size:11px;font-weight:650}
+.bill-app .bill-help:hover,.bill-app .bill-help:focus-visible{color:var(--bill-green);background:#126b570b}
+.bill-help-tooltip{position:fixed;z-index:10000;width:max-content;max-width:min(320px,calc(100vw - 24px));max-height:calc(100dvh - 24px);overflow:auto;padding:12px 14px;border:1px solid var(--bill-line);border-radius:8px;background:var(--bill-surface,#fff);color:var(--bill-ink);box-shadow:0 8px 28px #112c3026;font-size:12px;font-weight:450;line-height:1.65;letter-spacing:0;white-space:normal;overflow-wrap:anywhere}
+.bill-title-help,.bill-field-label,.bill-review-heading>div{display:flex;align-items:center;gap:5px}
+.bill-title-help{flex-wrap:wrap}.bill-field-label{min-height:24px}.bill-field-label>label{min-width:0}.bill-review-content{padding-top:16px}
+.bill-directory-edit-new{grid-template-columns:minmax(0,760px)}.bill-directory-edit-new>.bill-directory-aside{display:none}
+[data-theme=dark] .bill-app .bill-help:hover,[data-theme=dark] .bill-app .bill-help:focus-visible{background:#9ad6b611}
+@media(max-width:980px){.bill-settings-layout>.bill-editor>fieldset{grid-template-columns:minmax(0,1fr)}.bill-settings-layout>.bill-editor>fieldset>.bill-section:first-child{border-right:0}}
+@media(pointer:coarse){.bill-app .bill-help{width:44px;height:44px;min-width:44px;margin-block:-10px}}
 /* Payments: the outstanding amount leads; bookkeeping stays in the history. */
 .bill-payments{grid-column:1/-1;border-top:1px solid var(--bill-line);padding:22px 0;margin:0 0 16px;border-bottom:1px solid var(--bill-line);min-width:0}
 .bill-payment-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}.bill-payment-heading h3{font-size:14px;margin:0}.bill-payment-state{font-size:11px;font-weight:700;color:var(--bill-muted);background:var(--bill-bg);padding:6px 9px;border-radius:5px}

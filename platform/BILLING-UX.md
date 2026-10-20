@@ -6,6 +6,16 @@ La demande de Pascal du 20 octobre 2026 fait de la qualité du design et de l’
 
 Une interface de travail calme, lisible et cohérente avec le portail CDInnov : hiérarchie typographique, surfaces sobres, accent vert pour les actions et états confirmés. Le document reste blanc en thème sombre. Les informations nécessaires au travail sont prioritaires ; les détails de validation restent secondaires.
 
+### Aide à la demande — préférence explicite du 20 octobre
+
+Limiter les textes explicatifs permanents. Une notion particulière reçoit un petit bouton « ? » à côté du titre ou du libellé. L’explication apparaît au survol, au focus clavier ou au toucher ; elle reste lisible quand le pointeur la rejoint. Échap, un clic extérieur ou un second toucher la referment. Une seule bulle est ouverte à la fois. Les aides restent liées aux champs pour les lecteurs d’écran, sans bouton imbriqué dans un label de formulaire.
+
+`billing-help.tsx` place la bulle hors des cartes qui pourraient la couper et à l’intérieur du dialogue natif lorsqu’il est ouvert. La position respecte les bords de l’écran ; la cible tactile mesure 44 pixels. Les erreurs, modifications non enregistrées, blocages et conséquences d’une confirmation restent visibles. Les aides ne déclenchent ni soumission, ni ouverture de rubrique, ni écriture métier.
+
+Les répertoires, paramètres, conditions, suivi des paiements et devis, révisions, finalisation et aperçu utilisent cette présentation. Les encarts purement explicatifs sont supprimés ; les paramètres affichent les deux groupes de champs côte à côte sur grand écran. Le dépôt manuel AGIRIS est identifié sans suggérer qu’une facture a été transmise.
+
+Validation : `billing-help-browser-test.mjs` couvre survol, passage du pointeur sur la bulle, clavier, Échap dans un dialogue, clic/toucher, absence de soumission et affichage clair/sombre à 320/390 px. Les suites navigateur de facturation, répertoires, validation, devis, révisions et règlements passent aussi, sans erreur JavaScript. Les captures de ce jalon restent privées et fictives.
+
 ## Parcours implémentés
 
 - **Réutiliser** : carnets clients et prestations recherchables ; devis ou facture depuis une fiche client ; création et sélection dans un dialogue sans perdre la saisie du document. Les coordonnées et tarifs sont copiés et restent ajustables.

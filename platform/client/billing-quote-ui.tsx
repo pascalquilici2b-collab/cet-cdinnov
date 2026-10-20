@@ -2,6 +2,7 @@ import {useEffect,useRef,useState} from 'react';
 import type {BillingDocument,BillingQuoteAction,BillingQuoteEvent,BillingTransport} from '../billing-contracts';
 import {billingToday,quoteActionLabels,quoteStateLabels} from '../billing-quote-domain';
 import {Field} from './billing-fields';
+import {Help} from './billing-help';
 
 const date=(value:string)=>value.split('-').reverse().join('/');
 const actionLabels:Record<BillingQuoteAction,string>={sent:'Marquer comme envoyé',accepted:'Enregistrer un accord',refused:'Enregistrer un refus',reopened:'Corriger la réponse'};
@@ -38,7 +39,7 @@ export function QuoteFollowUp({record,transport,busy,onBusy,onDocument,onDirty,o
     <button className="bill-button bill-button-quiet" disabled={busy} type="button" onClick={()=>setForm({action:'refused',occurredOn:billingToday(),note:''})}>Enregistrer un refus</button>
    </>)}
   </div>
-  {form&&<form className="bill-quote-form" onSubmit={e=>{e.preventDefault();submit();}}><h4>{actionLabels[form.action]}</h4><p>{form.action==='sent'?'Déclarez un envoi déjà effectué. Cette action n’envoie aucun e-mail.':form.action==='reopened'?'Le devis reviendra en attente (ou expiré). La réponse précédente restera dans l’historique.':'Indiquez la date réelle et l’origine de la réponse. Ce suivi ne constitue pas une signature électronique.'}</p><fieldset disabled={busy}>
+  {form&&<form className="bill-quote-form" onSubmit={e=>{e.preventDefault();submit();}}><h4 className="bill-title-help">{actionLabels[form.action]}<Help label="Suivi du devis" text={form.action==='sent'?'Déclarez un envoi déjà effectué. Cette action n’envoie aucun e-mail.':form.action==='reopened'?'Le devis revient en attente (ou expiré). La réponse précédente reste dans l’historique.':'Indiquez la date et l’origine de la réponse. Ce suivi ne constitue pas une signature électronique.'}/></h4><fieldset disabled={busy}>
    <Field label={form.action==='sent'?'Date de l’envoi':form.action==='reopened'?'Date de la correction':'Date de la réponse'}><input ref={firstField} required type="date" min={record.data.issueDate} max={billingToday()} value={form.occurredOn} onChange={e=>{setForm({...form,occurredOn:e.target.value});if(!conflict)setError('');}}/></Field>
    <Field label={form.action==='reopened'?'Raison de la correction':form.action==='sent'?'Note interne (facultatif)':'Origine de la réponse'} hint={form.action==='accepted'?'Ex. Devis signé reçu par e-mail, référence du message.':undefined}><textarea required={form.action!=='sent'} maxLength={2000} rows={3} value={form.note} onChange={e=>{setForm({...form,note:e.target.value});if(!conflict)setError('');}}/></Field>
   </fieldset>{error&&<div className="bill-quote-error" role="alert"><p>{error}</p>{conflict&&<button type="button" disabled={busy} onClick={reload}>Actualiser le suivi</button>}</div>}<div className="bill-quote-form-actions"><button type="button" className="bill-button" disabled={busy} onClick={cancel}>Annuler</button><button className="bill-button bill-button-primary" disabled={busy||inactive}>{busy?'Enregistrement…':'Enregistrer le suivi'}</button></div></form>}
