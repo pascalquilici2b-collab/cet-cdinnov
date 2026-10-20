@@ -9,7 +9,7 @@ export function quoteFixture(title='Accompagnement technique',validUntil='2099-1
  d.buyer={...d.buyer,name:'Atelier Horizon',addressLine1:'2 rue du Test',postalCode:'20200',city:'Bastia'};
  d.lines[0]={...d.lines[0],description:'Étude et accompagnement',quantity:'3',unitPrice:'750'};return d;
 }
-function samplePDF(){
+export function samplePDF(){
  const stream='BT /F1 20 Tf 50 780 Td (Synthetic quote - test only) Tj ET';
  const objects=['<< /Type /Catalog /Pages 2 0 R >>','<< /Type /Pages /Kids [3 0 R] /Count 1 >>','<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>',`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'];
  let result='%PDF-1.4\n',offsets=[0];for(const [i,object] of objects.entries()){offsets.push(Buffer.byteLength(result));result+=`${i+1} 0 obj\n${object}\nendobj\n`;}

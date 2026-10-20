@@ -9,13 +9,14 @@ import {createNumberSeries,reserveIssuance} from './billing-issuance';
 import {preflightIssuance,generateIssuance,issuedFile} from './billing-generation';
 import {billingDirectoryRoute} from './billing-directory';
 import {billingQuoteRoute,quoteJSON} from './billing-quote';
+import {billingPaymentRoute,settlementJSON} from './billing-payments';
 import {createQuoteRevision,abandonQuoteRevision,quoteVersions} from './billing-revisions';
 
 interface Row {
  id:string; kind:'invoice'|'quote'; status:'draft'; version:number; data_json:string;
  totals_json:string|null; issues_json:string; create_hash:string; source_document_id:string|null;
  source_version:number|null; created_at:string; updated_at:string; created_by:string; updated_by:string;
- issuance_json?:string|null; quote_json?:string|null;
+ issuance_json?:string|null; quote_json?:string|null; settlement_json?:string|null;
 }
 type ObjectValue=Record<string,unknown>;
 const fail=(status:number,message:string):never=>{throw Object.assign(new Error(message),{status});};
@@ -24,12 +25,12 @@ const uuid=(v:unknown):v is string=>typeof v==='string'&&/^[0-9a-f]{8}-[0-9a-f]{
 const digest=(s:string)=>createHash('sha256').update(s).digest('hex');
 const text=(v:unknown)=>typeof v==='string'?v:'';
 const document=(r:Row):BillingDocument=>{const issuance:BillingIssuanceSummary|null=r.issuance_json?(typeof r.issuance_json==='string'?JSON.parse(r.issuance_json):r.issuance_json):null;return {id:r.id,version:r.version,status:issuance?(issuance.state==='ready'?'issued':issuance.state==='failed'?'issue_failed':'finalizing'):'draft',issuance,quote:r.quote_json?(typeof r.quote_json==='string'?JSON.parse(r.quote_json):r.quote_json) as BillingQuoteSummary:null,data:normalizeDraft(JSON.parse(r.data_json)),
- sourceDocumentId:r.source_document_id,createdAt:r.created_at,updatedAt:r.updated_at,createdBy:r.created_by,updatedBy:r.updated_by,
+ settlement:r.settlement_json?JSON.parse(r.settlement_json):null,sourceDocumentId:r.source_document_id,createdAt:r.created_at,updatedAt:r.updated_at,createdBy:r.created_by,updatedBy:r.updated_by,
  totals:r.totals_json===null?null:JSON.parse(r.totals_json),issues:JSON.parse(r.issues_json)};};
 const issuanceJSON=`(SELECT json_object('id',i.id,'number',i.number,'state',j.state,'attempts',j.attempts,'errorCode',j.error_code,'createdAt',i.created_at,'updatedAt',j.updated_at,
  'files',json(CASE WHEN j.state='ready' THEN (SELECT json_group_array(json_extract(value,'$.kind')) FROM json_each(j.manifest_json,'$.artifacts')) ELSE '[]' END))
  FROM billing_issuances i JOIN billing_issue_jobs j ON j.issuance_id=i.id WHERE i.document_id=billing_documents.id)`;
-const get=(db:Database,id:string)=>db.prepare(`SELECT *,${issuanceJSON} AS issuance_json,${quoteJSON()} AS quote_json FROM billing_documents WHERE id=?`).bind(id).first<Row>();
+const get=(db:Database,id:string)=>db.prepare(`SELECT *,${issuanceJSON} AS issuance_json,${quoteJSON()} AS quote_json,${settlementJSON()} AS settlement_json FROM billing_documents WHERE id=?`).bind(id).first<Row>();
 const conflict=()=>fail(409,'Ce document a changé ou cet identifiant est déjà utilisé. Rechargez le document avant de continuer.');
 function expectedVersion(request:Request,allowZero=false):number {
  const value=request.headers.get('if-match');
@@ -91,23 +92,24 @@ function pageParameter(params:URLSearchParams,name:string,fallback:number,max:nu
 }
 async function list(request:Request,db:Database,reply:Reply) {
  const params=new URL(request.url).searchParams,kind=params.get('kind'),q=params.get('q')||'',state=params.get('state')||'all';
+ const paymentStates=['unpaid','partial','paid','overpaid','overdue'];
  const quoteStates=['prepared','sent','accepted','refused','expired','previous','abandoned'];
  if([...params.keys()].some(k=>!['kind','q','limit','offset','state'].includes(k))||[...new Set(params.keys())].some(k=>params.getAll(k).length>1)||
-  (kind!==null&&kind!=='quote'&&kind!=='invoice')||q.length>200||!['all','draft','issued','finalizing','issue_failed',...quoteStates].includes(state)||(quoteStates.includes(state)&&kind!=='quote'))return fail(400,'Filtres de recherche invalides.');
+  (kind!==null&&kind!=='quote'&&kind!=='invoice')||q.length>200||!['all','draft','issued','finalizing','issue_failed',...quoteStates,...paymentStates].includes(state)||(quoteStates.includes(state)&&kind!=='quote')||(paymentStates.includes(state)&&kind!=='invoice'))return fail(400,'Filtres de recherche invalides.');
  const limit=pageParameter(params,'limit',25,100,1),offset=pageParameter(params,'offset',0,1000000);
  // Count and page share one snapshot. Search characters remain literal, including SQL wildcards.
  const row=await db.prepare(`WITH enriched AS (
-  SELECT *,${issuanceJSON} AS issuance_json,${quoteJSON()} AS quote_json FROM billing_documents WHERE (? IS NULL OR kind=?)
+  SELECT *,${issuanceJSON} AS issuance_json,${quoteJSON()} AS quote_json,${settlementJSON()} AS settlement_json FROM billing_documents WHERE (? IS NULL OR kind=?)
  ), classified AS (SELECT *,CASE WHEN json_extract(issuance_json,'$.state')='ready' THEN 'issued' WHEN json_extract(issuance_json,'$.state')='failed' THEN 'issue_failed' WHEN issuance_json IS NOT NULL THEN 'finalizing' ELSE 'draft' END AS effective_status FROM enriched),
  filtered AS (SELECT * FROM classified WHERE (CASE
   WHEN ?='previous' THEN kind='quote' AND json_extract(quote_json,'$.revision.currentId')<>id AND json_extract(quote_json,'$.revision.abandoned')=0
   WHEN ?='abandoned' THEN kind='quote' AND json_extract(quote_json,'$.revision.abandoned')=1
   ELSE (kind<>'quote' OR (?='all' AND ?<>'') OR (json_extract(quote_json,'$.revision.currentId')=id AND json_extract(quote_json,'$.revision.abandoned')=0))
-   AND (?='all' OR effective_status=? OR (effective_status='issued' AND json_extract(quote_json,'$.state')=?)) END)
+   AND (?='all' OR effective_status=? OR (effective_status='issued' AND json_extract(quote_json,'$.state')=?) OR (effective_status='issued' AND (json_extract(settlement_json,'$.state')=? OR (?='overdue' AND json_extract(settlement_json,'$.overdue')=1)))) END)
   AND (?='' OR instr(lower(json_extract(data_json,'$.title')),lower(?))>0 OR instr(lower(json_extract(data_json,'$.buyer.name')),lower(?))>0 OR instr(lower(json_extract(data_json,'$.references.businessCode')),lower(?))>0 OR instr(lower(json_extract(issuance_json,'$.number')),lower(?))>0))
  SELECT (SELECT count(*) FROM filtered) AS total,(SELECT json_group_array(json(row_json)) FROM (
- SELECT json_object('id',id,'kind',kind,'status',status,'version',version,'data_json',data_json,'totals_json',totals_json,'issues_json',issues_json,'source_document_id',source_document_id,'created_at',created_at,'updated_at',updated_at,'created_by',created_by,'updated_by',updated_by,'issuance_json',issuance_json,'quote_json',quote_json) AS row_json
- FROM filtered ORDER BY updated_at DESC,id LIMIT ? OFFSET ?)) AS rows_json`).bind(kind,kind,state,state,state,q,state,state,state,q,q,q,q,q,limit,offset).first<{total:number;rows_json:string}>();
+ SELECT json_object('id',id,'kind',kind,'status',status,'version',version,'data_json',data_json,'totals_json',totals_json,'issues_json',issues_json,'source_document_id',source_document_id,'created_at',created_at,'updated_at',updated_at,'created_by',created_by,'updated_by',updated_by,'issuance_json',issuance_json,'quote_json',quote_json,'settlement_json',settlement_json) AS row_json
+ FROM filtered ORDER BY updated_at DESC,id LIMIT ? OFFSET ?)) AS rows_json`).bind(kind,kind,state,state,state,q,state,state,state,state,state,q,q,q,q,q,limit,offset).first<{total:number;rows_json:string}>();
  return reply(200,{documents:JSON.parse(row?.rows_json||'[]').map(document),total:row?.total||0,limit,offset});
 }
 
@@ -141,7 +143,7 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
   }
   return reply(200,document(existing));
  }
- const match=path.match(/^\/api\/v1\/billing\/documents\/([^/]+)(\/quote-versions|\/revise|\/abandon-revision|\/quote-events|\/convert|\/preview\.pdf|\/issue|\/finalize|\/files\/(?:pdf|xml|validation|verapdf))?$/);
+ const match=path.match(/^\/api\/v1\/billing\/documents\/([^/]+)(\/payments|\/quote-versions|\/revise|\/abandon-revision|\/quote-events|\/convert|\/preview\.pdf|\/issue|\/finalize|\/files\/(?:pdf|xml|validation|verapdf))?$/);
  if(!match)return reply(404,{error:'Accès de facturation introuvable.'});
  if(!uuid(match[1]))return fail(400,'Identifiant de document invalide.');
  const id=match[1].toLowerCase();
@@ -157,6 +159,10 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
   const expected=expectedVersion(request),input=await body(request,['id','familyVersion','reason']);
   if(match[2]==='/revise'){const result=await createQuoteRevision(db,current,expected,input,session.email);return reply(result.created?201:200,document((await get(db,result.id))!));}
   await abandonQuoteRevision(db,current,expected,input,session.email);return reply(200,document((await get(db,id))!));
+ }
+ if(match[2]==='/payments'){
+  const row=await get(db,id);if(!row)return reply(404,{error:'Facture introuvable.'});
+  return billingPaymentRoute(request,db,document(row),session.email,reply,async()=>document((await get(db,id))!));
  }
  if(match[2]==='/quote-events'){
   const row=await get(db,id);if(!row)return reply(404,{error:'Devis introuvable.'});

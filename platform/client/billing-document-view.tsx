@@ -16,11 +16,12 @@ export function IssuedDocument({record,transport,children,fallback}:{record:Bill
   <aside className="bill-document-summary">
    <div className="bill-document-identity"><span className={'bill-document-state '+(ready?'is-ready':'')}>{billingStateLabel(record)}</span><p>{d.kind==='invoice'?'Facture':'Devis'}</p><h2>{identity}</h2><h3>{d.title||'Sans objet'}</h3></div>
    <div className="bill-document-amount"><span>Total TTC</span><strong>{record.totals?formatMinor(record.totals.grossMinor):'—'}</strong><small>{record.totals?formatMinor(record.totals.netMinor)+' HT · '+formatMinor(record.totals.taxMinor)+' de TVA':''}</small></div>
+   {d.kind==='invoice'&&children}
    <div className="bill-document-customer"><span>CLIENT</span><h3>{d.buyer.name}</h3><p>{d.buyer.addressLine1}<br/>{d.buyer.postalCode} {d.buyer.city}</p>{d.buyer.email&&<p>{d.buyer.email}</p>}</div>
    <dl className="bill-document-dates"><div><dt>Date du document</dt><dd>{date(d.issueDate)}</dd></div><div><dt>{d.kind==='quote'?'Valable jusqu’au':'Échéance'}</dt><dd>{date(d.kind==='quote'?d.validUntil:d.dueDate)}</dd></div></dl>
    {(d.references.businessCode||d.references.marketReference)&&<details className="bill-document-details"><summary>Dossier associé</summary><p>{d.references.businessCode}</p><p>{d.references.marketReference}</p></details>}
    {ready&&d.kind==='invoice'&&<div className="bill-document-delivery"><b>Transmission à AGIRIS</b><p>À effectuer depuis votre plateforme avec le fichier Factur-X téléchargé.</p></div>}
-   {children}
+   {d.kind==='quote'&&children}
   </aside>
   {ready?<PDFPreview record={record} transport={transport}/>:fallback}
  </section>;

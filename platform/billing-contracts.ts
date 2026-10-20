@@ -43,10 +43,17 @@ export interface BillingDocument {
   sourceDocumentId:string|null; createdAt:string; updatedAt:string; createdBy:string; updatedBy:string;
   totals:BillingTotals|null; issues:BillingIssue[];
   quote:BillingQuoteSummary|null;
+  settlement:BillingSettlementSummary|null;
 }
+export type BillingPaymentMethod='transfer'|'card'|'cash'|'cheque'|'direct_debit'|'other';
+export type BillingSettlementState='unpaid'|'partial'|'paid'|'overpaid';
+export interface BillingSettlementSummary {version:number;receivedMinor:string;refundedMinor:string;netPaidMinor:string;dueMinor:string;overpaidMinor:string;state:BillingSettlementState;overdue:boolean;}
+export interface BillingPaymentEntry {id:string;version:number;kind:'receipt'|'refund'|'void';amountMinor:string;deltaMinor:string;balanceAfterMinor:string;reason:string;occurredOn:string;method:BillingPaymentMethod;reference:string;note:string;recordedAt:string;recordedBy:string;reversalOf:string|null;reversedBy:string|null;replacementFor:string|null;}
+type PaymentInputFields={amount:string;occurredOn:string;method:BillingPaymentMethod;reference:string;note:string};
+export type BillingPaymentOperationInput={id:string;documentVersion:number}&(({kind:'receipt'|'refund'}&PaymentInputFields)|{kind:'void';targetId:string;reason:string}|({kind:'replace';targetId:string;reason:string}&PaymentInputFields));
 export type BillingQuoteAction='sent'|'accepted'|'refused'|'reopened';
 export type BillingQuoteState='prepared'|'sent'|'accepted'|'refused'|'expired';
-export type BillingListState='all'|'draft'|'finalizing'|'issue_failed'|'issued'|'previous'|'abandoned'|BillingQuoteState;
+export type BillingListState='all'|'draft'|'finalizing'|'issue_failed'|'issued'|'previous'|'abandoned'|'overdue'|BillingQuoteState|BillingSettlementState;
 export interface BillingQuoteRevisionSummary {rootId:string;familyVersion:number;ordinal:number;count:number;parentId:string|null;parentNumber:string|null;reason:string;abandoned:boolean;abandonReason:string|null;currentId:string;currentOrdinal:number;currentNumber:string|null;currentState:BillingDocument['status'];}
 export interface BillingQuoteRevisionItem {id:string;ordinal:number;number:string|null;status:BillingDocument['status'];createdAt:string;reason:string;abandonedAt:string|null;abandonReason:string|null;grossMinor:string|null;}
 export interface BillingQuoteSummary {version:number;state:BillingQuoteState;occurredOn:string|null;invoice:{id:string;number:string|null;state:BillingDocument['status']}|null;revision:BillingQuoteRevisionSummary;}
@@ -76,6 +83,8 @@ export interface BillingTransport {
   list(query:{kind:BillingKind; q:string; offset:number; limit:number;state?:BillingListState}):Promise<BillingPage>;
   quoteEvents(id:string,before?:number):Promise<{events:BillingQuoteEvent[];nextBefore:number|null}>;
   quoteEvent(id:string,version:number,data:BillingQuoteEventInput):Promise<BillingDocument>;
+  payments(id:string,before?:number):Promise<{entries:BillingPaymentEntry[];nextBefore:number|null}>;
+  payment(id:string,version:number,data:BillingPaymentOperationInput):Promise<BillingDocument>;
   quoteVersions(id:string,before?:number):Promise<{versions:BillingQuoteRevisionItem[];nextBefore:number|null}>;
   reviseQuote(id:string,version:number,data:{id:string;familyVersion:number;reason:string}):Promise<BillingDocument>;
   abandonQuoteRevision(id:string,version:number,data:{id:string;familyVersion:number;reason:string}):Promise<BillingDocument>;

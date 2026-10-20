@@ -84,7 +84,19 @@ try{
  await page.screenshot({path:join(out,'issued-mobile-dark.png'),fullPage:true});
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
  const checked=spawnSync(python,['-c',"import sys,json;from pypdf import PdfReader;r=PdfReader(sys.argv[1]);text='\\n'.join(p.extract_text() for p in r.pages);assert 'TEST-F-2026-0041' in text;assert 'BROUILLON' not in text;assert list(r.attachments)==['factur-x.xml'];print(json.dumps({'pages':len(r.pages),'embeddedXml':True}))",file],{encoding:'utf8',env:{...process.env,PYTHONIOENCODING:'utf-8'}});assert.equal(checked.status,0,checked.stderr);
+ // Settlement operations must leave every native artifact and the frozen envelope byte-identical.
+ const frozen=result,originalArtifacts=new Map();
+ for(const artifact of manifest.artifacts)originalArtifacts.set(artifact.kind,Buffer.from(await (await call('/api/v1/billing/documents/'+documentId+'/files/'+artifact.kind)).arrayBuffer()));
+ const payment=async operation=>{const response=await call('/api/v1/billing/documents/'+documentId+'/payments',{method:'POST',headers:{'If-Match':String(result.settlement.version)},body:JSON.stringify({id:randomUUID(),documentVersion:result.version,...operation})});assert.equal(response.status,201,await response.clone().text());result=await response.json();};
+ await payment({kind:'receipt',amount:'100',occurredOn:'2026-10-20',method:'transfer',reference:'Virement fictif',note:''});
+ await payment({kind:'refund',amount:'10',occurredOn:'2026-10-20',method:'transfer',reference:'Retour fictif',note:''});
+ const movements=await (await call('/api/v1/billing/documents/'+documentId+'/payments')).json();
+ await payment({kind:'replace',targetId:movements.entries[0].id,amount:'15',occurredOn:'2026-10-20',method:'transfer',reference:'Retour corrigé',note:'',reason:'Erreur de montant fictive'});
+ assert.equal(result.settlement.netPaidMinor,'8500');assert.equal(result.settlement.version,4);
+ for(const field of ['data','totals','issuance','version','updatedAt'])assert.deepEqual(result[field],frozen[field]);
+ for(const artifact of manifest.artifacts)assert.deepEqual(Buffer.from(await (await call('/api/v1/billing/documents/'+documentId+'/files/'+artifact.kind)).arrayBuffer()),originalArtifacts.get(artifact.kind));
+ assert.equal((await preview.ctx.db.prepare('SELECT next_value FROM billing_number_series').first()).next_value,42);
  // Corrupted private storage is never silently downloaded, even to an administrator.
  const bucket=await preview.ctx.worker.getR2Bucket('CET_FILES');await bucket.put(pdf.key,'%PDF-corrupt',{httpMetadata:{contentType:'application/pdf'}});assert.equal((await call('/api/v1/billing/documents/'+documentId+'/files/pdf')).status,503);
- assert.deepEqual(errors,[]);console.log(JSON.stringify({realFacturX:true,...JSON.parse(checked.stdout),number:result.issuance.number,preflightCalls,generationAttempts:generateCalls,storedArtifacts:manifest.artifacts.length,bytes:saved.length,javascriptErrors:errors}));
+ assert.deepEqual(errors,[]);console.log(JSON.stringify({realFacturX:true,paymentEntries:result.settlement.version,artifactsUnchangedAfterPayments:true,...JSON.parse(checked.stdout),number:result.issuance.number,preflightCalls,generationAttempts:generateCalls,storedArtifacts:manifest.artifacts.length,bytes:saved.length,javascriptErrors:errors}));
 }finally{if(browser)await browser.close();if(preview)await preview.close();service.kill();}
