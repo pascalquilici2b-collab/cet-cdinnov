@@ -73,7 +73,11 @@ async function settingsRoute(request:Request,db:Database,email:string,reply:Repl
  if(!row)return fail(409,'Les paramètres ont été modifiés depuis leur ouverture. Votre saisie est conservée ; rechargez la version du serveur avant de réessayer.');
  return reply(200,{version:row.version,data:JSON.parse(row.data_json),updatedAt:row.updated_at});
 }
-async function context(db:Database):Promise<BillingContext> {
+function documentServiceConfigured(env:Environment):boolean {
+ if(typeof env.BILLING_PDF_SERVICE_URL!=='string'||typeof env.BILLING_PDF_SERVICE_KEY!=='string'||env.BILLING_PDF_SERVICE_KEY.length<32)return false;
+ try{const u=new URL(env.BILLING_PDF_SERVICE_URL);return u.protocol==='https:'&&!u.username&&!u.password&&!u.search&&!u.hash&&['','/'].includes(u.pathname);}catch{return false;}
+}
+async function context(db:Database,env:Environment):Promise<BillingContext> {
  // Read only the allowed business columns. Account verifiers and portal authentication never enter this response.
  const [clients,codes,markets,settings]=await Promise.all([
   db.prepare('SELECT data_json FROM budget_clients ORDER BY position,record_key').all<{data_json:string}>(),
@@ -81,6 +85,7 @@ async function context(db:Database):Promise<BillingContext> {
   db.prepare('SELECT id,payload FROM markets ORDER BY updated_at DESC,id').all<{id:string;payload:string}>(),readSettings(db)
  ]);
  return {
+  documentService:{configured:documentServiceConfigured(env)},
   clients:clients.results.map(r=>JSON.parse(r.data_json)).filter(object).map(r=>({id:text(r.id),name:text(r.name)})).filter(r=>r.id&&r.name),
   businessCodes:codes.results.map(r=>JSON.parse(r.data_json)).filter(object).map(r=>({id:text(r.id),code:[r.code1,r.code2].filter(v=>typeof v==='number'||(typeof v==='string'&&v)).join(' '),label:text(r.label),client:text(r.client)})).filter(r=>r.id),
   markets:markets.results.map(r=>{const p=JSON.parse(r.payload);return {id:r.id,title:text(p.title),reference:text(p.reference),clientName:text(p.clientName)};}),
@@ -128,7 +133,7 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
   if(request.method==='POST'){const input=await body(request,['data']);return reply(201,await createNumberSeries(db,input.data as Parameters<typeof createNumberSeries>[1],session.email));}
   return reply(405,{error:'Méthode non autorisée.'});
  }
- if(path==='/api/v1/billing/context')return request.method==='GET'?reply(200,await context(db)):reply(405,{error:'Méthode non autorisée.'});
+ if(path==='/api/v1/billing/context')return request.method==='GET'?reply(200,await context(db,env)):reply(405,{error:'Méthode non autorisée.'});
  if(path==='/api/v1/billing/documents') {
   if(request.method==='GET')return list(request,db,reply);
   if(request.method!=='POST')return reply(405,{error:'Méthode non autorisée.'});

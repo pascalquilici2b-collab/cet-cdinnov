@@ -7,13 +7,13 @@ export const billingStateLabel=(document:BillingDocument|null|undefined)=>docume
 const failures:Record<string,string>={render:'Le rendu du document a échoué.',validation:'Le document n’a pas passé les contrôles définitifs.',storage:'L’archivage des fichiers n’a pas abouti.',unavailable:'Le moteur documentaire était indisponible.'};
 const message=(e:unknown)=>e instanceof Error?e.message:'La finalisation n’a pas abouti.';
 
-export function IssuancePanel({record,saved,busy,transport,onDocument,onBusy,onNotice,onDownload,draftIssues,onReview}:{record:BillingDocument|null;saved:boolean;busy:boolean;transport:BillingTransport;onDocument:(d:BillingDocument)=>void;onBusy:(value:string)=>void;onNotice:(value:string)=>void;onDownload:(kind:string)=>void;draftIssues:BillingIssue[];onReview:()=>void}){
+export function IssuancePanel({record,saved,busy,transport,onDocument,onBusy,onNotice,onDownload,draftIssues,onReview,serviceConfigured=true}:{serviceConfigured?:boolean;record:BillingDocument|null;saved:boolean;busy:boolean;transport:BillingTransport;onDocument:(d:BillingDocument)=>void;onBusy:(value:string)=>void;onNotice:(value:string)=>void;onDownload:(kind:string)=>void;draftIssues:BillingIssue[];onReview:()=>void}){
  const [series,setSeries]=useState<BillingNumberSeries[]>([]),[selected,setSelected]=useState(''),[error,setError]=useState(''),[reload,setReload]=useState(0),[checking,setChecking]=useState(false),[expanded,setExpanded]=useState(false);
  const live=useRef(true),running=useRef(false),attempt=useRef<{key:string;id:string}|null>(null);
  useEffect(()=>{live.current=true;return()=>{live.current=false;};},[]);
- useEffect(()=>{let active=true;if(!record||record.issuance)return;
+ useEffect(()=>{let active=true;if(!serviceConfigured||!record||record.issuance)return;
   transport.numberSeries().then(rows=>{if(!active)return;const siren=record.data.seller.siren.replace(/\s/g,'')||record.data.seller.siret.replace(/\s/g,'').slice(0,9);const matching=rows.filter(s=>s.kind===record.data.kind&&s.issuer_siren===siren&&s.start_date<=record.data.issueDate&&s.end_date>=record.data.issueDate);setSeries(matching);setSelected(matching.length===1?matching[0].id:'');setError('');},e=>{if(active)setError(message(e));});return()=>{active=false;};
- },[record?.id,record?.version,!!record?.issuance,transport,reload]);
+ },[record?.id,record?.version,!!record?.issuance,transport,reload,serviceConfigured]);
  async function verify(){if(!record||running.current)return;running.current=true;setChecking(true);onBusy('issue-check');try{const latest=await transport.get(record.id);if(live.current){onDocument(latest);setError('');}}catch(e){if(live.current)setError(message(e));}finally{running.current=false;if(live.current){setChecking(false);onBusy('');}}}
  async function finish(){
   if(!record||!saved||busy||running.current||(!record.issuance&&!selected))return;
@@ -31,6 +31,7 @@ export function IssuancePanel({record,saved,busy,transport,onDocument,onBusy,onN
   }finally{running.current=false;if(live.current)onBusy('');}
  }
  const issue=record?.issuance;
+ if(!issue&&!serviceConfigured)return <div className="bill-service-pending" role="status">PDF & émission à activer <Help label="Activation des PDF et de l’émission" text="Vos brouillons et l’aperçu en direct sont disponibles. Le moteur documentaire doit être raccordé pour produire les nouveaux PDF et Factur-X. Le convertisseur des factures importées reste dans Historique & dossiers."/></div>;
  if(!issue&&record?.quote&&(record.quote.revision.abandoned||record.quote.revision.currentId!==record.id))return null;
  if(issue?.state==='ready')return issue.files.length>1?<details className="bill-archive-tools"><summary>Fichiers techniques et contrôles <Help label="Fichiers techniques" text="Le Factur-X contient déjà le XML. Ces fichiers donnent accès aux données structurées et aux rapports de contrôle."/><span>⌄</span></summary><div className="bill-issuance-actions">{issue.files.filter(kind=>kind!=='pdf').map(kind=><button type="button" className="bill-button" key={kind} disabled={busy} onClick={()=>onDownload(kind)}>{({xml:'Télécharger le XML',validation:'Rapport de validation',verapdf:'Rapport PDF/A'} as Record<string,string>)[kind]||kind}</button>)}</div></details>:null;
  return <details className="bill-finalize-disclosure" open={!!issue||expanded} onToggle={e=>{if(!issue)setExpanded(e.currentTarget.open);}}><summary><span>{issue?'Terminer la génération':'Vérifier et finaliser'}</span>{issue&&<small>{issue.number}</small>}<span>⌄</span></summary><section className="bill-issuance" aria-label="Finalisation du document"><div><h2 className="bill-title-help">{issue?issue.number:'Finaliser le document'}{!issue&&<Help label="Finalisation" text="Le contrôle préalable vérifie le document avant de réserver son numéro. La finalisation fige son contenu et archive ses fichiers."/>}</h2>{issue&&<p>{billingStateLabel(record)} · Contenu figé.</p>}</div>

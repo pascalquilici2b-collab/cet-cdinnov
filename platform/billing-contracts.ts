@@ -72,6 +72,7 @@ export type BillingDirectoryRecord={id:string;version:number;updatedAt:string|nu
 export interface BillingDirectoryPage {records:BillingDirectoryRecord[];total:number;offset:number;limit:number;}
 export interface BillingPage {documents:BillingDocument[]; total:number; limit:number; offset:number;}
 export interface BillingContext {
+  documentService:{configured:boolean};
   clients:{id:string; name:string}[];
   businessCodes:{id:string; code:string; label:string; client:string}[];
   markets:{id:string; title:string; reference:string; clientName:string}[];

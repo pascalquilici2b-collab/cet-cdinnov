@@ -10,7 +10,8 @@ import {seedBusinessDocument} from './business-migration.mjs';
 export async function billingPreview(testOptions={}){
   process.env.MARCHES_TEST_WORKER=fileURLToPath(new URL('../.build/entry.mjs',import.meta.url));
   process.env.MARCHES_TEST_COMPATIBILITY_DATE='2026-06-09';
-  const ctx=await testEnvironment(testOptions);
+  // UI fixtures expose the configured path; each PDF test supplies its own outbound service.
+  const ctx=await testEnvironment({...testOptions,bindings:{BILLING_PDF_SERVICE_URL:'https://billing-fixture.invalid',BILLING_PDF_SERVICE_KEY:'synthetic-billing-fixture-key-0123456789',...testOptions.bindings}});
   try{
     await migrateBilling(ctx.db);
     const fixture=dashboardFixture(ctx.accounts,'2026-10-20');
