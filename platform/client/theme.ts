@@ -1,6 +1,7 @@
 type Theme = 'light' | 'dark';
 const key = 'cdinnov-color-scheme';
 const preference = matchMedia('(prefers-color-scheme: dark)');
+let themeFrame=0;
 function saved(): Theme | null {
   try { const value = localStorage.getItem(key); return value === 'dark' || value === 'light' ? value : null; }
   catch { return null; }
@@ -16,6 +17,9 @@ function renderButtons() {
   });
 }
 function apply(theme: Theme) {
+  // Change the palette together, without briefly fading dark text over a dark surface.
+  cancelAnimationFrame(themeFrame);
+  document.documentElement.classList.add('cdi-theme-changing');
   document.documentElement.dataset.theme = theme;
   document.documentElement.classList.toggle('dark', theme === 'dark');
   document.documentElement.style.colorScheme = theme;
@@ -25,6 +29,7 @@ function apply(theme: Theme) {
   document.querySelectorAll('iframe').forEach(frame => {
     try { if (frame.contentWindow && new URL(frame.src, location.href).origin === location.origin) frame.contentWindow.postMessage({type:'cdi-theme',theme}, location.origin); } catch { /* An unrelated frame has no theme bridge. */ }
   });
+  themeFrame=requestAnimationFrame(()=>{themeFrame=requestAnimationFrame(()=>document.documentElement.classList.remove('cdi-theme-changing'));});
 }
 function set(theme: Theme) {
   try { localStorage.setItem(key, theme); } catch { /* The switch still works when local storage is unavailable. */ }

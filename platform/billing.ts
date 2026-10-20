@@ -106,26 +106,34 @@ function pageParameter(params:URLSearchParams,name:string,fallback:number,max:nu
  return Number(value);
 }
 async function list(request:Request,db:Database,reply:Reply) {
- const params=new URL(request.url).searchParams,kind=params.get('kind'),q=params.get('q')||'',state=params.get('state')||'all';
+ const params=new URL(request.url).searchParams,kind=params.get('kind'),q=params.get('q')||'',state=params.get('state')||'all',client=params.get('client')||'',project=params.get('project')||'';
  const paymentStates=['unpaid','partial','paid','overpaid','overdue'];
  const quoteStates=['prepared','sent','accepted','refused','expired','previous','abandoned'];
- if([...params.keys()].some(k=>!['kind','q','limit','offset','state'].includes(k))||[...new Set(params.keys())].some(k=>params.getAll(k).length>1)||
-  (kind!==null&&kind!=='quote'&&kind!=='invoice')||q.length>200||!['all','draft','issued','finalizing','issue_failed',...quoteStates,...paymentStates].includes(state)||(quoteStates.includes(state)&&kind!=='quote')||(paymentStates.includes(state)&&kind!=='invoice'))return fail(400,'Filtres de recherche invalides.');
+ if([...params.keys()].some(k=>!['kind','q','limit','offset','state','client','project'].includes(k))||[...new Set(params.keys())].some(k=>params.getAll(k).length>1)||
+  (kind!==null&&kind!=='quote'&&kind!=='invoice')||q.length>200||client.length>600||project.length>600||!['all','draft','issued','finalizing','issue_failed',...quoteStates,...paymentStates].includes(state)||(quoteStates.includes(state)&&kind!=='quote')||(paymentStates.includes(state)&&kind!=='invoice'))return fail(400,'Filtres de recherche invalides.');
  const limit=pageParameter(params,'limit',25,100,1),offset=pageParameter(params,'offset',0,1000000);
  // Count and page share one snapshot. Search characters remain literal, including SQL wildcards.
  const row=await db.prepare(`WITH enriched AS (
-  SELECT *,${issuanceJSON} AS issuance_json,${quoteJSON()} AS quote_json,${settlementJSON()} AS settlement_json FROM billing_documents WHERE (? IS NULL OR kind=?)
+  SELECT *,CASE WHEN coalesce(json_extract(data_json,'$.clientId'),'')<>'' THEN 'id:'||json_extract(data_json,'$.clientId')
+   WHEN coalesce(json_extract(data_json,'$.buyer.siren'),'')<>'' THEN 'siren:'||json_extract(data_json,'$.buyer.siren')
+   ELSE 'name:'||coalesce(json_extract(data_json,'$.buyer.name'),'') END AS client_key,
+  CASE WHEN coalesce(json_extract(data_json,'$.references.projectId'),'')<>'' THEN 'id:'||json_extract(data_json,'$.references.projectId')
+   ELSE 'name:'||coalesce(json_extract(data_json,'$.references.project'),'') END AS project_key,
+  ${issuanceJSON} AS issuance_json,${quoteJSON()} AS quote_json,${settlementJSON()} AS settlement_json FROM billing_documents WHERE (? IS NULL OR kind=?)
  ), classified AS (SELECT *,CASE WHEN json_extract(issuance_json,'$.state')='ready' THEN 'issued' WHEN json_extract(issuance_json,'$.state')='failed' THEN 'issue_failed' WHEN issuance_json IS NOT NULL THEN 'finalizing' ELSE 'draft' END AS effective_status FROM enriched),
- filtered AS (SELECT * FROM classified WHERE (CASE
+ filtered AS (SELECT * FROM classified WHERE (?='' OR client_key=?) AND (?='' OR project_key=?) AND (CASE
   WHEN ?='previous' THEN kind='quote' AND json_extract(quote_json,'$.revision.currentId')<>id AND json_extract(quote_json,'$.revision.abandoned')=0
   WHEN ?='abandoned' THEN kind='quote' AND json_extract(quote_json,'$.revision.abandoned')=1
   ELSE (kind<>'quote' OR (?='all' AND ?<>'') OR (json_extract(quote_json,'$.revision.currentId')=id AND json_extract(quote_json,'$.revision.abandoned')=0))
    AND (?='all' OR effective_status=? OR (effective_status='issued' AND json_extract(quote_json,'$.state')=?) OR (effective_status='issued' AND (json_extract(settlement_json,'$.state')=? OR (?='overdue' AND json_extract(settlement_json,'$.overdue')=1)))) END)
   AND (?='' OR instr(lower(json_extract(data_json,'$.title')),lower(?))>0 OR instr(lower(json_extract(data_json,'$.buyer.name')),lower(?))>0 OR instr(lower(json_extract(data_json,'$.references.businessCode')),lower(?))>0 OR instr(lower(json_extract(issuance_json,'$.number')),lower(?))>0))
- SELECT (SELECT count(*) FROM filtered) AS total,(SELECT json_group_array(json(row_json)) FROM (
+ SELECT (SELECT count(*) FROM filtered) AS total,
+ (SELECT json_group_array(json(item)) FROM (SELECT json_object('value',client_key,'label',max(json_extract(data_json,'$.buyer.name'))) AS item FROM classified WHERE coalesce(json_extract(data_json,'$.buyer.name'),'')<>'' GROUP BY client_key ORDER BY max(json_extract(data_json,'$.buyer.name')) COLLATE NOCASE)) AS clients_json,
+ (SELECT json_group_array(json(item)) FROM (SELECT json_object('value',project_key,'label',max(json_extract(data_json,'$.references.project'))) AS item FROM classified WHERE coalesce(json_extract(data_json,'$.references.project'),'')<>'' GROUP BY project_key ORDER BY max(json_extract(data_json,'$.references.project')) COLLATE NOCASE)) AS projects_json,
+ (SELECT json_group_array(json(row_json)) FROM (
  SELECT json_object('id',id,'kind',kind,'status',status,'version',version,'data_json',data_json,'totals_json',totals_json,'issues_json',issues_json,'source_document_id',source_document_id,'created_at',created_at,'updated_at',updated_at,'created_by',created_by,'updated_by',updated_by,'issuance_json',issuance_json,'quote_json',quote_json,'settlement_json',settlement_json) AS row_json
- FROM filtered ORDER BY updated_at DESC,id LIMIT ? OFFSET ?)) AS rows_json`).bind(kind,kind,state,state,state,q,state,state,state,state,state,q,q,q,q,q,limit,offset).first<{total:number;rows_json:string}>();
- return reply(200,{documents:JSON.parse(row?.rows_json||'[]').map(document),total:row?.total||0,limit,offset});
+ FROM filtered ORDER BY updated_at DESC,id LIMIT ? OFFSET ?)) AS rows_json`).bind(kind,kind,client,client,project,project,state,state,state,q,state,state,state,state,state,q,q,q,q,q,limit,offset).first<{total:number;rows_json:string;clients_json:string;projects_json:string}>();
+ return reply(200,{documents:JSON.parse(row?.rows_json||'[]').map(document),total:row?.total||0,limit,offset,filters:{clients:JSON.parse(row?.clients_json||'[]'),projects:JSON.parse(row?.projects_json||'[]')}});
 }
 
 /** Dedicated billing API; the reservation ledger controls the effective state of each document. */

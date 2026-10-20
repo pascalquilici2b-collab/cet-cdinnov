@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<script src="./platform/theme.js?v=apple1"></script>
+<script src="./platform/theme.js?v=apple-motion-20261020"></script>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>CDInnov - Gestion interne</title>
@@ -692,6 +692,7 @@ body.authed .auth-gate{display:none}
 <link rel="stylesheet" href="platform/design-system.css">
 <link rel="stylesheet" href="design/portal.css?v=apple1">
 <link rel="stylesheet" href="design/apple.css?v=portalaccess1">
+<link rel="stylesheet" href="design/interactions.css?v=apple-motion-20261020">
 <script src="platform/icons.js?v=expenseui1"></script>
 <link rel="stylesheet" href="/platform/loading.css?v=screen-20261020">
 <div id="authGate" class="auth-gate" data-loading="true" aria-busy="true">
@@ -5061,8 +5062,8 @@ let billingMode='modern',billingModulePromise=null,billingMounted=null,billingTr
 function billingLockForLogout(){billingLogoutPending=true;$('#content').inert=true;}
 function billingUnlockLogout(){billingLogoutPending=false;$('#content').inert=false;}
 function billingModule(){
-  if(!$('#billingStyle')){const link=document.createElement('link');link.id='billingStyle';link.rel='stylesheet';link.href='platform/billing.css?v=catalogue-20261020';document.head.append(link);}
-  return billingModulePromise ||= import('./platform/billing.js?v=catalogue-20261020').catch(error=>{billingModulePromise=null;throw error;});
+  if(!$('#billingStyle')){const link=document.createElement('link');link.id='billingStyle';link.rel='stylesheet';link.href='platform/billing.css?v=filters-20261020';document.head.append(link);}
+  return billingModulePromise ||= import('./platform/billing.js?v=filters-20261020').catch(error=>{billingModulePromise=null;throw error;});
 }
 function billingLeave(){return billingMounted?.canLeave?.()!==false;}
 function billingForget(){

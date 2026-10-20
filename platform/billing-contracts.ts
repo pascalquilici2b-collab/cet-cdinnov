@@ -75,7 +75,8 @@ export interface BillingServiceData {schemaVersion:1;reference:string;label:stri
 export type BillingDirectoryData=BillingClientData|BillingServiceData;
 export type BillingDirectoryRecord={id:string;version:number;updatedAt:string|null;} & ({kind:'clients';data:BillingClientData;}|{kind:'services';data:BillingServiceData;});
 export interface BillingDirectoryPage {records:BillingDirectoryRecord[];total:number;offset:number;limit:number;}
-export interface BillingPage {documents:BillingDocument[]; total:number; limit:number; offset:number;}
+export interface BillingFilterOption {value:string;label:string;}
+export interface BillingPage {documents:BillingDocument[]; total:number; limit:number; offset:number; filters?:{clients:BillingFilterOption[];projects:BillingFilterOption[]};}
 export interface BillingContext {
   documentService:{configured:boolean};
   clients:{id:string; name:string}[];
@@ -89,7 +90,7 @@ export interface BillingTransport {
   directoryGet(kind:BillingDirectoryKind,id:string):Promise<BillingDirectoryRecord>;
   directoryCreate(kind:BillingDirectoryKind,id:string,data:BillingDirectoryData):Promise<BillingDirectoryRecord>;
   directorySave(kind:BillingDirectoryKind,id:string,version:number,data:BillingDirectoryData):Promise<BillingDirectoryRecord>;
-  list(query:{kind:BillingKind; q:string; offset:number; limit:number;state?:BillingListState}):Promise<BillingPage>;
+  list(query:{kind:BillingKind; q:string; offset:number; limit:number;state?:BillingListState;client?:string;project?:string}):Promise<BillingPage>;
   quoteEvents(id:string,before?:number):Promise<{events:BillingQuoteEvent[];nextBefore:number|null}>;
   quoteEvent(id:string,version:number,data:BillingQuoteEventInput):Promise<BillingDocument>;
   payments(id:string,before?:number):Promise<{entries:BillingPaymentEntry[];nextBefore:number|null}>;

@@ -26,7 +26,7 @@ export function createBillingTransport(options:{baseUrl:string;getToken:()=>Prom
     payment:(id,version,data)=>request<BillingDocument>('/documents/'+encodeURIComponent(id)+'/payments','POST',data,version),
     quoteEvents:(id,before)=>request<{events:BillingQuoteEvent[];nextBefore:number|null}>('/documents/'+encodeURIComponent(id)+'/quote-events'+(before?'?before='+before:'')),
     quoteEvent:(id,version,data)=>request<BillingDocument>('/documents/'+encodeURIComponent(id)+'/quote-events','POST',data,version),
-    list:query=>request<BillingPage>('/documents?'+new URLSearchParams({kind:query.kind,q:query.q,offset:String(query.offset),limit:String(query.limit),state:query.state||'all'})),
+    list:query=>request<BillingPage>('/documents?'+new URLSearchParams({kind:query.kind,q:query.q,offset:String(query.offset),limit:String(query.limit),state:query.state||'all',...(query.client?{client:query.client}:{}),...(query.project?{project:query.project}:{})})),
     get:id=>request<BillingDocument>('/documents/'+encodeURIComponent(id)),
     create:(id:string,data:BillingDraft)=>request<BillingDocument>('/documents','POST',{id,data}),
     save:(id:string,version:number,data:BillingDraft)=>request<BillingDocument>('/documents/'+encodeURIComponent(id),'PUT',{data},version),

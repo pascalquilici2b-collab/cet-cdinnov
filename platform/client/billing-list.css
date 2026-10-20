@@ -1,0 +1,54 @@
+/* Compact filter controls, adapted from 21st.dev's Filter Toolbar pattern. */
+.bill-app .bill-list-toolbar {flex-wrap:wrap;align-items:center}
+.bill-app .bill-search {flex:1 1 240px;min-width:180px;max-width:none}
+.bill-app .bill-list-filters {display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:8px;margin-left:auto}
+.bill-app .bill-filter-control {display:flex;align-items:center;gap:8px;max-width:230px;min-width:0;min-height:44px;padding:0 12px;background:var(--bill-bg);color:var(--bill-muted);border:1px solid transparent;border-radius:11px;transition:background .18s,border-color .18s}
+.bill-app .bill-filter-control>svg {flex:none}
+.bill-app .bill-filter-control select {min-width:0;width:100%;max-width:195px;padding:10px 0;border:0;background:transparent;color:inherit;font:inherit;font-size:13px;text-overflow:ellipsis;cursor:pointer}
+.bill-app .bill-filter-control option {background:var(--bill-surface);color:var(--bill-ink)}
+.bill-app .bill-filter-control[data-active=true] {background:var(--bill-accent-soft);color:var(--bill-accent);border-color:var(--bill-accent)}
+.bill-app .bill-filter-control:focus-within {outline:2px solid var(--bill-focus);outline-offset:2px}
+.bill-app .bill-filter-control select:focus-visible {outline:none}
+.bill-app .bill-list-filters .bill-status-filter {font-size:13px;max-width:200px}
+.bill-app .bill-reset-filters {width:44px;height:44px;color:var(--bill-accent);background:var(--bill-accent-soft);animation:bill-filter-in .16s ease-out}
+.bill-app .bill-list-client {display:flex;align-items:center;gap:10px;min-width:130px;max-width:260px;white-space:normal}
+.bill-app .bill-list-client>span:last-child {min-width:0;overflow-wrap:anywhere;line-height:1.4;font-weight:500}
+.bill-app .bill-list-client .bill-directory-monogram {width:36px;height:36px;min-width:36px;flex:none;font-size:11px}
+.bill-app .bill-list-client .bill-client-logo {width:44px;height:38px;min-width:44px;padding:4px;border-radius:8px}
+.bill-app .bill-list-table th:nth-child(5) {text-align:left}
+.bill-app .bill-list-table th.bill-amount {text-align:right}
+.bill-app .bill-table-scroll {position:relative;max-width:100%;overflow-x:auto}
+.bill-app .bill-list-table td[data-column=document] {min-width:180px;max-width:370px}
+.bill-app .bill-document-link {max-width:340px}
+.bill-app .bill-document-link:active:not(:disabled) {transform:none}
+@keyframes bill-filter-in {from{opacity:0;transform:scale(.85)}to{opacity:1;transform:none}}
+@media(max-width:1050px) {
+ .bill-app .bill-list-filters {flex:1 1 100%;justify-content:flex-start;margin-left:0}
+ .bill-app .bill-filter-control {flex:1;max-width:none}
+ .bill-app .bill-filter-control select {max-width:none}
+}
+@media(max-width:720px) {
+ .bill-app .bill-search {flex-basis:100%;min-width:0}
+ .bill-app .bill-list-filters {display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);width:100%}
+ .bill-app .bill-list-filters .bill-status-filter {max-width:none;width:100%}
+ .bill-app .bill-reset-filters {justify-self:end}
+ .bill-app .bill-list-table {display:block;white-space:normal}
+ .bill-app .bill-list-table thead {position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+ .bill-app .bill-list-table tbody {display:block}
+ .bill-app .bill-list-table tbody tr {position:relative;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;padding:20px;border-top:1px solid var(--bill-line)}
+ .bill-app .bill-list-table td[data-column] {display:block;padding:0;border:0;min-width:0;max-width:none;font-size:13px}
+ .bill-app .bill-list-table td[data-column=document] {grid-column:1/-1;padding-right:36px}
+ .bill-app .bill-list-table td[data-column=client] {grid-column:1/-1}
+ .bill-app .bill-list-client {max-width:none}
+ .bill-app .bill-list-table td[data-column=date],.bill-app .bill-list-table td[data-column=reference] {color:var(--bill-muted);font-size:12px}
+ .bill-app .bill-list-table td[data-column=reference] {text-align:right;overflow-wrap:anywhere}
+ .bill-app .bill-list-table td[data-column=amount] {text-align:right;font-size:14px}
+ .bill-app .bill-list-table td[data-column=action] {position:absolute;top:16px;right:12px}
+ .bill-app .bill-document-link .bill-document-status-inline {display:none}
+ .bill-app .bill-pagination {padding:16px;flex-wrap:wrap}
+ .bill-app .bill-pagination>div {gap:10px}
+}
+@media(prefers-reduced-motion:reduce) {
+ .bill-app .bill-reset-filters {animation:none}
+ .bill-app .bill-filter-control {transition:none}
+}

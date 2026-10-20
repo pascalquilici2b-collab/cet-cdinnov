@@ -1,0 +1,38 @@
+/* Shared interaction layer. 21st.dev sidebar and filter patterns, adapted to CDInnov's Apple tokens. */
+:root {--cdi-motion:180ms;--cdi-ease:cubic-bezier(.2,.7,.2,1)}
+.cdi-theme-changing *,.cdi-theme-changing *::before,.cdi-theme-changing *::after {transition:none!important}
+body :is(button,.btn,a.nav-item,[role=tab],.workspace-item,.rail-item) {transition:background-color var(--cdi-motion),border-color var(--cdi-motion),color var(--cdi-motion),transform var(--cdi-motion) var(--cdi-ease)}
+body :is(input,select,textarea) {transition:border-color var(--cdi-motion),outline-color var(--cdi-motion)}
+body :is(.sidebar .nav-item,.workspace-item,.rail-item) {position:relative}
+.sidebar .nav-item.cdi-application {--app-color:var(--cyan);--app-soft:var(--highlight)}
+.sidebar .nav-item.cdi-application.active,.sidebar .nav-item.active {color:var(--cyan);background:var(--highlight);box-shadow:none}
+.sidebar .nav-item.active::before {content:"";position:absolute;left:3px;top:25%;height:50%;width:3px;background:var(--cyan);border-radius:3px;transform-origin:center;animation:cdi-nav-mark .2s var(--cdi-ease)}
+.sidebar .nav-item:hover:not(.active) {background:var(--paper-tint);color:var(--ink)}
+.sidebar .nav-item:active {transform:scale(.985)}
+.sidebar .nav-item.cdi-application .cdi-beta {color:var(--muted);background:var(--surface);border-color:var(--line)}
+body :is(.billing-nav,.bill-primary-tabs,.mk-tabs,.agenda-view-toggle,.project-tabs) {gap:4px}
+body :is(.billing-nav,.mk-tabs,.project-tabs) button {transition:background-color .18s,color .18s,border-color .18s}
+body :is(.btn-primary,.db-button-primary,.mk-primary,.cdi-budget-app [data-slot=button]:not([data-variant=outline])):focus-visible {outline-offset:3px}
+body :is(.inp,.search-field,.home-search,.client-filter):focus-within {border-color:var(--cyan);box-shadow:none;outline:2px solid var(--cyan);outline-offset:2px}
+body :is(.content>.cdi-dashboard,.content>.personnel,.content>.cdi-finance,.content>.agenda-shell,.content>.mk-root,.content #billingRoot>.bill-app,.cdi-budget-app .page-heading,.cdi-sheets-app .home-panel) {animation:cdi-screen-enter .22s var(--cdi-ease)}
+body :is(.overlay>.modal,.cdi-sheets-app .modal,.cdi-sheets-app .sv-modal,.cdi-budget-app [data-slot=dialog-content]) {animation:cdi-surface-enter .2s var(--cdi-ease)}
+body :is(.cdi-budget-app .project-card,.cdi-sheets-app .workspace-card,.cdi-sheets-app .quick-card) {transition:border-color .18s,background-color .18s;box-shadow:none}
+@media(hover:hover) {
+ body :is(.cdi-budget-app .project-card,.cdi-sheets-app .workspace-card,.cdi-sheets-app .quick-card):hover {border-color:var(--cyan)}
+ body :is(.cdi-sheets-app .rail-item,.cdi-sheets-app .workspace-item):hover {background:var(--highlight);color:var(--cyan)}
+}
+body :is(.btn,.db-button,.pg-btn,.mk-root button,.cdi-sheets-app .sv-tool,.cdi-sheets-app .bv-tool) {min-height:36px}
+body :is(.theme-track,.theme-track::after) {transition:transform .2s var(--cdi-ease),background-color .2s}
+body :is(.content,.table-wrap,.bill-table-scroll,.cdi-budget-app,.cdi-sheets-app) {scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+@keyframes cdi-nav-mark {from{opacity:0;transform:scaleY(.25)}to{opacity:1;transform:scaleY(1)}}
+@keyframes cdi-screen-enter {from{opacity:.3;transform:translateY(5px)}to{opacity:1;transform:none}}
+@keyframes cdi-surface-enter {from{opacity:0;translate:0 6px}to{opacity:1;translate:0 0}}
+@media(pointer:coarse) {
+ body :is(.btn,.db-button,.pg-btn,.mk-root button,.cdi-sheets-app .sv-tool,.cdi-sheets-app .bv-tool) {min-height:44px}
+}
+@media(prefers-reduced-motion:reduce) {
+ body *,body *::before,body *::after {animation:none!important;transition:none!important;scroll-behavior:auto!important}
+}
+@media print {
+ body *,body *::before,body *::after {animation:none!important;transition:none!important}
+}
