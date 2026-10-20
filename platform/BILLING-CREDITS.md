@@ -42,6 +42,14 @@ La somme de TVA d’avoirs partiels calculés séparément peut différer d’un
 
 Le registre devra conserver les bases et taxes disponibles et un mécanisme explicite de répartition/ajustement, validé contre les règles du profil. Un dernier avoir doit épuiser exactement le reliquat sans changer silencieusement le prix, le taux ou l’original. Aucun assouplissement des validateurs n’est introduit ici ; le calcul standard actuel reste inchangé. Ce point fait partie des critères de recette, pas d’une restriction finale aux seuls cas simples.
 
+### Recherche complémentaire sur le profil étendu
+
+Les annexes officielles [France_RFE](https://github.com/fnfempe/France_RFE), commit `97ba0f3d4ef2abed5780e9490d5c3a2be832ab1d`, ont été consultées : `XP_Z12-012_Annexe_A_2026_V1.4_VF.xlsx`, feuille 6, règle `BR-FREXT-S-09`, et `FNFE_RFE_INVOICE/CII/EXTENDED-CTC-FR/schematron/EXTENDED-CTC-FR-CII.sch`. Le Schematron CII désigne la règle correspondante par `BR-FXEXT-S-09`. Pour un groupe de TVA standard, la tolérance explicite est d’un centime par ligne/charge/remise/logistique correspondante, mesurée contre la base multipliée par le taux. Le regroupement des motifs d’exonération doit également être respecté.
+
+Piste à qualifier, non implémentée : répartir la taxe par différence entre les arrondis cumulés avant et après chaque avoir. Pour trois bases de 0,01 € à 20 %, la taxe serait 0,00 €, 0,00 €, puis 0,01 €. La version du registre, les bases/taxes déjà réservées et l’empreinte source doivent faire partie de l’enveloppe figée. Une réservation concurrente invalide cette base de calcul et exige une révision de l’aperçu ; elle ne doit jamais modifier silencieusement le TTC.
+
+Cette piste demande un contrat versionné distinct des documents v2/v3, un profil étendu réellement généré et validé, et des plafonds atomiques. Le moteur actuel recalcule la taxe dans `Invoice.calculated` puis dans `to_bt` ; modifier seulement le total ne suffit pas. La tolérance exécutable de [BR-S-09 Peppol](https://docs.peppol.eu/poacc/billing/3.0/rules/ubl-tc434/BR-S-09/) ne justifie pas de relâcher le profil actuel. Aucune règle de validation ni génération n’a été modifiée par cette recherche. L’acceptation AGIRIS reste à qualifier séparément.
+
 ## Acomptes, situations et solde
 
 Le futur parcours doit distinguer avance avant réalisation, facturation intermédiaire de prestations réalisées et facture finale. Les demandes d’acompte et règlements déjà reçus doivent rester traçables, sans présumer qu’un acompte est payé à sa création.
