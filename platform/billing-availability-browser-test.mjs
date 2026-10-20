@@ -31,7 +31,7 @@ try{
  assert.equal(await page.getByRole('region',{name:'Aperçu du document',exact:true}).isVisible(),true);
  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
  await page.screenshot({path:join(out,'first-version-mobile.png'),fullPage:false});
- await page.getByText('Historique & dossiers',{exact:false}).click();await page.getByRole('button',{name:'Historique des factures & Factur-X',exact:true}).click();
+ await page.getByRole('button',{name:'Historique des factures & Factur-X',exact:true}).click();
  assert.equal(preview.requests.some(r=>r.path.includes('preview.pdf')||r.path.endsWith('/issue')||r.path.endsWith('/finalize')),false);
  assert.equal((await preview.ctx.db.prepare('SELECT COUNT(*) n FROM billing_documents').first()).n,1);
  assert.equal((await preview.ctx.db.prepare('SELECT COUNT(*) n FROM billing_issuances').first()).n,0);

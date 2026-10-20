@@ -169,7 +169,7 @@ try{
   await page.getByRole('button',{name:'Saisie',exact:true}).click();await expectTitle('Devis de démonstration');
  }
  await page.setViewportSize({width:1550,height:1100});
- await page.locator('.bill-legacy summary').click();await page.getByRole('button',{name:'Historique des factures & Factur-X',exact:true}).click();
+ await page.getByRole('button',{name:'Historique des factures & Factur-X',exact:true}).click();
  await page.locator('[data-react-finance="facturier"]').waitFor();assert.equal(await page.locator('#billingRoot').count(),0);
  await page.getByRole('button',{name:'Créer un Factur-X à partir du PDF',exact:true}).click();assert.deepEqual(await page.evaluate(()=>qaFacturx),['invoice-1']);
  // A payment-only edit must preserve a historical Factur-X snapshot and its download action.
