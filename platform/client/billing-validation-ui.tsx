@@ -1,9 +1,24 @@
-import {createContext,useEffect,useId,useLayoutEffect,useRef,useState} from 'react';
+import {createContext,useContext,useEffect,useId,useLayoutEffect,useRef,useState} from 'react';
 import type {ReactNode} from 'react';
 import type {BillingIssue} from '../billing-contracts';
 import {Help} from './billing-help';
 
 export const BillingValidationContext=createContext<{issues:BillingIssue[];reviewed:boolean}>({issues:[],reviewed:false});
+export type BillingSection='document'|'seller'|'buyer'|'lines'|'conditions'|'references';
+const documentPaths=['title','issueDate','dueDate','validUntil'];
+function sectionForPath(path:string):BillingSection{
+ if(documentPaths.includes(path))return 'document';
+ for(const section of ['seller','buyer','lines','references'] as const)if(path===section||path.startsWith(section+'.'))return section;
+ return 'conditions';
+}
+/** Completion describes the entered fields, never issuance or native validation. */
+export function SectionMarker({number,title,section,filled=true}:{number:string;title:string;section:BillingSection;filled?:boolean}){
+ const {issues}=useContext(BillingValidationContext);
+ const complete=filled&&!issues.some(issue=>sectionForPath(issue.path)===section);
+ return <span className="bill-section-marker" data-section={section} data-complete={complete} role="img" aria-label={title+' : '+(complete?'section complétée':'section à compléter')}>
+  {complete?<svg key="complete" className="bill-section-check" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m7.5 12 3 3 6-6" pathLength="1"/></svg>:<span aria-hidden="true">{number}</span>}
+ </span>;
+}
 const fieldLabels:Record<string,string>={issueDate:'Date du document',validUntil:'Validité du devis',dueDate:'Échéance',name:'Raison sociale',addressLine1:'Adresse',postalCode:'Code postal',city:'Ville',country:'Pays',email:'E-mail',siren:'SIREN / SIRET',siret:'SIRET',vatId:'N° de TVA',electronicAddress:'Adresse électronique',electronicScheme:'Type d’adresse électronique',description:'Description',unitCode:'Unité',quantity:'Quantité',unitPrice:'Prix unitaire HT',vatRate:'Taux de TVA',discountPercent:'Remise',exemptionReason:'Motif d’exonération',paymentTerms:'Conditions de paiement',businessProcess:'Mode de facturation',iban:'IBAN','legalNotes.recovery':'Indemnité de recouvrement','legalNotes.penalties':'Pénalités de retard','legalNotes.discount':'Escompte','creditNote.reason':'Motif de l’avoir'};
 function location(path:string){
  const parts=path.split('.');

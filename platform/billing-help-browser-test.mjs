@@ -26,7 +26,7 @@ try{
  assert.equal(await page.locator('.bill-settings-aside').count(),0);
  await help.hover();await tip.waitFor();await withinViewport(page);
  await tip.hover();await page.waitForTimeout(250);assert.equal(await tip.isVisible(),true,'hoverable help remains readable');
- await page.locator('.bill-heading h1').hover();await tip.waitFor({state:'detached'});
+ await page.locator('.bill-primary-tabs').hover();await tip.waitFor({state:'detached'});
  await help.focus();await tip.waitFor();assert.equal(await help.getAttribute('aria-describedby'),await tip.getAttribute('id'));
  await page.keyboard.press('Escape');await tip.waitFor({state:'detached'});assert.equal(await help.evaluate(el=>el===document.activeElement),true);
  await page.keyboard.press('Tab');assert.equal(await tip.count(),0);
