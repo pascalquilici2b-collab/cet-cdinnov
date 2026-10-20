@@ -173,6 +173,41 @@
 .bill-app .bill-directory-row {border-color:var(--bill-line)}
 .bill-app .bill-directory-row:hover {background:var(--bill-raised)}
 .bill-app .bill-directory-name strong {font-size:14px;font-weight:600}
+.bill-app .bill-directory-search>.bill-field {position:relative}
+.bill-app .bill-directory-search-icon {position:absolute;left:14px;bottom:14px;color:var(--bill-muted);pointer-events:none}
+.bill-app .bill-directory-search input[type=search] {padding-left:42px}
+.bill-app .bill-directory-rows {border-radius:14px}
+.bill-app .bill-directory-row {gap:16px;padding:10px 16px;transition:background .16s ease}
+.bill-app .bill-directory-row:has(.bill-directory-name:hover:not(:disabled)),
+.bill-app .bill-directory-row:has(.bill-directory-name:focus-visible) {background:var(--bill-accent-soft)}
+.bill-app .bill-directory-name {min-height:44px;border-radius:8px;padding:6px 4px}
+.bill-app .bill-directory-name>span {flex:1;min-width:0}
+.bill-app .bill-directory-name:active:not(:disabled) {transform:none}
+.bill-app .bill-directory-name:focus-visible {outline-offset:1px}
+.bill-app .bill-directory-name .bill-client-logo,
+.bill-app .bill-directory-name .bill-directory-monogram {flex:none}
+.bill-app .bill-directory-meta {font-size:12px;flex:0 0 auto;max-width:160px}
+.bill-app .bill-directory-add {flex:none;color:var(--bill-accent);opacity:.55;transition:opacity .16s ease}
+.bill-app .bill-directory-name:hover .bill-directory-add,
+.bill-app .bill-directory-name:focus-visible .bill-directory-add {opacity:1}
+.bill-app .bill-directory-edit {width:44px;height:44px;flex:none}
+.bill-app .bill-directory-dialog[open] {animation:bill-directory-enter .2s ease-out}
+.bill-app .bill-directory-dialog[open]::backdrop {animation:bill-directory-backdrop .2s ease-out}
+@keyframes bill-directory-enter {from{opacity:0;transform:translateY(8px) scale(.99)}to{opacity:1;transform:none}}
+@keyframes bill-directory-backdrop {from{opacity:0}to{opacity:1}}
+@media(max-width:520px) {
+  .bill-app .bill-directory-row {gap:4px 10px;padding:8px 12px}
+  .bill-app .bill-directory[data-kind=services] .bill-directory-meta {margin-left:4px}
+  .bill-app .bill-directory[data-picker=true] .bill-directory-row {display:grid;grid-template-columns:minmax(0,1fr) 44px}
+  .bill-app .bill-directory[data-picker=true] .bill-directory-name {grid-column:1;grid-row:1}
+  .bill-app .bill-directory[data-picker=true] .bill-directory-meta {grid-column:1;grid-row:2;text-align:left;padding:0 4px 6px;max-width:none;margin-left:0}
+  .bill-app .bill-directory[data-picker=true] .bill-directory-meta:empty {display:none}
+  .bill-app .bill-directory[data-picker=true] .bill-directory-edit {grid-column:2;grid-row:1/3}
+}
+@media(prefers-reduced-motion:reduce) {
+  .bill-app .bill-directory-dialog[open],.bill-app .bill-directory-dialog[open]::backdrop {animation:none}
+  .bill-app .bill-directory-row,.bill-app .bill-directory-add {transition:none}
+}
 .bill-app .bill-open-status {background:var(--bill-surface);border-color:var(--bill-line);border-radius:11px;box-shadow:none}
 
 /* Swap the step number for a drawn blue check. It reverses as soon as a field
