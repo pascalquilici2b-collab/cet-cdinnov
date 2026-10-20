@@ -1,3 +1,4 @@
+import {Loading} from './loading';
 import {useEffect,useRef,useState} from 'react';
 import type {BillingDocument,BillingPaymentEntry,BillingPaymentMethod,BillingPaymentOperationInput,BillingTransport} from '../billing-contracts';
 import {formatMinor} from '../billing-domain';
@@ -57,6 +58,6 @@ export function PaymentFollowUp({record,transport,busy,onBusy,onDocument,onDirty
    <div className="bill-payment-entry-heading"><strong>{e.kind==='void'?'Annulation de saisie':e.kind==='receipt'?'Paiement reçu':'Remboursement'}</strong><b>{formatMinor(e.amountMinor)}</b></div><small>{date(e.occurredOn)}{e.kind!=='void'?' · '+paymentMethodLabels[e.method]:''}{e.reversedBy?' · Saisie corrigée':''}{e.replacementFor?' · Nouvelle saisie':''}</small>{e.reference&&<p>{e.reference}</p>}{e.note&&<p>{e.note}</p>}{e.reason&&<p><b>Motif :</b> {e.reason}</p>}
    <details className="bill-payment-audit"><summary>Trace de la saisie</summary><p>Enregistré le {new Date(e.recordedAt).toLocaleString('fr-FR')} par {e.recordedBy}</p>{e.reversalOf&&<p>Annule la saisie du mouvement initial, conservée dans cet historique.</p>}</details>
    {e.kind!=='void'&&!e.reversedBy&&!form&&<div className="bill-payment-entry-actions"><button type="button" disabled={busy} onClick={()=>begin('replace',e)}>Corriger</button><button type="button" disabled={busy} onClick={()=>begin('void',e)}>Annuler la saisie</button></div>}
-  </li>)}</ol>{historyBusy&&<p role="status">Chargement des règlements…</p>}{nextBefore&&<button type="button" className="bill-button" disabled={historyBusy} onClick={more}>Voir les règlements précédents</button>}</details>
+  </li>)}</ol>{historyBusy&&<Loading compact label="Chargement des règlements…"/>}{nextBefore&&<button type="button" className="bill-button" disabled={historyBusy} onClick={more}>Voir les règlements précédents</button>}</details>
  </section>;
 }

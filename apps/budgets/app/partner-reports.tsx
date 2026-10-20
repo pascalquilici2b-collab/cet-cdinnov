@@ -1,6 +1,7 @@
 "use client";
+import {BrandMark} from '../../../platform/client/loading';
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
-import { Upload, Check, BadgeCheck, Mail, AlertTriangle, FileText, X, LoaderCircle, ImagePlus, FileCheck2, CircleX } from "lucide-react";
+import { Upload, Check, BadgeCheck, Mail, AlertTriangle, FileText, X, ImagePlus, FileCheck2, CircleX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -95,7 +96,7 @@ export default function PartnerReports({workspace,project,setWorkspace,disabled,
     <Dialog open={open} onOpenChange={value=>{if(!busy)setOpen(value)}}><DialogContent className="report-import-dialog"><DialogHeader><DialogTitle>Importer les rapports partenaires</DialogTitle><DialogDescription>Sélectionnez plusieurs PDF JEMS Maritime en français. Les périodes et les statuts sont lus dans chaque rapport.</DialogDescription></DialogHeader>
       <input ref={input} type="file" accept="application/pdf,.pdf" multiple className="sr-only" aria-label="Fichiers des rapports partenaires" onChange={e=>{if(e.target.files)void readFiles(Array.from(e.target.files))}}/>
       <Button variant="outline" disabled={busy} onClick={()=>input.current?.click()}><Upload/>Choisir un ou plusieurs PDF</Button>
-      {busy&&<p role="status" className="report-loading"><LoaderCircle className="animate-spin"/>{progress||"Préparation de la lecture…"}</p>}
+      {busy&&<p role="status" className="report-loading"><BrandMark/>{progress||"Préparation de la lecture…"}</p>}
       {error&&<p role="alert" className="report-warning">{error}</p>}
       <div className="report-import-list">{errors.map((e,index)=><div className="report-warning" key={index}><div><strong>{e.file}</strong><p>{e.message}</p></div><Button variant="ghost" aria-label={`Retirer le fichier en erreur ${e.file}`} disabled={busy} onClick={()=>setErrors(old=>old.filter((_,i)=>i!==index))}><X/></Button></div>)}
       {pending.map((r,index)=>{const old=reports.find(x=>reportKey(x)===reportKey(r));return <div className="report-import-item" key={index}><div><strong>R.{r.number} → {r.periodId}</strong><ReportStatusBadge report={r}/><p>{fullDate(r.start)} – {fullDate(r.end)} · {r.expenses.length} dépenses · {currency(r.declared)}</p><small>{r.file}</small><p>{old?(old.hash===r.hash?"Déjà importé · aucune dépense ajoutée":"Mise à jour du rapport existant · associations conservées"):"Nouveau rapport"}</p>{r.warnings.map(w=><p className="report-import-warning" key={w}>{w}</p>)}</div><Button variant="ghost" disabled={busy} aria-label={`Retirer R.${r.number} de la sélection`} onClick={()=>setPending(old=>old.filter((_,i)=>i!==index))}><X/></Button></div>})}</div>

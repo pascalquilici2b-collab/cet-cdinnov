@@ -1,3 +1,4 @@
+import {Loading} from './loading';
 import {useEffect, useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import type {DashboardAction, DashboardData, DocumentSummary, Member} from '../dashboard-contracts';
@@ -60,7 +61,7 @@ function Dashboard({load,open,portrait}:Props){
     </div>
     {error&&<div className="db-error" role="alert"><strong>Actualisation indisponible.</strong> {error} {data&&'Les informations ci-dessous proviennent de la dernière lecture.'}<button onClick={()=>refresh(r=>r+1)}>Réessayer</button></div>}
     {actionError&&<div className="db-error" role="alert">{actionError}</div>}
-    {!data&&!error&&<div className="db-loading" role="status">Chargement de l’activité…</div>}
+    {!data&&!error&&<Loading label="Chargement de l’activité…"/>}
     {data&&<>
       <div className="db-metrics">
         <button className="db-metric is-leave" onClick={()=>navigate({kind:'agenda',date:data.today})}><span>En congé aujourd’hui</span><strong>{data.counts.leaveToday}<small>collaborateur{data.counts.leaveToday!==1?'s':''}</small></strong><span className="db-metric-foot">Congés validés <b aria-hidden="true">↗</b></span></button>

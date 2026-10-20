@@ -1,3 +1,4 @@
+import {BrandMark} from '../../../platform/client/loading';
 import type {
   CellValue,
   Column,
@@ -108,7 +109,7 @@ export function AuthGate({
             </a>
             <section className={"cloud-login"} aria-label={"Connexion CDInnov"}>
               <div className={"cloud-symbol"}>
-                <IconFileSpreadsheet size={30} />
+                {v || H ? <BrandMark/> : <img src="/design/brand/assets/logos/cdinnov-symbol.svg" width="38" height="30" alt="CDInnov"/>}
               </div>
               <p className={"cloud-eyebrow"}>{"CD INNOVATION"}</p>
               <h1>{"Votre travail, au même endroit."}</h1>

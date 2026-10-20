@@ -1,6 +1,7 @@
 "use client";
+import {BrandMark} from '../../../platform/client/loading';
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
-import { Check, ImagePlus, LoaderCircle } from "lucide-react";
+import { Check, ImagePlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { PartnerReport, Project, Workspace } from "@/lib/budget-model";
@@ -44,7 +45,7 @@ export default function ReportCapture({workspace,project,report,setWorkspace,dis
       <Button variant="outline" disabled={busy||disabled} onClick={()=>input.current?.click()}><ImagePlus/>{reading?"Choisir une autre capture":"Choisir une capture"}</Button>
       <p className="report-note">La lecture de l’image se fait dans votre navigateur. Seuls les libellés vérifiés sont enregistrés. Vous pouvez importer plusieurs captures successivement.</p>
       {preview&&<details className="capture-original"><summary>Voir la capture originale</summary><div><img src={preview} alt="Capture de la liste des dépenses à vérifier"/></div></details>}
-      {busy&&<p className="report-loading" role="status"><LoaderCircle className="animate-spin"/>{progress}</p>}
+      {busy&&<p className="report-loading" role="status"><BrandMark/>{progress}</p>}
       {error&&<p className="report-warning" role="alert">{error}</p>}
       {reading&&<>
         {reading.warnings.map(w=><p key={w} className="report-warning">{w}</p>)}

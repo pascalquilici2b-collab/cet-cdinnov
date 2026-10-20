@@ -114,21 +114,21 @@ async function portalLogin(email,password){
 }
 async function authDoLogin(){
   const pw=$('#authPw').value;if(!pw)return authMsg('Entrez votre mot de passe.');
-  const button=$('#authLogin');button.disabled=true;authMsg('Connexion…','ok');
-  try{await portalLogin(_authEmailPending,pw);$('#authPw').value='';authMsg('');}catch(e){authMsg(e.message||'Connexion impossible.');}finally{button.disabled=false;}
+  const button=$('#authLogin');button.disabled=true;authSetLoading(true);authMsg('Connexion…','ok');
+  try{await portalLogin(_authEmailPending,pw);$('#authPw').value='';authMsg('');}catch(e){authMsg(e.message||'Connexion impossible.');}finally{button.disabled=false;authSetLoading(false);}
 }
 async function authDoCreate(){
   const name=$('#authName').value.trim(),p1=$('#authPw1').value,p2=$('#authPw2').value;
   if(!name||p1.length<8||p1!==p2)return authMsg('Indiquez votre nom et deux mots de passe identiques de 8 caractères minimum.');
   const token=window.cdiInvitation?.token,email=window.cdiInvitation?.email;
   if(!token||!email)return authMsg('Utilisez le lien d’invitation fourni par un administrateur.');
-  $('#authCreate').disabled=true;
+  $('#authCreate').disabled=true;authSetLoading(true);
   try{
     const salt=randHex(16),iter=150000,hash=await pbkdf2(p1,salt,iter);
     const response=await fetch(cloudURL()+'/enrol',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,token,name,salt,iter,hash})});
     if(!response.ok)throw new Error((await response.json()).error||'Création impossible.');
     delete window.cdiInvitation;await portalLogin(email,p1);authMsg('');
-  }catch(e){authMsg(e.message);}finally{$('#authCreate').disabled=false;}
+  }catch(e){authMsg(e.message);}finally{$('#authCreate').disabled=false;authSetLoading(false);}
 }
 async function authCreateAccount(){throw new Error('Utilisez une invitation délivrée par un administrateur.');}
 async function authVerify(){throw new Error('La vérification du compte se fait sur le serveur.');}
@@ -149,6 +149,7 @@ async function authRemoveAllowed(email){if(confirm('Retirer l’accès de '+emai
 async function authResetAccount(email){if(confirm('Révoquer le mot de passe actuel et créer un lien de réinitialisation pour '+email+' ?'))await authAccountAction(normEmail(email),'reset');}
 async function backupJSON(){try{const data=cloudEnabled()?await(await portalFetch(cloudURL()+'/backup')).json():state;dl('CET_CDInnov_sauvegarde_'+ymd(new Date())+'.json',JSON.stringify(data,null,2),'application/json');toast('Sauvegarde téléchargée');}catch(e){toast(e.message);}}
 async function bootAuth(){
+  authSetLoading(true);
   if(!cloudEnabled()){ensureAuthSeed();const sx=getSession();if(sx&&budgetsCurrentSession(sx.email))unlockApp(sx.email);else authBack();return;}
   portalClear();
   const fragment=new URLSearchParams(location.hash.slice(1));

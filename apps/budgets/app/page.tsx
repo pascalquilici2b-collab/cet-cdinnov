@@ -1,9 +1,10 @@
 "use client";
+import {BrandMark,Loading} from '../../../platform/client/loading';
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft, CalendarRange, CircleEuro, FileDown, FolderKanban, LayoutDashboard,
-  Plus, Upload, ReceiptText, Save, Settings, AlertTriangle, Check, LoaderCircle, Trash2, FileSpreadsheet
+  Plus, Upload, ReceiptText, Save, Settings, AlertTriangle, Check, Trash2, FileSpreadsheet
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -133,10 +134,11 @@ export default function Home({storage=localStorageApi, embedded=false,openClient
 
   const nav=[["budget","Budget & dépenses",FolderKanban],["reports","Rapports JEMS",FileSpreadsheet],["dashboard","Vue annuelle",LayoutDashboard],["dr","DR & recettes",ReceiptText]] as const;
   const goToProjects=()=>{setProjectId("");setView("projects")};
+  if(!loaded&&saveState==="chargement")return <Loading label="Chargement des budgets…"/>;
   return <Tabs value={project?view:"projects"} onValueChange={setView} className={"app-shell"+(embedded?" embedded-budget":"")}>
     <header className="app-header no-print">
       <button className="brand" onClick={goToProjects} aria-label="CDInnov — tous les projets"><span className="brand-cd">CD</span>Innov<span className="brand-dot">.</span><span className="brand-product">Budget</span></button>
-      <div className="header-status"><span role="status" className={"save-status "+(saveState==="erreur"?"save-error":"")}>{saveState==="enregistré"?<Check/>:saveState==="erreur"?<AlertTriangle/>:<LoaderCircle className="animate-spin"/>}{saveState==="enregistré"?"Enregistré":saveState==="enregistrement"?"Enregistrement…":saveState==="erreur"?"Non enregistré":"Chargement…"}</span></div>
+      <div className="header-status"><span role="status" className={"save-status "+(saveState==="erreur"?"save-error":"")}>{saveState==="enregistré"?<Check/>:saveState==="erreur"?<AlertTriangle/>:<BrandMark/>}{saveState==="enregistré"?"Enregistré":saveState==="enregistrement"?"Enregistrement…":saveState==="erreur"?"Non enregistré":"Chargement…"}</span></div>
     </header>
     <main className="app-main">
       {project&&<div className="project-context no-print">

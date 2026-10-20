@@ -1,6 +1,7 @@
 "use client";
+import {BrandMark} from '../../../platform/client/loading';
 import { useRef, useState, type Dispatch, type SetStateAction } from "react";
-import { Check, FileSpreadsheet, LoaderCircle, Trash2, Upload, X } from "lucide-react";
+import { Check, FileSpreadsheet, Trash2, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { currency, sum, type GlobalExpenditureFile, type GlobalExpenditureImport, type Project, type Workspace } from "@/lib/budget-model";
@@ -41,7 +42,7 @@ export default function GlobalExpenditures({workspace,project,setWorkspace,disab
     <Dialog open={open} onOpenChange={v=>{if(!busy)setOpen(v)}}><DialogContent className="report-import-dialog"><DialogHeader><DialogTitle>{current?"Mettre à jour":"Importer"} les listes globales JEMS</DialogTitle><DialogDescription>Choisissez le fichier XLSX disponible pour ce projet et partenaire. Un seul export suffit. Si vous disposez aussi d’un export dans une autre langue de saisie, vous pouvez l’ajouter à la sélection.</DialogDescription></DialogHeader>
       <input className="sr-only" type="file" accept=".xlsx" multiple ref={input} aria-label="Fichiers Global LoE JEMS" onChange={e=>{if(e.target.files)void choose(Array.from(e.target.files))}}/>
       <Button variant="outline" disabled={busy} onClick={()=>input.current?.click()}><Upload/>Choisir les exports Excel</Button>
-      {busy&&<p role="status" className="report-loading"><LoaderCircle className="animate-spin"/>Lecture et rapprochement des dépenses…</p>}
+      {busy&&<p role="status" className="report-loading"><BrandMark/>Lecture et rapprochement des dépenses…</p>}
       {(error||previewError)&&<p role="alert" className="report-warning">{error||previewError}</p>}
       <div className="report-import-list">{pending.map((file,index)=><div key={file.hash} className="report-import-item"><div><strong>Saisie : {language(file.dataLanguage)} · En-têtes : {language(file.exportLanguage)}</strong><p>{file.file}</p><small>{file.rows.length} dépenses · Export du {fullDate(file.exportedAt.slice(0,10))} à {file.exportedAt.slice(11)}</small></div><Button variant="ghost" disabled={busy} aria-label={`Retirer ${file.file} de la sélection`} onClick={()=>setPending(old=>old.filter((_,i)=>i!==index))}><X/></Button></div>)}</div>
       {preview&&<div className="global-preview"><strong>{preview.rows.length} dépenses uniques · {currency(sum(preview.rows.filter(e=>e.reportStatus!=="draft").map(e=>e.declared)))} déclarés hors forfaits</strong><p>{preview.added} nouvelles · {preview.retained} conservées ou mises à jour · {preview.removed} retirées du nouvel état.</p>{preview.duplicateLanguage&&<p className="report-warning">Ces deux fichiers ont la même langue de saisie. Seul le plus récent sera conservé ; les dépenses ne seront pas doublées.</p>}<p>Les exports remplacent l’état précédent de ce projet. Les associations et les libellés saisis manuellement restent mémorisés, y compris après suppression et rechargement des fichiers.</p></div>}

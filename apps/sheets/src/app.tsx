@@ -1,3 +1,4 @@
+import {Loading} from '../../../platform/client/loading';
 import type {
   CellValue,
   Column,
@@ -206,22 +207,18 @@ export function App() {
     }, [route[1], state?.sheets.length]),
     !state)
   )
-    return (
+    return saveStatus === "loading" ? <Loading label="Chargement de votre espace de travail…"/> : (
       <div className={"loading-screen"}>
         <div className={"brand-symbol"}>
           <IconFileSpreadsheet size={30} />
         </div>
         <h1>{"CD Innovation"}</h1>
         <p>
-          {saveStatus === "loading"
-            ? "Chargement de votre espace de travail…"
-            : saveError}
+          {saveError}
         </p>
-        {saveStatus !== "loading" && (
-          <button className={"primary"} onClick={workspaceStore.reload}>
-            {"Réessayer"}
-          </button>
-        )}
+        <button className={"primary"} onClick={workspaceStore.reload}>
+          {"Réessayer"}
+        </button>
       </div>
     );
   const displayName =

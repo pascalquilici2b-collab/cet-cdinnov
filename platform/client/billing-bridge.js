@@ -3,8 +3,8 @@ let billingMode='modern',billingModulePromise=null,billingMounted=null,billingTr
 function billingLockForLogout(){billingLogoutPending=true;$('#content').inert=true;}
 function billingUnlockLogout(){billingLogoutPending=false;$('#content').inert=false;}
 function billingModule(){
-  if(!$('#billingStyle')){const link=document.createElement('link');link.id='billingStyle';link.rel='stylesheet';link.href='platform/billing.css?v=billing-navigation-20261020';document.head.append(link);}
-  return billingModulePromise ||= import('./platform/billing.js?v=billing-navigation-20261020').catch(error=>{billingModulePromise=null;throw error;});
+  if(!$('#billingStyle')){const link=document.createElement('link');link.id='billingStyle';link.rel='stylesheet';link.href='platform/billing.css?v=loading-20261020';document.head.append(link);}
+  return billingModulePromise ||= import('./platform/billing.js?v=loading-20261020').catch(error=>{billingModulePromise=null;throw error;});
 }
 function billingLeave(){return billingMounted?.canLeave?.()!==false;}
 function billingForget(){
@@ -17,7 +17,7 @@ function renderBillingWorkspace(){
   if(!isAdmin(AUTH_USER)){billingForget();$('#content').innerHTML='<div class="card card-pad" role="alert">La facturation est réservée à la direction.</div>';return;}
   if(billingMounted&&$('#billingRoot'))return;
   const epoch=++billingEpoch,user=AUTH_USER;
-  $('#content').innerHTML='<div id="billingRoot"><div class="card card-pad" role="status">Chargement de la facturation…</div></div>';
+  $('#content').innerHTML='<div id="billingRoot">'+loadingMarkup('Chargement de la facturation…')+'</div>';
   const element=$('#billingRoot');
   const active=()=>epoch===billingEpoch&&AUTH_USER===user&&currentView==='facturier'&&billingMode==='modern'&&element.isConnected;
   billingModule().then(module=>{

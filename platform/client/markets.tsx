@@ -1,3 +1,4 @@
+import {Loading} from './loading';
 import {
   createContext,
   useContext,
@@ -1174,9 +1175,7 @@ function MarketList({ state: s, onQuery }: MarketsProps) {
       </div>
       <div id="mkMarketList">
         {s.busy ? (
-          <div className="mk-empty" role="status">
-            Chargement des marchés…
-          </div>
+          <Loading label="Chargement des marchés…"/>
         ) : !rows.length ? (
           <div className="mk-empty">
             {query

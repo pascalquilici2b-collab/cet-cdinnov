@@ -1,3 +1,4 @@
+import {BrandMark} from './loading';
 import {useEffect,useRef,useState} from 'react';
 import type {BillingDocument,BillingTransport} from '../billing-contracts';
 
@@ -57,7 +58,7 @@ export function PDFPreview({record,transport}:{record:BillingDocument;transport:
    <div><button type="button" aria-label="Réduire le zoom" disabled={!pdf||zoom<=.5} onClick={()=>setZoom(n=>Math.max(.5,n-.25))}>−</button><button type="button" aria-label="Ajuster le PDF à la largeur" title="Ajuster à la largeur" disabled={!pdf} onClick={()=>setZoom(1)}>{zoom===1?'Ajuster':Math.round(zoom*100)+' %'}</button><button type="button" aria-label="Agrandir le PDF" disabled={!pdf||zoom>=2} onClick={()=>setZoom(n=>Math.min(2,n+.25))}>+</button></div>
   </div>
   <div className="bill-pdf-viewport" ref={viewport} tabIndex={0} aria-label="Page PDF, défilement horizontal et vertical" aria-busy={!error&&(!pdf||rendering)}>
-   {error?<div className="bill-pdf-feedback" role="alert"><b>Aperçu indisponible</b><p>{error}</p><button type="button" className="bill-button" onClick={()=>setRetry(n=>n+1)}>Réessayer l’aperçu</button></div>:!pdf?<div className="bill-pdf-feedback" role="status"><span className="bill-spinner"/>Préparation de l’aperçu…</div>:<div className="bill-pdf-sheet"><canvas ref={canvas} role="img" aria-label={'Page '+page+' du document PDF'} style={{visibility:rendering?'hidden':'visible'}}/>{rendering&&<div className="bill-pdf-rendering" role="status"><span className="bill-spinner"/>Affichage de la page…</div>}<p className="bill-sr-only">{text}</p></div>}
+   {error?<div className="bill-pdf-feedback" role="alert"><b>Aperçu indisponible</b><p>{error}</p><button type="button" className="bill-button" onClick={()=>setRetry(n=>n+1)}>Réessayer l’aperçu</button></div>:!pdf?<div className="bill-pdf-feedback" role="status"><BrandMark/>Préparation de l’aperçu…</div>:<div className="bill-pdf-sheet"><canvas ref={canvas} role="img" aria-label={'Page '+page+' du document PDF'} style={{visibility:rendering?'hidden':'visible'}}/>{rendering&&<div className="bill-pdf-rendering" role="status"><BrandMark/>Affichage de la page…</div>}<p className="bill-sr-only">{text}</p></div>}
   </div>
   <p className="bill-pdf-footnote">{record.status==='issued'?'Le PDF affiché est celui disponible au téléchargement.':'La pagination correspond au PDF téléchargé. Le brouillon reste modifiable.'}</p>
  </section>;

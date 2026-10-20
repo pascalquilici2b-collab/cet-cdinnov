@@ -16,7 +16,7 @@ const portalPath=path.join(root,'index.html');
 let portal=await readFile(portalPath,'utf8');
 // Keep remaining classic controllers connected to the authenticated portal bridge.
 // Replace declarations structurally so no former public persistence path stays active.
-const ts=require('typescript'),bridge=(await readFile(path.join(root,'platform/client/portal-compat.js'),'utf8'))+'\n'+(await readFile(path.join(root,'platform/client/facturx-integrity.js'),'utf8'));
+const ts=require('typescript'),bridge=(await readFile(path.join(root,'platform/client/loading-markup.js'),'utf8'))+'\n'+(await readFile(path.join(root,'platform/client/portal-compat.js'),'utf8'))+'\n'+(await readFile(path.join(root,'platform/client/facturx-integrity.js'),'utf8'));
 portal=portal.replace(/(?:\r?\n)*\/\* CDI_PORTAL_START \*\/[\s\S]*?\/\* CDI_PORTAL_END \*\/(?:\r?\n)*/,'\n');
 portal=portal.replace(/(?:\r?\n)*\/\* CDI_BILLING_START \*\/[\s\S]*?\/\* CDI_BILLING_END \*\/(?:\r?\n)*/,'\n');
 const bridgeAst=ts.createSourceFile('bridge.js',bridge,ts.ScriptTarget.Latest,true,ts.ScriptKind.JS);
@@ -33,7 +33,7 @@ updated=updated.replace('\nbootAuth();','\n/* CDI_BILLING_START */\n'+billingBri
 portal=portal.slice(0,scriptStart)+updated+portal.slice(scriptEnd);
 const marker=/\/\* CDI_MARKETS_START \*\/[\s\S]*?\/\* CDI_MARKETS_END \*\//;
 if(!marker.test(portal))throw new Error('Market controller integration marker missing.');
-const controller=await build({absWorkingDir:root,entryPoints:[path.join(root,'marches/ui.js')],bundle:true,format:'iife',platform:'browser',write:false,external:['./marches/vendor/pdf.mjs','./marches/reader.mjs','./platform/markets.js?v=projects-20261020']});
+const controller=await build({absWorkingDir:root,entryPoints:[path.join(root,'marches/ui.js')],bundle:true,format:'iife',platform:'browser',write:false,external:['./marches/vendor/pdf.mjs','./marches/reader.mjs','./platform/markets.js?v=loading-20261020']});
 portal=portal.replace(marker,()=> '/* CDI_MARKETS_START */\n'+controller.outputFiles[0].text.replace(/<\/script/gi,'<\\/script')+'\n/* CDI_MARKETS_END */');
 await writeFile(portalPath,portal);
 console.log('Application Worker, typed transport, shared React modules and market controller built.');
