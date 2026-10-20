@@ -97,10 +97,14 @@ const round=(value:bigint,denominator:bigint)=>(value+denominator/2n)/denominato
 const decimalRate=(n:bigint)=>String(n/100n)+(n%100n?'.'+String(n%100n).padStart(2,'0').replace(/0$/,''):'');
 const totalLimit=99999999999999n;
 function lineAmounts(line:BillingLine,index:number){
-  const label='Ligne '+(index+1),quantity=billingDecimal(line.quantity,6,label+' : quantité'),price=billingDecimal(line.unitPrice,6,label+' : prix unitaire'),rate=billingDecimal(line.vatRate,2,label+' : TVA'),discount=billingDecimal(line.discountPercent,2,label+' : remise');
-  if(rate>10000n||discount>10000n)fail(label+' : TVA et remise doivent rester entre 0 et 100 %.');
-  if(line.vatCategory==='S'&&rate===0n)fail(label+' : une TVA standard doit avoir un taux positif.');
-  if(line.vatCategory!=='S'&&rate!==0n)fail(label+' : cette catégorie de TVA exige un taux nul.');
+  const label='Ligne '+(index+1);
+  const fieldFail=(key:keyof BillingLine,message:string):never=>{throw Object.assign(new Error(message),{status:422,path:'lines.'+index+'.'+key});};
+  const decimal=(key:keyof BillingLine,places:number,name:string)=>{if(!line[key].trim())return fieldFail(key,label+' : '+name+' à renseigner.');try{return billingDecimal(line[key],places,label+' : '+name);}catch(error){return fieldFail(key,(error as Error).message);}};
+  const quantity=decimal('quantity',6,'quantité'),price=decimal('unitPrice',6,'prix unitaire'),rate=decimal('vatRate',2,'TVA'),discount=decimal('discountPercent',2,'remise');
+  if(rate>10000n)fieldFail('vatRate',label+' : le taux de TVA doit rester entre 0 et 100 %.');
+  if(discount>10000n)fieldFail('discountPercent',label+' : la remise doit rester entre 0 et 100 %.');
+  if(line.vatCategory==='S'&&rate===0n)fieldFail('vatRate',label+' : une TVA standard doit avoir un taux positif.');
+  if(line.vatCategory!=='S'&&rate!==0n)fieldFail('vatRate',label+' : cette catégorie de TVA exige un taux nul.');
   // Round the exact discounted line once, then calculate tax on the sum of bases per category/rate.
   const base=quantity*price,net=round(base*(10000n-discount),100000000000000n),undiscounted=round(base,10000000000n);
   if(net>totalLimit||undiscounted>totalLimit)fail(label+' : montant trop élevé.');
@@ -134,7 +138,7 @@ export function inspectDraft(d:BillingDraft):BillingIssue[] {
     if(!d.creditNote.reason.trim())add('creditNote.reason','Précisez le motif de l’avoir.');
   }
   if(d.kind==='quote'&&!validBillingDate(d.validUntil))add('validUntil','Renseignez la date de validité du devis.');
-  if(d.validUntil&&(!validBillingDate(d.validUntil)||d.validUntil<d.issueDate))add('validUntil','La validité doit suivre la date du devis.');
+  if(d.validUntil&&(!validBillingDate(d.validUntil)||d.validUntil<d.issueDate)&&!issues.some(i=>i.path==='validUntil'))add('validUntil','La validité doit suivre la date du devis.');
   if(d.dueDate&&(!validBillingDate(d.dueDate)||d.dueDate<d.issueDate))add('dueDate','L’échéance doit suivre la date du document.');
   if(d.kind==='invoice'&&!d.dueDate&&!d.paymentTerms.trim())add('paymentTerms','Précisez une échéance ou les conditions de paiement.');
   for(const [key,label] of [['seller','Émetteur'],['buyer','Client']] as const){
@@ -145,14 +149,14 @@ export function inspectDraft(d:BillingDraft):BillingIssue[] {
     if(p.siret&&!/^\d{14}$/.test(p.siret.replace(/\s/g,'')))add(key+'.siret',label+' : le SIRET comporte 14 chiffres.');
     if(p.siren&&!/^\d{9}$/.test(p.siren.replace(/\s/g,'')))add(key+'.siren',label+' : le SIREN comporte 9 chiffres.');
     if(p.siren&&p.siret&&!p.siret.replace(/\s/g,'').startsWith(p.siren.replace(/\s/g,'')))add(key+'.siret',label+' : le SIRET doit correspondre au SIREN.');
-    if(!!p.electronicAddress!==!!p.electronicScheme)add(key+'.electronicAddress',label+' : précisez ensemble l’adresse électronique de facturation et son schéma.');
+    if(!!p.electronicAddress!==!!p.electronicScheme)add(key+(p.electronicAddress?'.electronicScheme':'.electronicAddress'),label+' : précisez ensemble l’adresse électronique de facturation et son schéma.');
   }
   if(!d.lines.length)add('lines','Ajoutez au moins une prestation.');
   d.lines.forEach((line,i)=>{
     const path='lines.'+i;
     if(!line.description.trim())add(path+'.description','Ligne '+(i+1)+' : désignation à compléter.');
     if(!/^[A-Z0-9]{2,3}$/.test(line.unitCode))add(path+'.unitCode','Ligne '+(i+1)+' : unité invalide.');
-    try{if(lineAmounts(line,i).quantity===0n)add(path+'.quantity','Ligne '+(i+1)+' : la quantité doit être supérieure à zéro.');}catch(error){add(path,(error as Error).message);}
+    try{if(lineAmounts(line,i).quantity===0n)add(path+'.quantity','Ligne '+(i+1)+' : la quantité doit être supérieure à zéro.');}catch(error){add((error as Error&{path?:string}).path||path,(error as Error).message);}
     if(['E','AE','O'].includes(line.vatCategory)&&!line.exemptionReason.trim())add(path+'.exemptionReason','Précisez le motif pour cette catégorie de TVA.');
     if(['S','Z'].includes(line.vatCategory)&&line.exemptionReason.trim())add(path+'.exemptionReason','La TVA standard ou à taux zéro ne comporte pas de motif d’exonération.');
   });
@@ -160,6 +164,23 @@ export function inspectDraft(d:BillingDraft):BillingIssue[] {
   if(d.lines.some(l=>l.vatCategory==='AE')&&!d.buyer.vatId.trim())add('buyer.vatId','Renseignez le numéro de TVA du client pour l’autoliquidation.');
   if(d.lines.some(l=>l.vatCategory==='O')&&(d.lines.some(l=>l.vatCategory!=='O')||d.seller.vatId||d.buyer.vatId))add('lines','Hors champ : ne mélangez pas les catégories ni les identifications TVA.');
   try{calculateBilling(d);}catch(error){if(!issues.some(i=>i.message===(error as Error).message))add('lines',(error as Error).message);}
+  return issues;
+}
+/** Actionable draft guidance shared by the editor and the Factur-X adapter.
+ * Passing this check does not replace the native preflight or the numbering gates. */
+export function inspectBillingReadiness(d:BillingDraft):BillingIssue[] {
+  const issues=inspectDraft(d);
+  if(d.kind!=='invoice')return issues;
+  const add=(path:string,message:string)=>{if(!issues.some(i=>i.path===path))issues.push({path,message});};
+  for(const key of ['seller','buyer'] as const){
+    if(d[key].country==='FR'&&!d[key].siren.trim()&&!d[key].siret.trim())add(key+'.siren','Renseignez le SIREN ou le SIRET de cette entreprise française.');
+    if(!d[key].electronicAddress.trim())add(key+'.electronicAddress','Renseignez l’adresse de facturation électronique.');
+    if(!d[key].electronicScheme.trim())add(key+'.electronicScheme','Précisez le type d’adresse de facturation électronique.');
+  }
+  if(!d.businessProcess)add('businessProcess','Précisez le mode de facturation.');
+  d.lines.forEach((line,index)=>{if((line.quantity.trim().replace(',','.').split('.')[1]||'').replace(/0+$/,'').length>4)add('lines.'+index+'.quantity','L’export Factur-X France accepte au maximum quatre décimales significatives pour la quantité. Ajustez la quantité explicitement.');});
+  for(const key of ['recovery','penalties','discount'] as const)if(!d.legalNotes[key].trim())add('legalNotes.'+key,'Complétez les mentions de paiement.');
+  if(['30','58'].includes(d.paymentMeans)&&!d.iban.trim())add('iban','L’IBAN est requis pour un virement.');
   return issues;
 }
 export function formatMinor(value:string):string {

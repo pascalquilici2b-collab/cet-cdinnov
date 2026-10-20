@@ -1,12 +1,14 @@
 # Facturation CDInnov — état du chantier
 
-Cette branche introduit l’édition de factures et devis dans le portail existant, l’aperçu PDF paginé, la numérotation explicite, l’émission immuable et le Factur-X des nouveaux documents. Elle est vérifiée localement et n’est pas déployée. Les fiches clients et le catalogue sont disponibles. Les cycles de paiement/correction, la qualification AGIRIS et la reprise de production restent à réaliser.
+Cette branche introduit l’édition de factures et devis dans le portail existant, l’aperçu PDF paginé, la numérotation explicite, l’émission immuable et le Factur-X des nouveaux documents. Elle est vérifiée localement et n’est pas déployée. Les fiches clients, le catalogue et les règlements manuels avec corrections sont disponibles. Les avoirs liés, acomptes, la qualification AGIRIS et la reprise de production restent à réaliser.
 
 Le registre `billing-issuance.ts` et son schéma attribuent le numéro dans une transaction et conservent un instantané immuable. L’interface appelle le précontrôle, la réservation, la génération et la reprise sur ce même instantané. [BILLING-ISSUANCE.md](BILLING-ISSUANCE.md) décrit les contrôles et les fichiers privés.
 
 ## Parcours disponible
 
 La rubrique Facturation ouvre les factures puis les devis. L'éditeur conserve un aperçu du document à côté de la saisie ; sur petit écran, les boutons Saisie et Aperçu choisissent la vue. Les données sont enregistrées par l'API authentifiée, avec un numéro de version. Un conflit conserve la saisie et propose un nouveau brouillon ou le rechargement du serveur.
+
+La vérification guidée regroupe les informations à compléter et mène directement au champ, y compris dans une section repliée ou depuis l’aperçu mobile. Elle partage ses contrôles avec l’adaptateur Factur-X ; le précontrôle natif reste obligatoire. Un brouillon incomplet peut toujours être enregistré. Voir [BILLING-VALIDATION.md](BILLING-VALIDATION.md).
 
 La conversion d'un devis crée une seule facture brouillon liée à sa source. Le client conserve l'identifiant de la tentative : une réponse perdue peut être récupérée sans doublon. Le devis reste inchangé. Pour un devis émis, un accord client doit être enregistré avant cette conversion. Le suivi conserve les envois déclarés, accords, refus et corrections dans un historique indépendant, avec expiration dérivée et filtres de liste. Voir [BILLING-QUOTES.md](BILLING-QUOTES.md).
 
@@ -67,6 +69,7 @@ $env:PYTHONPATH = 'facturx-service'
 & $env:BILLING_TEST_PYTHON -m pytest facturx-service/tests -q
 $env:PORTAL_QA = '<dossier privé de captures>'
 node platform/billing-browser-test.mjs
+node platform/billing-validation-browser-test.mjs
 node platform/billing-directory-browser-test.mjs
 node platform/billing-quote-browser-test.mjs
 node platform/billing-revision-browser-test.mjs
@@ -85,7 +88,7 @@ Le test `billing-pdf-integration-test.mjs` démarre son propre moteur FastAPI lo
 
 ## Prochains lots
 
-1. Validation guidée des champs et navigation de suivi ; rapprochement des clients avec les autres répertoires et gestion des contacts/établissements liés.
+1. Vue d’ensemble et qualification des diagnostics du moteur ; rapprochement des clients avec les autres répertoires et gestion des contacts/établissements liés. La validation guidée des champs est disponible localement.
 2. Avoirs, acomptes et allocations. Les règlements manuels et corrections sont disponibles (`BILLING-PAYMENTS.md`). Le moteur natif des avoirs est validé ; le parcours lié et ses allocations restent à implémenter (`BILLING-CREDITS.md`). Le suivi des réponses et les révisions commerciales liées des devis sont disponibles.
 3. Qualification AGIRIS : profil, destinataire, annexes, dépôt et résultat réel d’un document de test autorisé.
 4. Vérification source/déploiement, reprise des archives, séries réelles, migration et sauvegarde restaurable.

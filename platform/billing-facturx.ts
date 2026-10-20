@@ -1,5 +1,5 @@
 import type {BillingDraft,BillingParty} from './billing-contracts';
-import {normalizeDraft,inspectDraft,calculateBilling} from './billing-domain.ts';
+import {normalizeDraft,inspectBillingReadiness,calculateBilling} from './billing-domain.ts';
 
 const optional=(v:string)=>v.trim()||null;
 const compact=(v:string)=>v.replace(/\s/g,'').toUpperCase()||null;
@@ -11,15 +11,9 @@ const party=(p:BillingParty)=>({name:p.name.trim(),street:[p.addressLine1,p.addr
 
 /** Lossless adapter into the existing converter. Its Invoice/XSD/Schematron gates remain mandatory. */
 export function invoiceForFacturX(raw:BillingDraft,number:string) {
-  const d=normalizeDraft(raw),issues=inspectDraft(d);
+  const d=normalizeDraft(raw),issues=inspectBillingReadiness(d);
   if(d.kind!=='invoice')issues.push({path:'kind',message:'Le Factur-X concerne une facture.'});
   if(typeof number!=='string'||!number.trim()||number.length>35||/[\x00-\x1f\x7f]/.test(number))issues.push({path:'number',message:'Un numéro de facture de 1 à 35 caractères est requis.'});
-  for(const key of ['seller','buyer'] as const)if(d[key].country==='FR'&&!d[key].siren.trim()&&!d[key].siret.trim())issues.push({path:key+'.siren',message:'Renseignez le SIREN ou le SIRET de cette entreprise française.'});
-  for(const key of ['seller','buyer'] as const)if(!d[key].electronicAddress.trim()||!d[key].electronicScheme.trim())issues.push({path:key+'.electronicAddress',message:'Renseignez l’adresse de facturation électronique et son type.'});
-  if(!d.businessProcess)issues.push({path:'businessProcess',message:'Précisez le mode de facturation.'});
-  d.lines.forEach((line,index)=>{if((decimal(line.quantity).split('.')[1]||'').replace(/0+$/,'').length>4)issues.push({path:'lines.'+index+'.quantity',message:'L’export Factur-X France accepte au maximum quatre décimales significatives pour la quantité. Ajustez la quantité explicitement.'});});
-  for(const key of ['recovery','penalties','discount'] as const)if(!d.legalNotes[key].trim())issues.push({path:'legalNotes.'+key,message:'Complétez les mentions de paiement.'});
-  if(['30','58'].includes(d.paymentMeans)&&!d.iban.trim())issues.push({path:'iban',message:'L’IBAN est requis pour un virement.'});
   if(issues.length)throw Object.assign(new Error('La facture doit être complétée avant son export Factur-X.'),{status:422,issues});
   const totals=calculateBilling(d);
   const description=[d.title,d.creditNote&&'Motif de l’avoir : '+d.creditNote.reason,d.notes,

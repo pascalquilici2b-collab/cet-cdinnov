@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {blankDraft,newLine,normalizeDraft,calculateBilling,inspectDraft,formatMinor,billingDecimal,validBillingDate,blankSettings,normalizeSettings,draftWithSettings} from './billing-domain.ts';
+import {blankDraft,newLine,normalizeDraft,calculateBilling,inspectDraft,inspectBillingReadiness,formatMinor,billingDecimal,validBillingDate,blankSettings,normalizeSettings,draftWithSettings} from './billing-domain.ts';
 
 function document(lines){const d=blankDraft('invoice','2026-10-19');d.lines=lines.map(row=>({...newLine(),description:'Prestation de test',unitPrice:'620',...row}));return d;}
 test('settings are explicit, normalized and copied without linking documents to later changes',()=>{
@@ -9,7 +9,7 @@ test('settings are explicit, normalized and copied without linking documents to 
   assert.equal(one.seller.name,'Société');assert.equal(one.schemaVersion,2);assert.notEqual(one.lines[0].id,two.lines[0].id);
   normalized.seller.name='Changé';one.legalNotes.discount='Personnel';assert.equal(two.seller.name,'Société');assert.equal(two.legalNotes.discount,'Sans escompte');
   for(const bad of [{...s,schemaVersion:'1'},{...s,paymentMeans:30},{...s,paymentMeans:'99'},{...s,vatDue:'later'},{...s,legalNotes:{...s.legalNotes,other:'x'}}])assert.throws(()=>normalizeSettings(bad));
-  one.seller.electronicAddress='123456789';assert.ok(inspectDraft(one).some(x=>x.path==='seller.electronicAddress'));
+  one.seller.electronicAddress='123456789';assert.ok(inspectDraft(one).some(x=>x.path==='seller.electronicScheme'));
 });
 test('legacy v1 upgrades explicitly while v2 cannot smuggle fields through a legacy version',()=>{
   const old=document([{}]);old.schemaVersion=1;delete old.businessProcess;delete old.paymentMeans;delete old.vatDue;delete old.legalNotes;
@@ -67,4 +67,24 @@ test('calculations are immutable, limits explicit and formatting does not lose p
   assert.throws(()=>calculateBilling(document([{unitPrice:'100',discountPercent:'100.01'}])),/entre 0 et 100/);
   assert.throws(()=>calculateBilling(document([{quantity:'9999999999',unitPrice:'9999999999'}])),/trop élevé/);
   assert.match(formatMinor('1234567890123').replace(/[\u00a0\u202f]/g,' '),/^12 345 678 901,23 €/);
+});
+
+test('guidance points to the editable amount and follows line order without changing input',()=>{
+  for(const [key,value] of [['quantity','1,'],['unitPrice',''],['discountPercent','101'],['vatRate','101']]){
+    const d=document([{}, {[key]:value}]),before=JSON.stringify(d);
+    assert.ok(inspectDraft(d).some(i=>i.path==='lines.1.'+key));
+    assert.equal(JSON.stringify(d),before);assert.throws(()=>calculateBilling(d));
+    d.lines.shift();assert.ok(inspectDraft(d).some(i=>i.path==='lines.0.'+key));
+  }
+  const quote=blankDraft('quote','2026-10-20');quote.validUntil='2026-02-30';
+  assert.equal(inspectDraft(quote).filter(i=>i.path==='validUntil').length,1);
+});
+
+test('readiness adds invoice export fields without imposing them on quotes or certifying identifiers',()=>{
+  const d=document([{}]),before=JSON.stringify(d),paths=inspectBillingReadiness(d).map(i=>i.path);
+  for(const path of ['seller.siren','buyer.siren','seller.electronicAddress','seller.electronicScheme','buyer.electronicAddress','buyer.electronicScheme','businessProcess','iban','legalNotes.penalties'])assert.ok(paths.includes(path),path);
+  assert.equal(JSON.stringify(d),before);
+  d.seller.electronicAddress='732829320';assert.equal(inspectBillingReadiness(d).filter(i=>i.path==='seller.electronicScheme').length,1);
+  d.kind='quote';assert.deepEqual(inspectBillingReadiness(d),inspectDraft(d));
+  assert.ok(!inspectBillingReadiness(d).some(i=>i.path==='businessProcess'||i.path==='iban'||i.path==='buyer.siren'));
 });

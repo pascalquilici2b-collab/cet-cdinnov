@@ -1,12 +1,12 @@
 import {useEffect,useRef,useState} from 'react';
 import type {FormEvent} from 'react';
-import type {BillingDocument,BillingNumberSeries,BillingTransport,BillingKind} from '../billing-contracts';
+import type {BillingDocument,BillingNumberSeries,BillingTransport,BillingKind,BillingIssue} from '../billing-contracts';
 
 export const billingStateLabel=(document:BillingDocument|null|undefined)=>document?.quote?.revision.abandoned?'Version abandonnée':!document?.issuance?'Brouillon':document.issuance.state==='ready'?'Émis':document.issuance.state==='failed'?'À reprendre':'Finalisation en cours';
 const failures:Record<string,string>={render:'Le rendu du document a échoué.',validation:'Le document n’a pas passé les contrôles définitifs.',storage:'L’archivage des fichiers n’a pas abouti.',unavailable:'Le moteur documentaire était indisponible.'};
 const message=(e:unknown)=>e instanceof Error?e.message:'La finalisation n’a pas abouti.';
 
-export function IssuancePanel({record,saved,busy,transport,onDocument,onBusy,onNotice,onDownload}:{record:BillingDocument|null;saved:boolean;busy:boolean;transport:BillingTransport;onDocument:(d:BillingDocument)=>void;onBusy:(value:string)=>void;onNotice:(value:string)=>void;onDownload:(kind:string)=>void}){
+export function IssuancePanel({record,saved,busy,transport,onDocument,onBusy,onNotice,onDownload,draftIssues,onReview}:{record:BillingDocument|null;saved:boolean;busy:boolean;transport:BillingTransport;onDocument:(d:BillingDocument)=>void;onBusy:(value:string)=>void;onNotice:(value:string)=>void;onDownload:(kind:string)=>void;draftIssues:BillingIssue[];onReview:()=>void}){
  const [series,setSeries]=useState<BillingNumberSeries[]>([]),[selected,setSelected]=useState(''),[error,setError]=useState(''),[reload,setReload]=useState(0),[checking,setChecking]=useState(false),[expanded,setExpanded]=useState(false);
  const live=useRef(true),running=useRef(false),attempt=useRef<{key:string;id:string}|null>(null);
  useEffect(()=>{live.current=true;return()=>{live.current=false;};},[]);
@@ -16,6 +16,7 @@ export function IssuancePanel({record,saved,busy,transport,onDocument,onBusy,onN
  async function verify(){if(!record||running.current)return;running.current=true;setChecking(true);onBusy('issue-check');try{const latest=await transport.get(record.id);if(live.current){onDocument(latest);setError('');}}catch(e){if(live.current)setError(message(e));}finally{running.current=false;if(live.current){setChecking(false);onBusy('');}}}
  async function finish(){
   if(!record||!saved||busy||running.current||(!record.issuance&&!selected))return;
+  if(!record.issuance&&draftIssues.length){onReview();return;}
   if(!record.issuance&&!window.confirm('Finaliser ce document ? Un numéro sera réservé et son contenu sera figé. Vérifiez l’aperçu et les coordonnées avant de poursuivre.'))return;
   running.current=true;onBusy('issue');setError('');
   try{
@@ -38,7 +39,8 @@ export function IssuancePanel({record,saved,busy,transport,onDocument,onBusy,onN
    {!issue&&!series.length&&<p>Créez une série pour cet émetteur et cette période dans les paramètres, après vérification des numéros déjà utilisés. <button disabled={busy} onClick={()=>setReload(n=>n+1)}>Actualiser les séries</button></p>}
    {issue?.state==='failed'&&<p role="status">{failures[issue.errorCode||'']||'La finalisation a échoué.'} Une reprise conservera le même numéro.</p>}
    {!saved&&<p>Enregistrez les modifications avant de finaliser.</p>}
-   <div className="bill-issuance-actions"><button className="bill-button bill-button-primary" disabled={busy||!saved||(!issue&&!selected)} onClick={finish}>{busy&&!checking?'Finalisation…':issue?'Reprendre la génération':'Finaliser et générer'}</button>{issue&&<button className="bill-button" disabled={busy} onClick={verify}>{checking?'Vérification…':'Actualiser l’état'}</button>}</div>
+   {!issue&&!!draftIssues.length&&<p>{draftIssues.length} point{draftIssues.length>1?'s':''} à compléter avant la finalisation.</p>}
+   <div className="bill-issuance-actions">{!issue&&!!draftIssues.length?<button type="button" className="bill-button bill-button-primary" disabled={busy} onClick={onReview}>Compléter le document</button>:<button className="bill-button bill-button-primary" disabled={busy||!saved||(!issue&&!selected)} onClick={finish}>{busy&&!checking?'Finalisation…':issue?'Reprendre la génération':'Finaliser et générer'}</button>}{issue&&<button className="bill-button" disabled={busy} onClick={verify}>{checking?'Vérification…':'Actualiser l’état'}</button>}</div>
   </>}
  </section></details>;
 }
