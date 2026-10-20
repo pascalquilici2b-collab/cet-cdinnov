@@ -1,7 +1,9 @@
-import type {BillingParty} from '../billing-contracts';
+import type {BillingParty,BillingClientDetails} from '../billing-contracts';
+import legalForms from './billing-legal-forms.json' with {type:'json'};
+import {blankClientDetails} from '../billing-client-details.ts';
 
-export type CompanyIdentity=Pick<BillingParty,'name'|'siren'|'siret'|'addressLine1'|'addressLine2'|'postalCode'|'city'|'country'>;
-export interface CompanyCandidate {party:CompanyIdentity;headquarters:boolean;url:string;}
+export type CompanyIdentity=Pick<BillingParty,'name'|'siren'|'siret'|'addressLine1'|'addressLine2'|'postalCode'|'city'|'country'>&Partial<Pick<BillingParty,'vatId'>>;
+export interface CompanyCandidate {party:CompanyIdentity;details:BillingClientDetails;headquarters:boolean;url:string;}
 export interface CompanySearch {candidates:CompanyCandidate[];hasMore:boolean;}
 const endpoint='https://recherche-entreprises.api.gouv.fr/search';
 const text=(value:unknown,max=300)=>typeof value==='string'?value.replace(/\s+/g,' ').trim().slice(0,max):'';
@@ -18,7 +20,17 @@ export function companyQuery(value:string):string {
  }
  return query;
 }
-/** Allowlist public identity fields. No tax number, contact or routing is inferred. */
+/** Keep names and declared executive roles only: no birth dates or personal addresses. */
+function legalDetails(company:Record<string,unknown>,siret:string):BillingClientDetails{
+ const code=text(company.nature_juridique,4);
+ const representatives=(Array.isArray(company.dirigeants)?company.dirigeants:[]).map(object).filter(d=>/^(gérant|gérante|co-gérant|co-gérante|président|présidente|directeur général|directrice générale|personne ayant le pouvoir)/i.test(text(d.qualite))&&!/conseil de surveillance/i.test(text(d.qualite))).map(d=>{
+  const name=text(d.denomination)||[text(d.prenoms),text(d.nom)].filter(Boolean).join(' ');
+  return name?name+' — '+text(d.qualite):'';
+ }).filter(Boolean);
+ const vatNumbers=[...new Set((Array.isArray(company.tva)?company.tva:[]).map(v=>text(v).replace(/\s/g,'').toUpperCase()).filter(v=>/^FR[A-Z0-9]{2}\d{9}$/.test(v)))].slice(0,20);
+ return {...blankClientDetails(),legalForm:(legalForms as Record<string,string>)[code]||'',legalFormCode:code,representatives:[...new Set(representatives)].join('\n').slice(0,2000),vatNumbers,source:'https://annuaire-entreprises.data.gouv.fr/etablissement/'+siret,retrievedAt:new Date().toISOString().slice(0,10)};
+}
+/** Allowlist public identity fields. TVA comes from the explicit DGFiP response, never a calculated key. */
 export function companyResults(raw:unknown,query:string):CompanySearch {
  const data=object(raw);
  if(!Array.isArray(data.results))throw Error('L’annuaire a renvoyé une réponse illisible. Réessayez.');
@@ -47,7 +59,8 @@ export function companyResults(raw:unknown,query:string):CompanySearch {
    }
    if(!/^\d{5}$/.test(postalCode)||!city||!addressLine1)continue;
    seen.add(siret);
-   candidates.push({party:{name,siren,siret,addressLine1,addressLine2,postalCode,city,country:'FR'},headquarters:e.est_siege===true,url:'https://annuaire-entreprises.data.gouv.fr/etablissement/'+siret});
+   const details=legalDetails(company,siret);
+   candidates.push({party:{name,siren,siret,addressLine1,addressLine2,postalCode,city,country:'FR',...(details.vatNumbers.length===1?{vatId:details.vatNumbers[0]}:{})},details,headquarters:e.est_siege===true,url:details.source});
   }
   if(identifier.length!==14&&typeof company.nombre_etablissements_ouverts==='number'&&company.nombre_etablissements_ouverts>companySites.size)hasMore=true;
  }
@@ -55,7 +68,7 @@ export function companyResults(raw:unknown,query:string):CompanySearch {
 }
 export async function searchCompanies(value:string,signal:AbortSignal):Promise<CompanySearch> {
  const query=companyQuery(value);
- const response=await fetch(endpoint+'?'+new URLSearchParams({q:query,page:'1',per_page:'5',minimal:'true',include:'siege,matching_etablissements',limite_matching_etablissements:'10'}),{signal,credentials:'omit',referrerPolicy:'no-referrer',headers:{Accept:'application/json'}});
+ const response=await fetch(endpoint+'?'+new URLSearchParams({q:query,page:'1',per_page:'5',minimal:'true',include:'siege,matching_etablissements,dirigeants,tva',limite_matching_etablissements:'10'}),{signal,credentials:'omit',referrerPolicy:'no-referrer',headers:{Accept:'application/json'}});
  if(response.status===429)throw Error('L’annuaire reçoit trop de demandes. Réessayez dans quelques secondes.');
  if(!response.ok)throw Error('L’annuaire est momentanément indisponible. Vous pouvez saisir les coordonnées.');
  const reader=response.body?.getReader();if(!reader)throw Error('La réponse de l’annuaire est vide.');
@@ -70,5 +83,5 @@ export async function searchCompanies(value:string,signal:AbortSignal):Promise<C
 export function applyCompany(current:BillingParty,identity:CompanyIdentity):BillingParty {
  const oldSiren=(current.siren||current.siret.slice(0,9)).replace(/\s/g,'');
  const different=oldSiren?oldSiren!==identity.siren:!!current.name.trim()&&current.name.trim().toLocaleUpperCase('fr')!==identity.name.toLocaleUpperCase('fr');
- return {...current,...identity,...(different?{vatId:'',email:'',legal:'',electronicAddress:'',electronicScheme:''}:current.siret&&current.siret.replace(/\s/g,'')!==identity.siret?{electronicAddress:'',electronicScheme:''}:{})};
+ return {...current,...(different?{vatId:'',email:'',legal:'',electronicAddress:'',electronicScheme:''}:current.siret&&current.siret.replace(/\s/g,'')!==identity.siret?{electronicAddress:'',electronicScheme:''}:{}),...identity};
 }

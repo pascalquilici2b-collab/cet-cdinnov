@@ -10,7 +10,7 @@ Un client créé directement dans la facturation reçoit un UUID et reste dans c
 
 La fiche client comprend les coordonnées commerciales et électroniques, les identifiants, les mentions et des notes internes. Le nom est obligatoire ; une adresse encore incomplète peut être conservée. Les contrôles définitifs d’émission continuent de s’appliquer au document. Les notes internes ne sont jamais copiées sur le document.
 
-Une prestation contient nom, description, référence facultative, unité, prix HT exact, catégorie/taux/motif de TVA. La référence est normalisée en majuscules et reste unique, même après archivage. Les prix décimaux sont des chaînes et les calculs utilisent le domaine existant. Un tarif invalide ou en cours de saisie ne peut pas devenir une fiche enregistrée.
+Une prestation contient nom, description, référence facultative, unité, prix HT exact, catégorie/taux/motif de TVA. La référence est normalisée en majuscules et reste unique, même après archivage. Les prix décimaux sont des chaînes et les calculs utilisent le domaine existant. Un tarif invalide ou en cours de saisie ne peut pas devenir une fiche enregistrée. Depuis le 20 octobre 2026, un tarif entièrement vide est accepté pour une prestation à chiffrer ; il reste vide à la copie et bloque la complétude du document jusqu’à sa saisie.
 
 ## Conservation
 

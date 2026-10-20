@@ -7,6 +7,9 @@ import {
 } from "react";
 import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
+import {Projects} from './market-projects';
+import {FolderKanban,FileText,Settings2,Files,Tags,Gauge,CalendarDays,ListChecks,TriangleAlert,History as HistoryIcon,Check} from 'lucide-react';
+import './market-projects.css';
 import {
   TYPES,
   UNITS,
@@ -31,6 +34,7 @@ const labels: Record<string, string> = {
 const tabs: Record<string, string> = {
   setup: "Assistant de paramétrage",
   summary: "Fiche marché",
+  projects: "Projets & commandes",
   documents: "Pièces",
   prices: "Tarifs",
   ceilings: "Plafonds",
@@ -47,6 +51,7 @@ const kinds: Record<string, string> = {
   amendment: "Avenant",
   renewal: "Reconduction",
   offer: "Offre / devis",
+  order: "Bon de commande",
   other: "Autre pièce",
 };
 const Busy = createContext(false);
@@ -1246,6 +1251,7 @@ function Markets(props: MarketsProps) {
         {
           setup: Setup,
           summary: Summary,
+          projects: Projects,
           documents: Documents,
           prices: Prices,
           ceilings: Ceilings,
@@ -1270,6 +1276,7 @@ function Markets(props: MarketsProps) {
             </div>
           ) : s.notice ? (
             <div className="mk-message mk-success" role="status">
+              <Check size={18} aria-hidden="true"/>
               {s.notice}
             </div>
           ) : null}
@@ -1313,6 +1320,7 @@ function Markets(props: MarketsProps) {
                   data-tab={key}
                   aria-current={s.tab === key ? "page" : "false"}
                 >
+                  {(()=>{const Glyph=({setup:Settings2,summary:FileText,projects:FolderKanban,documents:Files,prices:Tags,ceilings:Gauge,periods:CalendarDays,conditions:ListChecks,issues:TriangleAlert,history:HistoryIcon} as const)[key as keyof typeof tabs]||FileText;return <Glyph size={16} aria-hidden="true"/>;})()}
                   {title}
                   {key === "issues" &&
                     m.issues.some((x) => x.status === "open") && (

@@ -33,7 +33,7 @@ updated=updated.replace('\nbootAuth();','\n/* CDI_BILLING_START */\n'+billingBri
 portal=portal.slice(0,scriptStart)+updated+portal.slice(scriptEnd);
 const marker=/\/\* CDI_MARKETS_START \*\/[\s\S]*?\/\* CDI_MARKETS_END \*\//;
 if(!marker.test(portal))throw new Error('Market controller integration marker missing.');
-const controller=await build({absWorkingDir:root,entryPoints:[path.join(root,'marches/ui.js')],bundle:true,format:'iife',platform:'browser',write:false,external:['./marches/vendor/pdf.mjs','./marches/reader.mjs','./platform/markets.js?v=marketreact1']});
+const controller=await build({absWorkingDir:root,entryPoints:[path.join(root,'marches/ui.js')],bundle:true,format:'iife',platform:'browser',write:false,external:['./marches/vendor/pdf.mjs','./marches/reader.mjs','./platform/markets.js?v=projects-20261020']});
 portal=portal.replace(marker,()=> '/* CDI_MARKETS_START */\n'+controller.outputFiles[0].text.replace(/<\/script/gi,'<\\/script')+'\n/* CDI_MARKETS_END */');
 await writeFile(portalPath,portal);
 console.log('Application Worker, typed transport, shared React modules and market controller built.');

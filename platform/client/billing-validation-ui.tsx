@@ -6,7 +6,7 @@ import {Help} from './billing-help';
 export const BillingValidationContext=createContext<{issues:BillingIssue[];reviewed:boolean}>({issues:[],reviewed:false});
 export type BillingSection='document'|'seller'|'buyer'|'lines'|'conditions'|'references';
 const documentPaths=['title','issueDate','dueDate','validUntil'];
-function sectionForPath(path:string):BillingSection{
+export function sectionForPath(path:string):BillingSection{
  if(documentPaths.includes(path))return 'document';
  for(const section of ['seller','buyer','lines','references'] as const)if(path===section||path.startsWith(section+'.'))return section;
  return 'conditions';

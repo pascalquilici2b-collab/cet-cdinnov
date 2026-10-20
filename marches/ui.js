@@ -475,6 +475,29 @@ function bind() {
       return;
     }
     if (s.busy) return;
+    if (b.dataset.action === "add-project") {
+      s.current.projects ||= [];
+      s.current.projects.push({id:uid(),name:"",code:"",notes:"",archived:false,orders:[]});
+      dirty(); render(); return;
+    }
+    if (b.dataset.addOrder !== undefined) {
+      const project=s.current.projects?.[Number(b.dataset.addOrder)];
+      if(project&&!project.archived){project.orders.push({id:uid(),reference:"",date:"",amountMinor:null,documentId:"",notes:"",archived:false});dirty();render();}
+      return;
+    }
+    if (b.dataset.toggleProject !== undefined) {
+      const project=s.current.projects?.[Number(b.dataset.toggleProject)];
+      if(project){project.archived=!project.archived;dirty();render();}return;
+    }
+    if (b.dataset.toggleOrder !== undefined) {
+      const [i,j]=b.dataset.toggleOrder.split(".").map(Number),order=s.current.projects?.[i]?.orders[j];
+      if(order){order.archived=!order.archived;dirty();render();}return;
+    }
+    if (b.dataset.completeProject !== undefined) {
+      const project=s.current.projects?.[Number(b.dataset.completeProject)];
+      if(!project?.name.trim()||project.orders.some(o=>!o.reference.trim())){error("Renseignez le nom du projet et la référence de chaque bon de commande.");return;}
+      await save();return;
+    }
     if (b.dataset.suggestion !== undefined) {
       const suggestion = s.suggestions?.items[Number(b.dataset.suggestion)];
       if (!suggestion || !suggestion.basis) return;
@@ -819,7 +842,8 @@ function render(preserveFields = false) {
   if (!marketModule) {
     if (marketPromise) return;
     container.textContent = "Chargement des marchés…";
-    marketPromise = import("./platform/markets.js?v=marketreact1")
+    if (!document.getElementById("marketStyle")) { const link=document.createElement("link"); link.id="marketStyle"; link.rel="stylesheet"; link.href="platform/markets.css?v=projects-20261020"; document.head.append(link); }
+    marketPromise = import("./platform/markets.js?v=projects-20261020")
       .then((module) => {
         marketModule = module;
         marketPromise = null;

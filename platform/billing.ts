@@ -88,9 +88,17 @@ async function context(db:Database,env:Environment):Promise<BillingContext> {
   documentService:{configured:documentServiceConfigured(env)},
   clients:clients.results.map(r=>JSON.parse(r.data_json)).filter(object).map(r=>({id:text(r.id),name:text(r.name)})).filter(r=>r.id&&r.name),
   businessCodes:codes.results.map(r=>JSON.parse(r.data_json)).filter(object).map(r=>({id:text(r.id),code:[r.code1,r.code2].filter(v=>typeof v==='number'||(typeof v==='string'&&v)).join(' '),label:text(r.label),client:text(r.client)})).filter(r=>r.id),
-  markets:markets.results.map(r=>{const p=JSON.parse(r.payload);return {id:r.id,title:text(p.title),reference:text(p.reference),clientName:text(p.clientName)};}),
+  markets:markets.results.filter(r=>JSON.parse(r.payload).status!=='archived').map(r=>{const p=JSON.parse(r.payload);return {id:r.id,title:text(p.title),reference:text(p.reference),clientName:text(p.clientName),projects:Array.isArray(p.projects)?p.projects:[]};}),
   seller:settings.data.seller,settings
  };
+}
+async function checkProjectLinks(db:Database,draft:BillingDraft){
+ const r=draft.references;if(!r.projectId&&!r.orderId)return;
+ if(!r.marketId||!r.projectId)return fail(422,'Rattachez la commande à un projet et à son marché.');
+ const market=await db.prepare('SELECT payload FROM markets WHERE id=?').bind(r.marketId).first<{payload:string}>();
+ const project=market?JSON.parse(market.payload).projects?.find((p:{id:string})=>p.id===r.projectId):null;
+ if(!project)return fail(422,'Ce projet ne fait pas partie du marché sélectionné.');
+ if(r.orderId&&!project.orders?.some((o:{id:string})=>o.id===r.orderId))return fail(422,'Ce bon de commande ne fait pas partie du projet sélectionné.');
 }
 function pageParameter(params:URLSearchParams,name:string,fallback:number,max:number,min=0) {
  const value=params.get(name);if(value===null)return fallback;
@@ -139,6 +147,7 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
   if(request.method!=='POST')return reply(405,{error:'Méthode non autorisée.'});
   const input=await body(request,['id','data']);if(!uuid(input.id))return fail(400,'Identifiant de document invalide.');
   const id=input.id.toLowerCase(),p=prepared(input.data),hash=digest(p.dataJSON),stamp=new Date().toISOString();
+  await checkProjectLinks(db,p.data);
   const created=await db.prepare(`INSERT INTO billing_documents(id,kind,status,version,data_json,totals_json,issues_json,create_hash,created_at,updated_at,created_by,updated_by)
    VALUES(?,?,'draft',1,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING RETURNING *`).bind(id,p.data.kind,p.dataJSON,p.totalsJSON,p.issuesJSON,hash,stamp,stamp,session.email,session.email).first<Row>();
   if(created)return reply(201,document(created.kind==='quote'?(await get(db,created.id))!:created));
@@ -210,6 +219,7 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
  }
  if(!match[2]&&request.method==='PUT') {
   const expected=expectedVersion(request),input=await body(request,['data']),p=prepared(input.data);
+  await checkProjectLinks(db,p.data);
   const saved=await db.prepare(`UPDATE billing_documents SET version=version+1,data_json=?,totals_json=?,issues_json=?,updated_at=?,updated_by=?
    WHERE id=? AND version=? AND kind=? AND status='draft' AND NOT EXISTS(SELECT 1 FROM billing_issuances WHERE document_id=billing_documents.id) AND NOT EXISTS(SELECT 1 FROM billing_quote_revisions WHERE document_id=billing_documents.id AND abandoned_at IS NOT NULL) RETURNING *`).bind(p.dataJSON,p.totalsJSON,p.issuesJSON,new Date().toISOString(),session.email,id,expected,p.data.kind).first<Row>();
   if(saved)return reply(200,document((await get(db,saved.id))!));

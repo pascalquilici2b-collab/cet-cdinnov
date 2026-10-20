@@ -68,6 +68,16 @@ class DraftReferences(StrictModel):
     project: text(300)
     serviceCode: text(300)
     engagement: text(300)
+    projectId: text(300) = ""
+    orderId: text(300) = ""
+
+    @model_serializer(mode='wrap')
+    def original_shape(self, handler):
+        value = handler(self)
+        for key in ("projectId", "orderId"):
+            if key not in self.model_fields_set:
+                value.pop(key, None)
+        return value
 
 
 class DraftLegalNotes(StrictModel):

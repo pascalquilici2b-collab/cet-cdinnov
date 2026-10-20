@@ -11,7 +11,8 @@ test('catalogue : calculs exacts et copies indépendantes',()=>{
  const data={...blankService(),label:'Assistance',unitPrice:'123,456789',vatRate:'5.5'};
  const normalized=normalizeDirectory('services',data),line=lineFromService(normalized);assert.equal(line.unitPrice,'123,456789');assert.equal(line.vatRate,'5.5');normalized.unitPrice='900';assert.equal(line.unitPrice,'123,456789');
  assert.equal(normalizeDirectory('services',{...data,reference:' étude-01 '}).reference,'ÉTUDE-01');
- for(const patch of [{unitPrice:''},{unitPrice:'-1'},{unitPrice:'12,'},{vatCategory:'E',vatRate:'20'},{vatCategory:'O',vatRate:'0',exemptionReason:''},{vatCategory:'S',vatRate:'0'},{label:''},{unitCode:'invalid'},{unitPrice:10},{secret:'x'}])assert.throws(()=>normalizeDirectory('services',{...data,...patch}));
+ const unpriced=normalizeDirectory('services',{...data,unitPrice:''});assert.equal(unpriced.unitPrice,'');assert.equal(lineFromService(unpriced).unitPrice,'');
+ for(const patch of [{unitPrice:'-1'},{unitPrice:'12,'},{vatCategory:'E',vatRate:'20'},{vatCategory:'O',vatRate:'0',exemptionReason:''},{vatCategory:'S',vatRate:'0'},{label:''},{unitCode:'invalid'},{unitPrice:10},{secret:'x'}])assert.throws(()=>normalizeDirectory('services',{...data,...patch}));
  const customer=blankClient();customer.party.name='Client';assert.equal(normalizeDirectory('clients',customer).party.name,'Client');
  assert.throws(()=>normalizeDirectory('clients',{...customer,party:{...customer.party,email:'invalid'}}));
 });

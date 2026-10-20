@@ -1,0 +1,127 @@
+import assert from 'node:assert/strict';
+import {randomUUID} from 'node:crypto';
+import {createRequire} from 'node:module';
+import {mkdir,writeFile} from 'node:fs/promises';
+import {join} from 'node:path';
+import {billingPreview} from './billing-preview.mjs';
+import {fixture} from '../marches/test.mjs';
+import {blankDraft,blankSettings,inspectDraft} from './billing-domain.ts';
+import {blankService,blankClient,normalizeDirectory,lineFromService} from './billing-directory-domain.ts';
+import {companyResults} from './client/billing-company-search.ts';
+import {companyFixture} from './billing-company-fixture.mjs';
+import {validateProjects} from '../marches/domain.mjs';
+
+const raw=structuredClone(companyFixture);
+Object.assign(raw.results[0],{nature_juridique:'5458',dirigeants:[{nom:'EXEMPLE',prenoms:'Camille',qualite:'Gérant',date_de_naissance:'1970-01-01'},{nom:'À EXCLURE',qualite:'Membre du conseil de surveillance'}],tva:['FR80200076958','FR80200076958']});
+const result=companyResults(raw,'Collectivité').candidates[0];
+assert.equal(result.details.legalForm,'SARL coopérative de production (SCOP)');
+assert.equal(result.details.representatives,'Camille EXEMPLE — Gérant');
+assert.equal(result.party.vatId,'FR80200076958');assert.equal(result.details.shareCapital,'');
+assert.doesNotMatch(JSON.stringify(result),/1970|EXCLURE/);
+raw.results[0].tva.push('FR01200076958');
+assert.equal(companyResults(raw,'Collectivité').candidates[0].party.vatId,undefined);
+raw.results[0].tva.pop();
+const customer={...blankClient(),party:{...blankClient().party,...result.party},details:{...result.details,shareCapital:'10 000 EUR'}};
+assert.deepEqual(normalizeDirectory('clients',customer),customer);
+assert.throws(()=>normalizeDirectory('clients',{...customer,details:{...customer.details,source:'javascript:alert(1)'}}));
+const unpriced=normalizeDirectory('services',{...blankService(),label:'Montage de projet',unitPrice:''});
+const incomplete=blankDraft('quote');incomplete.lines=[lineFromService(unpriced)];
+assert.ok(inspectDraft(incomplete).some(i=>i.path==='lines.0.unitPrice'));
+const project={id:'project-a',name:'Projet de test',code:'TEST',notes:'',archived:false,orders:[{id:'order-a',reference:'BC-TEST-01',date:'2026-10-20',amountMinor:120000,documentId:'',notes:'',archived:false}]};
+assert.deepEqual(validateProjects([project]),[project]);
+assert.throws(()=>validateProjects([{...project,orders:[project.orders[0],{...project.orders[0],id:'second'}]}]));
+assert.throws(()=>validateProjects([{...project,orders:[{...project.orders[0],documentId:'foreign-file'}]}]));
+
+const require=createRequire(process.env.PLAYWRIGHT_PACKAGE||'C:/Users/quili/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright/package.json');
+const out=process.env.PORTAL_QA;assert.ok(out,'Private PORTAL_QA required');await mkdir(out,{recursive:true});
+const preview=await billingPreview(),browser=await require('playwright').chromium.launch({channel:'msedge',headless:true});
+const headers={Origin:'https://app.cdinnov.eu','Content-Type':'application/json',Authorization:'Bearer '+preview.sessions[0].token};
+const call=(path,method='GET',body,extra={})=>preview.ctx.worker.dispatchFetch('https://preview.test'+path,{method,headers:{...headers,...extra},...(body===undefined?{}:{body:JSON.stringify(body)})});
+let page;const errors=[];
+try{
+ const settings=blankSettings();Object.assign(settings.seller,{name:'CONSEIL DEVELOPPEMENT INNOVATION',siren:'322556580',siret:'32255658000106',vatId:'FR80322556580',addressLine1:'27 boulevard Pascal Paoli',postalCode:'20200',city:'BASTIA',email:'cdi@cdinnov.com',legal:'SCOP-Sarl à capital variable · RCS Bastia 322 556 580 · APE 70.22Z'});
+ Object.assign(settings,{businessProcess:'S1',paymentTerms:'30 jours',iban:'FR1420041010050500013M02606',bic:'PSSTFRPPMON'});
+ let response=await call('/api/v1/billing/settings','PUT',{data:settings},{'If-Match':'0'});assert.equal(response.status,200,await response.clone().text());
+ response=await call('/budgets/markets','POST',{id:'market-evolution',market:{...fixture(),projects:[project]}});assert.equal(response.status,201,await response.clone().text());
+ const oldMarket=(await response.json()).market;delete oldMarket.projects;
+ response=await call('/budgets/markets/market-evolution','PUT',oldMarket,{'If-Match':String(oldMarket.version)});assert.equal(response.status,200,await response.clone().text());assert.deepEqual((await response.json()).market.projects,[project]);
+ const d=blankDraft('quote');d.references={...d.references,marketId:'market-evolution',projectId:'wrong-project',orderId:'order-a'};
+ response=await call('/api/v1/billing/documents','POST',{id:randomUUID(),data:d});assert.equal(response.status,422);
+ d.references.projectId='project-a';d.references.orderId='wrong-order';
+ response=await call('/api/v1/billing/documents','POST',{id:randomUUID(),data:d});assert.equal(response.status,422);
+ const serviceId=randomUUID();response=await call('/api/v1/billing/services','POST',{id:serviceId,data:unpriced});assert.equal(response.status,201,await response.clone().text());
+ const context=await browser.newContext({viewport:{width:1440,height:1100},locale:'fr-FR'});
+ await context.route('**/*',route=>{
+  const url=new URL(route.request().url());
+  if(url.origin===preview.base)return route.continue();
+  if(url.hostname==='recherche-entreprises.api.gouv.fr')return route.fulfill({status:200,contentType:'application/json',headers:{'access-control-allow-origin':'*'},body:JSON.stringify(raw)});
+  return route.abort();
+ });
+ page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));page.setDefaultTimeout(12000);
+ const nav=name=>page.getByRole('navigation',{name:'Documents commerciaux'}).getByRole('button',{name,exact:true});
+ await page.goto(preview.base);await nav('Clients').click();await page.getByRole('button',{name:'+ Nouveau client',exact:true}).click();
+ const search=page.getByRole('searchbox',{name:'Nom, SIREN ou SIRET du client'});
+ await search.fill('Collectivité');await search.press('Enter');
+ await page.getByRole('button',{name:/Utiliser COLLECTIVITE DE CORSE — SIRET 20007695800012/}).click();
+ assert.equal(await page.getByLabel('Forme juridique',{exact:true}).inputValue(),result.details.legalForm);
+ assert.equal(await page.getByLabel('Représentant légal / dirigeants',{exact:true}).inputValue(),result.details.representatives);
+ assert.equal(await page.getByLabel('Client — N° de TVA',{exact:true}).inputValue(),'FR80200076958');
+ await page.getByLabel('Capital social',{exact:true}).fill('10 000 EUR');
+ await page.getByRole('button',{name:'Enregistrer la fiche',exact:true}).click();await page.getByText('Fiche enregistrée.',{exact:true}).first().waitFor();
+ await page.getByRole('button',{name:'Créer un devis pour ce client',exact:true}).click();
+ const step=id=>page.locator('[data-step="'+id+'"]');
+ assert.equal(await step('document').getAttribute('open'),'');
+ assert.equal(await step('buyer').getAttribute('open'),null);
+ assert.equal(await page.getByRole('group',{name:'Émetteur'}).count(),0);
+ assert.equal(await page.getByText('Mode de facturation',{exact:true}).count(),0);
+ await page.getByLabel('Objet du document',{exact:true}).fill('Assistance au projet de test');
+ await page.getByLabel('Valable jusqu’au',{exact:true}).fill('2026-12-31');
+ await step('document').getByRole('button',{name:'Valider',exact:true}).click();
+ assert.equal(await step('document').getAttribute('data-complete'),'true');assert.equal(await step('document').getAttribute('open'),null);
+ assert.equal(await step('buyer').getAttribute('open'),'');
+ await step('buyer').getByRole('button',{name:'Valider',exact:true}).click();
+ await step('lines').locator('textarea').first().fill('Assistance administrative et financière');
+ // Numeric fields are queried by labels to exercise keyboard/screen-reader names.
+ await step('lines').getByLabel('Prix unitaire HT (€)',{exact:true}).fill('750');
+ await step('lines').getByRole('button',{name:'Valider',exact:true}).click();
+ await step('conditions').getByRole('button',{name:'Valider',exact:true}).click();
+ await page.getByLabel('Marché ou contrat',{exact:true}).selectOption('market-evolution');
+ await page.getByLabel('Projet du marché',{exact:true}).selectOption('project-a');
+ await page.getByLabel('Bon de commande du projet',{exact:true}).selectOption('order-a');
+ await step('references').getByRole('button',{name:'Valider',exact:true}).click();
+ assert.equal(await page.locator('[data-step][data-complete=true]').count(),5);
+ await step('document').locator('summary').click();await page.getByLabel('Objet du document',{exact:true}).fill('Assistance au projet — corrigée');
+ assert.equal(await step('document').getAttribute('data-complete'),'false');
+ await step('document').getByRole('button',{name:'Valider',exact:true}).click();
+ assert.equal(await page.getByLabel('Client — Raison sociale',{exact:true}).inputValue(),result.party.name);
+ await page.getByRole('button',{name:'Enregistrer le brouillon',exact:true}).click();await page.getByText('Brouillon enregistré.',{exact:true}).waitFor();
+ const list=await(await call('/api/v1/billing/documents?kind=quote')).json();const saved=list.documents[0];
+ assert.equal(saved.data.seller.siren,'322556580');assert.equal(saved.data.iban,settings.iban);
+ assert.equal(saved.data.references.projectId,'project-a');assert.equal(saved.data.references.orderReference,'BC-TEST-01');
+ const clients=await(await call('/api/v1/billing/clients?q=CORSE')).json();assert.equal(clients.records[0].data.details.shareCapital,'10 000 EUR');
+ const logo=page.locator('.bill-cdi-logo');await logo.evaluate(img=>img.decode());assert.ok(await logo.evaluate(img=>img.naturalWidth>0));
+ await step('buyer').getByRole('button',{name:'Continuer',exact:true}).click();
+ for(const theme of ['light','dark'])for(const width of [1440,390,320]){
+  await page.setViewportSize({width,height:1100});await page.evaluate(t=>CDITheme.set(t),theme);
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
+  await page.screenshot({path:join(out,`editor-${theme}-${width}.png`),fullPage:true});
+ }
+ await page.emulateMedia({reducedMotion:'reduce'});assert.equal(await page.locator('.bill-blue-check path').first().evaluate(e=>getComputedStyle(e).animationName),'none');
+ await page.setViewportSize({width:1440,height:1100});await page.evaluate(()=>{CDITheme.set('light');setView('marches');});
+ await page.locator('[data-open="market-evolution"]').click();await page.locator('[data-tab="projects"]').click();
+ await page.getByRole('button',{name:'Ajouter un projet',exact:true}).click();await page.getByLabel('Nom du projet 2',{exact:true}).fill('Second projet');
+ await page.locator('[data-add-order="1"]').click();await page.getByLabel('Référence commande 2-1',{exact:true}).fill('BC-TEST-02');
+ await page.locator('[data-complete-project="1"]').click();await page.getByText('Fiche enregistrée · version 3',{exact:true}).waitFor();
+ const updated=(await(await call('/budgets/markets/market-evolution')).json()).market;
+ assert.equal(updated.projects[1].orders[0].reference,'BC-TEST-02');assert.equal(updated.projects[0].id,'project-a');
+ await page.getByRole('button',{name:'Modifier le projet Second projet',exact:true}).click();
+ assert.equal(await page.getByLabel('Référence commande 2-1',{exact:true}).inputValue(),'BC-TEST-02');
+ for(const theme of ['light','dark'])for(const width of [1440,390,320]){
+  await page.setViewportSize({width,height:1100});await page.evaluate(t=>CDITheme.set(t),theme);
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
+  await page.screenshot({path:join(out,`projects-${theme}-${width}.png`),fullPage:true});
+ }
+ assert.deepEqual(errors,[]);await writeFile(join(out,'verification.json'),JSON.stringify({passed:true,errors,steps:5,projects:updated.projects.length,checks:['Public legal fields','VAT ambiguity','Unpriced catalogue','Directory persistence','Project parent integrity','Old market compatibility','Accordion editing','Fixed seller/bank','Responsive themes','Reduced motion']},null,2));
+ console.log('PASS: enriched clients, catalogue, project hierarchy, API persistence, collapsed steps, responsive views.');
+}catch(e){if(page){await page.screenshot({path:join(out,'failure.png'),fullPage:true});await writeFile(join(out,'failure.txt'),await page.locator('body').innerText());}throw e;}
+finally{await browser.close();await preview.close();}

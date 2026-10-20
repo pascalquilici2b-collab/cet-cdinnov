@@ -17,7 +17,7 @@ import unicodedata
 from xml.sax.saxutils import escape
 
 from reportlab.lib import colors
-from reportlab.lib.enums import TA_RIGHT
+from reportlab.lib.enums import TA_RIGHT, TA_CENTER
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.pdfbase import pdfmetrics
@@ -42,6 +42,7 @@ class DocumentPDFError(ValueError):
 
 _FONT_NAME = "CDIDejaVuSans"
 _FONT_PATH = Path(__file__).parent / "assets" / "fonts" / "DejaVuSans.ttf"
+_LOGO_PATH = Path(__file__).parent / "assets" / "brand" / "cdinnov-logo.png"
 _FONT_LOCK = Lock()
 _FONT_CHARS: frozenset[int] | None = None
 _INK = colors.HexColor("#183643")
@@ -160,6 +161,7 @@ def _styles() -> dict[str, ParagraphStyle]:
         "numeric": ParagraphStyle("numeric", parent=base, fontSize=7.5, leading=10.5, alignment=TA_RIGHT, spaceAfter=0),
         "tablehead": ParagraphStyle("tablehead", parent=base, fontSize=7.2, leading=10, textColor=colors.white, spaceAfter=0),
         "total": ParagraphStyle("total", parent=base, fontSize=14, leading=18, alignment=TA_RIGHT, spaceAfter=0),
+        "footer": ParagraphStyle("footer", parent=base, fontSize=6.8, leading=9, alignment=TA_CENTER, textColor=_MUTED),
     }
 
 
@@ -273,8 +275,22 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
         raise ValueError("Référence d’avoir invalide.")
     kind = "AVOIR" if credit else "FACTURE" if document["kind"] == "invoice" else "DEVIS"
     reference = number or "Numéro attribué à la validation"
+    seller = document["seller"]
+    cdi = (seller.get("siren") or _text(seller.get("siret"))[:9]) == "322556580"
+    footer_p = None
+    footer_h = 0
+    if cdi:
+        footer_lines = [
+            _text(seller.get("name")), _text(seller.get("legal")),
+            " · ".join(filter(None, [_text(seller.get("addressLine1")), _text(seller.get("addressLine2")),
+                                    " ".join(filter(None, [_text(seller.get("postalCode")), _text(seller.get("city"))]))])),
+            " · ".join(f"{label}{seller[key]}" for key, label in (("siret", "SIRET "), ("vatId", "TVA "), ("email", "")) if _text(seller.get(key))),
+        ]
+        footer_p = p("\n".join(filter(None, footer_lines)), "footer")
+        _, footer_h = footer_p.wrap(_WIDTH, _PAGE_H)
+    bottom = max(48, 47 + footer_h)
     stream = BytesIO()
-    pdf = BaseDocTemplate(stream, pagesize=A4, leftMargin=_MARGIN, rightMargin=_MARGIN, topMargin=91, bottomMargin=48,
+    pdf = BaseDocTemplate(stream, pagesize=A4, leftMargin=_MARGIN, rightMargin=_MARGIN, topMargin=91, bottomMargin=bottom,
                           title=f"{kind} {number or 'BROUILLON'}", author=_text(document["seller"].get("name")),
                           subject="Document commercial", allowSplitting=1)
 
@@ -285,18 +301,24 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
         canvas.line(_MARGIN, _PAGE_H - 35, _PAGE_W - _MARGIN, _PAGE_H - 35)
         canvas.setFont(_FONT_NAME, 15)
         canvas.setFillColor(_INK)
-        canvas.drawString(_MARGIN, _PAGE_H - 59, kind)
+        if cdi:
+            canvas.drawImage(str(_LOGO_PATH), _MARGIN, _PAGE_H - 69, width=162, height=32, mask="auto")
+            canvas.drawRightString(_PAGE_W - _MARGIN, _PAGE_H - 54, kind)
+        else:
+            canvas.drawString(_MARGIN, _PAGE_H - 59, kind)
         label = "DOCUMENT ÉMIS" if issued else "BROUILLON"
         canvas.setFillColor(_ACCENT)
         canvas.setFont(_FONT_NAME, 8)
-        canvas.drawRightString(_PAGE_W - _MARGIN, _PAGE_H - 56, label)
+        canvas.drawRightString(_PAGE_W - _MARGIN, _PAGE_H - (68 if cdi else 56), label)
         # The bounded number can wrap to two short lines without entering body.
         number_p = p(reference, "muted")
-        _, number_h = number_p.wrap(_WIDTH, 25)
-        number_p.drawOn(canvas, _MARGIN, _PAGE_H - 64 - number_h)
+        _, number_h = number_p.wrap(_WIDTH - (190 if cdi else 0), 25)
+        number_p.drawOn(canvas, _MARGIN + (190 if cdi else 0), _PAGE_H - (72 if cdi else 64) - number_h)
         canvas.setStrokeColor(_RULE)
         canvas.setLineWidth(0.5)
-        canvas.line(_MARGIN, 39, _PAGE_W - _MARGIN, 39)
+        canvas.line(_MARGIN, bottom - 9, _PAGE_W - _MARGIN, bottom - 9)
+        if footer_p:
+            footer_p.drawOn(canvas, _MARGIN, 34)
         canvas.setFont(_FONT_NAME, 7)
         canvas.setFillColor(_MUTED)
         footer = "EUR - Tous les montants sont exprimés en euros"
@@ -305,7 +327,7 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
         canvas.drawString(_MARGIN, 24, footer)
         canvas.restoreState()
 
-    frame = Frame(_MARGIN, 48, _WIDTH, _PAGE_H - 139, leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0)
+    frame = Frame(_MARGIN, bottom, _WIDTH, _PAGE_H - 91 - bottom, leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0)
     pdf.addPageTemplates(PageTemplate(id="commercial", frames=[frame], onPage=page_frame))
     story: list[Any] = []
 
@@ -319,9 +341,10 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
         meta.append(("Valable jusqu'au", _date(document.get("validUntil"))))
     elif not credit or document.get("dueDate"):
         meta.append(("Date prévue de règlement" if credit else "Date d'échéance", _date(document.get("dueDate"))))
-    metadata = Table([[p(label, "muted"), p(value, "small")] for label, value in meta], colWidths=[110, _WIDTH - 110])
+    metadata = Table([[p(label, "muted"), p(value, "small")] for label, value in meta], colWidths=[95, _WIDTH / 2 - 117] if cdi else [110, _WIDTH - 110])
     metadata.setStyle(_table_style([("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 8), ("TOPPADDING", (0, 0), (-1, -1), 1), ("BOTTOMPADDING", (0, 0), (-1, -1), 3), ("VALIGN", (0, 0), (-1, -1), "TOP")]))
-    story.extend([metadata, Spacer(1, 12)])
+    if not cdi:
+        story.extend([metadata, Spacer(1, 12)])
     if credit:
         story.extend([heading("Motif de l’avoir"), p(_text(credit.get("reason"), "Motif à compléter")), Spacer(1, 10)])
 
@@ -344,9 +367,9 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
         # Legal information has its own splittable flow below, not a fixed box.
         return content
 
-    parties = LongTable([[party_content(document["seller"], "ÉMETTEUR"), party_content(document["buyer"], "DESTINATAIRE")]],
+    parties = LongTable([[metadata if cdi else party_content(seller, "ÉMETTEUR"), party_content(document["buyer"], "DESTINATAIRE")]],
                         colWidths=[_WIDTH / 2, _WIDTH / 2], splitByRow=1, splitInRow=1)
-    parties.setStyle(_table_style([("VALIGN", (0, 0), (-1, -1), "TOP"), ("BACKGROUND", (0, 0), (-1, -1), _PALE),
+    parties.setStyle(_table_style([("VALIGN", (0, 0), (-1, -1), "TOP"), ("BACKGROUND", (0, 0), (-1, -1), colors.white if cdi else _PALE),
                                 ("LEFTPADDING", (0, 0), (-1, -1), 11), ("RIGHTPADDING", (0, 0), (-1, -1), 11),
                                 ("TOPPADDING", (0, 0), (-1, -1), 10), ("BOTTOMPADDING", (0, 0), (-1, -1), 10)]))
     story.append(parties)
@@ -355,8 +378,11 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
     shown_refs = [(label, _text(references.get(key))) for key, label in ref_labels if _text(references.get(key))]
     if shown_refs:
         story.append(heading("Références"))
-        for label, value in shown_refs:
-            story.append(p(f"{label} : {value}", "small"))
+        if cdi:
+            story.append(p(" · ".join(f"{label} : {value}" for label, value in shown_refs), "small"))
+        else:
+            for label, value in shown_refs:
+                story.append(p(f"{label} : {value}", "small"))
 
     story.append(heading("Prestations"))
     labels = ("Désignation", "Qté", "Prix unit. HT", "Remise", "TVA", "Montant HT")
@@ -397,7 +423,9 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
     story.append(lines)
 
     if totals is not None:
-        story.append(heading("Détail de la TVA"))
+        single_tax = cdi and len(totals["taxes"]) == 1
+        if not single_tax:
+            story.append(heading("Détail de la TVA"))
         tax_rows = [[p(label, "tablehead") for label in ("Catégorie / taux", "Base HT", "Montant TVA")]]
         for tax in totals["taxes"]:
             label = f"{_VAT[tax['category']]} - {_decimal(tax['rate'], percentage=True)}"
@@ -407,8 +435,10 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
                                       ("LEFTPADDING", (0, 0), (-1, -1), 8), ("RIGHTPADDING", (0, 0), (-1, -1), 8),
                                       ("TOPPADDING", (0, 0), (-1, -1), 6), ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
                                       ("LINEBELOW", (0, 1), (-1, -1), 0.35, _RULE)]))
-        story.append(tax_table)
-        total_rows = [[p("Total HT"), p(_money(totals["netMinor"]), "numeric")], [p("Total TVA"), p(_money(totals["taxMinor"]), "numeric")],
+        if not single_tax:
+            story.append(tax_table)
+        tax_label = f"{_VAT[totals['taxes'][0]['category']]} {_decimal(totals['taxes'][0]['rate'], percentage=True)}" if single_tax else "Total TVA"
+        total_rows = [[p("Total HT"), p(_money(totals["netMinor"]), "numeric")], [p(tax_label), p(_money(totals["taxMinor"]), "numeric")],
                       [p("MONTANT DE L’AVOIR TTC" if credit else "TOTAL TTC"), p(_money(totals["grossMinor"]), "total")]]
         if _amount(totals["discountMinor"]):
             total_rows.insert(0, [p("Remises incluses", "muted"), p(_money(totals["discountMinor"]), "numeric")])
@@ -421,9 +451,6 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
         story.extend([Spacer(1, 12), p("Totaux indisponibles : compléter ou corriger les montants du brouillon.")])
 
     terms: list[tuple[str, str]] = []
-    if _text(document.get("businessProcess")):
-        process = document["businessProcess"]
-        terms.append(("Mode de facturation", _PROCESS.get(process, process)))
     if _text(document.get("paymentMeans")):
         means = document["paymentMeans"]
         terms.append(("Mode de règlement", _MEANS.get(means, means)))
@@ -443,10 +470,12 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
         story.append(heading("Règlement et mentions"))
         for label, value in terms:
             story.append(p(f"{label} : {value}", "small"))
-            story.append(Spacer(1, 4))
+            story.append(Spacer(1, 1 if cdi else 4))
     if _text(document.get("notes")):
         story.extend([heading("Informations complémentaires"), p(document["notes"], "small")])
     for party, label in (("seller", "Informations légales de l'émetteur"), ("buyer", "Informations du destinataire")):
+        if party == "seller" and cdi:
+            continue
         if _text(document[party].get("legal")):
             story.extend([heading(label), p(document[party]["legal"], "small")])
     if document["kind"] == "quote":
@@ -455,6 +484,6 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
                                       ("TOPPADDING", (0, 0), (-1, 0), 10), ("BOTTOMPADDING", (0, -1), (-1, -1), 8)]))
         story.append(KeepTogether([Spacer(1, 16), signature]))
     # ReportLab's safe default for external resources is not relied upon: all
-    # paragraphs contain escaped text, and the sole file read is our own font.
+    # paragraphs contain escaped text; font and logo are packaged local assets.
     pdf.build(story, canvasmaker=_DocumentCanvas)
     return stream.getvalue()

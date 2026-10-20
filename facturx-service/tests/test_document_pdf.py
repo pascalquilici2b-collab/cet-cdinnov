@@ -63,6 +63,8 @@ class DocumentPDFTests(unittest.TestCase):
                 self.assertAlmostEqual(page.rect.height, 841.8898, places=2)
                 self.assertIn(f"Page {page_index + 1} / {len(opened)}", page.get_text())
                 spans = [span for block in page.get_text("dict")["blocks"] if "lines" in block for line in block["lines"] for span in line["spans"] if span["text"].strip()]
+                company_footer = [span for span in spans if abs(span["size"] - 6.8) < 0.01]
+                body_bottom = min((span["bbox"][1] - 4 for span in company_footer), default=page.rect.height - 45)
                 for span in spans:
                     box = fitz.Rect(span["bbox"])
                     self.assertGreaterEqual(box.x0, 42.5, (page_index, span))
@@ -70,8 +72,8 @@ class DocumentPDFTests(unittest.TestCase):
                     self.assertGreater(box.y0, 34, (page_index, span))
                     self.assertLess(box.y1, page.rect.height - 15, (page_index, span))
                     # The body must never run through the footer rule.
-                    if box.y0 > 90 and box.y0 < page.rect.height - 44:
-                        self.assertLessEqual(box.y1, page.rect.height - 45, (page_index, span))
+                    if box.y0 > 90 and box.y0 < body_bottom:
+                        self.assertLessEqual(box.y1, body_bottom, (page_index, span))
                 for left_index, left in enumerate(spans):
                     lbox = fitz.Rect(left["bbox"])
                     for right in spans[left_index + 1:]:
@@ -156,12 +158,37 @@ class DocumentPDFTests(unittest.TestCase):
         self.assertIn("24 000,00 €", text)
         self.assert_page_layout(pdf)
 
-    def test_business_process_labels_match_contract_without_inventing_other_codes(self):
+    def test_business_process_stays_in_data_without_cluttering_pdf(self):
         document, totals = fixture()
         for key, label in (("S1", "Prestations de services"), ("B1", "Livraison de biens"), ("M1", "Biens et services"), ("S9", "S9")):
             with self.subTest(key=key):
                 document["businessProcess"] = key
-                self.assertIn("Mode de facturation : " + label, extract(render_document(document, totals)))
+                self.assertNotIn("Mode de facturation", extract(render_document(document, totals)))
+                self.assertEqual(document["businessProcess"], key)
+
+    def test_cdi_logo_and_company_footer_repeat_without_losing_content(self):
+        document, totals = long_fixture()
+        document["seller"].update({
+            "name": "CONSEIL DEVELOPPEMENT INNOVATION",
+            "siren": "322556580", "siret": "32255658000106", "vatId": "FR80322556580",
+            "legal": "SCOP-Sarl à capital variable · RCS Bastia 322 556 580 · APE 70.22Z",
+            "addressLine1": "27 boulevard Pascal Paoli", "addressLine2": "",
+            "postalCode": "20200", "city": "BASTIA", "email": "cdi@cdinnov.com",
+        })
+        pdf = render_document(document, totals)
+        self.assertNotIn("ÉMETTEUR", extract(pdf))
+        self.assertIn("NOTES-FIN", extract(pdf))
+        self.assertIn("PRESTATION-200", extract(pdf))
+        self.assert_page_layout(pdf)
+        with fitz.open(stream=pdf, filetype="pdf") as opened:
+            self.assertGreater(len(opened), 2)
+            for page in opened:
+                self.assertIn("SCOP-Sarl", page.get_text())
+                self.assertIn("32255658000106", page.get_text())
+                self.assertEqual(len(page.get_images()), 1)
+                image=page.get_image_rects(page.get_images()[0][0])[0]
+                self.assertLess(image.x0, 50)
+                self.assertLess(image.y0, 80)
 
     def test_untrusted_markup_cannot_read_files_or_fetch_resources(self):
         document, totals = fixture()

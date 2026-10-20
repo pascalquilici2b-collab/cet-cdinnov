@@ -59,6 +59,10 @@ export async function handleMarkets(request,db,email,admin,reply,jsonBody,env={}
     const raw=request.headers.get('if-match');
     if(!raw||!/^[1-9]\d*$/.test(raw)||!Number.isSafeInteger(Number(raw)))return reply(428,{error:'Version de la fiche requise.'});
     const input=await jsonBody(request,256000);
+    // Older tabs do not know the project tree: omission must never delete it.
+    if(input&&typeof input==='object'&&!Object.hasOwn(input,'projects')){
+      const previous=JSON.parse(current.payload);if(previous.projects)input.projects=previous.projects;
+    }
     let market;try{market=validateMarket(input,await getDocs(id));}catch(e){return reply(400,{error:e.message});}
     const row=await db.prepare('UPDATE markets SET payload=?,version=version+1,updated_at=?,updated_by=? WHERE id=? AND version=? RETURNING *').bind(JSON.stringify(market),new Date().toISOString(),email,id,Number(raw)).first();
     if(!row)return reply(409,{error:'Un collègue a modifié ce marché. Votre saisie est conservée : exportez-la avant de recharger la fiche.'});
@@ -95,7 +99,7 @@ export async function handleMarkets(request,db,email,admin,reply,jsonBody,env={}
   const name=file.name.replace(/[\\/\u0000-\u001f]/g,'_').slice(0,220)||'piece';
   const mime=fileType(name,content);
   const kind=String(form.get('kind')||'other');
-  if(!['ae','price','clauses','notification','amendment','renewal','offer','other'].includes(kind))return reply(400,{error:'Nature de pièce invalide.'});
+  if(!['ae','price','clauses','notification','amendment','renewal','offer','order','other'].includes(kind))return reply(400,{error:'Nature de pièce invalide.'});
   const extracted=String(form.get('text')||'').slice(0,150000);
   const hash=createHash('sha256').update(content).digest('hex');
   const existing=await db.prepare('SELECT '+documentColumns+' FROM market_documents WHERE market_id=? AND sha256=?').bind(id,hash).first();

@@ -24,7 +24,8 @@ function complete(){
 }
 
 test('les calculs et le contrat de brouillon sont identiques dans le Worker et le moteur PDF',()=>{
- const documents=[blankDraft('quote'),complete()];
+ const linked=complete();linked.references={...linked.references,projectId:'project-a',orderId:'order-a'};
+ const documents=[blankDraft('quote'),complete(),linked];
  for(let i=0;i<30;i++){
   const d=complete();d.lines=Array.from({length:1+i%5},(_,j)=>({...newLine(),description:'Prestation '+j,quantity:['1','1.833333','0','0.000001','123456.654321'][i%5],unitPrice:['0.015','0.025','123.456789','9999.999999'][j%4],discountPercent:['0','50','12.34','100'][i%4],vatRate:['5.5','20','10'][j%3]}));documents.push(d);
  }

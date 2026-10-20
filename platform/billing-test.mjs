@@ -190,7 +190,7 @@ await test('API de brouillons : identité, conservation, concurrence et traçabi
    await ctx.db.prepare("INSERT INTO markets(id,payload,version,updated_at,updated_by) VALUES(?,?,1,?,?)").bind('market-context',JSON.stringify({title:'Marché contexte',reference:'M-TEST',clientName:'Client contexte',private:'never-expose'}),'2026-10-20',users[0]).run();
    const result=await read(await call('/context'),200);
    assert.deepEqual(result.clients,[{id:'c-test',name:'Client contexte'}]);assert.deepEqual(result.businessCodes,[{id:'code-test',code:'31 AC',label:'Mission contexte',client:'Client contexte'}]);
-   assert.deepEqual(result.markets,[{id:'market-context',title:'Marché contexte',reference:'M-TEST',clientName:'Client contexte'}]);
+   assert.deepEqual(result.markets,[{id:'market-context',title:'Marché contexte',reference:'M-TEST',clientName:'Client contexte',projects:[]}]);
    assert.deepEqual(result.seller,blankSettings().seller);assert.deepEqual(result.settings,{version:0,data:blankSettings(),updatedAt:null});assert.doesNotMatch(JSON.stringify(result),/never-expose|password|salt|hash|accounts/);
   });
 

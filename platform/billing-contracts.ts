@@ -13,6 +13,7 @@ export interface BillingLine {
 export interface BillingReferences {
   businessCode:string; marketId:string; marketReference:string; orderReference:string;
   project:string; serviceCode:string; engagement:string;
+  projectId?:string; orderId?:string;
 }
 export interface BillingDraft {
   schemaVersion:2|3; kind:BillingKind; title:string; currency:'EUR'; issueDate:string;
@@ -65,7 +66,11 @@ export interface BillingQuoteEventInput {id:string;documentVersion:number;action
 export interface BillingIssuanceSummary {id:string;number:string;state:'pending'|'rendering'|'failed'|'ready';attempts:number;errorCode:string|null;createdAt:string;updatedAt:string;files:string[];}
 export interface BillingNumberSeries {id:string;issuer_siren:string;kind:BillingKind;prefix:string;width:number;first_value:number;next_value:number;start_date:string;end_date:string;last_issue_date:string|null;version:number;}
 export type BillingDirectoryKind='clients'|'services';
-export interface BillingClientData {schemaVersion:1;party:BillingParty;notes:string;archived:boolean;}
+export interface BillingClientDetails {
+ legalForm:string; legalFormCode:string; representatives:string; shareCapital:string;
+ vatNumbers:string[]; source:string; retrievedAt:string;
+}
+export interface BillingClientData {schemaVersion:1;party:BillingParty;notes:string;archived:boolean;details?:BillingClientDetails;}
 export interface BillingServiceData {schemaVersion:1;reference:string;label:string;description:string;unitCode:string;unitPrice:string;vatRate:string;vatCategory:VatCategory;exemptionReason:string;archived:boolean;}
 export type BillingDirectoryData=BillingClientData|BillingServiceData;
 export type BillingDirectoryRecord={id:string;version:number;updatedAt:string|null;} & ({kind:'clients';data:BillingClientData;}|{kind:'services';data:BillingServiceData;});
@@ -75,7 +80,7 @@ export interface BillingContext {
   documentService:{configured:boolean};
   clients:{id:string; name:string}[];
   businessCodes:{id:string; code:string; label:string; client:string}[];
-  markets:{id:string; title:string; reference:string; clientName:string}[];
+  markets:{id:string; title:string; reference:string; clientName:string;projects?:import('./client/markets-contracts').MarketProject[]}[];
   seller:BillingParty;
   settings:BillingSettings;
 }

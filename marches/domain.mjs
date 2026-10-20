@@ -31,7 +31,25 @@ function common(v,documentIds) {
   return r;
 }
 export function emptyMarket() {
-  return {title:'',reference:'',clientName:'',clientId:'',type:'framework',currency:'EUR',status:'draft',billingMode:'actual',notificationDate:'',periodBasis:'unknown',renewalMode:'unknown',renewalCount:null,noMinimum:false,minimumMinor:null,feesIncluded:false,notes:'',prices:[],ceilings:[],periods:[],issues:[],conditions:[]};
+  return {title:'',reference:'',clientName:'',clientId:'',type:'framework',currency:'EUR',status:'draft',billingMode:'actual',notificationDate:'',periodBasis:'unknown',renewalMode:'unknown',renewalCount:null,noMinimum:false,minimumMinor:null,feesIncluded:false,notes:'',prices:[],ceilings:[],periods:[],issues:[],conditions:[],projects:[]};
+}
+export function validateProjects(input=[],documentIds=new Set()){
+ if(!Array.isArray(input)||input.length>100)throw new Error('Liste de projets invalide (100 maximum).');
+ const seen=new Set(),orderIds=new Set();
+ const id=(value,all)=>{const v=text(value,'Identifiant projet / commande',80,true);if(!/^[a-zA-Z0-9_-]+$/.test(v)||all.has(v))throw new Error('Identifiant projet / commande invalide ou en double.');all.add(v);return v;};
+ return input.map(p=>{
+  const project={id:id(p?.id,seen),name:text(p.name,'Nom du projet',180,true),code:text(p.code,'Code projet',80),notes:text(p.notes,'Notes du projet',2000),archived:p.archived===true,orders:[]};
+  if(!Array.isArray(p.orders)||p.orders.length>100)throw new Error('Liste de bons de commande invalide (100 maximum par projet).');
+  const refs=new Set();
+  project.orders=p.orders.map(o=>{
+   const order={id:id(o?.id,orderIds),reference:text(o.reference,'Référence du bon de commande',120,true),date:date(o.date,'Date de commande'),amountMinor:amount(o.amountMinor??null,'Montant du bon de commande'),documentId:text(o.documentId,'Pièce du bon de commande',80),notes:text(o.notes,'Notes de la commande',1500),archived:o.archived===true};
+   if(refs.has(key(order.reference)))throw new Error('Deux bons de commande portent la même référence dans ce projet.');
+   refs.add(key(order.reference));
+   if(order.documentId&&!documentIds.has(order.documentId))throw new Error('La pièce du bon de commande ne fait pas partie de ce marché.');
+   return order;
+  });
+  return project;
+ });
 }
 export function validateMarket(input,documents=[]) {
   if(!input||typeof input!=='object'||Array.isArray(input))throw new Error('Fiche de marché invalide.');
@@ -91,6 +109,7 @@ export function validateMarket(input,documents=[]) {
   const conditions=input.conditions??[];
   if(!Array.isArray(conditions)||conditions.length>150||new Set(conditions.map(v=>v?.id)).size!==conditions.length)throw new Error('Liste de conditions invalide.');
   m.conditions=conditions.map(v=>({...common(v,ids),category:choice(v.category,Object.keys(CONDITIONS),'Condition'),label:text(v.label,'Intitulé de condition',240,true),value:text(v.value,'Condition contractuelle',4000,true)}));
+  if(Object.hasOwn(input,'projects'))m.projects=validateProjects(input.projects,ids);
   if(m.status==='validated'){
     const blockers=activationBlockers(m);
     if(blockers.length)throw new Error('Paramétrage non validable : '+blockers.join(' ; '));

@@ -75,12 +75,12 @@ export function normalizeDraft(raw:unknown):BillingDraft {
     if(!categories.includes(row.vatCategory as VatCategory))fail('Catégorie de TVA non reconnue.');
     return {...Object.fromEntries(lineKeys.map(k=>[k,textField(row,k,k==='description'?4000:k==='exemptionReason'?1000:k==='id'?36:k==='unitCode'?3:40)])),id} as unknown as BillingLine;
   });
-  const references=object(value.references,referenceKeys,'Références');
+  const references=object(value.references,[...referenceKeys,'projectId','orderId'],'Références');
   return {
     schemaVersion:credit?3:2,kind:value.kind as BillingKind,currency:'EUR',...(creditNote?{creditNote}:{}),
     title:textField(value,'title',300),issueDate:textField(value,'issueDate',10),dueDate:textField(value,'dueDate',10),validUntil:textField(value,'validUntil',10),clientId:textField(value,'clientId',200),
     seller:party(value.seller,legacy),buyer:party(value.buyer,legacy),lines,
-    references:Object.fromEntries(referenceKeys.map(k=>[k,textField(references,k,300)])) as unknown as BillingReferences,
+    references:Object.fromEntries([...referenceKeys,...['projectId','orderId'].filter(k=>Object.hasOwn(references,k))].map(k=>[k,textField(references,k,300)])) as unknown as BillingReferences,
     paymentTerms:textField(value,'paymentTerms',4000),iban:textField(value,'iban',50),bic:textField(value,'bic',20),notes:textField(value,'notes',10000),
     ...commercial(legacy?{paymentMeans:'30',vatDue:'',legalNotes:blankLegal(),businessProcess:''}:value)
   };

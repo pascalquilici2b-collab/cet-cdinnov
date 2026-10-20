@@ -1,5 +1,7 @@
 # Logos et préremplissage clients
 
+Mise à jour du 20 octobre 2026 : voir `BILLING-EVOLUTION-20261020.md` pour les champs juridiques, la TVA issue de la source DGFiP et l’état des accès PISTE/AGIRIS. Les sections ci-dessous décrivent la première publication.
+
 Demande du 20 octobre 2026 : reprendre les logos de cdinnov.eu et connecter les sources disponibles pour éviter la ressaisie des clients.
 
 ## Disponible
