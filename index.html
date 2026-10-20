@@ -693,8 +693,9 @@ body.authed .auth-gate{display:none}
 <link rel="stylesheet" href="design/portal.css?v=apple1">
 <link rel="stylesheet" href="design/apple.css?v=portalaccess1">
 <script src="platform/icons.js?v=expenseui1"></script>
-<link rel="stylesheet" href="/platform/loading.css?v=bolt-20261020">
+<link rel="stylesheet" href="/platform/loading.css?v=screen-20261020">
 <div id="authGate" class="auth-gate" data-loading="true" aria-busy="true">
+  <span class="auth-startup-status cdi-loading-sr" role="status">Connexion en cours…</span>
   <div class="auth-card">
     <div class="auth-brand-mark"><img class="auth-logo" src="./design/brand/assets/logos/cdinnov-symbol.svg" width="100" height="80" alt="CDInnov" /><span class="cdi-bolt" aria-hidden="true"></span></div>
     <div class="auth-brand-sub">Logiciel de gestion interne</div>
@@ -1057,10 +1058,10 @@ function renderDashboard(){
   if(!AUTH_USER){$('#content').innerHTML='';return;}
   if($('#dashboardRoot'))return;
   const user=AUTH_USER,epoch=++dashboardEpoch;
-  $('#content').innerHTML='<div id="dashboardRoot">'+loadingMarkup('Chargement du tableau de bord…')+'</div>';
+  $('#content').innerHTML='<div id="dashboardRoot">'+loadingScreenMarkup('Chargement du tableau de bord…')+'</div>';
   const element=$('#dashboardRoot');
   if(!document.getElementById('dashboardStyle')){const css=document.createElement('link');css.id='dashboardStyle';css.rel='stylesheet';css.href='platform/dashboard.css';document.head.append(css);}
-  dashboardModule ||= import('./platform/dashboard.js?v=loading-20261020').catch(error=>{dashboardModule=null;throw error;});
+  dashboardModule ||= import('./platform/dashboard.js?v=screen-20261020').catch(error=>{dashboardModule=null;throw error;});
   dashboardModule.then(module=>{
     if(epoch!==dashboardEpoch||AUTH_USER!==user||currentView!=='dashboard'||!element.isConnected)return;
     dashboardDispose=module.mountDashboard(element,{
@@ -4860,6 +4861,9 @@ function agendaNotificationHTML(t){
 /* CDI_PORTAL_START */
 function loadingMarkup(label='Chargement…',compact=false){
   return '<div class="cdi-loading'+(compact?' cdi-loading--compact':'')+'" role="status"><span class="cdi-bolt" aria-hidden="true"></span><span class="cdi-loading-label">'+esc(label)+'</span></div>';
+}
+function loadingScreenMarkup(label='Chargement…'){
+  return '<div class="cdi-loading-screen" role="status"><span class="cdi-bolt" aria-hidden="true"></span><span class="cdi-loading-sr">'+esc(label)+'</span></div>';
 }
 function authSetLoading(loading){
   const gate=document.getElementById('authGate');

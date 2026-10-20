@@ -1,4 +1,4 @@
-import {Loading} from '../../../platform/client/loading';
+import {LoadingScreen} from '../../../platform/client/loading';
 import type {
   CellValue,
   Column,
@@ -207,7 +207,7 @@ export function App() {
     }, [route[1], state?.sheets.length]),
     !state)
   )
-    return saveStatus === "loading" ? <Loading label="Chargement de votre espace de travail…"/> : (
+    return saveStatus === "loading" ? <LoadingScreen label="Chargement de votre espace de travail…"/> : (
       <div className={"loading-screen"}>
         <div className={"brand-symbol"}>
           <IconFileSpreadsheet size={30} />

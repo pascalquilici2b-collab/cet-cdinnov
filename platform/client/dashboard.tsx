@@ -1,4 +1,4 @@
-import {Loading} from './loading';
+import {LoadingScreen} from './loading';
 import {useEffect, useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import type {DashboardAction, DashboardData, DocumentSummary, Member} from '../dashboard-contracts';
@@ -54,6 +54,7 @@ function Dashboard({load,open,portrait}:Props){
     {items.some(item=>item.dateSource==='document')&&<p className="db-footnote">Pour les anciens documents, le classement utilise la date du document, la date de création n’étant pas disponible.</p>}
   </section>;}
 
+  if(!data&&!error)return <LoadingScreen label="Chargement de l’activité…"/>;
   return <div className="cdi-dashboard" aria-busy={busy}>
     <ExpensePresentationStyle/>
     <div className="db-heading"><div><span className="db-eyebrow">CDInnov · Vue d’ensemble</span><h2>L’activité de votre équipe</h2><p>{date(data?.today||parisDay(),{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</p></div>
@@ -61,7 +62,6 @@ function Dashboard({load,open,portrait}:Props){
     </div>
     {error&&<div className="db-error" role="alert"><strong>Actualisation indisponible.</strong> {error} {data&&'Les informations ci-dessous proviennent de la dernière lecture.'}<button onClick={()=>refresh(r=>r+1)}>Réessayer</button></div>}
     {actionError&&<div className="db-error" role="alert">{actionError}</div>}
-    {!data&&!error&&<Loading label="Chargement de l’activité…"/>}
     {data&&<>
       <div className="db-metrics">
         <button className="db-metric is-leave" onClick={()=>navigate({kind:'agenda',date:data.today})}><span>En congé aujourd’hui</span><strong>{data.counts.leaveToday}<small>collaborateur{data.counts.leaveToday!==1?'s':''}</small></strong><span className="db-metric-foot">Congés validés <b aria-hidden="true">↗</b></span></button>

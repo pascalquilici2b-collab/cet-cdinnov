@@ -6,3 +6,9 @@ export function Loading({label='Chargement…',compact=false}:{label?:string;com
   <BrandMark/><span className="cdi-loading-label">{label}</span>
  </div>;
 }
+
+export function LoadingScreen({label='Chargement…'}:{label?:string}){
+ return <div className="cdi-loading-screen" role="status">
+  <BrandMark/><span className="cdi-loading-sr">{label}</span>
+ </div>;
+}

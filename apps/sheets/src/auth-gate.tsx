@@ -1,4 +1,4 @@
-import {BrandMark} from '../../../platform/client/loading';
+import {LoadingScreen} from '../../../platform/client/loading';
 import type {
   CellValue,
   Column,
@@ -18,7 +18,6 @@ import type {
 import * as React from "react";
 import {
   ArrowLeft as IconArrowLeft,
-  FileSpreadsheet as IconFileSpreadsheet,
   Lock as IconLock,
 } from "lucide-react";
 import { apiBase, isCloud, readSession, signIn } from "./api";
@@ -101,7 +100,7 @@ export function AuthGate({
             {childrenProp}
           </div>
         )}
-        {(R || v || !o) && (
+        {v || H ? <LoadingScreen label="Connexion en cours…"/> : (R || !o) && (
           <div className={"cloud-gate"}>
             <a className={"cloud-return"} href={"/"}>
               <IconArrowLeft size={16} />
@@ -109,16 +108,13 @@ export function AuthGate({
             </a>
             <section className={"cloud-login"} aria-label={"Connexion CDInnov"}>
               <div className={"cloud-symbol"}>
-                {v || H ? <BrandMark/> : <img src="/design/brand/assets/logos/cdinnov-symbol.svg" width="38" height="30" alt="CDInnov"/>}
+                <img src="/design/brand/assets/logos/cdinnov-symbol.svg" width="38" height="30" alt="CDInnov"/>
               </div>
               <p className={"cloud-eyebrow"}>{"CD INNOVATION"}</p>
               <h1>{"Votre travail, au même endroit."}</h1>
               <p>
                 {"Feuilles, Gantt, cartes, formulaires et tableaux de bord."}
               </p>
-              {v ? (
-                <p role={"status"}>{"Vérification de votre connexion…"}</p>
-              ) : (
                 <form
                   onSubmit={async (J) => {
                     (J.preventDefault(), q(true), G(""));
@@ -184,7 +180,6 @@ export function AuthGate({
                     {"Utilisez votre compte CDInnov habituel."}
                   </small>
                 </form>
-              )}
             </section>
           </div>
         )}
