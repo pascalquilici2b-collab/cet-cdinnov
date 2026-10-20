@@ -21,6 +21,8 @@ try{
  await page.getByLabel('Description',{exact:true}).fill('Prestation fictive');
  await page.getByLabel('Prix unitaire HT (€)',{exact:true}).fill('100');
  assert.match(await page.locator('.bill-paper-grand').innerText(),/120,00/);
+ const previewBox=await page.locator('.bill-preview-shell').boundingBox(),headerBox=await page.locator('.topbar').boundingBox();
+ assert.ok(previewBox.y>=headerBox.y+headerBox.height,'preview controls remain below the portal header while editing: '+JSON.stringify({previewBox,headerBox}));
  await page.getByRole('button',{name:'Enregistrer le brouillon',exact:true}).click();await page.getByText('Brouillon enregistré.',{exact:true}).waitFor();
  await page.screenshot({path:join(out,'first-version-desktop.png'),fullPage:false});
  await page.locator('.bill-back').click();await page.getByRole('button',{name:'Ouvrir Première version — brouillon fictif',exact:true}).click();

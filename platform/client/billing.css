@@ -316,3 +316,6 @@ select.bill-status-filter{background:var(--bill-surface,#fff);color:var(--bill-i
 @media(max-width:520px){.bill-payment-form input,.bill-payment-form select,.bill-payment-form textarea{font-size:16px;min-height:44px}.bill-payments button{min-height:44px}.bill-payment-form{padding:14px}.bill-payment-history>summary{min-height:44px;padding:12px 0}.bill-payment-history li>small,.bill-payment-history p{font-size:12px}.bill-payment-audit{font-size:11px}.bill-payment-entry-actions{justify-content:space-between;gap:10px}.bill-list-due{font-size:9px}.bill-document-status-inline[data-status=overdue]{color:#965231}[data-theme=dark] .bill-document-status-inline[data-status=overdue]{color:#f7c5ab}}
 
 .bill-service-pending{display:flex;align-items:center;gap:6px;color:var(--bill-muted);font-size:12px;margin:0 0 16px}
+/* Leave the portal's persistent header visible above document controls. */
+.bill-preview-shell,.bill-pdf-viewer,.bill-preview{top:110px}
+@media(min-width:821px){.bill-paper-scroll{max-height:calc(100dvh - 235px);overflow:auto;overscroll-behavior:contain}.bill-pdf-viewport{max-height:calc(100dvh - 235px)}}
