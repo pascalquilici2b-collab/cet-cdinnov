@@ -114,7 +114,7 @@ async function portalLogin(email,password){
 }
 async function authDoLogin(){
   const pw=$('#authPw').value;if(!pw)return authMsg('Entrez votre mot de passe.');
-  const button=$('#authLogin');button.disabled=true;authSetLoading(true);authMsg('Connexion…','ok');
+  const button=$('#authLogin');button.disabled=true;authMsg('');authSetLoading(true);
   try{await portalLogin(_authEmailPending,pw);$('#authPw').value='';authMsg('');}catch(e){authMsg(e.message||'Connexion impossible.');}finally{button.disabled=false;authSetLoading(false);}
 }
 async function authDoCreate(){
