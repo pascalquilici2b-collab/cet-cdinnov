@@ -215,3 +215,49 @@
   .bill-app .bill-section-check,.bill-app .bill-section-check path {animation:none}
   .bill-app button:active:not(:disabled) {transform:none}
 }
+.bill-app .bill-client-logo {
+  width:56px;height:48px;min-width:56px;padding:5px;border:1px solid var(--bill-line);
+  background:#fff;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;
+}
+.bill-app .bill-client-logo img {display:block;width:100%;height:100%;object-fit:contain}
+.bill-app .bill-client-choice {gap:12px}
+.bill-app .bill-client-choice>div {flex:1;min-width:0}
+.bill-app .bill-company-lookup {margin:0 0 24px;min-width:0}
+.bill-app .bill-company-search {display:flex;align-items:center;gap:8px;margin-top:8px;min-width:0}
+.bill-app .bill-company-search input {
+  min-width:0;width:100%;flex:1;min-height:44px;border:1px solid var(--bill-line);
+  background:var(--bill-input);color:var(--bill-ink);border-radius:11px;
+  padding:11px 12px;font:inherit;font-size:14px;outline:none;
+}
+.bill-app .bill-company-search input:focus {border-color:var(--bill-focus);outline:2px solid var(--bill-focus);outline-offset:2px}
+.bill-app .bill-company-search .bill-button {flex:none;min-height:44px;white-space:nowrap}
+.bill-app .bill-company-status {font-size:12px;color:var(--bill-muted)}
+.bill-app .bill-company-status:not(:empty) {margin-top:10px}
+.bill-app .bill-company-complete {display:flex;align-items:center;gap:8px;color:var(--bill-accent)}
+.bill-app .bill-company-complete svg {width:20px;height:20px;flex:none;animation:bill-company-pop .25s ease-out}
+.bill-app .bill-company-complete circle {fill:var(--bill-accent)}
+.bill-app .bill-company-complete path {fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:17;stroke-dashoffset:0;animation:bill-company-tick .35s ease-out}
+.bill-app .bill-company-results {border:1px solid var(--bill-line);border-radius:11px;margin-top:12px;overflow:hidden;background:var(--bill-surface)}
+.bill-app .bill-company-results ul {list-style:none;padding:0;margin:0;max-height:360px;overflow-y:auto}
+.bill-app .bill-company-results li+li {border-top:1px solid var(--bill-line)}
+.bill-app .bill-company-results li>button {display:flex;align-items:center;gap:12px;width:100%;text-align:left;border:0;border-radius:0;margin:0;padding:14px 12px;background:transparent;color:var(--bill-ink);font:inherit;cursor:pointer}
+.bill-app .bill-company-results li>button:hover {background:var(--bill-accent-soft)}
+.bill-app .bill-company-results li>button:focus-visible {outline-offset:-3px}
+.bill-app .bill-company-results li>button>span:nth-child(2) {flex:1;min-width:0;overflow-wrap:anywhere}
+.bill-app .bill-company-results strong,.bill-app .bill-company-results small {display:block}
+.bill-app .bill-company-results strong {font-size:13px;line-height:1.5}
+.bill-app .bill-company-results small {font-size:12px;line-height:1.6;color:var(--bill-muted);margin-top:3px}
+.bill-app .bill-company-results>a {display:block;padding:10px 14px;border-top:1px solid var(--bill-line);color:var(--bill-accent);font-size:12px;text-decoration:none}
+.bill-app .bill-company-results .bill-company-more {padding:8px 14px}
+@keyframes bill-company-pop {from{transform:scale(.6);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes bill-company-tick {from{stroke-dashoffset:17}to{stroke-dashoffset:0}}
+@media(max-width:520px) {
+  .bill-app .bill-company-search {flex-wrap:wrap}
+  .bill-app .bill-company-search input {flex-basis:100%;font-size:16px}
+  .bill-app .bill-company-search .bill-button {width:100%}
+  .bill-app .bill-company-results li>button {gap:8px}
+  .bill-app .bill-client-choice {flex-wrap:wrap}
+}
+@media(prefers-reduced-motion:reduce) {
+  .bill-app .bill-company-complete svg,.bill-app .bill-company-complete path {animation:none}
+}

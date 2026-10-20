@@ -1,0 +1,156 @@
+{
+  "sourcePage": "https://www.cdinnov.eu/#nos-references",
+  "retrievedAt": "2026-10-20T08:48:08.786Z",
+  "logos": [
+    {
+      "name": "Agence de développement économique de la Corse",
+      "source": "https://www.cdinnov.eu/logos/adec.svg",
+      "file": "adec.svg",
+      "sha256": "e2001016b15b286591d4cc19bf29fe0d372e77ad81d5d76218a60feb7320d2cd"
+    },
+    {
+      "name": "CCI du Var",
+      "source": "https://www.cdinnov.eu/logos/cci-var.webp",
+      "file": "cci-var.webp",
+      "sha256": "f39e029e300db74340d7482caf783f46b6a5535ab674517f2a9f3fb6cfac4d81"
+    },
+    {
+      "name": "CRESS Corsica",
+      "source": "https://www.cdinnov.eu/logos/cress.webp",
+      "file": "cress.webp",
+      "sha256": "6a288fc057a2d666a84fe4a06ccf7eace51e54820322bbd47cc037f0710ccb3f"
+    },
+    {
+      "name": "Agence du tourisme de la Corse",
+      "source": "https://www.cdinnov.eu/logos/atc.webp",
+      "file": "atc.webp",
+      "sha256": "ff17d9d86bea6155cfa23cfda94faa5a81712fd8e4020d74e9cdba74458c88b8"
+    },
+    {
+      "name": "CCI Nice Côte d’Azur",
+      "source": "https://www.cdinnov.eu/logos/cci-nice.svg",
+      "file": "cci-nice.svg",
+      "sha256": "617de86d1e44d5db336f976cbcbc4b0b0aa05ed15c54e36e2b3656a42d847adb"
+    },
+    {
+      "name": "Chambre de métiers et de l’artisanat de Corse",
+      "source": "https://www.cdinnov.eu/logos/cma.webp",
+      "file": "cma.webp",
+      "sha256": "d920595ccfbaf86e08ea5817110bc8abb6fa5ded52823c09a69ff8affc991681"
+    },
+    {
+      "name": "Collectivité de Corse",
+      "source": "https://www.cdinnov.eu/logos/collectivite-corse.webp",
+      "file": "collectivite-corse.webp",
+      "sha256": "31d80ec4687760db7e97d1d7b3f5169b43763c1eb2bb07756e246edafd4b19a9"
+    },
+    {
+      "name": "Communauté d’agglomération de Bastia",
+      "source": "https://www.cdinnov.eu/logos/cab.webp",
+      "file": "cab.webp",
+      "sha256": "3223e74dcdbcbbf2cf2265125638a51faa6e2091dc5c2911f9fd328289188f99"
+    },
+    {
+      "name": "Communauté de communes de L’Île-Rousse – Balagne",
+      "source": "https://www.cdinnov.eu/logos/ccirb.webp",
+      "file": "ccirb.webp",
+      "sha256": "054786a2207a5bb45966befe9dda9536b5a209b4f800ee18b50de0939d0eb992"
+    },
+    {
+      "name": "Département du Var",
+      "source": "https://www.cdinnov.eu/logos/var.webp",
+      "file": "var.webp",
+      "sha256": "0c580be0e3000594eb63d9e845f8fd2a8f0f0baae42bd5c9c92b47e0e43cf816"
+    },
+    {
+      "name": "Office de tourisme de Bastia",
+      "source": "https://www.cdinnov.eu/logos/ot-bastia.webp",
+      "file": "ot-bastia.webp",
+      "sha256": "3375221a7d82be3345fee84775692a570d9bc67330034713fd9b1fbd60a5f991"
+    },
+    {
+      "name": "ATEMIS · RED SAS",
+      "source": "https://www.cdinnov.eu/logos/atemis.webp",
+      "file": "atemis.webp",
+      "sha256": "61897e5602212d6a883acf2e18412a129300e3910e05f6d58dc8cba6de7be8d6"
+    },
+    {
+      "name": "Ville d’Ajaccio",
+      "source": "https://www.cdinnov.eu/logos/ajaccio.webp",
+      "file": "ajaccio.webp",
+      "sha256": "5df4dd1bce50dfd8dae84738e65219263918ec6b2af763531ad2a170a433d0ab"
+    },
+    {
+      "name": "CCI Provence-Alpes-Côte d’Azur",
+      "source": "https://www.cdinnov.eu/logos/cci-paca.svg",
+      "file": "cci-paca.svg",
+      "sha256": "9d9b12c965e729c43a3e8c69d19d7f3359a1b025745ee492ea25660fe38bed1c"
+    },
+    {
+      "name": "Communauté d’agglomération du Pays Ajaccien",
+      "source": "https://www.cdinnov.eu/logos/capa.webp",
+      "file": "capa.webp",
+      "sha256": "a0afa48659ea89e30ed114b441135f47a924c10a84b7c9f3d3fb85d9b50a59e8"
+    },
+    {
+      "name": "Lycée maritime de Bastia",
+      "source": "https://www.cdinnov.eu/logos/lycee.webp",
+      "file": "lycee.webp",
+      "sha256": "7c8979e1807d68459a6db6b254420700cf2c9a0e51cbe35d517fc64ecd61dd05"
+    },
+    {
+      "name": "SMILO · Small Islands Organisation",
+      "source": "https://www.cdinnov.eu/logos/smilo.webp",
+      "file": "smilo.webp",
+      "sha256": "10f4f96861701ed0d96fd9367e3f32bbafbccb79fcdedc6ed21b254ea59d8155"
+    },
+    {
+      "name": "CGPME / CPME",
+      "source": "https://www.cdinnov.eu/logos/cpme.webp",
+      "file": "cpme.webp",
+      "sha256": "abf1b8a511975bddc7cce3602bcc9c9be8f08ff053ddb3be8ba034104a8a6883"
+    },
+    {
+      "name": "Région Sud · Provence-Alpes-Côte d’Azur",
+      "source": "https://www.cdinnov.eu/logos/sud.svg",
+      "file": "sud.svg",
+      "sha256": "f4ca7a7e05742b7c2d5afc10793713f41ae3ba3fb32792eb6b0a4e8b25230e8a"
+    },
+    {
+      "name": "Métropole Nice Côte d’Azur",
+      "source": "https://www.cdinnov.eu/logos/nice-metropole.svg",
+      "file": "nice-metropole.svg",
+      "sha256": "efeadff03ce06070e0ef2c560a55b006bfcb424ed63f8a60b78e380c433962f7"
+    },
+    {
+      "name": "Office des transports de la Corse",
+      "source": "https://www.cdinnov.eu/logos/otc.webp",
+      "file": "otc.webp",
+      "sha256": "57ec005acb7735191a9ca48b71892df5780d49c0a218c7f5f4782127ced75f58"
+    },
+    {
+      "name": "Conservatoire du littoral",
+      "source": "https://www.cdinnov.eu/logos/littoral.webp",
+      "file": "littoral.webp",
+      "sha256": "ff1c89741c073ebb6a3703c5c807983ba79d2320fc9bd6304989dbf280e0ce8c"
+    },
+    {
+      "name": "Parc naturel régional de Corse",
+      "source": "https://www.cdinnov.eu/logos/pnrc.webp",
+      "file": "pnrc.webp",
+      "sha256": "05be32f01c13734acfabce7de6f755a1735b2b3413da592d67662e86400cb4eb"
+    },
+    {
+      "name": "EPCI de Corse",
+      "source": "https://www.cdinnov.eu/logos/cci-corse.webp",
+      "file": "cci-corse.webp",
+      "sha256": "012fe6ea30666c4ac4fcfbfa09ec8f859537a0032b6871519a0af8ac857cdb57"
+    },
+    {
+      "name": "Office de l’environnement de la Corse",
+      "source": "https://www.cdinnov.eu/logos/oec.webp",
+      "file": "oec.webp",
+      "sha256": "4f5657dcc150faeed499325667fcf84b18f910a13ed9a3fb7453a78a7b3f62c5"
+    }
+  ]
+}
