@@ -70,6 +70,11 @@ export const billingIssuanceSchema = [
  END`,
  `CREATE TRIGGER IF NOT EXISTS billing_issuance_no_update BEFORE UPDATE ON billing_issuances BEGIN SELECT RAISE(ABORT,'BILLING_ISSUANCE_IMMUTABLE'); END`,
  `CREATE TRIGGER IF NOT EXISTS billing_issuance_no_delete BEFORE DELETE ON billing_issuances BEGIN SELECT RAISE(ABORT,'BILLING_ISSUANCE_IMMUTABLE'); END`,
+ // Replace in the linked-credit allocation migration, only after its guards exist.
+ `CREATE TRIGGER IF NOT EXISTS billing_credit_unavailable_guard BEFORE INSERT ON billing_issuances
+  WHEN json_extract(NEW.source_json,'$.schemaVersion')=3 OR json_extract(NEW.snapshot_json,'$.schemaVersion')=3
+   OR json_type(NEW.source_json,'$.creditNote') IS NOT NULL OR json_type(NEW.snapshot_json,'$.creditNote') IS NOT NULL
+  BEGIN SELECT RAISE(ABORT,'BILLING_CREDIT_UNAVAILABLE'); END`,
  `CREATE TRIGGER IF NOT EXISTS billing_reserved_document_no_update BEFORE UPDATE ON billing_documents
   WHEN EXISTS(SELECT 1 FROM billing_issuances WHERE document_id=OLD.id) BEGIN SELECT RAISE(ABORT,'BILLING_DOCUMENT_RESERVED'); END`,
  `CREATE TRIGGER IF NOT EXISTS billing_reserved_document_no_delete BEFORE DELETE ON billing_documents

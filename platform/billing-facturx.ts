@@ -22,11 +22,12 @@ export function invoiceForFacturX(raw:BillingDraft,number:string) {
   if(['30','58'].includes(d.paymentMeans)&&!d.iban.trim())issues.push({path:'iban',message:'L’IBAN est requis pour un virement.'});
   if(issues.length)throw Object.assign(new Error('La facture doit être complétée avant son export Factur-X.'),{status:422,issues});
   const totals=calculateBilling(d);
-  const description=[d.title,d.notes,
+  const description=[d.title,d.creditNote&&'Motif de l’avoir : '+d.creditNote.reason,d.notes,
     d.seller.legal&&'Mentions de l’émetteur : '+d.seller.legal,d.buyer.legal&&'Mentions du client : '+d.buyer.legal,
     d.references.businessCode&&'Code affaire : '+d.references.businessCode,d.references.project&&'Projet : '+d.references.project,
     d.references.engagement&&'Engagement : '+d.references.engagement].filter(Boolean).join('\n\n');
-  return {number:number.trim(),issue_date:d.issueDate,type_code:'380' as const,currency:d.currency,business_process:d.businessProcess,seller:party(d.seller),buyer:party(d.buyer),
+  return {number:number.trim(),issue_date:d.issueDate,type_code:d.creditNote?'381' as const:'380' as const,currency:d.currency,business_process:d.businessProcess,seller:party(d.seller),buyer:party(d.buyer),
+    ...(d.creditNote?{preceding_invoice:d.creditNote.invoiceNumber.trim(),preceding_invoice_date:d.creditNote.invoiceDate}:{}),
     lines:d.lines.map(l=>({description:l.description.trim(),quantity:decimal(l.quantity),unit_price:decimal(l.unitPrice),discount_percent:decimal(l.discountPercent),unit:l.unitCode,vat_category:l.vatCategory,vat_rate:decimal(l.vatRate),exemption_reason:optional(l.exemptionReason)})),
     payment:{means_code:d.paymentMeans,due_date:optional(d.dueDate),terms:optional(d.paymentTerms),iban:compact(d.iban),bic:compact(d.bic),prepaid:'0.00',vat_due:d.vatDue||null},
     totals:{net:money(totals.netMinor),vat:money(totals.taxMinor),gross:money(totals.grossMinor),due:money(totals.grossMinor),rounding:'0.00'},

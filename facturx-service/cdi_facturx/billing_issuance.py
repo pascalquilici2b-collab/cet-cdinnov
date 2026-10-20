@@ -24,7 +24,7 @@ from .models import Invoice, Line
 from .pdf_import import inspect_pdf, MAX_BYTES
 from .service import ConversionError, health, runtime, create_xml, schematron, convert_pdfa, verify_attachment, validate_pdfa
 
-GENERATOR_VERSION = 'cdi-billing-1'
+GENERATOR_VERSION = 'cdi-billing-2'
 UUID = Annotated[str, Field(pattern=r'^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$')]
 SHA = Annotated[str, Field(pattern=r'^[a-f0-9]{64}$')]
 
@@ -97,13 +97,14 @@ def mapped_line(line):
 
 def invoice_from_document(d, number):
     totals = d.calculated()
-    description = '\n\n'.join(v for v in [d.title, d.notes,
+    description = '\n\n'.join(v for v in [d.title, 'Motif de l’avoir : ' + d.creditNote.reason if d.creditNote else '', d.notes,
         'Mentions de l’émetteur : ' + d.seller.legal if d.seller.legal else '',
         'Mentions du client : ' + d.buyer.legal if d.buyer.legal else '',
         'Code affaire : ' + d.references.businessCode if d.references.businessCode else '',
         'Projet : ' + d.references.project if d.references.project else '',
         'Engagement : ' + d.references.engagement if d.references.engagement else ''] if v)
-    return Invoice.model_validate({'number': number, 'issue_date': d.issueDate, 'type_code': '380', 'currency': d.currency,
+    return Invoice.model_validate({'number': number, 'issue_date': d.issueDate, 'type_code': '381' if d.creditNote else '380', 'currency': d.currency,
+        **({'preceding_invoice': d.creditNote.invoiceNumber.strip(), 'preceding_invoice_date': d.creditNote.invoiceDate} if d.creditNote else {}),
         'business_process': d.businessProcess, 'seller': party(d.seller), 'buyer': party(d.buyer), 'lines': [mapped_line(line) for line in d.lines],
         'payment': {'means_code': d.paymentMeans, 'due_date': optional(d.dueDate), 'terms': optional(d.paymentTerms),
                     'iban': compact(d.iban), 'bic': compact(d.bic), 'prepaid': '0.00', 'vat_due': d.vatDue or None},
@@ -113,6 +114,8 @@ def invoice_from_document(d, number):
 
 
 def validate_document(d, number='PREFLIGHT'):
+    if d.creditNote and (not d.creditNote.reason.strip() or d.issueDate < d.creditNote.invoiceDate):
+        raise ValueError('Précisez le motif de l’avoir et une date au moins égale à celle de la facture corrigée.')
     for field in ('issueDate', 'dueDate', 'validUntil'):
         value = getattr(d, field)
         if (field == 'issueDate' or (d.kind == 'quote' and field == 'validUntil')) and not value:

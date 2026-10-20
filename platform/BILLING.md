@@ -86,7 +86,7 @@ Le test `billing-pdf-integration-test.mjs` démarre son propre moteur FastAPI lo
 ## Prochains lots
 
 1. Validation guidée des champs et navigation de suivi ; rapprochement des clients avec les autres répertoires et gestion des contacts/établissements liés.
-2. Avoirs, acomptes, règlements et allocations. Le suivi des réponses et les révisions commerciales liées des devis sont disponibles.
+2. Avoirs, acomptes et allocations. Les règlements manuels et corrections sont disponibles (`BILLING-PAYMENTS.md`). Le moteur natif des avoirs est validé ; le parcours lié et ses allocations restent à implémenter (`BILLING-CREDITS.md`). Le suivi des réponses et les révisions commerciales liées des devis sont disponibles.
 3. Qualification AGIRIS : profil, destinataire, annexes, dépôt et résultat réel d’un document de test autorisé.
 4. Vérification source/déploiement, reprise des archives, séries réelles, migration et sauvegarde restaurable.
 5. Recette finale, déploiement coordonné Worker, moteur Python et ressources statiques, puis vérification du service publié.

@@ -49,6 +49,8 @@ async function body(request:Request,keys:string[]):Promise<ObjectValue> {
 function prepared(raw:unknown):{data:BillingDraft;dataJSON:string;totalsJSON:string|null;issuesJSON:string} {
  let data:BillingDraft;
  try {data=normalizeDraft(raw);} catch(error) {return fail(400,error instanceof Error?error.message:'Brouillon invalide.');}
+  // Linked credit creation must use its own allocation boundary, never a free-form invoice POST/PUT.
+  if(data.creditNote)return fail(409,'Créez un avoir depuis sa facture d’origine. Le parcours lié doit être disponible avant sa saisie.');
  const issues:BillingIssue[]=inspectDraft(data);
  let totals:BillingTotals|null=null;
  // An unfinished decimal input remains a valid draft, but is never reported as a zero amount.

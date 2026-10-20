@@ -15,11 +15,14 @@ export interface BillingReferences {
   project:string; serviceCode:string; engagement:string;
 }
 export interface BillingDraft {
-  schemaVersion:2; kind:BillingKind; title:string; currency:'EUR'; issueDate:string;
+  schemaVersion:2|3; kind:BillingKind; title:string; currency:'EUR'; issueDate:string;
+  creditNote?:BillingCreditReference;
   dueDate:string; validUntil:string; clientId:string; seller:BillingParty; buyer:BillingParty;
   lines:BillingLine[]; references:BillingReferences; paymentTerms:string; iban:string; bic:string; notes:string;
   paymentMeans:BillingPaymentMeans; vatDue:BillingVatDue; legalNotes:BillingLegalNotes; businessProcess:BillingBusinessProcess;
 }
+/** Only schema v3 carries a credit reference; old v2 snapshots keep their exact wire shape. */
+export interface BillingCreditReference {invoiceId:string;invoiceVersion:number;invoiceNumber:string;invoiceDate:string;reason:string;}
 export type BillingBusinessProcess = ''|'B1'|'S1'|'M1'|'B2'|'S2'|'M2'|'S3'|'B4'|'S4'|'M4'|'S5'|'S6'|'B7'|'S7'|'B8'|'S8'|'M8'|'B9'|'S9'|'M9';
 export type BillingPaymentMeans = '30'|'58'|'10'|'48';
 export type BillingVatDue = ''|'invoice'|'payment'|'delivery';

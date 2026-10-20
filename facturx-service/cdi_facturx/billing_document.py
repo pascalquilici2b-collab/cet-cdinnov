@@ -6,7 +6,8 @@ portal's billing-domain.ts: round each discounted line once, then VAT per group.
 import re
 import unicodedata
 from typing import Annotated, Literal
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator, model_validator, model_serializer
+from datetime import date
 
 
 def text(maximum):
@@ -87,8 +88,28 @@ def rounded(value: int, denominator: int) -> int:
     return (value + denominator // 2) // denominator
 
 
+class CreditReference(StrictModel):
+    invoiceId: Annotated[str, Field(pattern=r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$')]
+    invoiceVersion: Annotated[int, Field(ge=1, le=9007199254740991)]
+    invoiceNumber: text(35)
+    invoiceDate: text(10)
+    reason: text(2000)
+
+    @field_validator('invoiceId')
+    @classmethod
+    def normalized_id(cls, value):
+        return value.lower()
+
+    @model_validator(mode='after')
+    def identity(self):
+        if not self.invoiceNumber.strip() or re.search(r'[\x00-\x1f\x7f]', self.invoiceNumber) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}', self.invoiceDate) or date.fromisoformat(self.invoiceDate).year < 1900:
+            raise ValueError('Numéro et date de la facture corrigée requis.')
+        return self
+
+
 class DraftDocument(StrictModel):
-    schemaVersion: Literal[2]
+    schemaVersion: Literal[2, 3]
+    creditNote: CreditReference | None = None
     kind: Literal['invoice', 'quote']
     title: text(300)
     currency: Literal['EUR']
@@ -111,9 +132,20 @@ class DraftDocument(StrictModel):
 
     @model_validator(mode='after')
     def unique_lines(self):
+        if self.schemaVersion == 2 and 'creditNote' in self.model_fields_set:
+            raise ValueError('Les documents v2 ne comportent pas de référence d’avoir.')
+        if self.schemaVersion == 3 and (self.kind != 'invoice' or self.creditNote is None):
+            raise ValueError('Le document v3 doit être un avoir rattaché à une facture.')
         if len({line.id for line in self.lines}) != len(self.lines):
             raise ValueError('Identifiant de ligne en double.')
         return self
+
+    @model_serializer(mode='wrap')
+    def preserve_versioned_shape(self, handler):
+        result = handler(self)
+        if self.schemaVersion == 2:
+            result.pop('creditNote', None)
+        return result
 
     def calculated(self):
         groups, lines = {}, []

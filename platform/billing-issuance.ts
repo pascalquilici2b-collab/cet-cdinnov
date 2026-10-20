@@ -82,6 +82,8 @@ export async function reserveIssuance(db:Database,input:{id:string;documentId:st
  const source=await db.prepare('SELECT data_json,version FROM billing_documents WHERE id=?').bind(documentId).first<{data_json:string;version:number}>();
  if(!source)return fail(404,'Document introuvable.');if(source.version!==input.documentVersion)return fail(409,'Le document a changé avant la finalisation.');
  const snapshot=normalizeDraft(JSON.parse(source.data_json)),issues=inspectDraft(snapshot);
+ // Native v3 rendering is ready; issuance remains closed until the linked allocation ledger is installed.
+ if(snapshot.creditNote)return fail(409,'La finalisation des avoirs nécessite le contrôle des montants déjà crédités sur la facture d’origine.');
  if(issues.length)throw Object.assign(new Error('Complétez le document avant la finalisation.'),{status:422,issues});
  // The number-independent adapter gates run now. The actual number is generated in the database below.
  if(snapshot.kind==='invoice')invoiceForFacturX(snapshot,'PREFLIGHT');

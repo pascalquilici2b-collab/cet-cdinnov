@@ -53,8 +53,17 @@ const categories:VatCategory[]=['S','Z','E','AE','O'];
 /** Validate the storage boundary, independently of whether an unfinished draft can be issued. */
 export function normalizeDraft(raw:unknown):BillingDraft {
   const legacy=!!raw&&typeof raw==='object'&&'schemaVersion' in raw&&raw.schemaVersion===1;
-  const value=object(raw,['schemaVersion','kind','title','currency','issueDate','dueDate','validUntil','clientId','seller','buyer','lines','references','paymentTerms','iban','bic','notes',...(legacy?[]:['paymentMeans','vatDue','legalNotes','businessProcess'])],'Document');
-  if((value.schemaVersion!==1&&value.schemaVersion!==2)||!['invoice','quote'].includes(String(value.kind))||value.currency!=='EUR')fail('Type, version ou devise de document non pris en charge.');
+  const credit=!!raw&&typeof raw==='object'&&'schemaVersion' in raw&&raw.schemaVersion===3;
+  const value=object(raw,['schemaVersion','kind','title','currency','issueDate','dueDate','validUntil','clientId','seller','buyer','lines','references','paymentTerms','iban','bic','notes',...(legacy?[]:['paymentMeans','vatDue','legalNotes','businessProcess']),...(credit?['creditNote']:[])],'Document');
+  if((value.schemaVersion!==1&&value.schemaVersion!==2&&value.schemaVersion!==3)||!['invoice','quote'].includes(String(value.kind))||value.currency!=='EUR'||(credit&&value.kind!=='invoice'))fail('Type, version ou devise de document non pris en charge.');
+  let creditNote:BillingDraft['creditNote'];
+  if(credit){
+    const c=object(value.creditNote,['invoiceId','invoiceVersion','invoiceNumber','invoiceDate','reason'],'Facture corrigée');
+    if(!billingId(c.invoiceId)||!Number.isSafeInteger(c.invoiceVersion)||Number(c.invoiceVersion)<1)fail('Référence de la facture corrigée invalide.');
+    const invoiceNumber=textField(c,'invoiceNumber',35),invoiceDate=textField(c,'invoiceDate',10);
+    if(!invoiceNumber.trim()||/[\x00-\x1f\x7f]/.test(invoiceNumber)||!validBillingDate(invoiceDate))fail('Numéro et date de la facture corrigée requis.');
+    creditNote={invoiceId:(c.invoiceId as string).toLowerCase(),invoiceVersion:c.invoiceVersion as number,invoiceNumber,invoiceDate,reason:textField(c,'reason',2000)};
+  }
   if(!Array.isArray(value.lines)||value.lines.length>200)fail('Un document accepte au maximum 200 lignes.');
   const seen=new Set<string>();
   const lines=(value.lines as unknown[]).map(rawLine=>{
@@ -68,7 +77,7 @@ export function normalizeDraft(raw:unknown):BillingDraft {
   });
   const references=object(value.references,referenceKeys,'Références');
   return {
-    schemaVersion:2,kind:value.kind as BillingKind,currency:'EUR',
+    schemaVersion:credit?3:2,kind:value.kind as BillingKind,currency:'EUR',...(creditNote?{creditNote}:{}),
     title:textField(value,'title',300),issueDate:textField(value,'issueDate',10),dueDate:textField(value,'dueDate',10),validUntil:textField(value,'validUntil',10),clientId:textField(value,'clientId',200),
     seller:party(value.seller,legacy),buyer:party(value.buyer,legacy),lines,
     references:Object.fromEntries(referenceKeys.map(k=>[k,textField(references,k,300)])) as unknown as BillingReferences,
@@ -120,6 +129,10 @@ export const validBillingDate=(s:string)=>/^\d{4}-\d{2}-\d{2}$/.test(s)&&Number(
 export function inspectDraft(d:BillingDraft):BillingIssue[] {
   const issues:BillingIssue[]=[],add=(path:string,message:string)=>issues.push({path,message});
   if(!validBillingDate(d.issueDate))add('issueDate','Renseignez une date valide.');
+  if(d.creditNote){
+    if(d.issueDate<d.creditNote.invoiceDate)add('issueDate','La date de l’avoir ne peut pas précéder la facture corrigée.');
+    if(!d.creditNote.reason.trim())add('creditNote.reason','Précisez le motif de l’avoir.');
+  }
   if(d.kind==='quote'&&!validBillingDate(d.validUntil))add('validUntil','Renseignez la date de validité du devis.');
   if(d.validUntil&&(!validBillingDate(d.validUntil)||d.validUntil<d.issueDate))add('validUntil','La validité doit suivre la date du devis.');
   if(d.dueDate&&(!validBillingDate(d.dueDate)||d.dueDate<d.issueDate))add('dueDate','L’échéance doit suivre la date du document.');

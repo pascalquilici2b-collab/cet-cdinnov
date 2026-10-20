@@ -268,7 +268,10 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
     def heading(value: str) -> Paragraph:
         return p(value, "heading")
 
-    kind = "FACTURE" if document["kind"] == "invoice" else "DEVIS"
+    credit = document.get("creditNote")
+    if credit is not None and (document.get("schemaVersion") != 3 or document["kind"] != "invoice" or not isinstance(credit, dict)):
+        raise ValueError("Référence d’avoir invalide.")
+    kind = "AVOIR" if credit else "FACTURE" if document["kind"] == "invoice" else "DEVIS"
     reference = number or "Numéro attribué à la validation"
     stream = BytesIO()
     pdf = BaseDocTemplate(stream, pagesize=A4, leftMargin=_MARGIN, rightMargin=_MARGIN, topMargin=91, bottomMargin=48,
@@ -309,13 +312,18 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
     if _text(document.get("title")):
         story.append(p(document["title"], "title"))
     meta = [("Date du document", _date(document.get("issueDate")))]
+    if credit:
+        meta.append(("Facture corrigée", _text(credit.get("invoiceNumber"))))
+        meta.append(("Date de la facture corrigée", _date(credit.get("invoiceDate"))))
     if document["kind"] == "quote":
         meta.append(("Valable jusqu'au", _date(document.get("validUntil"))))
-    else:
-        meta.append(("Date d'échéance", _date(document.get("dueDate"))))
+    elif not credit or document.get("dueDate"):
+        meta.append(("Date prévue de règlement" if credit else "Date d'échéance", _date(document.get("dueDate"))))
     metadata = Table([[p(label, "muted"), p(value, "small")] for label, value in meta], colWidths=[110, _WIDTH - 110])
     metadata.setStyle(_table_style([("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 8), ("TOPPADDING", (0, 0), (-1, -1), 1), ("BOTTOMPADDING", (0, 0), (-1, -1), 3), ("VALIGN", (0, 0), (-1, -1), "TOP")]))
     story.extend([metadata, Spacer(1, 12)])
+    if credit:
+        story.extend([heading("Motif de l’avoir"), p(_text(credit.get("reason"), "Motif à compléter")), Spacer(1, 10)])
 
     def party_content(party: dict, label: str) -> list[Paragraph]:
         content = [p(label, "muted"), p(_text(party.get("name"), "Nom à compléter"))]
@@ -401,7 +409,7 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
                                       ("LINEBELOW", (0, 1), (-1, -1), 0.35, _RULE)]))
         story.append(tax_table)
         total_rows = [[p("Total HT"), p(_money(totals["netMinor"]), "numeric")], [p("Total TVA"), p(_money(totals["taxMinor"]), "numeric")],
-                      [p("TOTAL TTC"), p(_money(totals["grossMinor"]), "total")]]
+                      [p("MONTANT DE L’AVOIR TTC" if credit else "TOTAL TTC"), p(_money(totals["grossMinor"]), "total")]]
         if _amount(totals["discountMinor"]):
             total_rows.insert(0, [p("Remises incluses", "muted"), p(_money(totals["discountMinor"]), "numeric")])
         total_table = Table(total_rows, colWidths=[155, 145], hAlign="RIGHT")
