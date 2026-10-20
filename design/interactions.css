@@ -27,12 +27,29 @@ body :is(.content,.table-wrap,.bill-table-scroll,.cdi-budget-app,.cdi-sheets-app
 @keyframes cdi-nav-mark {from{opacity:0;transform:scaleY(.25)}to{opacity:1;transform:scaleY(1)}}
 @keyframes cdi-screen-enter {from{opacity:.3;transform:translateY(5px)}to{opacity:1;transform:none}}
 @keyframes cdi-surface-enter {from{opacity:0;translate:0 6px}to{opacity:1;translate:0 0}}
+/* Native disclosures retain their keyboard semantics and state in every module. */
+@supports (interpolate-size:allow-keywords) {
+ body details {interpolate-size:allow-keywords}
+ body details::details-content {height:0;opacity:0;overflow:clip;transition:height .28s var(--cdi-ease),opacity .2s ease,content-visibility .28s allow-discrete}
+ body details[open]::details-content {height:auto;opacity:1}
+}
+body details>summary {transition:color .18s,background-color .18s}
+body details>summary:focus-visible {outline:2px solid var(--cyan,#0066cc);outline-offset:3px;border-radius:8px}
+body :is(.bill-message-success,.mk-success,.report-success) {color:var(--cyan,#0066cc);background:var(--highlight,#edf5ff);animation:cdi-confirm-in .24s var(--cdi-ease)}
+body :is(.mk-success,.report-success,.save-status:not(.save-error))>.lucide-check {color:var(--cyan,#0066cc);animation:cdi-confirm-check .28s var(--cdi-ease)}
+body :is(.mk-success,.report-success,.save-status:not(.save-error))>.lucide-check {box-sizing:border-box;width:22px;height:22px;flex:none;padding:4px;background:var(--cyan,#0066cc);color:#fff;border-radius:50%}
+body .iv-form-success>svg {color:var(--cyan,#0066cc);animation:cdi-confirm-check .28s var(--cdi-ease)}
+body :is(.bill-line-options,.bill-extra-fields,.bill-reference-manual,.bill-document-details,.bill-legacy)>summary {min-height:40px;align-content:center}
+@keyframes cdi-confirm-in {from{opacity:0;translate:0 3px}to{opacity:1;translate:0 0}}
+@keyframes cdi-confirm-check {from{opacity:0;transform:scale(.7)}to{opacity:1;transform:scale(1)}}
 @media(pointer:coarse) {
  body :is(.btn,.db-button,.pg-btn,.mk-root button,.cdi-sheets-app .sv-tool,.cdi-sheets-app .bv-tool) {min-height:44px}
 }
 @media(prefers-reduced-motion:reduce) {
  body *,body *::before,body *::after {animation:none!important;transition:none!important;scroll-behavior:auto!important}
+ body details::details-content {transition:none!important}
 }
 @media print {
  body *,body *::before,body *::after {animation:none!important;transition:none!important}
+ body details::details-content {transition:none!important}
 }

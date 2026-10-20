@@ -1,14 +1,22 @@
-.bill-app .bill-step{padding:0;margin:0 0 12px;border:1px solid var(--bill-line);border-radius:16px;overflow:clip;background:var(--bill-surface)}
+.bill-app .bill-step{padding:0;margin:0 0 12px;border:1px solid var(--bill-line);border-radius:16px;overflow:clip;background:var(--bill-surface);transition:border-color .24s,box-shadow .24s;scroll-margin-block:18px}
+.bill-app .bill-step[open]{border-color:color-mix(in srgb,var(--bill-accent) 42%,var(--bill-line));box-shadow:0 2px 12px #00000004}
+.bill-app .bill-step[data-complete=true]:not([open]){border-color:color-mix(in srgb,var(--bill-accent) 18%,var(--bill-line))}
 .bill-step>summary{display:flex;align-items:center;gap:12px;padding:17px 18px;cursor:pointer;list-style:none}
 .bill-step>summary::-webkit-details-marker{display:none}
-.bill-step-symbol{width:34px;height:34px;display:grid;place-items:center;border-radius:50%;color:var(--bill-muted);background:var(--bill-bg);flex:none}
+.bill-step-symbol{width:34px;height:34px;display:grid;place-items:center;border-radius:50%;color:var(--bill-muted);background:var(--bill-bg);flex:none;transition:background .2s,color .2s}
 .bill-step[open] .bill-step-symbol{color:var(--bill-accent);background:var(--bill-accent-soft)}
 .bill-step-symbol.is-complete{background:transparent}
 .bill-step-caption{flex:1;min-width:0}.bill-step-caption b{display:block;font-size:15px}
 .bill-step-caption small{display:block;color:var(--bill-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:3px;max-width:100%;font-size:12px}
 .bill-step-edit{display:grid;place-items:center;width:32px;height:32px;border-radius:50%;color:var(--bill-accent)}
 .bill-step>summary:hover .bill-step-edit{background:var(--bill-accent-soft)}
-.bill-step-body{padding:0 18px 18px;animation:bill-step-in .2s ease}
+.bill-step-body{padding:0 18px 18px}
+.bill-step>summary:focus-visible{outline:2px solid var(--bill-accent);outline-offset:-4px;border-radius:15px}
+.bill-step[open] .bill-step-edit{color:var(--bill-muted)}
+.bill-step-caption small{animation:bill-step-in .2s ease}
+.bill-step-body[inert]{pointer-events:none}
+.bill-reveal-field::details-content{transition:none!important}
+.bill-step-flow,.bill-step>summary,.bill-editor [data-billing-path]{scroll-margin-block:112px 28px}
 .bill-step-actions{display:flex;align-items:center;justify-content:flex-end;gap:12px;margin-top:20px;padding-top:14px;border-top:1px solid var(--bill-line)}
 .bill-step-actions>[role=alert]{font-size:12px;color:var(--bill-error,#b42318);margin-right:auto}
 .bill-blue-check{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;flex-shrink:0}

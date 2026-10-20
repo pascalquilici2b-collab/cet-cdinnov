@@ -11,6 +11,21 @@ export function sectionForPath(path:string):BillingSection{
  for(const section of ['seller','buyer','lines','references'] as const)if(path===section||path.startsWith(section+'.'))return section;
  return 'conditions';
 }
+/** Reveal before focusing: a closed disclosure or an inert step cannot receive focus. */
+export function revealBillingField(target:HTMLElement,root:HTMLElement){
+ const parents:HTMLDetailsElement[]=[];
+ let parent=target.parentElement;
+ while(parent&&parent!==root){
+  if(parent instanceof HTMLDetailsElement){parents.push(parent);parent.classList.add('bill-reveal-field');parent.open=true;}
+  parent=parent.parentElement;
+ }
+ target.dispatchEvent(new Event('billing:reveal',{bubbles:true}));
+ const frame=requestAnimationFrame(()=>{
+  target.focus({preventScroll:true});target.scrollIntoView({block:'nearest',behavior:'instant'});
+  parents.forEach(el=>el.classList.remove('bill-reveal-field'));
+ });
+ return()=>{cancelAnimationFrame(frame);parents.forEach(el=>el.classList.remove('bill-reveal-field'));};
+}
 /** Completion describes the entered fields, never issuance or native validation. */
 export function SectionMarker({number,title,section,filled=true}:{number:string;title:string;section:BillingSection;filled?:boolean}){
  const {issues}=useContext(BillingValidationContext);
@@ -38,9 +53,7 @@ export function DraftValidation({issues,reviewRequest,busy,onRevealEditor,childr
   if(!destination)return;
   const target=destination.path===null?heading.current:Array.from(root.current?.querySelectorAll<HTMLElement>('[data-billing-path]')||[]).find(el=>el.dataset.billingPath===destination.path);
   if(!target)return;
-  let parent=target.parentElement;
-  while(parent&&parent!==root.current){if(parent instanceof HTMLDetailsElement)parent.open=true;parent=parent.parentElement;}
-  target.focus({preventScroll:true});target.scrollIntoView({block:'center',behavior:'instant'});
+  return root.current?revealBillingField(target,root.current):undefined;
  },[destination]);
  const go=(path:string)=>{onRevealEditor();setDestination({path,serial:++sequence.current});};
  const groups=[...new Set(issues.map(i=>location(i.path).group))];
