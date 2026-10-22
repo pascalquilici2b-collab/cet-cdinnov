@@ -1,48 +1,53 @@
-import {useEffect,useRef,useState} from 'react';
+import {forwardRef,useEffect,useImperativeHandle,useRef,useState} from 'react';
+import {CheckCircle2,ChevronDown,CircleDashed} from 'lucide-react';
 import {Help} from './billing-help';
 import type {BillingDocument,BillingTransport,BillingIssue} from '../billing-contracts';
 
-export const billingStateLabel=(document:BillingDocument|null|undefined)=>document?.quote?.revision.abandoned?'Version abandonnée':!document?.issuance?'Brouillon':document.issuance.state==='ready'?'Émis':document.issuance.state==='failed'?'À reprendre':'Finalisation en cours';
-const failures:Record<string,string>={render:'Le rendu du document a échoué.',validation:'Le document n’a pas passé les contrôles définitifs.',storage:'L’archivage des fichiers n’a pas abouti.',unavailable:'Le moteur documentaire était indisponible.'};
+export const billingStateLabel=(document:BillingDocument|null|undefined)=>document?.quote?.revision.abandoned?'Version abandonnée':!document?.issuance?'Brouillon':document.issuance.state==='ready'?'Finalisé':document.issuance.state==='failed'?'À reprendre':'Finalisation en cours';
 const message=(e:unknown)=>e instanceof Error?e.message:'La finalisation n’a pas abouti.';
+export type DocumentStatusHandle={finalize:()=>Promise<BillingDocument|undefined>};
+type Props={serviceConfigured:boolean;record:BillingDocument|null;saved:boolean;busy:boolean;transport:BillingTransport;onDocument:(d:BillingDocument)=>void;onBusy:(v:string)=>void;onNotice:(v:string)=>void;onSave:()=>Promise<BillingDocument|undefined>;draftIssues:BillingIssue[];onReview:()=>void};
 
-export function IssuancePanel({record,saved,busy,transport,onDocument,onBusy,onNotice,onDownload,draftIssues,onReview,serviceConfigured=true}:{serviceConfigured?:boolean;record:BillingDocument|null;saved:boolean;busy:boolean;transport:BillingTransport;onDocument:(d:BillingDocument)=>void;onBusy:(value:string)=>void;onNotice:(value:string)=>void;onDownload:(kind:string)=>void;draftIssues:BillingIssue[];onReview:()=>void}){
- const selected='automatic';
- const [error,setError]=useState(''),[checking,setChecking]=useState(false),[expanded,setExpanded]=useState(false);
+export const DocumentStatus=forwardRef<DocumentStatusHandle,Props>(function DocumentStatus({record,saved,busy,transport,onDocument,onBusy,onNotice,onSave,draftIssues,onReview,serviceConfigured},ref){
+ const [error,setError]=useState('');
  const live=useRef(true),running=useRef(false),attempt=useRef<{key:string;id:string}|null>(null);
  useEffect(()=>{live.current=true;return()=>{live.current=false;};},[]);
- async function verify(){if(!record||running.current)return;running.current=true;setChecking(true);onBusy('issue-check');try{const latest=await transport.get(record.id);if(live.current){onDocument(latest);setError('');}}catch(e){if(live.current)setError(message(e));}finally{running.current=false;if(live.current){setChecking(false);onBusy('');}}}
  async function finish(){
-  if(!record||!saved||busy||running.current||(!record.issuance&&!selected))return;
-  if(!record.issuance&&draftIssues.length){onReview();return;}
-  if(!record.issuance&&!window.confirm('Finaliser ce document ? Un numéro sera réservé et son contenu sera figé. Vérifiez l’aperçu et les coordonnées avant de poursuivre.'))return;
-  running.current=true;onBusy('issue');setError('');
+  if(!record||busy||running.current)return;
+  if(record.issuance?.state==='ready')return record;
+  if(!record.issuance&&draftIssues.length){onReview();onNotice('Complétez les champs indiqués avant de finaliser.');return;}
+  if(!record.issuance&&!window.confirm('Passer en statut Finalisé ? Le contenu sera figé et le document définitif sera généré.'))return;
+  running.current=true;setError('');
   try{
    let current=record;
-   if(!current.issuance){const key=current.id+':'+current.version+':'+selected;if(attempt.current?.key!==key)attempt.current={key,id:crypto.randomUUID()};current=await transport.issue(current.id,current.version,attempt.current.id,selected);if(!live.current)return;onDocument(current);}
+   if(!saved&&!current.issuance){const updated=await onSave();if(!updated||!live.current)return;current=updated;}
+   onBusy('issue');
+   if(!current.issuance){const key=current.id+':'+current.version;if(attempt.current?.key!==key)attempt.current={key,id:crypto.randomUUID()};current=await transport.issue(current.id,current.version,attempt.current.id,'automatic');if(!live.current)return;onDocument(current);}
    current=await transport.finalize(current.id,current.version);if(!live.current)return;
-   onDocument(current);onNotice(current.status==='issued'?'Document finalisé et fichiers archivés. Aucune transmission à AGIRIS n’a été effectuée.':current.status==='issue_failed'?'La génération doit être reprise. Le numéro et le document sont conservés.':'Le traitement est en cours. Actualisez son état dans un instant.');
+   onDocument(current);onNotice(current.status==='issued'?'Document finalisé.':current.status==='issue_failed'?'La génération doit être reprise. Le numéro est conservé.':'Génération en cours.');
+   return current;
   }catch(e){
    if(!live.current)return;setError(message(e));
-   try{const latest=await transport.get(record.id);if(live.current)onDocument(latest);}catch{if(live.current)setError(message(e)+' Le résultat reste à vérifier avant toute nouvelle tentative.');}
+   try{const latest=await transport.get(record.id);if(live.current)onDocument(latest);}catch{if(live.current)setError(message(e)+' Actualisez le document avant de réessayer.');}
   }finally{running.current=false;if(live.current)onBusy('');}
  }
- const issue=record?.issuance;
- if(!issue&&!serviceConfigured)return <div className="bill-service-pending" role="status">PDF & émission à activer <Help label="Activation des PDF et de l’émission" text="Vos brouillons et l’aperçu en direct sont disponibles. Le moteur documentaire doit être raccordé pour produire les nouveaux PDF et Factur-X. Le convertisseur des factures importées reste dans Historique & dossiers."/></div>;
- if(!issue&&record?.quote&&(record.quote.revision.abandoned||record.quote.revision.currentId!==record.id))return null;
- if(issue?.state==='ready')return issue.files.length>1?<details className="bill-archive-tools"><summary>Fichiers techniques et contrôles <Help label="Fichiers techniques" text="Le Factur-X contient déjà le XML. Ces fichiers donnent accès aux données structurées et aux rapports de contrôle."/><span>⌄</span></summary><div className="bill-issuance-actions">{issue.files.filter(kind=>kind!=='pdf').map(kind=><button type="button" className="bill-button" key={kind} disabled={busy} onClick={()=>onDownload(kind)}>{({xml:'Télécharger le XML',validation:'Rapport de validation',verapdf:'Rapport PDF/A'} as Record<string,string>)[kind]||kind}</button>)}</div></details>:null;
- return <details className="bill-finalize-disclosure" open={!!issue||expanded} onToggle={e=>{if(!issue)setExpanded(e.currentTarget.open);}}><summary><span>{issue?'Terminer la génération':'Vérifier et finaliser'}</span>{issue&&<small>{issue.number}</small>}<span>⌄</span></summary><section className="bill-issuance" aria-label="Finalisation du document"><div><h2 className="bill-title-help">{issue?issue.number:'Finaliser le document'}{!issue&&<Help label="Finalisation" text="Le contrôle préalable vérifie le document avant son émission. La finalisation fige son contenu et archive ses fichiers."/>}</h2>{issue&&<p>{billingStateLabel(record)} · Contenu figé.</p>}</div>
-  {error&&<p role="alert" className="bill-issuance-error">{error}</p>}
-  {!record?<p>Enregistrez votre brouillon pour accéder à la finalisation.</p>:<>
-   {!issue&&<p className="bill-title-help">Numérotation automatique <Help label="Numérotation automatique" text="Le numéro est réservé dès la création et conservé à la finalisation. Sa date correspond à la réservation. La facture reprend aussi la référence du devis."/></p>}
-   {issue?.state==='failed'&&<p role="status">{failures[issue.errorCode||'']||'La finalisation a échoué.'} Une reprise conservera le même numéro.</p>}
-   {!saved&&<p>Enregistrez les modifications avant de finaliser.</p>}
-   {!issue&&!!draftIssues.length&&<p>{draftIssues.length} point{draftIssues.length>1?'s':''} à compléter avant la finalisation.</p>}
-   <div className="bill-issuance-actions">{!issue&&!!draftIssues.length?<button type="button" className="bill-button bill-button-primary" disabled={busy} onClick={onReview}>Compléter le document</button>:<button className="bill-button bill-button-primary" disabled={busy||!saved||(!issue&&!selected)} onClick={finish}>{busy&&!checking?'Finalisation…':issue?'Reprendre la génération':'Finaliser et générer'}</button>}{issue&&<button className="bill-button" disabled={busy} onClick={verify}>{checking?'Vérification…':'Actualiser l’état'}</button>}</div>
-  </>}
- </section></details>;
-}
+ useImperativeHandle(ref,()=>({finalize:finish}));
+ const issue=record?.issuance,ready=issue?.state==='ready',inactive=!!record?.quote&&(record.quote.revision.abandoned||record.quote.revision.currentId!==record.id);
+ const value=ready?'issued':issue?'pending':'draft';
+ return <div className="bill-status-control" data-ready={ready}>
+  <label className="bill-status-select">{ready?<CheckCircle2 size={17}/>:<CircleDashed size={17}/>}<select aria-label="Statut du document" value={value} disabled={busy||!record||ready||inactive||!serviceConfigured} onChange={()=>{void finish();}}>
+   <option value="draft" disabled={!!issue}>Brouillon</option>{issue&&!ready&&<option value="pending">{billingStateLabel(record)}</option>}<option value="issued">Finalisé</option>
+  </select>{!ready&&<ChevronDown size={14}/>}</label>
+  <Help label="Statut du document" text={ready?'Le document définitif est archivé. Pour corriger un devis, créez une nouvelle version.':!serviceConfigured?'Le moteur PDF est indisponible.':'Choisissez Finalisé pour figer le document et générer ses fichiers définitifs. Le numéro déjà réservé est conservé.'}/>
+  {issue&&!ready&&<button className="bill-button" disabled={busy} onClick={()=>{void finish();}}>Reprendre</button>}
+  {error&&<span className="bill-status-error" role="alert">{error}</span>}
+ </div>;
+});
 
+export function IssuanceFiles({record,busy,onDownload}:{record:BillingDocument;busy:boolean;onDownload:(kind:string)=>void}){
+ const files=record.issuance?.files.filter(f=>f!=='pdf')||[];
+ return files.length?<details className="bill-archive-tools"><summary>Fichiers techniques et contrôles</summary><div className="bill-issuance-actions">{files.map(kind=><button type="button" className="bill-button" key={kind} disabled={busy} onClick={()=>onDownload(kind)}>{({xml:'Télécharger le XML',validation:'Rapport de validation',verapdf:'Rapport PDF/A'} as Record<string,string>)[kind]||kind}</button>)}</div></details>:null;
+}
 export function NumberingPanel({onDirty}:{transport:BillingTransport;sellerSiren:string;busy:boolean;onBusy:(value:string)=>void;onDirty:(value:boolean)=>void}){
  useEffect(()=>{onDirty(false);},[onDirty]);
  return <section className="bill-issuance bill-numbering" aria-label="Numérotation"><h2 className="bill-title-help">Numérotation automatique <Help label="Numérotation" text="Le numéro est réservé à la création et ne sera pas réutilisé. Le compteur des devis est quotidien ; celui des factures est continu. La référence du devis reste visible sur sa facture."/></h2><div className="bill-fields"><p><strong>Devis</strong><br/>AAAAMMJJ-001</p><p><strong>Factures</strong><br/>F-AAAAMMJJ-001</p></div></section>;

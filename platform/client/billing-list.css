@@ -52,3 +52,12 @@
  .bill-app .bill-reset-filters {animation:none}
  .bill-app .bill-filter-control {transition:none}
 }
+
+.bill-list-create-actions{display:flex;gap:8px;flex-wrap:wrap}
+@media(max-width:720px){
+ .bill-app .bill-list-table tr[data-imported-invoice] td[data-column=action]{position:static;grid-column:1/-1;padding-top:4px}
+ .bill-app .bill-list-table tr[data-imported-invoice] td[data-column=document]{padding-right:0}
+ .bill-import-actions{justify-content:flex-start;flex-wrap:wrap}
+}
+
+.bill-project-filter{min-width:180px;max-width:330px}.bill-project-filter .cdi-select-trigger{min-height:38px;padding:8px 10px}

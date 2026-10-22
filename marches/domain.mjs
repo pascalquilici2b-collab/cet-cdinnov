@@ -39,6 +39,9 @@ export function validateProjects(input=[],documentIds=new Set()){
  const id=(value,all)=>{const v=text(value,'Identifiant projet / commande',80,true);if(!/^[a-zA-Z0-9_-]+$/.test(v)||all.has(v))throw new Error('Identifiant projet / commande invalide ou en double.');all.add(v);return v;};
  return input.map(p=>{
   const project={id:id(p?.id,seen),name:text(p.name,'Nom du projet',180,true),code:text(p.code,'ID du projet',80),...(p.programme!==undefined?{programme:text(p.programme,'Programme du projet',160)}:{}),notes:text(p.notes,'Notes du projet',2000),archived:p.archived===true,orders:[]};
+  if(p.startDate!==undefined)project.startDate=date(p.startDate,'Début du projet');
+  if(p.endDate!==undefined)project.endDate=date(p.endDate,'Fin du projet');
+  if(project.startDate&&project.endDate&&project.endDate<project.startDate)throw new Error('La fin du projet précède son début.');
   if(!Array.isArray(p.orders)||p.orders.length>100)throw new Error('Liste de bons de commande invalide (100 maximum par projet).');
   const refs=new Set();
   project.orders=p.orders.map(o=>{

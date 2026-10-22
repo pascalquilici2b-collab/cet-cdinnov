@@ -6,6 +6,8 @@ import type {CSSProperties} from 'react';
 import type {AgendaEntry,AgendaPerson,AgendaSnapshot,PendingLeave} from './agenda-domain';
 import {calendarWeeks,filterEntries,participants,dateLabel,range} from './agenda-domain';
 import './agenda.css';
+import './activity-select.css';
+export {projectActivity} from '../project-activity';
 import contrast from './agenda-contrast.component.css';
 export interface AgendaProps {snapshot:AgendaSnapshot;change:(patch:Partial<Pick<AgendaSnapshot,'person'|'kind'|'type'|'mode'|'panel'|'month'|'year'>>)=>void;open:(kind:'trip'|'leave'|'day',id:string)=>void;refresh:()=>void;balances:()=>void;validate:(p:PendingLeave)=>void;reject:(p:PendingLeave)=>void;validateAll:()=>void;exportCSV:()=>void;}
 export function Avatar({person}:{person?:AgendaPerson}){const [failed,setFailed]=useState(false);return <span className="agenda-avatar" aria-hidden="true"><span>{person?.name.split(/[\s.@_-]+/).filter(Boolean).slice(0,2).map(n=>n[0]).join('').toUpperCase()}</span>{person?.photo&&!failed&&<img src={person.photo} alt="" loading="lazy" referrerPolicy="no-referrer" onError={()=>setFailed(true)}/>}</span>;}

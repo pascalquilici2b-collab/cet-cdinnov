@@ -87,7 +87,7 @@ export interface BillingContext {
   documentService:{configured:boolean};
   clients:{id:string; name:string}[];
   businessCodes:{id:string; code:string; label:string; client:string}[];
-  markets:{id:string;version?:number; title:string; reference:string; clientName:string;clientId?:string;prices?:import('./client/markets-contracts').Price[];projects?:import('./client/markets-contracts').MarketProject[]}[];
+  markets:{id:string;version?:number; title:string; reference:string; clientName:string;clientId?:string;activity?:import('./project-activity').Activity;prices?:import('./client/markets-contracts').Price[];projects?:import('./client/markets-contracts').MarketProject[]}[];
   seller:BillingParty;
   settings:BillingSettings;
 }

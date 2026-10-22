@@ -6,7 +6,8 @@ const allocation=`EXISTS(SELECT 1 FROM billing_draft_numbers n WHERE n.document_
 const guard=pick(billingNumberingSchema,'billing_issuance_guard').replace(
  `AND NEW.sequence_value=s.next_value AND NEW.sequence_value<=999999999\n   AND NEW.number=${formatted}`,
  `AND NEW.sequence_value<=999999999 AND (${allocation} OR (NOT EXISTS(SELECT 1 FROM billing_draft_numbers n WHERE n.document_id=NEW.document_id) AND NEW.sequence_value=s.next_value AND NEW.number=${formatted}))`
-).replace('THEN RAISE(ABORT,\'BILLING_RESERVATION_CONFLICT\')',`THEN RAISE(ABORT,'BILLING_RESERVATION_CONFLICT')`);
+).replace('AND NEW.issue_date BETWEEN s.start_date AND s.end_date',
+ `AND ((s.kind='quote' AND ${allocation}) OR NEW.issue_date BETWEEN s.start_date AND s.end_date)`);
 if(!guard.includes(allocation))throw Error('Numbering guard replacement failed');
 export const billingDraftNumberSchema=[
  `CREATE TABLE IF NOT EXISTS billing_draft_numbers(
@@ -37,7 +38,8 @@ export const billingDraftNumberSchema=[
  'DROP TRIGGER IF EXISTS billing_issuance_guard',guard,
  'DROP TRIGGER IF EXISTS billing_issuance_insert',
  pick(billingIssuanceSchema,'billing_issuance_insert').replace('WHERE id=NEW.series_id;','WHERE id=NEW.series_id AND NOT EXISTS(SELECT 1 FROM billing_draft_numbers WHERE document_id=NEW.document_id);'),
- `CREATE TRIGGER IF NOT EXISTS billing_issuance_number_chronology BEFORE INSERT ON billing_issuances BEGIN
+ 'DROP TRIGGER IF EXISTS billing_issuance_number_chronology',
+ `CREATE TRIGGER IF NOT EXISTS billing_issuance_number_chronology BEFORE INSERT ON billing_issuances WHEN (SELECT kind FROM billing_documents WHERE id=NEW.document_id)='invoice' BEGIN
  SELECT CASE WHEN EXISTS(SELECT 1 FROM billing_issuances WHERE series_id=NEW.series_id AND (issue_date>NEW.issue_date OR (sequence_value>NEW.sequence_value AND issue_date<NEW.issue_date)))
  THEN RAISE(ABORT,'BILLING_RESERVATION_CONFLICT') END; END`
 ];

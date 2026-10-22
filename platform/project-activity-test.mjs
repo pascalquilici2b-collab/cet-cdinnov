@@ -1,0 +1,32 @@
+import assert from 'node:assert/strict';
+import {projectActivity,marketActivity} from './project-activity.ts';
+import {validateProjects,emptyMarket} from '../marches/domain.mjs';
+import {billingPreview} from './billing-preview.mjs';
+const project={id:'project-dates',name:'Projet dates',code:'DATES',notes:'',archived:false,orders:[],startDate:'2026-10-01',endDate:'2026-10-31'};
+for(const [day,state] of [['2026-09-30','inactive'],['2026-10-01','active'],['2026-10-31','active'],['2026-11-01','inactive']])assert.equal(projectActivity(project,day).state,state);
+assert.equal(projectActivity({...project,endDate:''}).state,'unknown');assert.equal(projectActivity({...project,archived:true}).state,'inactive');
+assert.throws(()=>validateProjects([{...project,endDate:'2026-09-30'}]),/précède/);assert.throws(()=>validateProjects([{...project,startDate:'2026-02-30'}]),/invalide/);
+const market={...emptyMarket(),title:'Marché test',clientName:'Client dates',startBasis:'notification',notificationDate:'2026-10-01',initialDurationMonths:12,projects:[project]};
+assert.equal(marketActivity(market,'2027-09-30').state,'active');assert.equal(marketActivity(market,'2027-10-01').state,'inactive');
+assert.equal(marketActivity({...market,startBasis:'first_order'},'2026-10-23').state,'unknown');
+assert.equal(marketActivity({...market,startBasis:'first_order',projects:[{orders:[{reference:'BC1',date:'2026-01-01'}]}]},'2026-10-23').state,'active');
+assert.equal(marketActivity({...market,startBasis:'date',startDate:'2024-02-29'},'2025-02-28').endDate,'2025-02-27');
+assert.equal(marketActivity({...market,renewalCount:4},'2028-01-01').state,'inactive');
+const renewed={...market,periods:[{status:'validated',startDate:'2028-01-01',endDate:'2028-12-31'}]};
+assert.equal(marketActivity(renewed,'2028-01-01').state,'active');assert.equal(marketActivity(renewed,'2027-11-01').state,'inactive');
+assert.equal(marketActivity({...market,status:'archived'},'2026-10-23').state,'inactive');
+const p=await billingPreview();
+try{
+ const headers={Origin:'https://app.cdinnov.eu',Authorization:'Bearer '+p.sessions[0].token,'Content-Type':'application/json'};
+ const r=await p.ctx.call('markets',{method:'POST',headers,body:JSON.stringify({id:'market-dates',market})});assert.equal(r.status,201);
+ const read=async()=>{const r=await p.ctx.worker.dispatchFetch('https://preview.test/api/v1/projects',{headers});assert.equal(r.status,200);return (await r.json()).projects.find(p=>p.id===project.id);};
+ let saved=await read();assert.equal(saved.startDate,project.startDate);assert.equal(saved.endDate,project.endDate);
+ const write=body=>p.ctx.worker.dispatchFetch('https://preview.test/api/v1/projects',{method:'PUT',headers,body:JSON.stringify(body)});
+ const body={id:project.id,marketId:'market-dates',marketVersion:saved.marketVersion,name:project.name,code:'RENAMED',notes:'',archived:false};
+ assert.equal((await write(body)).status,200);saved=await read();assert.equal(saved.endDate,project.endDate,'Old clients must preserve project dates');
+ assert.equal((await write({...body,marketVersion:saved.marketVersion,endDate:'2026-01-01'})).status,400);
+ assert.equal((await write({...body,marketVersion:saved.marketVersion,endDate:'2027-10-31'})).status,200);saved=await read();assert.equal(saved.endDate,'2027-10-31');
+ assert.equal((await write({...body,marketVersion:saved.marketVersion-1,endDate:'2028-10-31'})).status,409);
+ const c=await(await p.ctx.worker.dispatchFetch('https://preview.test/api/v1/billing/context',{headers})).json();assert.ok(c.markets.find(m=>m.id==='market-dates').activity);assert.equal(c.markets.find(m=>m.id==='market-dates').projects[0].endDate,'2027-10-31');
+ console.log('OK project and market activity: boundaries, missing dates, renewal, API persistence, invalid dates, conflict and legacy compatibility.');
+}finally{await p.close();}

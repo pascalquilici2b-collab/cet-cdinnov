@@ -692,7 +692,7 @@ body.authed .auth-gate{display:none}
 <link rel="stylesheet" href="platform/design-system.css">
 <link rel="stylesheet" href="design/portal.css?v=apple1">
 <link rel="stylesheet" href="design/apple.css?v=portalaccess1">
-<link rel="stylesheet" href="design/interactions.css?v=drafts-20261022d">
+<link rel="stylesheet" href="design/interactions.css?v=unified-20261023a">
 <script src="platform/icons.js?v=expenseui1"></script>
 <link rel="stylesheet" href="/platform/loading.css?v=screen-20261020">
 <div id="authGate" class="auth-gate" data-loading="true" aria-busy="true">
@@ -2198,7 +2198,7 @@ async function exportNoteFraisPDF(id,preview=false){
     const filename='Note_de_frais_N'+(n.numero||'')+'_'+(s.nom||'').replace(/\s+/g,'')+'.pdf';
     if(AUTH_USER!==user||!financeExpenseAllowed(n)||preview&&!id&&nfDraft!==initialDraft)return;
     if(preview){
-      const blob=doc.output('blob'),module=await financeModule();if(AUTH_USER!==user||!financeExpenseAllowed(n))return;if(!document.getElementById('billingStyle')){const css=document.createElement('link');css.id='billingStyle';css.rel='stylesheet';css.href='platform/billing.css?v=drafts-20261022d';document.head.append(css);}
+      const blob=doc.output('blob'),module=await financeModule();if(AUTH_USER!==user||!financeExpenseAllowed(n))return;if(!document.getElementById('billingStyle')){const css=document.createElement('link');css.id='billingStyle';css.rel='stylesheet';css.href='platform/billing.css?v=unified-20261023a';document.head.append(css);}
       modal('<div class="modal-head"><h3>Aperçu — Note de frais N°'+esc(n.numero)+'</h3><div class="grow"></div><button type="button" class="btn btn-ghost" id="nfPreviewDownload">Télécharger PDF</button><button type="button" class="btn btn-ghost" id="nfPreviewClose">'+(id?'Fermer':'Retour')+'</button></div><div class="modal-body bill-app"><div id="nfPreviewRoot"></div></div>',true);
       financeEditorDispose=module.mountExpensePreview($('#nfPreviewRoot'),blob);$('#nfPreviewDownload').onclick=()=>doc.save(filename);$('#nfPreviewClose').onclick=()=>id?closeModal():renderNoteEditor();
     }else{doc.save(filename);toast('PDF généré');}
@@ -2243,9 +2243,10 @@ function caCodeKey(c){ return String(c.code1==null?'':c.code1)+String(c.code2==n
 function eurHT(n){ return (Number(n)||0).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'; }
 function moisAnnee(d){ if(!d) return '—'; const dd=new Date(String(d).slice(0,10)+'T00:00:00'); if(isNaN(dd)) return '—'; return MOIS_FR[dd.getMonth()]+' '+dd.getFullYear(); }
 function billingNavigation(active){
-  return '<nav class="billing-nav no-print" aria-label="Rubriques du logiciel de facturation">'+[['modern','Facturation'],['factures','Factures importées'],['codes','Codes affaires'],['marches','Marchés et contrats']].map(([id,label])=>`<button type="button" class="btn btn-ghost" onclick="setBillingSection('${id}')" ${active===id?'aria-current="page"':''}>${label}</button>`).join('')+'</nav>';
+  return '<nav class="billing-nav no-print" aria-label="Rubriques du logiciel de facturation">'+[['modern','Factures et devis'],['codes','Codes affaires'],['marches','Marchés et contrats']].map(([id,label])=>`<button type="button" class="btn btn-ghost" onclick="setBillingSection('${id}')" ${active===id?'aria-current="page"':''}>${label}</button>`).join('')+'</nav>';
 }
 function setBillingSection(section){
+  if(section==='factures')section='modern';
   if(section==='marches'){setView('marches');return;}
   setView('facturier',section);
 }
@@ -2422,8 +2423,8 @@ let financeModulePromise=null,financeMounted=null,financeEpoch=0,financeView=nul
 let financeEditorDispose=null,financeEditorEpoch=0,financeClientStatus='',financeClientError=false;
 let nfPage=1,nfPer=20;
 function financeModule(){
-  if(!$('#financeStyle')){const link=document.createElement('link');link.id='financeStyle';link.rel='stylesheet';link.href='platform/finance.css?v=drafts-20261022d';document.head.append(link);}
-  return financeModulePromise ||= import('./platform/finance.js?v=drafts-20261022d').catch(error=>{financeModulePromise=null;throw error;});
+  if(!$('#financeStyle')){const link=document.createElement('link');link.id='financeStyle';link.rel='stylesheet';link.href='platform/finance.css?v=unified-20261023a';document.head.append(link);}
+  return financeModulePromise ||= import('./platform/finance.js?v=unified-20261023a').catch(error=>{financeModulePromise=null;throw error;});
 }
 function financeForget(){financeEpoch++;financeMounted?.dispose();financeMounted=null;financeView=null;$('#financeRoot')?.remove();}
 function financeEditorForget(){financeEditorEpoch++;if(financeEditorDispose){financeEditorDispose();financeEditorDispose=null;}}
@@ -2482,7 +2483,7 @@ async function financeOpenEditor(kind,record,existing){
 
 /* React personnel screens. Existing CET calculations, imports and storage remain authoritative. */
 let personnelPromise=null,personnelMounted=null,personnelEpoch=0,personnelView=null,personnelEditorDispose=null,personnelEditorEpoch=0;
-function personnelModule(){return personnelPromise||=import('./platform/personnel.js?v=drafts-20261022d').catch(error=>{personnelPromise=null;throw error;});}
+function personnelModule(){return personnelPromise||=import('./platform/personnel.js?v=unified-20261023a').catch(error=>{personnelPromise=null;throw error;});}
 function personnelStyle(){if(!$('#personnelStyle')){const css=document.createElement('link');css.id='personnelStyle';css.rel='stylesheet';css.href='platform/personnel.css';document.head.append(css);}}
 function personnelEditorForget(){personnelEditorEpoch++;if(personnelEditorDispose){personnelEditorDispose();personnelEditorDispose=null;}}
 function personnelForget(){personnelEpoch++;if(personnelMounted){personnelMounted.dispose();personnelMounted=null;}personnelView=null;$('#personnelRoot')?.remove();}
@@ -3411,9 +3412,9 @@ const AGENDA_TYPES=['COPIL','Évènement','Réunion projet','Suivi client','Form
 const AGENDA_PORTRAITS={'quilici.pascal@cdinnov.com':'pascal-quilici','pasqualini.david@cdinnov.com':'david-pasqualini','boulanger.albert@cdinnov.com':'albert-boulanger','calendini.matthieu@cdinnov.com':'matthieu-calendini','vincenti.paulmichel@cdinnov.com':'paul-michel-vincenti'};
 const agendaState={trips:[],leaves:null,members:[],loaded:false,loading:false,error:'',notice:'',updated:null,person:'',type:'',kind:'',panel:'calendar',mode:matchMedia('(max-width:650px)').matches?'list':'month',month:new Date(new Date().getFullYear(),new Date().getMonth(),1),day:ymd(new Date()),epoch:0};
 let agendaTimer=null,agendaConfirmationTimer=null,agendaEditing=null,agendaFocus=null;
-let agendaPickers={};
+let agendaPickers={},agendaSharedProjects=[];
 let agendaModeExplicit=false,agendaPromise=null,agendaMounted=null,agendaRenderEpoch=0,agendaEditorDispose=null,agendaEditorEpoch=0;
-function agendaModule(){return agendaPromise||=import('./platform/agenda.js?v=drafts-20261022d').catch(error=>{agendaPromise=null;throw error;});}
+function agendaModule(){return agendaPromise||=import('./platform/agenda.js?v=unified-20261023a').catch(error=>{agendaPromise=null;throw error;});}
 function agendaStyleSheet(){if(!$('#agendaReactStyle')){const link=document.createElement('link');link.id='agendaReactStyle';link.rel='stylesheet';link.href='platform/agenda.css';document.head.append(link);}}
 function agendaReactForget(){agendaRenderEpoch++;if(agendaMounted){agendaMounted.dispose();agendaMounted=null;}$('#agendaRoot')?.remove();}
 function agendaEditorForget(){agendaEditorEpoch++;if(agendaEditorDispose){agendaEditorDispose();agendaEditorDispose=null;}agendaPickers={};}
@@ -3430,8 +3431,10 @@ async function agendaOpenEditor(kind,t,day,mat){
  agendaModal('<div id="agendaEditorRoot">'+loadingMarkup('Chargement du formulaire…')+'</div>',kind==='leave');
  const element=$('#agendaEditorRoot'),epoch=++agendaEditorEpoch,active=()=>user===AUTH_USER&&element.isConnected&&epoch===agendaEditorEpoch;
  try{const module=await agendaModule();if(!active())return;
+  agendaSharedProjects=[];
   const emails=kind==='trip'?agendaUnique([t.owner||user,...agendaState.members.map(m=>m.email),...agendaParticipants(t)]):[];
   agendaEditorDispose=module.mountAgendaEditor(element,{kind,trip:t,day,viewer:user,people:emails.map(id=>({id,name:agendaName(id),photo:agendaPortrait(id)})),employees:congesSalList().map(s=>({id:s.matricule,name:[s.nom,s.prenom].filter(Boolean).join(' ')})),selectedEmployee:congesAdmin()?mat||'':congesMyMat()||'',admin:congesAdmin(),leaveTypes:CONGES_TYPES,close:()=>{if(active())agendaClose();},saveTrip:e=>{if(active())return agendaSaveTrip(e);},saveLeave:()=>{if(active())saveConge();},leaveDays:congePeriodeJours,init:()=>{if(kind==='trip')agendaInitTripForm(t);}});
+  if(kind==='trip')void portalFetch(budgetsApi().replace(/\/budgets\/?$/,'')+'/api/v1/projects').then(r=>r.json()).then(r=>{if(active()){agendaSharedProjects=(r.projects||[]).filter(p=>!p.archived).map(p=>({...p,activity:module.projectActivity(p)}));agendaPickers.project?.refresh();}}).catch(()=>{});
   if(kind==='leave')element.querySelector('select:not([disabled]),input:not([disabled])')?.focus();
  }catch(error){if(active()){element.textContent='Le formulaire ne peut pas être chargé. Fermez-le et réessayez.';toast(error.message);}}
 }
@@ -3535,15 +3538,19 @@ function agendaOpenDay(day){
 }
 function agendaCatalog(field,current){
   if(field==='type')return AGENDA_TYPES;
-  const values=field==='project'?AGENDA_SITE_CATALOG.projects:AGENDA_SITE_CATALOG.clients.map(c=>c.name);
+  const values=field==='project'?[...agendaSharedProjects.map(p=>p.name),...AGENDA_SITE_CATALOG.projects]:AGENDA_SITE_CATALOG.clients.map(c=>c.name);
   return agendaUnique([...values,...agendaState.trips.flatMap(t=>agendaValues(t,field)),...current]);
+}
+function agendaProjectBadge(name){
+ const matches=agendaSharedProjects.filter(p=>p.name.toLocaleLowerCase('fr')===name.toLocaleLowerCase('fr')),activity=matches.length===1?matches[0].activity:null,state=activity?.state||'unknown';
+ return `<span class="cdi-activity" data-state="${state}" title="${esc(activity?.reason||'Renseignez les dates dans la fiche projet.')}" style="margin-left:auto"><i aria-hidden="true"></i>${state==='active'?'Actif':state==='inactive'?'Inactif':'Dates à renseigner'}</span>`;
 }
 function agendaCatalogField(field,label){
   return `<div class="form-row agenda-combo"><label for="ag-${field}">${label}${field==='type'?' *':''}</label><div class="agenda-combo-control"><div class="agenda-combo-tags" id="ag-${field}-tags"></div><input id="ag-${field}" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="ag-${field}-options" autocomplete="off" maxlength="${field==='client'?300:200}" placeholder="${field==='type'?'Choisir les objets…':'Choisir ou spécifier…'}" ${field==='type'?'aria-required="true"':''}><button type="button" class="agenda-combo-toggle" aria-label="Afficher la liste : ${label}" aria-expanded="false" aria-controls="ag-${field}-options"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button></div><div class="agenda-combo-options" id="ag-${field}-options" role="listbox" aria-label="${label}" aria-multiselectable="true" hidden></div></div>`;
 }
 function agendaBindCatalog(field,initial){
   const input=$('#ag-'+field),root=input.closest('.agenda-combo'),list=$('#ag-'+field+'-options'),toggle=root.querySelector('.agenda-combo-toggle'),tags=$('#ag-'+field+'-tags');
-  const values=agendaCatalog(field,initial),max=field==='type'?AGENDA_TYPES.length:Infinity;let selected=[...initial],active=-1;
+  let values=agendaCatalog(field,initial);const max=field==='type'?AGENDA_TYPES.length:Infinity;let selected=[...initial],active=-1;
   const expanded=open=>{list.hidden=!open;input.setAttribute('aria-expanded',String(open));toggle.setAttribute('aria-expanded',String(open));};
   const close=()=>{expanded(false);input.removeAttribute('aria-activedescendant');active=-1;};
   const renderTags=()=>{
@@ -3561,10 +3568,10 @@ function agendaBindCatalog(field,initial){
   const show=(all=false)=>{
     const query=all?'':input.value.trim().toLocaleLowerCase('fr'),matches=(field==='type'?values:agendaUnique([...values,...selected])).filter(v=>v.toLocaleLowerCase('fr').includes(query));
     active=-1;input.removeAttribute('aria-activedescendant');
-    list.innerHTML=matches.map((v,i)=>`<button type="button" role="option" tabindex="-1" aria-selected="${selected.includes(v)}" ${selected.length>=max&&!selected.includes(v)?'disabled':''} id="ag-${field}-opt-${i}" data-value="${esc(v)}"><span class="agenda-combo-check" aria-hidden="true">${selected.includes(v)?'✓':''}</span><span>${esc(v)}</span></button>`).join('')+(field!=='type'&&selected.length<max?`<button type="button" role="option" tabindex="-1" aria-selected="false" id="ag-${field}-custom" class="agenda-combo-custom">${input.value.trim()?'Utiliser « '+esc(input.value.trim())+' »':'Spécifiez…'}</button>`:'');
+    list.innerHTML=matches.map((v,i)=>`<button type="button" role="option" tabindex="-1" aria-selected="${selected.includes(v)}" ${selected.length>=max&&!selected.includes(v)?'disabled':''} id="ag-${field}-opt-${i}" data-value="${esc(v)}"><span class="agenda-combo-check" aria-hidden="true">${selected.includes(v)?'✓':''}</span><span>${esc(v)}</span>${field==='project'?agendaProjectBadge(v):''}</button>`).join('')+(field!=='type'&&selected.length<max?`<button type="button" role="option" tabindex="-1" aria-selected="false" id="ag-${field}-custom" class="agenda-combo-custom">${input.value.trim()?'Utiliser « '+esc(input.value.trim())+' »':'Spécifiez…'}</button>`:'');
     expanded(true);list.querySelectorAll('button').forEach(button=>{button.onmousedown=e=>e.preventDefault();button.onclick=()=>choose(button.dataset.value??input.value);});
   };
-  agendaPickers[field]={close,root,values:()=>[...selected],commit:()=>{
+  agendaPickers[field]={close,root,refresh:()=>{values=agendaCatalog(field,selected);if(!list.hidden)show();},values:()=>[...selected],commit:()=>{
     const value=input.value.trim();input.setCustomValidity('');
     if(value&&!selected.includes(value)){
       const exact=values.find(v=>v.toLocaleLowerCase('fr')===value.toLocaleLowerCase('fr'));
@@ -3883,6 +3890,9 @@ function agendaNotificationHTML(t){
     };
     return input.map((p) => {
       const project = { id: id(p?.id, seen), name: text(p.name, "Nom du projet", 180, true), code: text(p.code, "ID du projet", 80), ...p.programme !== void 0 ? { programme: text(p.programme, "Programme du projet", 160) } : {}, notes: text(p.notes, "Notes du projet", 2e3), archived: p.archived === true, orders: [] };
+      if (p.startDate !== void 0) project.startDate = date(p.startDate, "D\xE9but du projet");
+      if (p.endDate !== void 0) project.endDate = date(p.endDate, "Fin du projet");
+      if (project.startDate && project.endDate && project.endDate < project.startDate) throw new Error("La fin du projet pr\xE9c\xE8de son d\xE9but.");
       if (!Array.isArray(p.orders) || p.orders.length > 100) throw new Error("Liste de bons de commande invalide (100 maximum par projet).");
       const refs = /* @__PURE__ */ new Set();
       project.orders = p.orders.map((o) => {
@@ -4838,10 +4848,10 @@ function agendaNotificationHTML(t){
         const link = document.createElement("link");
         link.id = "marketStyle";
         link.rel = "stylesheet";
-        link.href = "platform/markets.css?v=drafts-20261022d";
+        link.href = "platform/markets.css?v=unified-20261023a";
         document.head.append(link);
       }
-      marketPromise = import("./platform/markets.js?v=drafts-20261022d").then((module) => {
+      marketPromise = import("./platform/markets.js?v=unified-20261023a").then((module) => {
         marketModule = module;
         marketPromise = null;
         if (currentView === "marches" && allowed()) render();
@@ -5083,8 +5093,8 @@ let billingMode='modern',billingModulePromise=null,billingMounted=null,billingTr
 function billingLockForLogout(){billingLogoutPending=true;$('#content').inert=true;}
 function billingUnlockLogout(){billingLogoutPending=false;$('#content').inert=false;}
 function billingModule(){
-  if(!$('#billingStyle')){const link=document.createElement('link');link.id='billingStyle';link.rel='stylesheet';link.href='platform/billing.css?v=drafts-20261022d';document.head.append(link);}
-  return billingModulePromise ||= import('./platform/billing.js?v=drafts-20261022d').catch(error=>{billingModulePromise=null;throw error;});
+  if(!$('#billingStyle')){const link=document.createElement('link');link.id='billingStyle';link.rel='stylesheet';link.href='platform/billing.css?v=unified-20261023a';document.head.append(link);}
+  return billingModulePromise ||= import('./platform/billing.js?v=unified-20261023a').catch(error=>{billingModulePromise=null;throw error;});
 }
 function billingLeave(){return billingMounted?.canLeave?.()!==false;}
 function billingForget(){
@@ -5095,7 +5105,7 @@ function renderBillingWorkspace(){
   if(!AUTH_USER||currentView!=='facturier'||billingMode!=='modern')return;
   financeForget();
   if(!isAdmin(AUTH_USER)){billingForget();$('#content').innerHTML='<div class="card card-pad" role="alert">La facturation est réservée à la direction.</div>';return;}
-  if(billingMounted&&$('#billingRoot'))return;
+  if(billingMounted&&$('#billingRoot')){billingMounted.update(billingWorkspaceProps());return;}
   const epoch=++billingEpoch,user=AUTH_USER;
   $('#content').innerHTML='<div id="billingRoot">'+loadingMarkup('Chargement de la facturation…')+'</div>';
   const element=$('#billingRoot');
@@ -5103,13 +5113,22 @@ function renderBillingWorkspace(){
   billingModule().then(module=>{
     if(!active())return;
     billingTransport=module.createBillingTransport({baseUrl:budgetsApi().replace(/\/budgets\/?$/,''),getToken:async()=>(await budgetsEnsureSession()).token,isActive:active});
-    billingMounted=module.mountBilling(element,{transport:billingTransport,onLegacy:section=>{
-      if(active())setBillingSection(({invoices:'factures',codes:'codes',markets:'marches'})[section]);
-    }});
+    billingMounted=module.mountBilling(element,billingWorkspaceProps());
   }).catch(()=>{
     if(!active())return;
     element.innerHTML='<div class="card card-pad" role="alert">Le chargement de la facturation a échoué. <button type="button" class="btn btn-ghost" onclick="billingForget();render()">Réessayer</button></div>';
   });
+}
+function billingWorkspaceProps(){
+  return {transport:billingTransport,imported:{invoices:factures().map(f=>({...f,validFacturx:facturxSnapshotMatches(f)})),act:(action,id)=>{
+    if(!AUTH_USER||!facturierAdmin())return;
+    const handlers={edit:openFacture,delete:delFacture,pdf:billingImportedPdf,facturx:openFacturX,downloadFacturx:facturxFinal,upload:openFacturePdf};
+    handlers[action]?.(id);
+  }},onLegacy:section=>setBillingSection(({invoices:'modern',codes:'codes',markets:'marches'})[section])};
+}
+async function billingImportedPdf(id){
+  const f=factures().find(f=>f.id===id);if(!f?.pdfSource)return;
+  try{await facturxDownload(f.pdfSource.url,f.pdfSource.name||'facture-'+f.number+'.pdf');}catch(e){toast('Téléchargement impossible : '+e.message);}
 }
 
 setView('dashboard');

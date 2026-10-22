@@ -23,7 +23,7 @@ try{
  await page.getByRole('navigation',{name:'Documents commerciaux'}).getByRole('button',{name:'Clients',exact:true}).click();await page.getByRole('button',{name:'Ouvrir la fiche Client fictif',exact:true}).click();
  await page.getByRole('button',{name:'Créer un devis pour ce client'}).click();await page.locator('summary').filter({hasText:'Prestations'}).click();
  await page.getByRole('button',{name:'+ Ajouter depuis le catalogue'}).click();const bpu=page.getByRole('region',{name:'BPU du client'});
- assert.equal(await bpu.getByLabel('Marché du client').inputValue(),'market-test');await bpu.getByRole('button',{name:/Assistance BPU/}).click();
+ assert.match(await bpu.getByRole('combobox',{name:'Marché du client'}).innerText(),/Client fictif/);await bpu.getByRole('button',{name:/Assistance BPU/}).click();
  assert.equal(await page.getByLabel('Prix unitaire HT (€)',{exact:true}).inputValue(),'800.00');
  assert.deepEqual(errors,[]);console.log('OK Marchés : dates/durée, suivi des BC archivés, frais, sélection BPU et reprise du tarif.');
 }finally{await browser.close();await preview.close();}

@@ -1,3 +1,4 @@
+import {marketActivity} from './project-activity';
 import {createHash} from 'node:crypto';
 import type {Database,Environment,Reply} from './contracts';
 import type {BillingContext,BillingDocument,BillingDraft,BillingIssue,BillingTotals,BillingSettings,BillingIssuanceSummary,BillingQuoteSummary} from './billing-contracts';
@@ -94,7 +95,7 @@ async function context(db:Database,env:Environment):Promise<BillingContext> {
   people:people.results.map(r=>JSON.parse(r.data_json)).map(p=>({id:text(p.matricule),name:[text(p.prenom),text(p.nom)].filter(Boolean).join(' ')})).filter(p=>p.id&&p.name),
   clients:clients.results.map(r=>JSON.parse(r.data_json)).filter(object).map(r=>({id:text(r.id),name:text(r.name)})).filter(r=>r.id&&r.name),
   businessCodes:codes.results.map(r=>JSON.parse(r.data_json)).filter(object).map(r=>({id:text(r.id),code:[r.code1,r.code2].filter(v=>typeof v==='number'||(typeof v==='string'&&v)).join(' '),label:text(r.label),client:text(r.client)})).filter(r=>r.id),
-  markets:markets.results.filter(r=>JSON.parse(r.payload).status!=='archived').map(r=>{const p=JSON.parse(r.payload);return {id:r.id,version:r.version,title:text(p.title),reference:text(p.reference),clientName:text(p.clientName),clientId:text(p.clientId),prices:Array.isArray(p.prices)?p.prices:[],projects:Array.isArray(p.projects)?p.projects:[]};}),
+  markets:markets.results.filter(r=>JSON.parse(r.payload).status!=='archived').map(r=>{const p=JSON.parse(r.payload);return {id:r.id,version:r.version,title:text(p.title),reference:text(p.reference),clientName:text(p.clientName),clientId:text(p.clientId),activity:marketActivity(p),prices:Array.isArray(p.prices)?p.prices:[],projects:Array.isArray(p.projects)?p.projects:[]};}),
   seller:settings.data.seller,settings
  };
 }

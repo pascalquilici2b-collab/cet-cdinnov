@@ -80,7 +80,7 @@ export interface Market {
   projects?: MarketProject[];
 }
 export interface MarketOrder {id:string;reference:string;date:string;amountMinor:number|null;documentId:string;notes:string;archived:boolean;}
-export interface MarketProject {id:string;name:string;code:string;programme?:string;notes:string;archived:boolean;orders:MarketOrder[];}
+export interface MarketProject {id:string;name:string;code:string;programme?:string;startDate?:string;endDate?:string;notes:string;archived:boolean;orders:MarketOrder[];}
 export interface MarketDocument {
   id: string;
   name: string;

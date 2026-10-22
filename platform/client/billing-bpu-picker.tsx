@@ -4,6 +4,7 @@ import type {BillingContext,BillingDraft,BillingLine} from '../billing-contracts
 import type {Price} from './markets-contracts';
 import {newLine,formatMinor} from '../billing-domain';
 import {Field} from './billing-fields';
+import {ActivitySelect} from './activity-select';
 export type BpuMarket=BillingContext['markets'][number];
 export const clientMarkets=(context:BillingContext|null,d:BillingDraft)=>{
  const name=(v:string)=>v.normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLocaleLowerCase('fr');
@@ -17,7 +18,7 @@ export function BpuPicker({markets,marketId,date,busy,onPick}:{markets:BpuMarket
  if(!markets.length)return null;
  const prices=market?.prices?.filter(p=>(!p.startDate||!date||p.startDate<=date)&&(!p.endDate||!date||p.endDate>=date))||[];
  return <section className="bill-bpu-picker" aria-label="BPU du client"><h3><ListChecks size={18}/> Bordereau du marché</h3>
-  <Field label="Marché du client"><select value={id} disabled={busy} onChange={e=>setId(e.target.value)}><option value="">Choisir un marché</option>{markets.map(m=><option key={m.id} value={m.id}>{m.reference?m.reference+' · ':''}{m.title}</option>)}</select></Field>
+  <Field label="Marché du client"><ActivitySelect label="Marché du client" value={id} disabled={busy} onChange={setId} placeholder="Choisir un marché" options={markets.map(m=>({value:m.id,label:m.clientName||'Client à renseigner',detail:[m.reference,m.title].filter(Boolean).join(' · '),activity:m.activity}))}/></Field>
   {market&&<div className="bill-bpu-lines">{prices.map(p=><button key={p.id} type="button" disabled={busy||p.amountMinor===null} onClick={()=>onPick(market,p)}><span><strong>{p.label}</strong>{(p.profile||p.location)&&<small>{[p.profile,p.location].filter(Boolean).join(' · ')}</small>}</span><span>{p.amountMinor===null?'Tarif à compléter':formatMinor(String(p.amountMinor))}</span><Plus size={16}/></button>)}{!prices.length&&<p>Aucun tarif applicable à cette date.</p>}</div>}
  </section>;
 }

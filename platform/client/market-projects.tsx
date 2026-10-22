@@ -1,3 +1,5 @@
+import {ActivityBadge} from './activity-select';
+import {projectActivity} from '../project-activity';
 import {defaultFundingProgrammes} from '../billing-domain';
 import {useState} from 'react';
 import {FolderKanban,FileCheck2,Plus,Pencil,Archive,Check} from 'lucide-react';
@@ -16,11 +18,12 @@ export function Projects({s,m}:{s:MarketsSnapshot;m:Market}){
     <div className="mk-project-heading">
      <span className={'mk-completion'+(complete?' is-complete':'')} aria-label={complete?'Projet enregistré':'Projet à compléter'}>{complete?<Check size={18}/>:<FolderKanban size={18}/>}</span>
      <div><strong>{project.name||'Nouveau projet'}</strong><small>{[project.code,project.orders.length+' bon'+(project.orders.length>1?'s':'')+' de commande',project.archived?'Archivé':''].filter(Boolean).join(' · ')}</small></div>
-     <button type="button" className="mk-project-edit" aria-label={'Modifier le projet '+(project.name||'nouveau')} onClick={()=>setOpen(expanded?null:project.id)}><Pencil size={16}/></button>
+     <ActivityBadge activity={projectActivity(project)}/><button type="button" className="mk-project-edit" aria-label={'Modifier le projet '+(project.name||'nouveau')} onClick={()=>setOpen(expanded?null:project.id)}><Pencil size={16}/></button>
     </div>
     {expanded&&<div className="mk-project-body">
      <div className="mk-form-grid">
       <label className="mk-field mk-wide">Nom du projet<input aria-label={'Nom du projet '+(i+1)} data-path={path+'.name'} defaultValue={project.name} maxLength={180}/></label>
+      <label className="mk-field">Date de début du projet<input type="date" data-path={path+'.startDate'} defaultValue={project.startDate||''}/></label><label className="mk-field">Date de fin du projet<input type="date" min={project.startDate||undefined} data-path={path+'.endDate'} defaultValue={project.endDate||''}/></label>
       <label className="mk-field">ID du projet<input data-path={path+'.code'} defaultValue={project.code} maxLength={80}/></label>
       <label className="mk-field">Programme<input list={'market-programmes-'+project.id} data-path={path+'.programme'} defaultValue={project.programme||''} maxLength={160}/><datalist id={'market-programmes-'+project.id}>{defaultFundingProgrammes.map(p=><option key={p} value={p}/>)}</datalist></label><label className="mk-field mk-wide">Notes<textarea data-path={path+'.notes'} defaultValue={project.notes} maxLength={2000} rows={2}/></label>
      </div>
