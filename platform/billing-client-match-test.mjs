@@ -12,3 +12,6 @@ assert.equal(sameClient(enriched,{...official,siret:'39217556800030'}),false);
 assert.equal(sameClient(enriched,{...official,siren:'552100554',siret:'55210055400013'}),false);
 assert.equal(enrichClient(enriched,{...official,siren:'552100554',siret:'55210055400013',name:'Autre client'}).party.email,'');
 console.log('OK Identité ADEC, logo et contacts conservés ; établissements distincts non fusionnés.');
+const epci={...original,party:{...blankParty(),name:"Etablissement public du commerce et de l'industrie de Corse"},logoKey:'epci-corse.png'};
+const cci={...blankParty(),name:"Chambre de Commerce et d'Industrie de Corse"};
+assert.equal(clientBrand(cci.name),'epci-corse.png');assert.equal(sameClient(epci,cci),true);assert.equal(sameClient({...epci,logoKey:'cci-corse.webp'},epci.party),true);assert.equal(enrichClient(epci,cci).logoKey,'epci-corse.png');

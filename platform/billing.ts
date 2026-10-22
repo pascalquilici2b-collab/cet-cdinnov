@@ -117,7 +117,7 @@ async function list(request:Request,db:Database,reply:Reply) {
  const paymentStates=['unpaid','partial','paid','overpaid','overdue'];
  const quoteStates=['prepared','sent','accepted','refused','expired','previous','abandoned'];
  if([...params.keys()].some(k=>!['kind','q','limit','offset','state','client','project'].includes(k))||[...new Set(params.keys())].some(k=>params.getAll(k).length>1)||
-  (kind!==null&&kind!=='quote'&&kind!=='invoice')||q.length>200||client.length>600||project.length>600||!['all','draft','issued','finalizing','issue_failed',...quoteStates,...paymentStates].includes(state)||(quoteStates.includes(state)&&kind!=='quote')||(paymentStates.includes(state)&&kind!=='invoice'))return fail(400,'Filtres de recherche invalides.');
+  (kind!==null&&kind!=='quote'&&kind!=='invoice')||q.length>200||client.length>600||project.length>600||!['trash','all','draft','issued','finalizing','issue_failed',...quoteStates,...paymentStates].includes(state)||(quoteStates.includes(state)&&kind!=='quote')||(paymentStates.includes(state)&&kind!=='invoice'))return fail(400,'Filtres de recherche invalides.');
  const limit=pageParameter(params,'limit',25,100,1),offset=pageParameter(params,'offset',0,1000000);
  // Count and page share one snapshot. Search characters remain literal, including SQL wildcards.
  const row=await db.prepare(`WITH enriched AS (
@@ -126,9 +126,10 @@ async function list(request:Request,db:Database,reply:Reply) {
    ELSE 'name:'||coalesce(json_extract(data_json,'$.buyer.name'),'') END AS client_key,
   CASE WHEN coalesce(json_extract(data_json,'$.references.projectId'),'')<>'' THEN 'id:'||json_extract(data_json,'$.references.projectId')
    ELSE 'name:'||coalesce(json_extract(data_json,'$.references.project'),'') END AS project_key,
-  ${reservedNumberJSON} AS reserved_number_json,${issuanceJSON} AS issuance_json,${quoteJSON()} AS quote_json,${settlementJSON()} AS settlement_json FROM billing_documents WHERE (? IS NULL OR kind=?)
+  ${reservedNumberJSON} AS reserved_number_json,${issuanceJSON} AS issuance_json,${quoteJSON()} AS quote_json,${settlementJSON()} AS settlement_json FROM billing_documents WHERE (? IS NULL OR kind=?) AND (EXISTS(SELECT 1 FROM billing_document_trash t WHERE t.document_id=billing_documents.id)=?)
  ), classified AS (SELECT *,CASE WHEN json_extract(issuance_json,'$.state')='ready' THEN 'issued' WHEN json_extract(issuance_json,'$.state')='failed' THEN 'issue_failed' WHEN issuance_json IS NOT NULL THEN 'finalizing' ELSE 'draft' END AS effective_status FROM enriched),
  filtered AS (SELECT * FROM classified WHERE (?='' OR client_key=?) AND (?='' OR project_key=?) AND (CASE
+  WHEN ?='trash' THEN 1
   WHEN ?='previous' THEN kind='quote' AND json_extract(quote_json,'$.revision.currentId')<>id AND json_extract(quote_json,'$.revision.abandoned')=0
   WHEN ?='abandoned' THEN kind='quote' AND json_extract(quote_json,'$.revision.abandoned')=1
   ELSE (kind<>'quote' OR (?='all' AND ?<>'') OR (json_extract(quote_json,'$.revision.currentId')=id AND json_extract(quote_json,'$.revision.abandoned')=0))
@@ -139,7 +140,7 @@ async function list(request:Request,db:Database,reply:Reply) {
  (SELECT json_group_array(json(item)) FROM (SELECT json_object('value',project_key,'label',max(json_extract(data_json,'$.references.project'))) AS item FROM classified WHERE coalesce(json_extract(data_json,'$.references.project'),'')<>'' GROUP BY project_key ORDER BY max(json_extract(data_json,'$.references.project')) COLLATE NOCASE)) AS projects_json,
  (SELECT json_group_array(json(row_json)) FROM (
  SELECT json_object('id',id,'kind',kind,'status',status,'version',version,'data_json',data_json,'totals_json',totals_json,'issues_json',issues_json,'source_document_id',source_document_id,'created_at',created_at,'updated_at',updated_at,'created_by',created_by,'updated_by',updated_by,'reserved_number_json',reserved_number_json,'issuance_json',issuance_json,'quote_json',quote_json,'settlement_json',settlement_json) AS row_json
- FROM filtered ORDER BY updated_at DESC,id LIMIT ? OFFSET ?)) AS rows_json`).bind(kind,kind,client,client,project,project,state,state,state,q,state,state,state,state,state,q,q,q,q,q,limit,offset).first<{total:number;rows_json:string;clients_json:string;projects_json:string}>();
+ FROM filtered ORDER BY updated_at DESC,id LIMIT ? OFFSET ?)) AS rows_json`).bind(kind,kind,state==='trash'?1:0,client,client,project,project,state,state,state,state,q,state,state,state,state,state,q,q,q,q,q,limit,offset).first<{total:number;rows_json:string;clients_json:string;projects_json:string}>();
  return reply(200,{documents:JSON.parse(row?.rows_json||'[]').map(document),total:row?.total||0,limit,offset,filters:{clients:JSON.parse(row?.clients_json||'[]'),projects:JSON.parse(row?.projects_json||'[]')}});
 }
 
@@ -175,6 +176,7 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
    VALUES(?,?,'draft',1,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING RETURNING *`).bind(id,p.data.kind,p.dataJSON,p.totalsJSON,p.issuesJSON,hash,stamp,stamp,session.email,session.email).first<Row>();
   if(created)return reply(201,document(created.kind==='quote'?(await get(db,created.id))!:created));
   const existing=await get(db,id);
+  if(await db.prepare('SELECT 1 FROM billing_document_trash WHERE document_id=?').bind(id).first())return fail(410,'Ce brouillon est dans la corbeille. Restaurez-le depuis la liste des documents.');
   if(!existing||existing.source_document_id!==null)return conflict();
   if(existing.create_hash!==hash){
    const initial=await db.prepare('SELECT data_json FROM billing_document_versions WHERE document_id=? AND version=1').bind(id).first<{data_json:string}>();
@@ -182,10 +184,28 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
   }
   return reply(200,document(existing));
  }
- const match=path.match(/^\/api\/v1\/billing\/documents\/([^/]+)(\/number|\/email|\/payments|\/quote-versions|\/revise|\/abandon-revision|\/quote-events|\/convert|\/preview\.pdf|\/issue|\/finalize|\/files\/(?:pdf|xml|validation|verapdf))?$/);
+ const match=path.match(/^\/api\/v1\/billing\/documents\/([^/]+)(\/restore|\/number|\/email|\/payments|\/quote-versions|\/revise|\/abandon-revision|\/quote-events|\/convert|\/preview\.pdf|\/issue|\/finalize|\/files\/(?:pdf|xml|validation|verapdf))?$/);
  if(!match)return reply(404,{error:'Accès de facturation introuvable.'});
  if(!uuid(match[1]))return fail(400,'Identifiant de document invalide.');
  const id=match[1].toLowerCase();
+ const trashed=await db.prepare('SELECT document_version FROM billing_document_trash WHERE document_id=?').bind(id).first<{document_version:number}>();
+ if(match[2]==='/restore'){
+  if(request.method!=='POST')return reply(405,{error:'Méthode non autorisée.'});
+  const expected=expectedVersion(request);await body(request,[]);const row=await get(db,id);
+  if(!row)return reply(404,{error:'Document introuvable.'});if(row.version!==expected)return conflict();
+  if(trashed)await db.prepare('DELETE FROM billing_document_trash WHERE document_id=? AND document_version=?').bind(id,expected).run();
+  return reply(200,document(row));
+ }
+ if(!match[2]&&request.method==='DELETE'){
+  const expected=expectedVersion(request),row=await get(db,id);
+  if(!row)return reply(404,{error:'Document introuvable.'});if(row.version!==expected)return conflict();
+  if(row.issuance_json)return fail(409,'Seuls les brouillons peuvent être supprimés.');
+  try{await db.prepare('INSERT INTO billing_document_trash(document_id,document_version,deleted_at,deleted_by) VALUES(?,?,?,?) ON CONFLICT(document_id) DO NOTHING').bind(id,expected,new Date().toISOString(),session.email).run();}
+  catch(e){if(String(e).includes('BILLING_TRASH_CONFLICT'))return conflict();throw e;}
+  return reply(200,{deleted:true});
+ }
+ if(trashed)return fail(410,'Ce brouillon est dans la corbeille. Restaurez-le depuis la liste des documents.');
+
  if(match[2]==='/number'){
   if(request.method!=='POST')return reply(405,{error:'Méthode non autorisée.'});
   const expected=expectedVersion(request);await body(request,[]);const row=await get(db,id);

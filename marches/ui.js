@@ -158,7 +158,7 @@ async function open(id) {
     if (epoch !== s.epoch) return;
     s.current = { ...r.market, conditions: r.market.conditions || [] };
     s.docs = r.documents;
-    s.tab = "setup";
+    s.tab = "summary";
     s.analysis = null;
     s.readings = [];
     s.ai = null;
@@ -843,8 +843,8 @@ function render(preserveFields = false) {
   if (!marketModule) {
     if (marketPromise) return;
     container.innerHTML = loadingMarkup('Chargement des marchés…');
-    if (!document.getElementById("marketStyle")) { const link=document.createElement("link"); link.id="marketStyle"; link.rel="stylesheet"; link.href="platform/markets.css?v=unified-20261023a"; document.head.append(link); }
-    marketPromise = import("./platform/markets.js?v=unified-20261023a")
+    if (!document.getElementById("marketStyle")) { const link=document.createElement("link"); link.id="marketStyle"; link.rel="stylesheet"; link.href="platform/markets.css?v=refinement-20261023b"; document.head.append(link); }
+    marketPromise = import("./platform/markets.js?v=refinement-20261023b")
       .then((module) => {
         marketModule = module;
         marketPromise = null;

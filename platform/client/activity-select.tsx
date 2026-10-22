@@ -1,12 +1,12 @@
 import {useRef,useState} from 'react';
 import {Select} from 'radix-ui';
-import {Check,ChevronDown,ChevronUp} from 'lucide-react';
+import {Check,ChevronDown,ChevronUp,CheckCircle2,MinusCircle,Clock3} from 'lucide-react';
 import type {Activity} from '../project-activity';
 import './activity-select.css';
 
 export function ActivityBadge({activity}:{activity?:Activity}){
  const state=activity?.state||'unknown';
- return <span className="cdi-activity" data-state={state} title={activity?.reason}><i aria-hidden="true"/>{state==='active'?'Actif':state==='inactive'?'Inactif':'Dates à renseigner'}</span>;
+ return <span className="cdi-activity" data-state={state} title={activity?.reason}>{state==='active'?<CheckCircle2 size={13} aria-hidden="true"/>:state==='inactive'?<MinusCircle size={13} aria-hidden="true"/>:<Clock3 size={13} aria-hidden="true"/>}{state==='active'?'Actif':state==='inactive'?'Inactif':'Dates à renseigner'}</span>;
 }
 export type ActivityOption={value:string;label:string;detail?:string;activity?:Activity;name?:string};
 // The shadcn/Radix Select pattern supports rich options, keyboard navigation,

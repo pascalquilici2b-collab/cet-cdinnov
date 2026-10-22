@@ -1,5 +1,7 @@
 // Existing action pictograms plus the official CDInnov pictograms. No user-provided markup.
 const paths:Record<string,string>={
+    tag:'<path d="M20.5 13.5 13.5 20.5a2 2 0 0 1-3 0L2 12V2h10l8.5 8.5a2 2 0 0 1 0 3Z"/><circle cx="7" cy="7" r="1"/>',
+    folders:'<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 7v7m5-7v10m5-10v4"/>',
     wallet:'<rect x="2" y="6" width="20" height="14" rx="3"/><path d="M2 10h20"/><circle cx="17" cy="14" r="1.4"/>',
     plus:'<path d="M12 5v14M5 12h14"/>',
     minus:'<path d="M5 12h14"/>',

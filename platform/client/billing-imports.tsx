@@ -1,4 +1,4 @@
-import {FileCode2,Pencil,Trash2,Upload} from 'lucide-react';
+import {FileCode2,Pencil,Trash2,Upload,Banknote,Clock3} from 'lucide-react';
 import type {BillingDocument,BillingPage,BillingTransport} from '../billing-contracts';
 import type {Invoice} from './finance-domain';
 import {blankDraft,formatMinor} from '../billing-domain';
@@ -48,7 +48,7 @@ export function ImportedInvoiceRow({invoice:f,act}:{invoice:Invoice;act:Imported
   <td data-column="document"><button className="bill-document-link" onClick={()=>act('edit',f.id)}><span><strong>Facture {f.number||'importée'}</strong><small>Importée</small></span></button></td>
   <td data-column="client"><div className="bill-list-client"><ClientAvatar name={f.client||''}/><span>{f.client||'—'}</span></div></td>
   <td data-column="date">{date(f.dateFacture||'')}</td><td data-column="reference">{f.code||'—'}</td>
-  <td data-column="status"><span className="bill-badge" data-status={f.datePaiement?'paid':'unpaid'}>{f.datePaiement?'Réglée':'À régler'}</span></td>
+  <td data-column="status"><span className="bill-badge" data-status={f.datePaiement?'paid':'unpaid'}>{f.datePaiement?<Banknote size={15}/>:<Clock3 size={15}/>} {f.datePaiement?'Réglée':'À régler'}</span></td>
   <td data-column="amount" className="bill-amount">{formatMinor(minor(f.ttc))}</td>
   <td data-column="action"><div className="bill-import-actions">
    {f.pdfSource?<><button className="bill-button bill-button-pdf" aria-label={'Télécharger le PDF '+f.number} title="Télécharger le PDF" onClick={()=>act('pdf',f.id)}><PDFIcon/></button><button className="bill-button bill-button-primary" aria-label={(f.validFacturx?'Télécharger le Factur-X ':'Créer le Factur-X ')+f.number} title={f.validFacturx?'Télécharger le Factur-X':'Créer le Factur-X'} onClick={()=>act(f.validFacturx?'downloadFacturx':'facturx',f.id)}><FileCode2 size={16}/><span>Factur-X</span></button></>:<button className="bill-button" title="Joindre le PDF original" aria-label={'Joindre le PDF '+f.number} onClick={()=>act('upload',f.id)}><Upload size={16}/>PDF</button>}

@@ -62,7 +62,7 @@ type PaymentInputFields={amount:string;occurredOn:string;method:BillingPaymentMe
 export type BillingPaymentOperationInput={id:string;documentVersion:number}&(({kind:'receipt'|'refund'}&PaymentInputFields)|{kind:'void';targetId:string;reason:string}|({kind:'replace';targetId:string;reason:string}&PaymentInputFields));
 export type BillingQuoteAction='sent'|'accepted'|'refused'|'reopened';
 export type BillingQuoteState='prepared'|'sent'|'accepted'|'refused'|'expired';
-export type BillingListState='all'|'draft'|'finalizing'|'issue_failed'|'issued'|'previous'|'abandoned'|'overdue'|BillingQuoteState|BillingSettlementState;
+export type BillingListState='trash'|'all'|'draft'|'finalizing'|'issue_failed'|'issued'|'previous'|'abandoned'|'overdue'|BillingQuoteState|BillingSettlementState;
 export interface BillingQuoteRevisionSummary {rootId:string;familyVersion:number;ordinal:number;count:number;parentId:string|null;parentNumber:string|null;reason:string;abandoned:boolean;abandonReason:string|null;currentId:string;currentOrdinal:number;currentNumber:string|null;currentState:BillingDocument['status'];}
 export interface BillingQuoteRevisionItem {id:string;ordinal:number;number:string|null;status:BillingDocument['status'];createdAt:string;reason:string;abandonedAt:string|null;abandonReason:string|null;grossMinor:string|null;}
 export interface BillingQuoteSummary {version:number;state:BillingQuoteState;occurredOn:string|null;invoice:{id:string;number:string|null;state:BillingDocument['status']}|null;revision:BillingQuoteRevisionSummary;}
@@ -108,6 +108,8 @@ export interface BillingTransport {
   quoteVersions(id:string,before?:number):Promise<{versions:BillingQuoteRevisionItem[];nextBefore:number|null}>;
   reviseQuote(id:string,version:number,data:{id:string;familyVersion:number;reason:string}):Promise<BillingDocument>;
   abandonQuoteRevision(id:string,version:number,data:{id:string;familyVersion:number;reason:string}):Promise<BillingDocument>;
+  trash(id:string,version:number):Promise<{deleted:true}>;
+  restore(id:string,version:number):Promise<BillingDocument>;
   get(id:string):Promise<BillingDocument>;
   create(id:string,data:BillingDraft):Promise<BillingDocument>;
   save(id:string,version:number,data:BillingDraft):Promise<BillingDocument>;

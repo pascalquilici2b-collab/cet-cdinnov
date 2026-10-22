@@ -13,7 +13,7 @@ try{
  const context=await browser.newContext({viewport:{width:1440,height:1000}});await context.route('**/*',r=>r.request().url().startsWith(preview.base)?r.continue():r.abort());
  const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto(preview.base);await page.evaluate(()=>setView('marches'));
- await page.getByRole('button',{name:'Ouvrir',exact:true}).click();await page.getByRole('button',{name:'Fiche marché',exact:true}).click();
+ await page.getByRole('button',{name:'Ouvrir le marché M-2026',exact:true}).click();await page.getByRole('button',{name:'Fiche marché',exact:true}).click();
  await page.getByLabel('Démarrage du marché').selectOption('date');await page.locator('#mk-startDate').fill('2026-11-01');
  await page.getByLabel('Durée initiale du marché').selectOption('36');await page.getByRole('button',{name:'Enregistrer',exact:true}).click();await page.getByText('Fiche enregistrée · version 2',{exact:true}).waitFor();
  assert.equal(await page.getByRole('progressbar',{name:'Consommation prévisionnelle par devis envoyés'}).getAttribute('value'),'0');

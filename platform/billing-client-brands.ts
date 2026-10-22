@@ -1,5 +1,6 @@
 export const clientBrands:[string,string[],string[]?][]=[
  ['adec.svg',['Agence de développement économique de la Corse','Agence développement économique Corse','AGENCE DEVELOPPEMENT ECO DE LA CORSE'],['ADEC']],
+ ['epci-corse.png',["Etablissement public du commerce et de l'industrie de Corse",'Établissement public du commerce et de l’industrie de Corse'],['EPCI Corse']],
  ['cci-corse.webp',['CCI de Corse','Chambre de commerce et d’industrie de Corse','EPCI de Corse'],['CCI Corse']],
  ['cci-var.webp',['CCI du Var','Chambre de commerce et d’industrie du Var'],['CCI Var']],
  ['cress.webp',['CRESS Corsica','Chambre régionale de l’économie sociale et solidaire de Corse'],['CRESS','CRESS Corse']],
@@ -31,5 +32,5 @@ export function clientBrand(name:string,identifier=''):string|undefined {
  if(siren==='392175568')return 'adec.svg';
  if(!normalized)return;
  const brand=clientBrands.find(([,names,aliases])=>names.some(n=>key(n)===normalized)||(!identifier&&aliases?.some(n=>key(n)===normalized)));
- return brand?.[0];
+ return brand?.[0]==='cci-corse.webp'?'epci-corse.png':brand?.[0];
 }

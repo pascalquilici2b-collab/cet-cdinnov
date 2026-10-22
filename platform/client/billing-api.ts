@@ -32,6 +32,8 @@ export function createBillingTransport(options:{baseUrl:string;getToken:()=>Prom
     quoteEvents:(id,before)=>request<{events:BillingQuoteEvent[];nextBefore:number|null}>('/documents/'+encodeURIComponent(id)+'/quote-events'+(before?'?before='+before:'')),
     quoteEvent:(id,version,data)=>request<BillingDocument>('/documents/'+encodeURIComponent(id)+'/quote-events','POST',data,version),
     list:query=>request<BillingPage>('/documents?'+new URLSearchParams({kind:query.kind,q:query.q,offset:String(query.offset),limit:String(query.limit),state:query.state||'all',...(query.client?{client:query.client}:{}),...(query.project?{project:query.project}:{})})),
+    trash:(id,version)=>request('/documents/'+encodeURIComponent(id),'DELETE',undefined,version),
+    restore:(id,version)=>request('/documents/'+encodeURIComponent(id)+'/restore','POST',{},version),
     get:id=>numbered(request<BillingDocument>('/documents/'+encodeURIComponent(id))),
     create:(id:string,data:BillingDraft)=>numbered(request<BillingDocument>('/documents','POST',{id,data})),
     save:(id:string,version:number,data:BillingDraft)=>numbered(request<BillingDocument>('/documents/'+encodeURIComponent(id),'PUT',{data},version)),

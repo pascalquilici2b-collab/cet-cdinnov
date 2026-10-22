@@ -8,7 +8,7 @@ export function sameClient(current:BillingClientData,party:BillingParty){
  if(as&&bs)return as===bs;
  if(an&&bn)return an===bn;
  if(nameKey(a.name)===nameKey(party.name))return true;
- const brand=current.logoKey||clientBrand(a.name,an),other=clientBrand(party.name,bn);
+ const key=current.logoKey||clientBrand(a.name,an),brand=key==='cci-corse.webp'?'epci-corse.png':key,other=clientBrand(party.name,bn);
  return !!brand&&brand===other;
 }
 export function enrichClient(current:BillingClientData,party:BillingParty,details?:BillingClientDetails):BillingClientData{

@@ -9,8 +9,13 @@ import {
 import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
 import {Projects} from './market-projects';
-import {FolderKanban,FileText,Settings2,Files,Tags,Gauge,CalendarDays,ListChecks,TriangleAlert,History as HistoryIcon,Check} from 'lucide-react';
+import {FolderKanban,FileText,Settings2,Files,Tags,Gauge,CalendarDays,ListChecks,TriangleAlert,History as HistoryIcon,Check,Plus,Search,RefreshCw,Download,ArrowLeft,ChevronRight,ChevronDown} from 'lucide-react';
 import './market-projects.css';
+import './markets-apple.css';
+import {ClientAvatar} from './billing-client-avatar';
+import {ActivityBadge} from './activity-select';
+import {marketActivity} from '../project-activity';
+import {Help} from './billing-help';
 import {
   TYPES,
   UNITS,
@@ -34,14 +39,14 @@ const labels: Record<string, string> = {
   archived: "Archivé",
 };
 const tabs: Record<string, string> = {
-  setup: "Assistant de paramétrage",
+  setup: "Assistant",
   summary: "Fiche marché",
   projects: "Projets & commandes",
   documents: "Pièces",
   prices: "Tarifs",
   ceilings: "Plafonds",
   periods: "Périodes",
-  conditions: "Facturation et conditions",
+  conditions: "Conditions",
   issues: "Points à confirmer",
   history: "Historique",
 };
@@ -109,17 +114,14 @@ function Field({
     id = "mk-" + path.replaceAll(".", "-"),
     attrs = { id, "data-path": path, required, disabled };
   return (
-    <label
+    <div
       className={
         "mk-field " +
         (wide ? "mk-wide " : "") +
         (type === "checkbox" ? "mk-check" : "")
       }
     >
-      <span>
-        {label}
-        {required ? " *" : ""}
-      </span>
+      <span className="mk-field-label"><label htmlFor={id}>{label}{required ? " *" : ""}</label>{help&&<Help label={label} text={help}/>}</span>
       {options ? (
         <select {...attrs} defaultValue={String(value ?? "")}>
           {Object.entries(options).map(([key, text]) => (
@@ -144,8 +146,7 @@ function Field({
           list={list}
         />
       )}
-      {help && <small>{help}</small>}
-    </label>
+    </div>
   );
 }
 function Source({
@@ -233,7 +234,7 @@ function Section({ title, children }: { title: string; children?: ReactNode }) {
   return (
     <div className="mk-section-title">
       <h2>{title}</h2>
-      {children&&<p>{children}</p>}
+      {children&&<Help label={title} text={String(children)}/>}
     </div>
   );
 }
@@ -993,14 +994,7 @@ function Setup({ s, m }: { s: MarketsSnapshot; m: Market }) {
     busy = useContext(Busy);
   return (
     <>
-      <div className="mk-setup-heading">
-        <span className="mk-eyebrow">Du dossier au paramétrage</span>
-        <h2>Déposez les pièces. Vérifiez les règles.</h2>
-        <p>
-          L’assistant lit les documents ensemble et prépare votre marché. Les
-          paramètres restent modifiables dans les rubriques ci-dessus.
-        </p>
-      </div>
+      <Section title="Assistant de paramétrage">Ajoutez les pièces du marché, puis vérifiez les règles proposées avant de les appliquer.</Section>
       <ol className="mk-steps">
         {[
           "Ajouter les pièces",
@@ -1057,28 +1051,11 @@ function Setup({ s, m }: { s: MarketsSnapshot; m: Market }) {
           })}
         </div>
       ) : (
-        <p className="mk-muted">
-          Commencez par ajouter les documents disponibles. L’assistant
-          complétera l’identité du marché.
-        </p>
+        null
       )}
       <div className="mk-ai-launch">
         <div>
-          <strong>Analyse assistée du dossier</strong>
-          <p>
-            Le texte sélectionné est traité sur Cloudflare par un modèle ouvert.
-            Les propositions sont reliées aux pièces ; les informations absentes
-            ou contradictoires restent à confirmer.
-          </p>
-          <small>
-            {s.ai?.model || "Modèle ouvert"} ·{" "}
-            {s.ai
-              ? Math.floor((s.ai.remaining / s.ai.dailyBudget) * 100) +
-                " % du budget de lecture disponible aujourd’hui. "
-              : ""}
-            À la limite, l’analyse se met en pause. Les passages terminés sont
-            conservés.
-          </small>
+          <strong>Analyse des pièces</strong><Help label="Analyse des pièces" text={'Les propositions sont reliées aux pièces et restent à vérifier.'+(s.ai?' '+Math.floor((s.ai.remaining/s.ai.dailyBudget)*100)+' % du budget de lecture disponible aujourd’hui.':'')}/>
         </div>
         <div>
           <Button
@@ -1121,134 +1098,31 @@ function Setup({ s, m }: { s: MarketsSnapshot; m: Market }) {
   );
 }
 function MarketList({ state: s, onQuery }: MarketsProps) {
-  const [query, setQuery] = useState(s.query),
-    q = query.toLocaleLowerCase("fr"),
-    rows = s.rows.filter((m) =>
-      [m.title, m.reference, m.clientName].some((v) =>
-        v.toLocaleLowerCase("fr").includes(q),
-      ),
-    );
-  return (
-    <>
-      <div className="mk-heading">
-        <div>
-          <span className="mk-eyebrow">Référentiel contractuel</span>
-          <h1>Marchés et contrats</h1>
-          <p>Les pièces, les prix et les limites qui encadrent vos missions.</p>
-        </div>
-        <Button className="mk-primary" data-action="new">
-          + Nouveau marché
-        </Button>
-      </div>
-      <div className="mk-overview">
-        <div>
-          <strong>
-            {s.rows.filter((r) => r.status !== "archived").length}
-          </strong>
-          <span>marchés suivis</span>
-        </div>
-        <div>
-          <strong>{s.rows.filter((r) => r.status === "draft").length}</strong>
-          <span>en préparation</span>
-        </div>
-        <div>
-          <strong>
-            {s.rows.reduce(
-              (n, r) => n + r.issues.filter((x) => x.status === "open").length,
-              0,
-            )}
-          </strong>
-          <span>points à confirmer</span>
-        </div>
-        <p>
-          Le plafond contractualisé et le disponible sont distincts. La reprise
-          des commandes permettra le calcul de consommation.
-        </p>
-      </div>
-      <div className="mk-list-tools">
-        <label htmlFor="mkSearch">Rechercher un marché</label>
-        <input
-          id="mkSearch"
-          type="search"
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            onQuery(e.target.value);
-          }}
-          placeholder="Client, référence ou objet"
-          disabled={s.busy}
-        />
-        <Button className="mk-secondary" data-action="refresh">
-          Actualiser
-        </Button>
-      </div>
-      <div id="mkMarketList">
-        {s.busy ? (
-          <Loading label="Chargement des marchés…"/>
-        ) : !rows.length ? (
-          <div className="mk-empty">
-            {query
-              ? "Aucun marché ne correspond à la recherche."
-              : "Commencez par créer une fiche, puis importez les pièces du marché."}
-          </div>
-        ) : (
-          <div className="mk-table-wrap">
-            <table className="mk-table">
-              <thead>
-                <tr>
-                  <th>Marché / client</th>
-                  <th>Référence</th>
-                  <th>Plafond renseigné</th>
-                  <th>État</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((m) => {
-                  const c = m.ceilings[0];
-                  return (
-                    <tr key={m.id}>
-                      <td>
-                        <strong>{m.title}</strong>
-                        <small>{m.clientName}</small>
-                      </td>
-                      <td>{m.reference || "À préciser"}</td>
-                      <td>
-                        {c
-                          ? money(c.amountMinor) + " " + c.basis
-                          : "À préciser"}
-                        {c && (
-                          <small>
-                            {c.scope === "annual"
-                              ? "par période annuelle"
-                              : c.scope === "contract"
-                                ? "total du contrat"
-                                : "période spécifique"}{" "}
-                            ·{" "}
-                            {c.status === "validated"
-                              ? "vérifié"
-                              : "à vérifier"}
-                          </small>
-                        )}
-                      </td>
-                      <td>
-                        <span className="mk-status">{labels[m.status]}</span>
-                      </td>
-                      <td>
-                        <Button className="mk-secondary" data-open={m.id}>
-                          Ouvrir
-                        </Button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-    </>
-  );
+  const [query,setQuery]=useState(s.query),[client,setClient]=useState('');
+  const q=query.toLocaleLowerCase('fr'),clients=[...new Set(s.rows.map(m=>m.clientName).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'fr'));
+  const rows=s.rows.filter(m=>(!client||m.clientName===client)&&[m.title,m.reference,m.clientName].some(v=>v.toLocaleLowerCase('fr').includes(q)));
+  return <>
+    <div className="mk-heading"><h1>Marchés et contrats</h1><Button className="mk-primary" data-action="new"><Plus size={17}/>Nouveau marché</Button></div>
+    <div className="mk-overview">
+      <div><span>Marchés suivis</span><strong>{s.rows.filter(m=>m.status!=='archived').length}</strong></div>
+      <div><span>En cours de validité</span><strong>{s.rows.filter(m=>marketActivity(m).state==='active').length}</strong></div>
+      <div><span>Devis envoyés HT</span><strong>{money(s.rows.reduce((n,m)=>n+(m.tracking?.quotedMinor||0),0))}</strong></div>
+    </div>
+    <div className="mk-list-tools">
+      <label className="mk-search" htmlFor="mkSearch"><Search size={17}/><input id="mkSearch" type="search" aria-label="Rechercher un marché" value={query} onChange={e=>{setQuery(e.target.value);onQuery(e.target.value);}} placeholder="Client, référence ou objet…" disabled={s.busy}/></label>
+      <select aria-label="Filtrer les marchés par client" value={client} onChange={e=>setClient(e.target.value)}><option value="">Tous les clients</option>{clients.map(c=><option key={c}>{c}</option>)}</select>
+      <Button className="mk-icon-button" aria-label="Actualiser les marchés" title="Actualiser" data-action="refresh"><RefreshCw size={17}/></Button>
+    </div>
+    <div id="mkMarketList">{s.busy?<Loading label="Chargement des marchés…"/>:!rows.length?<div className="mk-empty">{query||client?'Aucun marché ne correspond à ces filtres.':'Aucun marché pour le moment.'}</div>:<div className="mk-table-wrap"><table className="mk-table">
+      <thead><tr><th>Marché</th><th>Client</th><th>Devis envoyés / maximum HT</th><th>Validité</th><th><span className="mk-sr-only">Ouvrir</span></th></tr></thead>
+      <tbody>{rows.map(m=>{const maximum=marketTracking(m).maximumMinor,consumed=m.tracking?.quotedMinor||0;return <tr key={m.id}>
+        <td><Button className="mk-market-link" data-open={m.id}><strong>{m.reference||'Sans référence'}</strong><span>{m.title||'Nouveau marché'}</span></Button></td>
+        <td><div className="mk-client"><ClientAvatar name={m.clientName}/><span>{m.clientName||'À renseigner'}</span></div></td>
+        <td className="mk-consumption"><strong>{money(consumed)}</strong><small> / {maximum===null?'À renseigner':money(maximum)}</small>{maximum!==null&&maximum>0&&<progress aria-label={'Consommation du marché '+(m.reference||m.title)} value={Math.min(consumed,maximum)} max={maximum}/>}</td>
+        <td><ActivityBadge activity={marketActivity(m)}/>{m.status==='draft'&&<small className="mk-configuration-state">En préparation</small>}</td>
+        <td><Button className="mk-icon-button" data-open={m.id} aria-label={'Ouvrir le marché '+(m.reference||m.title)}><ChevronRight size={18}/></Button></td>
+      </tr>;})}</tbody></table></div>}</div>
+  </>;
 }
 function Markets(props: MarketsProps) {
   const s = props.state,
@@ -1294,53 +1168,36 @@ function Markets(props: MarketsProps) {
             <div className="mk-heading">
               <div>
                 <Button className="mk-link" data-action="back">
-                  ← Tous les marchés
+                  <ArrowLeft size={16}/> Tous les marchés
                 </Button>
-                <h1>{m.title || "Nouveau marché"}</h1>
+                <h1>{m.reference || "Nouveau marché"}</h1><p className="mk-market-title">{m.title}</p>
                 <p>
                   {m.clientName || "Client à renseigner"}
                   {m.reference ? " · " + m.reference : ""}
                 </p>
               </div>
-              <span className="mk-status">{labels[m.status]}</span>
+              <ActivityBadge activity={marketActivity(m)}/>
             </div>
             <div className="mk-editbar">
-              <span id="mkSaveState">
+              <span id="mkSaveState">{!s.dirty&&m.version>0&&<Check size={16} aria-hidden="true"/>}
                 {s.dirty
                   ? "Modifications à enregistrer"
                   : m.version
-                    ? "Version " + m.version + " enregistrée"
+                    ? "Enregistré"
                     : "Nouvelle fiche"}
               </span>
               <div>
                 <Button className="mk-secondary" data-action="export">
-                  Exporter la fiche
+                  <Download size={16}/> Exporter
                 </Button>
                 <Button className="mk-primary" data-action="save">
-                  Enregistrer
+                  <Check size={17}/> Enregistrer
                 </Button>
               </div>
             </div>
             <nav className="mk-tabs" aria-label="Rubriques du marché">
-              {Object.entries(tabs).map(([key, title]) => (
-                <Button
-                  key={key}
-                  data-tab={key}
-                  aria-current={s.tab === key ? "page" : "false"}
-                >
-                  {(()=>{const Glyph=({setup:Settings2,summary:FileText,projects:FolderKanban,documents:Files,prices:Tags,ceilings:Gauge,periods:CalendarDays,conditions:ListChecks,issues:TriangleAlert,history:HistoryIcon} as const)[key as keyof typeof tabs]||FileText;return <Glyph size={16} aria-hidden="true"/>;})()}
-                  {title}
-                  {key === "issues" &&
-                    m.issues.some((x) => x.status === "open") && (
-                      <>
-                        {" "}
-                        <span>
-                          {m.issues.filter((x) => x.status === "open").length}
-                        </span>
-                      </>
-                    )}
-                </Button>
-              ))}
+              {['summary','projects','prices','documents','periods','conditions'].map(key=><Button key={key} data-tab={key} aria-current={s.tab===key?'page':'false'}>{(()=>{const Glyph=({summary:FileText,projects:FolderKanban,prices:Tags,documents:Files,periods:CalendarDays,conditions:ListChecks} as Record<string,typeof FileText>)[key];return <Glyph size={16}/>;})()}{tabs[key]}</Button>)}
+              <details className="mk-more-tabs"><summary aria-label="Autres rubriques du marché"><Settings2 size={16}/>Plus<ChevronDown size={14}/></summary><div>{['setup','ceilings','issues','history'].map(key=><Button key={key} data-tab={key} aria-current={s.tab===key?'page':'false'}>{(()=>{const Glyph=({setup:Settings2,ceilings:Gauge,issues:TriangleAlert,history:HistoryIcon} as Record<string,typeof FileText>)[key];return <Glyph size={16}/>;})()}{tabs[key]}{key==='issues'&&m.issues.some(x=>x.status==='open')&&<span className="mk-count">{m.issues.filter(x=>x.status==='open').length}</span>}</Button>)}</div></details>
             </nav>
             <form id="mkForm" noValidate>
               <div className="mk-panel">
@@ -1349,17 +1206,9 @@ function Markets(props: MarketsProps) {
             </form>
             <div className="mk-validation">
               <div>
-                <strong>Validation du paramétrage</strong>
-                <p>
-                  {blockers.length
-                    ? "À compléter : " + blockers.join(" ; ")
-                    : "Les règles indispensables sont renseignées. Vérifiez les sources avant validation."}
-                </p>
-                <small>
-                  Cette validation ne crée ni commande ni facture. La
-                  consommation du marché sera suivie à partir des engagements
-                  repris.
-                </small>
+                <strong>{m.status==='validated'&&<Check size={17}/>} Validation du paramétrage</strong>
+                <Help label="Validation du paramétrage" text={blockers.length?'À compléter : '+blockers.join(' ; '):'Les règles indispensables sont renseignées. Vérifiez les sources avant validation.'}/>
+
               </div>
               <div>
                 <Field

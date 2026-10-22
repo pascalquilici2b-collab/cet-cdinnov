@@ -1,5 +1,7 @@
 import {forwardRef,useEffect,useImperativeHandle,useRef,useState} from 'react';
-import {CheckCircle2,ChevronDown,CircleDashed} from 'lucide-react';
+import {CheckCircle2,ChevronDown,FilePenLine,LoaderCircle,Check} from 'lucide-react';
+import {DropdownMenu} from 'radix-ui';
+import {useConfirmation} from './action-dialog';
 import {Help} from './billing-help';
 import type {BillingDocument,BillingTransport,BillingIssue} from '../billing-contracts';
 
@@ -9,14 +11,14 @@ export type DocumentStatusHandle={finalize:()=>Promise<BillingDocument|undefined
 type Props={serviceConfigured:boolean;record:BillingDocument|null;saved:boolean;busy:boolean;transport:BillingTransport;onDocument:(d:BillingDocument)=>void;onBusy:(v:string)=>void;onNotice:(v:string)=>void;onSave:()=>Promise<BillingDocument|undefined>;draftIssues:BillingIssue[];onReview:()=>void};
 
 export const DocumentStatus=forwardRef<DocumentStatusHandle,Props>(function DocumentStatus({record,saved,busy,transport,onDocument,onBusy,onNotice,onSave,draftIssues,onReview,serviceConfigured},ref){
- const [error,setError]=useState('');
+ const [error,setError]=useState(''),{confirm,dialog}=useConfirmation();
  const live=useRef(true),running=useRef(false),attempt=useRef<{key:string;id:string}|null>(null);
  useEffect(()=>{live.current=true;return()=>{live.current=false;};},[]);
  async function finish(){
   if(!record||busy||running.current)return;
   if(record.issuance?.state==='ready')return record;
-  if(!record.issuance&&draftIssues.length){onReview();onNotice('Complétez les champs indiqués avant de finaliser.');return;}
-  if(!record.issuance&&!window.confirm('Passer en statut Finalisé ? Le contenu sera figé et le document définitif sera généré.'))return;
+  if(!record.issuance&&draftIssues.length){setError('Finalisation impossible : '+draftIssues.length+' point'+(draftIssues.length>1?'s':'')+' à compléter ci-dessous.');onReview();return;}
+  if(!record.issuance&&!await confirm({title:'Finaliser ce document ?',message:'Le contenu sera figé et le PDF définitif sera généré. Le numéro réservé est conservé.',accept:'Finaliser'}))return;
   running.current=true;setError('');
   try{
    let current=record;
@@ -33,14 +35,17 @@ export const DocumentStatus=forwardRef<DocumentStatusHandle,Props>(function Docu
  }
  useImperativeHandle(ref,()=>({finalize:finish}));
  const issue=record?.issuance,ready=issue?.state==='ready',inactive=!!record?.quote&&(record.quote.revision.abandoned||record.quote.revision.currentId!==record.id);
- const value=ready?'issued':issue?'pending':'draft';
  return <div className="bill-status-control" data-ready={ready}>
-  <label className="bill-status-select">{ready?<CheckCircle2 size={17}/>:<CircleDashed size={17}/>}<select aria-label="Statut du document" value={value} disabled={busy||!record||ready||inactive||!serviceConfigured} onChange={()=>{void finish();}}>
-   <option value="draft" disabled={!!issue}>Brouillon</option>{issue&&!ready&&<option value="pending">{billingStateLabel(record)}</option>}<option value="issued">Finalisé</option>
-  </select>{!ready&&<ChevronDown size={14}/>}</label>
+  <DropdownMenu.Root><DropdownMenu.Trigger asChild><button type="button" className="bill-status-trigger" aria-label="Statut du document" disabled={busy||!record||inactive}>
+   {ready?<CheckCircle2 size={17}/>:issue?<LoaderCircle size={17}/>:<FilePenLine size={17}/>}<span>{billingStateLabel(record)}</span><ChevronDown size={14}/>
+  </button></DropdownMenu.Trigger><DropdownMenu.Portal><DropdownMenu.Content className="cdi-action-menu" align="start" sideOffset={6}>
+   <DropdownMenu.Item disabled={!!issue} onSelect={()=>setError('')}><FilePenLine size={17}/>Brouillon{!issue&&<Check className="cdi-menu-check" size={15}/>}</DropdownMenu.Item>
+   <DropdownMenu.Item disabled={ready||!serviceConfigured} onSelect={()=>{void finish();}}><CheckCircle2 size={17}/>{issue&&!ready?'Reprendre la finalisation':'Finalisé'}{ready&&<Check className="cdi-menu-check" size={15}/>}</DropdownMenu.Item>
+  </DropdownMenu.Content></DropdownMenu.Portal></DropdownMenu.Root>
   <Help label="Statut du document" text={ready?'Le document définitif est archivé. Pour corriger un devis, créez une nouvelle version.':!serviceConfigured?'Le moteur PDF est indisponible.':'Choisissez Finalisé pour figer le document et générer ses fichiers définitifs. Le numéro déjà réservé est conservé.'}/>
   {issue&&!ready&&<button className="bill-button" disabled={busy} onClick={()=>{void finish();}}>Reprendre</button>}
   {error&&<span className="bill-status-error" role="alert">{error}</span>}
+  {dialog}
  </div>;
 });
 
