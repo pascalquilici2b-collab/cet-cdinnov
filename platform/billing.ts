@@ -5,6 +5,7 @@ import {normalizeDraft,calculateBilling,inspectDraft,blankSettings,normalizeSett
 import {sessionIdentity} from './identity';
 import {boundedBody} from './portal';
 import {draftPDF} from './billing-pdf';
+import {automaticNumberSeries} from './billing-numbering';
 import {createNumberSeries,reserveIssuance} from './billing-issuance';
 import {preflightIssuance,generateIssuance,issuedFile} from './billing-generation';
 import {billingDirectoryRoute} from './billing-directory';
@@ -210,10 +211,10 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
   if(!row)return reply(404,{error:'Document introuvable.'});if(row.version!==expected)return conflict();
   const current=document(row);
   if(match[2]==='/issue'){
-   if(!uuid(input.id)||!uuid(input.seriesId))return fail(400,'Identifiant de finalisation ou de série invalide.');
+   if(!uuid(input.id)||(input.seriesId!=='automatic'&&!uuid(input.seriesId)))return fail(400,'Identifiant de finalisation ou de série invalide.');
    if(!current.issuance&&current.quote&&(current.quote.revision.abandoned||current.quote.revision.currentId!==current.id))return fail(409,'Cette version du devis a été remplacée ou abandonnée. Ouvrez la version en cours.');
    if(!current.issuance)await preflightIssuance(env,current.data);
-   await reserveIssuance(db,{id:input.id,documentId:id,documentVersion:expected,seriesId:input.seriesId},session.email);
+   await reserveIssuance(db,{id:input.id,documentId:id,documentVersion:expected,seriesId:input.seriesId==='automatic'?await automaticNumberSeries(db,current.data,session.email):input.seriesId},session.email);
   }else{
    if(!current.issuance)return fail(409,'Réservez le numéro du document avant sa génération.');
    await generateIssuance(db,env,current.issuance.id,session.email);
@@ -261,8 +262,8 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
    return conflict();
   }
   if(source.version!==expected)return conflict();
-  const sourceData=JSON.parse(source.data_json),settings=await readSettings(db);
-  const p=prepared({...sourceData,kind:'invoice',validUntil:'',iban:settings.data.iban,bic:settings.data.bic,details:{...blankDocumentDetails(),...sourceData.details,validityMonths:'',returnEmail:settings.data.returnEmail??'cdi@cdinnov.com',interventions:[]}}),stamp=new Date().toISOString();
+  const sourceData=normalizeDraft(JSON.parse(source.data_json)),settings=await readSettings(db);
+  const p=prepared({...sourceData,kind:'invoice',issueDate:new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Paris'}).format(new Date()),paymentMeans:'30',validUntil:'',references:{...sourceData.references,...(document(source).issuance?.number?{quoteNumber:document(source).issuance!.number}:{})},iban:settings.data.iban,bic:settings.data.bic,details:{...blankDocumentDetails(),...sourceData.details,validityMonths:'',returnEmail:settings.data.returnEmail??'cdi@cdinnov.com',interventions:[]}}),stamp=new Date().toISOString();
   let created:Row|null;
   try {
    created=await db.prepare(`INSERT INTO billing_documents(id,kind,status,version,data_json,totals_json,issues_json,create_hash,source_document_id,source_version,created_at,updated_at,created_by,updated_by)

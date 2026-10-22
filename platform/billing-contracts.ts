@@ -13,7 +13,7 @@ export interface BillingLine {
 export interface BillingReferences {
   businessCode:string; marketId:string; marketReference:string; orderReference:string;
   project:string; serviceCode:string; engagement:string;
-  projectId?:string; orderId?:string;
+  projectId?:string; orderId?:string; quoteNumber?:string;
 }
 export interface BillingDraft {
   details?:BillingDocumentDetails;

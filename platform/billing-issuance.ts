@@ -46,7 +46,7 @@ const readRow=(db:Database,issuanceId:string)=>db.prepare('SELECT * FROM billing
 export const readIssuanceJob=(db:Database,issuanceId:string)=>db.prepare('SELECT * FROM billing_issue_jobs WHERE issuance_id=?').bind(id(issuanceId)).first<IssuanceJob>();
 export async function readIssuance(db:Database,issuanceId:string){const row=await readRow(db,id(issuanceId));return row?unpack(row):null;}
 
-/** Administrative setup only. No series, numbering format or starting counter is inferred. */
+/** Idempotent series creation; callers supply the complete numbering policy. */
 export async function createNumberSeries(db:Database,input:NumberSeriesInput,user:string):Promise<SeriesRow>{
  if(!input||typeof input!=='object'||Object.keys(input).sort().join()!==['id','issuerSiren','kind','prefix','width','firstValue','startDate','endDate'].sort().join())return fail(400,'Paramètres de série invalides.');
  const seriesId=id(input.id);actor(user);
@@ -93,10 +93,10 @@ export async function reserveIssuance(db:Database,input:{id:string;documentId:st
  try{
   // The SELECT and insert triggers run in one SQLite statement: no read/increment/write gap.
   const row=await db.prepare(`INSERT INTO billing_issuances(id,document_id,document_version,series_id,issuer_siren,sequence_value,number,issue_date,source_json,snapshot_json,totals_json,snapshot_sha256,created_at,created_by)
-   SELECT ?,d.id,d.version,s.id,s.issuer_siren,s.next_value,s.prefix||printf('%0*d',s.width,s.next_value),?,?,?,?,?,?,?
+   SELECT ?,d.id,d.version,s.id,s.issuer_siren,s.next_value,s.prefix||(CASE WHEN EXISTS(SELECT 1 FROM billing_dated_series a WHERE a.series_id=s.id) THEN replace(?,'-','')||'-' ELSE '' END)||printf('%0*d',s.width,s.next_value),?,?,?,?,?,?,?
    FROM billing_documents d JOIN billing_number_series s ON s.id=? WHERE d.id=? AND d.version=? AND d.data_json=?
    AND NOT EXISTS(SELECT 1 FROM billing_issuances WHERE document_id=d.id) RETURNING *`)
-   .bind(issuanceId,snapshot.issueDate,source.data_json,snapshotJSON,totalsJSON,snapshotHash,stamp,user,seriesId,documentId,input.documentVersion,source.data_json).first<IssuanceRow>();
+   .bind(issuanceId,snapshot.issueDate,snapshot.issueDate,source.data_json,snapshotJSON,totalsJSON,snapshotHash,stamp,user,seriesId,documentId,input.documentVersion,source.data_json).first<IssuanceRow>();
   if(row)return unpack(row);
  }catch(error){
   const retried=await replay();if(retried)return retried;

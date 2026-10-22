@@ -843,8 +843,8 @@ function render(preserveFields = false) {
   if (!marketModule) {
     if (marketPromise) return;
     container.innerHTML = loadingMarkup('Chargement des marchés…');
-    if (!document.getElementById("marketStyle")) { const link=document.createElement("link"); link.id="marketStyle"; link.rel="stylesheet"; link.href="platform/markets.css?v=corrections-20261022b"; document.head.append(link); }
-    marketPromise = import("./platform/markets.js?v=corrections-20261022b")
+    if (!document.getElementById("marketStyle")) { const link=document.createElement("link"); link.id="marketStyle"; link.rel="stylesheet"; link.href="platform/markets.css?v=numbering-20261022c"; document.head.append(link); }
+    marketPromise = import("./platform/markets.js?v=numbering-20261022c")
       .then((module) => {
         marketModule = module;
         marketPromise = null;

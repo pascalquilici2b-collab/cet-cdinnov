@@ -1,3 +1,4 @@
+import {billingNumberingSchema} from './billing-numbering-schema.mjs';
 import {billingIssuanceSchema} from './billing-issuance-schema.mjs';
 import {billingDirectorySchema} from './billing-directory-schema.mjs';
 import {billingQuoteSchema} from './billing-quote-schema.mjs';
@@ -72,5 +73,5 @@ export const billingSchema = [
 ];
 export async function migrateBilling(db) {
  // D1 batch is transactional: failure leaves neither half a schema nor a lost history trigger.
- await db.batch([...billingSchema,...billingIssuanceSchema,...billingDirectorySchema,...billingQuoteSchema,...billingRevisionSchema,...billingPaymentSchema,...projectsSchema,...billingDeliverySchema].map(sql=>db.prepare(sql)));
+ await db.batch([...billingSchema,...billingIssuanceSchema,...billingNumberingSchema,...billingDirectorySchema,...billingQuoteSchema,...billingRevisionSchema,...billingPaymentSchema,...projectsSchema,...billingDeliverySchema].map(sql=>db.prepare(sql)));
 }

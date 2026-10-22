@@ -131,7 +131,7 @@ await test('API de brouillons : identité, conservation, concurrence et traçabi
    await read(await convert(randomUUID(),1,randomUUID()),404);
    const target=randomUUID();converted=await read(await convert(quoteId,1,target),201);
    assert.equal(converted.sourceDocumentId,quoteId);assert.equal(converted.status,'draft');assert.equal(converted.version,1);assert.equal(converted.data.kind,'invoice');
-   assert.deepEqual(converted.data,{...quoteData,kind:'invoice',validUntil:'',details:{...blankDocumentDetails(),returnEmail:'cdi@cdinnov.com'}});assert.equal('number' in converted.data,false);
+   assert.deepEqual(converted.data,{...quoteData,kind:'invoice',issueDate:new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Paris'}).format(new Date()),paymentMeans:'30',validUntil:'',details:{...blankDocumentDetails(),returnEmail:'cdi@cdinnov.com'}});assert.equal('number' in converted.data,false);
    assert.equal((await read(await call('/documents/'+quoteId),200)).version,1);assert.equal((await history(quoteId)).results.length,1);assert.equal((await history(target)).results.length,1);
    assert.equal((await read(await convert(quoteId,1,target),200)).id,target);
    await read(await convert(quoteId,1,randomUUID()),409);
