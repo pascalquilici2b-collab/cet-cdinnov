@@ -24,7 +24,7 @@ from .models import Invoice, Line
 from .pdf_import import inspect_pdf, MAX_BYTES
 from .service import ConversionError, health, runtime, create_xml, schematron, convert_pdfa, verify_attachment, validate_pdfa
 
-GENERATOR_VERSION = 'cdi-billing-2'
+GENERATOR_VERSION = 'cdi-billing-3'
 UUID = Annotated[str, Field(pattern=r'^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$')]
 SHA = Annotated[str, Field(pattern=r'^[a-f0-9]{64}$')]
 
@@ -113,7 +113,7 @@ def invoice_from_document(d, number):
         'buyer_reference': optional(d.references.serviceCode), 'order_reference': optional(d.references.orderReference), 'contract_reference': optional(d.references.marketReference)})
 
 
-def validate_document(d, number='PREFLIGHT'):
+def validate_document(d, number='PREFLIGHT', *, electronic=True):
     if d.creditNote and (not d.creditNote.reason.strip() or d.issueDate < d.creditNote.invoiceDate):
         raise ValueError('Précisez le motif de l’avoir et une date au moins égale à celle de la facture corrigée.')
     for field in ('issueDate', 'dueDate', 'validUntil'):
@@ -134,7 +134,7 @@ def validate_document(d, number='PREFLIGHT'):
         for value, places in ((line.quantity, 6), (line.unitPrice, 6), (line.discountPercent, 2), (line.vatRate, 2)):
             decimal(value, places)
         Line.model_validate(mapped_line(line))
-    if d.kind == 'invoice':
+    if d.kind == 'invoice' and electronic:
         if not d.businessProcess or any(not p.electronicAddress.strip() or not p.electronicScheme.strip() for p in (d.seller, d.buyer)):
             raise ValueError('Complétez le mode et les adresses de facturation électronique.')
         if any(len(canonical_decimal(line.quantity).partition('.')[2]) > 4 for line in d.lines):
@@ -143,9 +143,9 @@ def validate_document(d, number='PREFLIGHT'):
     return None
 
 
-def preflight(payload: PreviewRequest):
+def preflight(payload: PreviewRequest, *, electronic=True):
     d = payload.document
-    invoice = validate_document(d)
+    invoice = validate_document(d, electronic=electronic)
     pdf = render_document(d.model_dump(), d.calculated(), issued=False)
     inspect_pdf(pdf)
     if invoice:
@@ -159,9 +159,9 @@ def preflight(payload: PreviewRequest):
     return {'valid': True, 'snapshotSha256': snapshot_hash(d), 'checks': checks, 'generatorVersion': GENERATOR_VERSION}
 
 
-def generate_issued(payload: IssuedRequest):
+def generate_issued(payload: IssuedRequest, *, electronic=True):
     d = payload.document
-    invoice = validate_document(d, payload.number)
+    invoice = validate_document(d, payload.number, electronic=electronic)
     source = render_document(d.model_dump(), d.calculated(), number=payload.number, issued=True)
     _, pages = inspect_pdf(source)
     artifacts = []
@@ -199,4 +199,4 @@ def generate_issued(payload: IssuedRequest):
     else:
         append('pdf', source, 'application/pdf')
     return {'schemaVersion': 1, 'envelopeSha256': payload.envelopeSha256, 'generatorVersion': GENERATOR_VERSION,
-            'profile': 'en16931' if invoice else 'quote-pdf', 'artifacts': artifacts}
+            'profile': 'en16931' if invoice else ('quote-pdf' if d.kind == 'quote' else 'invoice-pdf'), 'artifacts': artifacts}

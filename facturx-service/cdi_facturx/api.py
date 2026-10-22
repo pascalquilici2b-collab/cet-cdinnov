@@ -253,6 +253,16 @@ def billing_preflight_route(payload: PreviewRequest, request: Request):
     return billing_machine(request, billing_preflight, payload)
 
 
+@app.post('/api/billing/preflight-pdf')
+def billing_pdf_preflight_route(payload: PreviewRequest, request: Request):
+    return billing_machine(request, lambda value: billing_preflight(value, electronic=False), payload)
+
+
+@app.post('/api/billing/generate-issued-pdf')
+def billing_pdf_generate_route(payload: IssuedRequest, request: Request):
+    return billing_machine(request, lambda value: generate_issued(value, electronic=False), payload)
+
+
 @app.post('/api/billing/generate-issued')
 def billing_generate_route(payload: IssuedRequest, request: Request):
     return billing_machine(request, generate_issued, payload)
