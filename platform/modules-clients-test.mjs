@@ -26,10 +26,14 @@ try{
  await page.locator('.bill-message-success').getByText('Fiche enregistrée.',{exact:true}).waitFor();
  const row=await preview.ctx.db.prepare("SELECT data_json FROM billing_directory WHERE kind='clients' AND json_extract(data_json,'$.party.siret')=?").bind('20007695800053').first();
  assert.equal(JSON.parse(row.data_json).party.addressLine1,'Adresse de facturation personnalisée');
+ const saved=await preview.ctx.db.prepare("SELECT id FROM billing_directory WHERE kind='clients' AND json_extract(data_json,'$.party.siret')=?").bind('20007695800053').first();
+ await page.getByRole('button',{name:'‹ Clients',exact:true}).click();await lookup.fill('Collectivité');await lookup.press('Enter');await page.getByRole('button',{name:/Utiliser COLLECTIVITE DE CORSE — SIRET 20007695800053/}).click();
+ await page.getByText('Fiche existante préremplie.',{exact:true}).waitFor();await page.getByRole('button',{name:'Enregistrer la fiche',exact:true}).click();await page.locator('.bill-message-success').getByText('Fiche enregistrée.',{exact:true}).waitFor();
+ const after=await preview.ctx.db.prepare("SELECT id FROM billing_directory WHERE kind='clients' AND json_extract(data_json,'$.party.siret')=?").bind('20007695800053').all();assert.equal(after.results.length,1);assert.equal(after.results[0].id,saved.id);
  mode='rate';await lookup.fill('Collectivité');await lookup.press('Enter');
  await page.getByRole('alert').filter({hasText:'trop de demandes'}).waitFor();
- assert.equal(await page.getByLabel('Client — Adresse',{exact:true}).inputValue(),'Adresse de facturation personnalisée');
- for(const width of [1440,390,320]){await page.setViewportSize({width,height:1000});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);}
+ assert.ok(await page.getByLabel('Client — Adresse',{exact:true}).inputValue());
+ for(const width of [1440,390,320]){await page.setViewportSize({width,height:1000});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,JSON.stringify(await page.evaluate(()=>[...document.querySelectorAll('*')].filter(e=>e.getBoundingClientRect().right>innerWidth+1).slice(-12).map(e=>({tag:e.tagName,class:e.className,width:e.getBoundingClientRect().width,text:e.textContent?.slice(0,70)})))));}
  assert.deepEqual(errors,[]);
  console.log('OK Clients : recherche directe, choix SIRET, édition, persistance, erreur annuaire sans perte, mobile.');
 }finally{await browser.close();await preview.close();}

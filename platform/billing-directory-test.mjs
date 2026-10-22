@@ -37,6 +37,13 @@ await test('répertoire réel D1 : clients partagés, catalogue, versions et con
    assert.equal((await (await call('/clients')).json()).total,1);
    await migrateBilling(ctx.db);assert.deepEqual(await (await call('/clients/existing-client')).json(),client);
   });
+  await t.test('un même SIRET ne crée pas deux fiches, même en concurrence',async()=>{
+   const data={...blankClient(),party:{...blankClient().party,name:'Client identifié',siren:'392175568',siret:'39217556800022'}};
+   const ids=[randomUUID(),randomUUID()];const results=await Promise.all(ids.map(id=>call('/clients','POST',{id,data})));
+   assert.deepEqual(results.map(r=>r.status).sort(),[201,409]);
+   assert.equal((await(await call('/clients?q=39217556800022')).json()).total,1);
+   const virtual=await(await call('/clients/existing-client')).json();assert.equal((await call('/clients','POST',{id:randomUUID(),data:virtual.data})).status,409);
+  });
   let item,doc;
   await t.test('créations idempotentes et catalogue précis, refus des références en double',async()=>{
    const data={...blankService(),reference:'TECH-01',label:'Assistance technique',description:'Suivi du projet',unitPrice:'123.456789'},id=randomUUID();

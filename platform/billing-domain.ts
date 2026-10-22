@@ -12,7 +12,8 @@ export function addBillingMonths(date:string,months:string){
  return new Date(Date.UTC(last.getUTCFullYear(),last.getUTCMonth(),day)).toISOString().slice(0,10);
 }
 export const billingBusinessProcesses:BillingBusinessProcess[]=['','S1','B1','M1','B2','S2','M2','S3','B4','S4','M4','S5','S6','B7','S7','B8','S8','M8','B9','S9','M9'];
-export const blankSettings=():BillingSettingsData=>({schemaVersion:1,seller:blankParty(),paymentTerms:'',iban:'',bic:'',paymentMeans:'30',vatDue:'',legalNotes:blankLegal(),businessProcess:''});
+export const defaultPaymentTerms='Règlement par virement bancaire à l’échéance indiquée sur la facture.';
+export const blankSettings=():BillingSettingsData=>({schemaVersion:1,seller:blankParty(),paymentTerms:defaultPaymentTerms,iban:'',bic:'',paymentMeans:'30',vatDue:'',legalNotes:blankLegal(),businessProcess:''});
 export const newLine=():BillingLine=>({id:uuid(),description:'',quantity:'1',unitCode:'DAY',unitPrice:'',discountPercent:'0',vatRate:'20',vatCategory:'S',exemptionReason:''});
 export function blankDraft(kind:BillingKind,today=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Paris'}).format(new Date())):BillingDraft {
   return {schemaVersion:2,kind,title:'',currency:'EUR',issueDate:today,dueDate:'',validUntil:'',clientId:'',seller:blankParty(),buyer:blankParty(),lines:[newLine()],references:{businessCode:'',marketId:'',marketReference:'',orderReference:'',project:'',serviceCode:'',engagement:''},paymentTerms:'',iban:'',bic:'',notes:'',paymentMeans:'30',vatDue:'',legalNotes:blankLegal(),businessProcess:''};
@@ -20,7 +21,7 @@ export function blankDraft(kind:BillingKind,today=new Intl.DateTimeFormat('sv-SE
 /** Settings are copied, never linked: later edits cannot rewrite an existing document. */
 export function draftWithSettings(kind:BillingKind,settings:BillingSettingsData):BillingDraft {
   const {schemaVersion,fundingProgrammes,returnEmail,...defaults}=structuredClone(settings);
-  return {...blankDraft(kind),...defaults,details:{...blankDocumentDetails(),returnEmail:kind==='invoice'?(returnEmail??'cdi@cdinnov.com'):''}};
+  return {...blankDraft(kind),...defaults,paymentMeans:'30',paymentTerms:defaults.paymentTerms||defaultPaymentTerms,details:{...blankDocumentDetails(),returnEmail:kind==='invoice'?(returnEmail??'cdi@cdinnov.com'):''}};
 }
 const fail=(message:string):never=>{throw Object.assign(new Error(message),{status:422});};
 function object(value:unknown,allowed:string[],name:string):Record<string,unknown> {

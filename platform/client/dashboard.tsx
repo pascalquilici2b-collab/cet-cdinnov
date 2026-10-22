@@ -57,7 +57,7 @@ function Dashboard({load,open,portrait}:Props){
   if(!data&&!error)return <LoadingScreen label="Chargement de l’activité…"/>;
   return <div className="cdi-dashboard" aria-busy={busy}>
     <ExpensePresentationStyle/>
-    <div className="db-heading"><div><span className="db-eyebrow">CDInnov · Vue d’ensemble</span><h2>L’activité de votre équipe</h2><p>{date(data?.today||parisDay(),{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</p></div>
+    <div className="db-heading"><div><p>{date(data?.today||parisDay(),{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</p></div>
       <div className="db-update"><button className="db-button" disabled={busy} onClick={()=>refresh(r=>r+1)}><Icon name="refresh"/> {busy?'Actualisation…':'Actualiser'}</button>{data&&<small>Mis à jour à {date(data.generatedAt,{hour:'2-digit',minute:'2-digit'})}</small>}</div>
     </div>
     {error&&<div className="db-error" role="alert"><strong>Actualisation indisponible.</strong> {error} {data&&'Les informations ci-dessous proviennent de la dernière lecture.'}<button onClick={()=>refresh(r=>r+1)}>Réessayer</button></div>}

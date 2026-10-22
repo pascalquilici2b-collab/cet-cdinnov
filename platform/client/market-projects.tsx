@@ -1,3 +1,4 @@
+import {defaultFundingProgrammes} from '../billing-domain';
 import {useState} from 'react';
 import {FolderKanban,FileCheck2,Plus,Pencil,Archive,Check} from 'lucide-react';
 import type {Market,MarketsSnapshot} from './markets-contracts';
@@ -20,8 +21,8 @@ export function Projects({s,m}:{s:MarketsSnapshot;m:Market}){
     {expanded&&<div className="mk-project-body">
      <div className="mk-form-grid">
       <label className="mk-field mk-wide">Nom du projet<input aria-label={'Nom du projet '+(i+1)} data-path={path+'.name'} defaultValue={project.name} maxLength={180}/></label>
-      <label className="mk-field">Code projet<input data-path={path+'.code'} defaultValue={project.code} maxLength={80}/></label>
-      <label className="mk-field mk-wide">Notes<textarea data-path={path+'.notes'} defaultValue={project.notes} maxLength={2000} rows={2}/></label>
+      <label className="mk-field">ID du projet<input data-path={path+'.code'} defaultValue={project.code} maxLength={80}/></label>
+      <label className="mk-field">Programme<input list={'market-programmes-'+project.id} data-path={path+'.programme'} defaultValue={project.programme||''} maxLength={160}/><datalist id={'market-programmes-'+project.id}>{defaultFundingProgrammes.map(p=><option key={p} value={p}/>)}</datalist></label><label className="mk-field mk-wide">Notes<textarea data-path={path+'.notes'} defaultValue={project.notes} maxLength={2000} rows={2}/></label>
      </div>
      <div className="mk-orders-heading"><h4><FileCheck2 size={18}/> Bons de commande</h4><button type="button" data-add-order={i} disabled={s.busy||project.archived}><Plus size={16}/> Ajouter un bon</button></div>
      {project.orders.map((order,j)=>{

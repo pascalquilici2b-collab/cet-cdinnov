@@ -1,3 +1,4 @@
+import {sameClient} from './billing-client-match';
 import {createHash} from 'node:crypto';
 import type {Database,Reply} from './contracts';
 import type {BillingDirectoryKind,BillingDirectoryRecord} from './billing-contracts';
@@ -48,7 +49,7 @@ export async function billingDirectoryRoute(request:Request,db:Database,user:str
   if([...p.keys()].some(k=>!['q','offset','limit','archived'].includes(k)||p.getAll(k).length>1)||q.length>200||!['true','false'].includes(p.get('archived')||'false'))return fail(400,'Filtres invalides.');
   const integer=(key:string,fallback:number,min:number,max:number)=>{const v=p.get(key);if(v===null)return fallback;if(!/^\d+$/.test(v)||!Number.isSafeInteger(Number(v))||Number(v)<min||Number(v)>max)return fail(400,'Pagination invalide.');return Number(v);};
   const offset=integer('offset',0,0,1000000),limit=integer('limit',20,1,100),archived=p.get('archived')==='true'?1:0;
-  const searchable=foldSQL("coalesce(json_extract(data_json,'$.party.name'),'')||' '||coalesce(json_extract(data_json,'$.party.siren'),'')||' '||coalesce(json_extract(data_json,'$.party.email'),'')||' '||coalesce(json_extract(data_json,'$.label'),'')||' '||coalesce(json_extract(data_json,'$.reference'),'')");
+  const searchable=foldSQL("coalesce(json_extract(data_json,'$.party.name'),'')||' '||coalesce(json_extract(data_json,'$.party.siren'),'')||' '||coalesce(json_extract(data_json,'$.party.siret'),'')||' '||coalesce(json_extract(data_json,'$.party.email'),'')||' '||coalesce(json_extract(data_json,'$.label'),'')||' '||coalesce(json_extract(data_json,'$.reference'),'')");
   const sql=directorySQL+`, filtered AS (SELECT * FROM entries WHERE json_extract(data_json,'$.archived')=? AND (?='' OR instr(${searchable},?)>0))
   SELECT (SELECT count(*) FROM filtered) AS total,(SELECT json_group_array(json(row_json)) FROM (SELECT json_object('id',id,'kind',kind,'version',version,'data_json',data_json,'updated_at',updated_at) AS row_json FROM filtered ORDER BY lower(coalesce(json_extract(data_json,'$.party.name'),json_extract(data_json,'$.label'))),id LIMIT ? OFFSET ?)) AS rows_json`;
   const result=await db.prepare(sql).bind(...baseBindings(kind),archived,q,fold(q),limit,offset).first<{total:number;rows_json:string}>();
@@ -62,10 +63,12 @@ export async function billingDirectoryRoute(request:Request,db:Database,user:str
    if(expected===null||expected===0){
     const previous=await stored(db,kind,id);
     if(previous){if(previous.create_hash!==hash)return conflict();return reply(200,record(previous));}
+    if(expected===null&&kind==='clients'&&'party' in data){const entries=await db.prepare(directorySQL+' SELECT * FROM entries').bind(...baseBindings(kind)).all<Row>();if(entries.results.some(row=>{const r=record(row);return r.kind==='clients'&&!r.data.archived&&sameClient(r.data,data.party);}))return fail(409,'Ce client existe déjà. Ouvrez sa fiche dans Clients pour compléter ses coordonnées.');}
     if(expected===null&&await get(db,kind,id))return fail(409,'Ce client existe déjà dans le répertoire. Ouvrez sa fiche pour la compléter.');
     if(expected===0&&(kind!=='clients'||!await get(db,kind,id)))return fail(404,'Le client d’origine n’existe plus. Créez une nouvelle fiche.');
-    const guard=expected===0?"WHERE EXISTS(SELECT 1 FROM budget_clients WHERE json_extract(data_json,'$.id')=?)":'';
-    const inserted=await db.prepare(`INSERT INTO billing_directory(kind,id,version,data_json,create_hash,created_at,created_by,updated_at,updated_by) SELECT ?,?,1,?,?,?,?,?,? ${guard} ON CONFLICT(kind,id) DO NOTHING RETURNING *`).bind(kind,id,json,hash,stamp,user,stamp,user,...(expected===0?[id]:[])).first<Row>();
+    const siret=kind==='clients'&&'party' in data?data.party.siret.replace(/\s/g,''):'';
+    const guard=expected===0?"WHERE EXISTS(SELECT 1 FROM budget_clients WHERE json_extract(data_json,'$.id')=?)":siret?"WHERE NOT EXISTS(SELECT 1 FROM billing_directory WHERE kind='clients' AND json_extract(data_json,'$.archived')=0 AND replace(json_extract(data_json,'$.party.siret'),' ','')=?)":'';
+    const inserted=await db.prepare(`INSERT INTO billing_directory(kind,id,version,data_json,create_hash,created_at,created_by,updated_at,updated_by) SELECT ?,?,1,?,?,?,?,?,? ${guard} ON CONFLICT(kind,id) DO NOTHING RETURNING *`).bind(kind,id,json,hash,stamp,user,stamp,user,...(expected===0?[id]:siret?[siret]:[])).first<Row>();
     if(inserted)return reply(201,record(inserted));
     const existing=await stored(db,kind,id);if(existing?.create_hash===hash)return reply(200,record(existing));return conflict();
    }

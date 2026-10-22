@@ -12,11 +12,13 @@ try{
  const m={...marketFixture(),projects:[{id:'project-1',name:'Projet test',code:'PT',notes:'Privé',archived:false,orders:[{id:'order-1',reference:'BC-1',date:'2020-01-01',amountMinor:100,documentId:'',archived:false,notes:''}]}]};
  assert.equal((await api('/budgets/markets','POST',{id:'market-1',market:m})).status,201);
  let projects=(await(await api('/api/v1/projects')).json()).projects;assert.equal(projects.length,1);
- const input={id:'project-1',marketId:'market-1',marketVersion:1,name:'Projet renommé',code:'PR',notes:'Privé',archived:false};
+ const input={id:'project-1',marketId:'market-1',marketVersion:1,name:'Projet renommé',code:'PR',programme:'Interreg Euro-Med',notes:'Privé',archived:false};
  assert.equal((await api('/api/v1/projects','PUT',input)).status,200);assert.equal((await api('/api/v1/projects','PUT',input)).status,409);
  assert.equal((await api('/api/v1/projects','PUT',{...input,marketVersion:2},{Authorization:'Bearer '+p.sessions[1].token})).status,403);
- const employee=(await(await api('/api/v1/projects','GET',undefined,{Authorization:'Bearer '+p.sessions[1].token})).json()).projects[0];assert.equal(employee.notes,undefined);assert.equal(employee.orders,undefined);
+ const employee=(await(await api('/api/v1/projects','GET',undefined,{Authorization:'Bearer '+p.sessions[1].token})).json()).projects[0];assert.equal(employee.programme,'Interreg Euro-Med');assert.equal(employee.notes,undefined);assert.equal(employee.orders,undefined);
  assert.equal((await(await api('/budgets/markets/market-1')).json()).market.projects[0].orders.length,1);
+ const {programme,...legacyProject}=input;assert.equal((await api('/api/v1/projects','PUT',{...legacyProject,marketVersion:2})).status,200);
+ assert.equal((await(await api('/api/v1/projects')).json()).projects[0].programme,'Interreg Euro-Med');
  const q=await quoteFixtureTools(p.ctx,token),data=quoteFixture();data.references.marketId='market-1';data.references.projectId='project-1';data.references.project='Projet renommé';data.details={...blankDocumentDetails(),marketObject:m.title,period:'S1',fundingProgramme:'Horizon Europe',personInCharge:'Direction test',validityMonths:'3'};data.validUntil=addBillingMonths(data.issueDate,'3');
  let doc=await q.create(data);assert.deepEqual(doc.data.details,data.details);
  const mail={id:randomUUID(),recipient:'recipient@example.test',subject:'Devis de test',message:'Document fictif.'};const email=(d,i=mail)=>q.call('/documents/'+d.id+'/email','POST',i,{'If-Match':String(d.version)});

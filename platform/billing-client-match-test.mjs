@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import {blankParty} from './billing-domain.ts';
+import {sameClient,enrichClient} from './billing-client-match.ts';
+import {clientBrand} from './billing-client-brands.ts';
+const original={schemaVersion:1,party:{...blankParty(),name:'Agence de développement économique de la Corse',email:'billing@example.test'},notes:'Suivi conservé',archived:false};
+const official={...blankParty(),name:'AGENCE DEVELOPPEMENT ECO DE LA CORSE',siren:'392175568',siret:'39217556800022'};
+assert.equal(sameClient(original,official),true);
+const enriched=enrichClient(original,official);
+assert.equal(enriched.notes,original.notes);assert.equal(enriched.party.email,original.party.email);assert.equal(enriched.logoKey,'adec.svg');
+assert.equal(clientBrand(official.name,official.siren),'adec.svg');
+assert.equal(sameClient(enriched,{...official,siret:'39217556800030'}),false);
+assert.equal(sameClient(enriched,{...official,siren:'552100554',siret:'55210055400013'}),false);
+assert.equal(enrichClient(enriched,{...official,siren:'552100554',siret:'55210055400013',name:'Autre client'}).party.email,'');
+console.log('OK Identité ADEC, logo et contacts conservés ; établissements distincts non fusionnés.');

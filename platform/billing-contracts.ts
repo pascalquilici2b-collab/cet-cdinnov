@@ -74,7 +74,7 @@ export interface BillingClientDetails {
  legalForm:string; legalFormCode:string; representatives:string; shareCapital:string;
  vatNumbers:string[]; source:string; retrievedAt:string;
 }
-export interface BillingClientData {schemaVersion:1;party:BillingParty;notes:string;archived:boolean;details?:BillingClientDetails;}
+export interface BillingClientData {schemaVersion:1;party:BillingParty;notes:string;archived:boolean;details?:BillingClientDetails;logoKey?:string;}
 export interface BillingServiceData {schemaVersion:1;reference:string;label:string;description:string;unitCode:string;unitPrice:string;vatRate:string;vatCategory:VatCategory;exemptionReason:string;archived:boolean;}
 export type BillingDirectoryData=BillingClientData|BillingServiceData;
 export type BillingDirectoryRecord={id:string;version:number;updatedAt:string|null;} & ({kind:'clients';data:BillingClientData;}|{kind:'services';data:BillingServiceData;});
