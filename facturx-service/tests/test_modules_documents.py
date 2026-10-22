@@ -4,7 +4,7 @@ import pymupdf as fitz
 from tests.test_billing_issuance import document
 from tests.test_document_pdf import fixture, extract
 from cdi_facturx.document_pdf import render_document
-from cdi_facturx.billing_document import DraftDocument
+from cdi_facturx.billing_document import DraftDocument, PreviewRequest
 
 def test_new_fields_quote_and_invoice():
     d,t=fixture('quote')
@@ -38,3 +38,22 @@ def test_quote_reference_preserves_legacy_hash_shape():
     assert 'quoteNumber' not in DraftDocument.model_validate(d).model_dump()['references']
     d['references']['quoteNumber']='20261022-001'
     assert DraftDocument.model_validate(d).model_dump()['references']['quoteNumber']=='20261022-001'
+
+def test_reserved_number_and_payment_spacing():
+    d,t=fixture('invoice')
+    d['seller']['siren']='322556580'
+    request=PreviewRequest.model_validate({'document':d,'number':'F-20261022-001','editable':True})
+    raw=render_document(d,t,number=request.number,editable=True)
+    text=extract(raw)
+    assert 'F-20261022-001' in text and 'BROUILLON' in text
+    assert 'Règlement et mentions' not in text
+    assert 'Conditions de paiement' in text
+    with fitz.open(stream=raw,filetype='pdf') as pdf:
+        for page in pdf:
+            bank=page.search_for('BIC :')
+            legal=page.search_for('Indemnité de recouvrement :')
+            if bank and legal:
+                assert legal[0].y0-bank[-1].y1>=40
+                break
+        else:
+            raise AssertionError('Bank and legal notes should be separated visibly on the sample invoice')

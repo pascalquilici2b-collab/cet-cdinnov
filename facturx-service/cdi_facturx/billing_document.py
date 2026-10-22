@@ -224,3 +224,4 @@ class DraftDocument(StrictModel):
 class PreviewRequest(StrictModel):
     document: DraftDocument
     editable: bool = False
+    number: str | None = Field(default=None, max_length=35, pattern=r'^[A-Za-z0-9_/-]+$')

@@ -213,7 +213,7 @@ def billing_preview(payload: PreviewRequest):
         raise HTTPException(503, 'Le service traite un autre document. Réessayez dans un instant.')
     try:
         document = payload.document
-        data = render_document(document.model_dump(), document.draft_totals(), issued=False, editable=payload.editable)
+        data = render_document(document.model_dump(), document.draft_totals(), number=payload.number, issued=False, editable=payload.editable)
         return Response(data, media_type='application/pdf', headers={
             'Content-Disposition': 'attachment; filename="brouillon.pdf"'})
     except DocumentPDFError as exc:

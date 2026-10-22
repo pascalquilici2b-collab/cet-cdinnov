@@ -279,7 +279,7 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
     if credit is not None and (document.get("schemaVersion") != 3 or document["kind"] != "invoice" or not isinstance(credit, dict)):
         raise ValueError("Référence d’avoir invalide.")
     kind = "AVOIR" if credit else "FACTURE" if document["kind"] == "invoice" else "DEVIS"
-    reference = number or "Numéro attribué à la validation"
+    reference = number or "Numéro en préparation"
     seller = document["seller"]
     cdi = (seller.get("siren") or _text(seller.get("siret"))[:9]) == "322556580"
     footer_p = None
@@ -468,23 +468,30 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
         means = document["paymentMeans"]
         terms.append(("Mode de règlement", _MEANS.get(means, means)))
     if _text(document.get("paymentTerms")):
-        terms.append(("Conditions de règlement", document["paymentTerms"]))
+        terms.append(("Conditions de paiement", document["paymentTerms"]))
     for field, label in (("iban", "IBAN"), ("bic", "BIC")):
         if document['kind'] == 'invoice' and _text(document.get(field)):
             terms.append((label, document[field]))
+    legal = document.get("legalNotes") or {}
+    legal_terms: list[tuple[str, str]] = []
     if _text(document.get("vatDue")):
         due = document["vatDue"]
-        terms.append(("Exigibilité de la TVA", _VAT_DUE.get(due, due)))
-    legal = document.get("legalNotes") or {}
+        legal_terms.append(("Exigibilité de la TVA", _VAT_DUE.get(due, due)))
     for field, label in (("recovery", "Indemnité de recouvrement"), ("penalties", "Pénalités de retard"), ("discount", "Escompte")):
         if _text(legal.get(field)):
-            terms.append((label, legal[field]))
+            legal_terms.append((label, legal[field]))
     if terms:
-        story.append(heading("Règlement et mentions"))
+        story.append(Spacer(1, 12))
         for label, value in terms:
-            term_path={'Conditions de règlement':'paymentTerms','Indemnité de recouvrement':'legalNotes.recovery','Pénalités de retard':'legalNotes.penalties','Escompte':'legalNotes.discount'}.get(label)
-            story.append(p(f"{label} : {value}", "legal" if term_path and term_path.startswith('legalNotes.') else "small", term_path))
+            term_path='paymentTerms' if label == 'Conditions de paiement' else None
+            story.append(p(f"{label} : {value}", "small", term_path))
             story.append(Spacer(1, 1 if cdi else 4))
+    if legal_terms:
+        legal_block: list[Any] = [Spacer(1, 4 * style['small'].leading if document['kind'] == 'invoice' and (document.get('iban') or document.get('bic')) else 12)]
+        for label, value in legal_terms:
+            path={'Indemnité de recouvrement':'legalNotes.recovery','Pénalités de retard':'legalNotes.penalties','Escompte':'legalNotes.discount'}.get(label)
+            legal_block.extend([p(f"{label} : {value}", 'legal', path), Spacer(1, 1 if cdi else 4)])
+        story.append(KeepTogether(legal_block))
     if _text(document.get("notes")):
         story.extend([heading("Informations complémentaires"), p(document["notes"], "small", 'notes')])
     if document['kind'] == 'invoice' and details.get('returnEmail'):
