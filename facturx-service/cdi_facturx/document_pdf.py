@@ -382,7 +382,7 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
     story.append(parties)
     references = document.get("references") or {}
     details = document.get("details") or {}
-    ref_labels = (("businessCode", "Code affaire"), ("marketReference", "Marché / contrat"), ("orderReference", "Commande"), ("project", "Projet"), ("serviceCode", "Service destinataire"), ("engagement", "Engagement"))
+    ref_labels = (("quoteNumber", "Référence devis"), ("businessCode", "Code affaire"), ("marketReference", "Marché / contrat"), ("orderReference", "Commande"), ("project", "Projet"), ("serviceCode", "Service destinataire"), ("engagement", "Engagement"))
     shown_refs = [(label, _text(references.get(key)), 'references.'+key) for key, label in ref_labels if _text(references.get(key)) and (key != 'orderReference' or document['kind'] == 'invoice')]
     shown_refs += [(label, _text(details.get(key)), 'details.'+key) for key, label in (("marketObject", "Objet du marché"), ("personInCharge", "Personne en charge"), ("fundingProgramme", "Programme")) if _text(details.get(key))]
     if details.get('period'):

@@ -70,11 +70,12 @@ class DraftReferences(StrictModel):
     engagement: text(300)
     projectId: text(300) = ""
     orderId: text(300) = ""
+    quoteNumber: text(300) = ""
 
     @model_serializer(mode='wrap')
     def original_shape(self, handler):
         value = handler(self)
-        for key in ("projectId", "orderId"):
+        for key in ("projectId", "orderId", "quoteNumber"):
             if key not in self.model_fields_set:
                 value.pop(key, None)
         return value

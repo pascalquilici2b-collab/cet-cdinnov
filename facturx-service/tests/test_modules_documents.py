@@ -20,9 +20,11 @@ def test_new_fields_quote_and_invoice():
         assert any(x.endswith('/lines.0.quantity') for x in links)
         assert any(x.endswith('/details.marketObject') for x in links)
     invoice=deepcopy(d);invoice['kind']='invoice';invoice['details']['validityMonths']=''
+    invoice['references']['quoteNumber']='20261022-001'
     final=render_document(invoice,t,number='FACTURE-TEST',issued=True)
     assert 'IBAN' in extract(final) and 'BC-000142' in extract(final) and 'À retourner à : cdi@cdinnov.com' in extract(final)
     assert 'Relevé d’intervention' in extract(final) and 'Vérification des pièces' in extract(final)
+    assert 'Référence devis : 20261022-001' in extract(final)
     with fitz.open(stream=final,filetype='pdf') as pdf:
         assert not [l for p in pdf for l in p.get_links()]
     out=Path('../platform/.private/modules-20261022/pdf');out.mkdir(parents=True,exist_ok=True)
@@ -30,3 +32,9 @@ def test_new_fields_quote_and_invoice():
         (out/(name+'.pdf')).write_bytes(data)
         with fitz.open(stream=data,filetype='pdf') as pdf:
             for i,p in enumerate(pdf):p.get_pixmap(matrix=fitz.Matrix(1.2,1.2)).save(str(out/(name+f'-{i+1}.png')))
+
+def test_quote_reference_preserves_legacy_hash_shape():
+    d=document()
+    assert 'quoteNumber' not in DraftDocument.model_validate(d).model_dump()['references']
+    d['references']['quoteNumber']='20261022-001'
+    assert DraftDocument.model_validate(d).model_dump()['references']['quoteNumber']=='20261022-001'
