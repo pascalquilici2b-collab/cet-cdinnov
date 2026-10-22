@@ -128,7 +128,7 @@ class DraftIntervention(StrictModel):
 
 class DraftDetails(StrictModel):
     marketObject: text(500)
-    period: Literal['', 'S1', 'S2']
+    period: Literal['', 'S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8']
     personInCharge: text(300)
     fundingProgramme: text(160)
     validityMonths: text(3)

@@ -386,7 +386,7 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
     shown_refs = [(label, _text(references.get(key)), 'references.'+key) for key, label in ref_labels if _text(references.get(key)) and (key != 'orderReference' or document['kind'] == 'invoice')]
     shown_refs += [(label, _text(details.get(key)), 'details.'+key) for key, label in (("marketObject", "Objet du marché"), ("personInCharge", "Personne en charge"), ("fundingProgramme", "Programme")) if _text(details.get(key))]
     if details.get('period'):
-        shown_refs.append(('Période concernée', {'S1': 'Semestre 1', 'S2': 'Semestre 2'}[details['period']], None))
+        shown_refs.append(('Période concernée', f"Semestre {details['period'][1:]}", None))
     if shown_refs:
         story.append(heading("Références"))
         ref_cells = [p(f"{label} : {value}", "small", field) for label, value, field in shown_refs]
