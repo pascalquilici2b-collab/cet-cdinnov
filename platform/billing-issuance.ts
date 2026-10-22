@@ -93,8 +93,8 @@ export async function reserveIssuance(db:Database,input:{id:string;documentId:st
  try{
   // The SELECT and insert triggers run in one SQLite statement: no read/increment/write gap.
   const row=await db.prepare(`INSERT INTO billing_issuances(id,document_id,document_version,series_id,issuer_siren,sequence_value,number,issue_date,source_json,snapshot_json,totals_json,snapshot_sha256,created_at,created_by)
-   SELECT ?,d.id,d.version,s.id,s.issuer_siren,s.next_value,s.prefix||(CASE WHEN EXISTS(SELECT 1 FROM billing_dated_series a WHERE a.series_id=s.id) THEN replace(?,'-','')||'-' ELSE '' END)||printf('%0*d',s.width,s.next_value),?,?,?,?,?,?,?
-   FROM billing_documents d JOIN billing_number_series s ON s.id=? WHERE d.id=? AND d.version=? AND d.data_json=?
+   SELECT ?,d.id,d.version,s.id,s.issuer_siren,coalesce(n.sequence_value,s.next_value),coalesce(n.number,s.prefix||(CASE WHEN EXISTS(SELECT 1 FROM billing_dated_series a WHERE a.series_id=s.id) THEN replace(?,'-','')||'-' ELSE '' END)||printf('%0*d',s.width,s.next_value)),?,?,?,?,?,?,?
+   FROM billing_documents d JOIN billing_number_series s ON s.id=? LEFT JOIN billing_draft_numbers n ON n.document_id=d.id AND n.series_id=s.id WHERE d.id=? AND d.version=? AND d.data_json=?
    AND NOT EXISTS(SELECT 1 FROM billing_issuances WHERE document_id=d.id) RETURNING *`)
    .bind(issuanceId,snapshot.issueDate,snapshot.issueDate,source.data_json,snapshotJSON,totalsJSON,snapshotHash,stamp,user,seriesId,documentId,input.documentVersion,source.data_json).first<IssuanceRow>();
   if(row)return unpack(row);

@@ -29,7 +29,7 @@ export function PDFPreview({record,transport,draft,onChange,file}:{record:Billin
  useEffect(()=>{
   let active=true,task:PDFTask|undefined;setPDF(null);setError('');setPending(true);setAreas([]);
   const timer=setTimeout(()=>{void (async()=>{
-   const blob=file||(draft?await transport!.previewDraft(JSON.parse(snapshot)):record?.status==='issued'?await transport!.issuedFile(record.id,'pdf'):record?await transport!.previewPDF(record.id,record.version):null);
+   const blob=file||(draft?await transport!.previewDraft(JSON.parse(snapshot),record?.id):record?.status==='issued'?await transport!.issuedFile(record.id,'pdf'):record?await transport!.previewPDF(record.id,record.version):null);
    if(!blob)throw new Error('Document indisponible.');
    if(!active)return;
    if(blob.size>20*1024*1024||await blob.slice(0,5).text()!=='%PDF-')throw new Error('Le fichier reçu ne peut pas être affiché.');
@@ -41,7 +41,7 @@ export function PDFPreview({record,transport,draft,onChange,file}:{record:Billin
    setPDF(document);setPage(p=>Math.min(p,document.numPages));setPending(false);
   })().catch(e=>{if(active){setPending(false);setError(e instanceof Error?e.message:'L’aperçu PDF est indisponible.');}});},draft?800:0);
   return()=>{active=false;clearTimeout(timer);if(task)void task.destroy().catch(()=>{});};
- },[record?.id,record?.version,record?.status,transport,retry,snapshot,file]);
+ },[record?.id,record?.version,record?.status,record?.reservedNumber?.number,transport,retry,snapshot,file]);
  useEffect(()=>{
   if(!pdf)return;let active=true,task:RenderTask|undefined;setRendering(true);setText('');
   (async()=>{

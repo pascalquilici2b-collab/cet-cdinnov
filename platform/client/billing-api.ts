@@ -14,6 +14,7 @@ export function createBillingTransport(options:{baseUrl:string;getToken:()=>Prom
     }catch(error){active();if(controller.signal.aborted)throw new Error('Le service ne répond pas. Vos modifications sont conservées ; vous pouvez réessayer.');if(error instanceof TypeError)throw new Error('La connexion au serveur a été interrompue. Votre saisie est conservée ; vous pouvez réessayer.');if(error instanceof SyntaxError)throw new Error('La réponse du serveur est illisible. Votre saisie est conservée ; vous pouvez réessayer.');throw error;}
     finally{clearTimeout(timer);controllers.delete(controller);}
   }
+  async function numbered(promise:Promise<BillingDocument>){const doc=await promise;const siren=doc.data.seller.siren.replace(/\s/g,'')||doc.data.seller.siret.replace(/\s/g,'').slice(0,9);return !doc.issuance&&!doc.reservedNumber&&!doc.quote?.revision.abandoned&&/^\d{9}$/.test(siren)?request<BillingDocument>('/documents/'+encodeURIComponent(doc.id)+'/number','POST',{},doc.version):doc;}
   return {
     emailHistory:id=>request('/documents/'+encodeURIComponent(id)+'/email'),
     email:(id,version,input)=>request('/documents/'+encodeURIComponent(id)+'/email','POST',input,version),
@@ -24,22 +25,22 @@ export function createBillingTransport(options:{baseUrl:string;getToken:()=>Prom
     directoryCreate:(kind,id,data)=>request<BillingDirectoryRecord>('/'+kind,'POST',{id,data}),
     directorySave:(kind,id,version,data)=>request<BillingDirectoryRecord>('/'+kind+'/'+encodeURIComponent(id),'PUT',{data},version),
     quoteVersions:(id,before)=>request<{versions:BillingQuoteRevisionItem[];nextBefore:number|null}>('/documents/'+encodeURIComponent(id)+'/quote-versions'+(before?'?before='+before:'')),
-    reviseQuote:(id,version,data)=>request<BillingDocument>('/documents/'+encodeURIComponent(id)+'/revise','POST',data,version),
+    reviseQuote:(id,version,data)=>numbered(request<BillingDocument>('/documents/'+encodeURIComponent(id)+'/revise','POST',data,version)),
     abandonQuoteRevision:(id,version,data)=>request<BillingDocument>('/documents/'+encodeURIComponent(id)+'/abandon-revision','POST',data,version),
     payments:(id,before)=>request<{entries:BillingPaymentEntry[];nextBefore:number|null}>('/documents/'+encodeURIComponent(id)+'/payments'+(before?'?before='+before:'')),
     payment:(id,version,data)=>request<BillingDocument>('/documents/'+encodeURIComponent(id)+'/payments','POST',data,version),
     quoteEvents:(id,before)=>request<{events:BillingQuoteEvent[];nextBefore:number|null}>('/documents/'+encodeURIComponent(id)+'/quote-events'+(before?'?before='+before:'')),
     quoteEvent:(id,version,data)=>request<BillingDocument>('/documents/'+encodeURIComponent(id)+'/quote-events','POST',data,version),
     list:query=>request<BillingPage>('/documents?'+new URLSearchParams({kind:query.kind,q:query.q,offset:String(query.offset),limit:String(query.limit),state:query.state||'all',...(query.client?{client:query.client}:{}),...(query.project?{project:query.project}:{})})),
-    get:id=>request<BillingDocument>('/documents/'+encodeURIComponent(id)),
-    create:(id:string,data:BillingDraft)=>request<BillingDocument>('/documents','POST',{id,data}),
-    save:(id:string,version:number,data:BillingDraft)=>request<BillingDocument>('/documents/'+encodeURIComponent(id),'PUT',{data},version),
-    convert:(id:string,version:number,newId:string)=>request<BillingDocument>('/documents/'+encodeURIComponent(id)+'/convert','POST',{id:newId},version),
+    get:id=>numbered(request<BillingDocument>('/documents/'+encodeURIComponent(id))),
+    create:(id:string,data:BillingDraft)=>numbered(request<BillingDocument>('/documents','POST',{id,data})),
+    save:(id:string,version:number,data:BillingDraft)=>numbered(request<BillingDocument>('/documents/'+encodeURIComponent(id),'PUT',{data},version)),
+    convert:(id:string,version:number,newId:string)=>numbered(request<BillingDocument>('/documents/'+encodeURIComponent(id)+'/convert','POST',{id:newId},version)),
     context:()=>request<BillingContext>('/context'),
     settings:()=>request<BillingSettings>('/settings'),
     saveSettings:(version,data)=>request<BillingSettings>('/settings','PUT',{data},version),
     previewPDF:(id,version)=>request<Blob>('/documents/'+encodeURIComponent(id)+'/preview.pdf','GET',undefined,version,true),
-    previewDraft:data=>request<Blob>('/preview.pdf','POST',{data},undefined,true),
+    previewDraft:(data,documentId)=>request<Blob>('/preview.pdf','POST',{data,...(documentId?{documentId}:{})},undefined,true),
     numberSeries:()=>request<BillingNumberSeries[]>('/number-series'),
     createNumberSeries:data=>request<BillingNumberSeries>('/number-series','POST',{data}),
     issue:(id,version,attemptId,seriesId)=>request<BillingDocument>('/documents/'+encodeURIComponent(id)+'/issue','POST',{id:attemptId,seriesId},version),

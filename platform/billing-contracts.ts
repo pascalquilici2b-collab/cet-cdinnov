@@ -48,6 +48,7 @@ export interface BillingTotals {
 export interface BillingDocument {
   id:string; version:number; status:'draft'|'finalizing'|'issue_failed'|'issued'; data:BillingDraft;
   issuance:BillingIssuanceSummary|null;
+  reservedNumber?:{number:string;date:string;seriesId:string}|null;
   sourceDocumentId:string|null; createdAt:string; updatedAt:string; createdBy:string; updatedBy:string;
   totals:BillingTotals|null; issues:BillingIssue[];
   quote:BillingQuoteSummary|null;
@@ -115,7 +116,7 @@ export interface BillingTransport {
   settings():Promise<BillingSettings>;
   saveSettings(version:number,data:BillingSettingsData):Promise<BillingSettings>;
   previewPDF(id:string,version:number):Promise<Blob>;
-  previewDraft(data:BillingDraft):Promise<Blob>;
+  previewDraft(data:BillingDraft,documentId?:string):Promise<Blob>;
   numberSeries():Promise<BillingNumberSeries[]>;
   createNumberSeries(data:{id:string;issuerSiren:string;kind:BillingKind;prefix:string;width:number;firstValue:number;startDate:string;endDate:string}):Promise<BillingNumberSeries>;
   issue(id:string,version:number,attemptId:string,seriesId:string):Promise<BillingDocument>;
