@@ -29,6 +29,7 @@ from reportlab.platypus import (
     KeepTogether,
     LongTable,
     PageTemplate,
+    PageBreak,
     Paragraph,
     Spacer,
     Table,
@@ -53,7 +54,7 @@ _RULE = colors.HexColor("#d6e3e6")
 _PAGE_W, _PAGE_H = A4
 _MARGIN = 43.0
 _WIDTH = _PAGE_W - 2 * _MARGIN
-_UNITS = {"DAY": "jour", "HUR": "heure", "C62": "unité", "KGM": "kg", "MTR": "m", "MTK": "m²", "LTR": "litre", "MON": "mois", "ANN": "année"}
+_UNITS = {"DAY": "jour", "HUR": "heure", "C62": "unité", "KMT": "km", "KGM": "kg", "MTR": "m", "MTK": "m²", "LTR": "litre", "MON": "mois", "ANN": "année"}
 _VAT = {"S": "TVA", "Z": "Taux zéro", "E": "Exonération", "AE": "Autoliquidation", "O": "Hors champ"}
 _MEANS = {"30": "Virement", "58": "Virement SEPA", "49": "Prélèvement", "59": "Prélèvement SEPA", "48": "Carte bancaire", "10": "Espèces", "20": "Chèque", "transfer": "Virement", "card": "Carte bancaire", "cheque": "Chèque", "cash": "Espèces", "direct_debit": "Prélèvement"}
 _VAT_DUE = {"invoice": "TVA exigible sur les débits", "payment": "TVA exigible sur les encaissements", "delivery": "TVA exigible à la livraison"}
@@ -162,6 +163,7 @@ def _styles() -> dict[str, ParagraphStyle]:
         "tablehead": ParagraphStyle("tablehead", parent=base, fontSize=7.2, leading=10, textColor=colors.white, spaceAfter=0),
         "total": ParagraphStyle("total", parent=base, fontSize=14, leading=18, alignment=TA_RIGHT, spaceAfter=0),
         "footer": ParagraphStyle("footer", parent=base, fontSize=6.8, leading=9, alignment=TA_CENTER, textColor=_MUTED),
+        "legal": ParagraphStyle("legal", parent=base, fontSize=7, leading=9, textColor=_MUTED),
     }
 
 
@@ -231,7 +233,7 @@ def _validate_totals(document: dict, totals: dict | None, issued: bool) -> dict[
     return by_id
 
 
-def render_document(document: dict, totals: dict | None, number: str | None = None, issued: bool = False) -> bytes:
+def render_document(document: dict, totals: dict | None, number: str | None = None, issued: bool = False, editable: bool = False) -> bytes:
     """Render a draft or issued invoice/quote, using authoritative cent totals.
 
     ``document`` is the versioned BillingDraft payload, not its storage envelope.
@@ -264,8 +266,11 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
     by_id = _validate_totals(document, totals, issued)
     style = _styles()
 
-    def p(value: str, variant: str = "body") -> Paragraph:
-        return Paragraph(_markup(value), style[variant])
+    def p(value: str, variant: str = "body", field: str | None = None) -> Paragraph:
+        markup = _markup(value)
+        if editable and not issued and field and re.fullmatch(r'[A-Za-z0-9.]+', field):
+            markup = f'<link href="https://editor.cdinnov.invalid/field/{field}">{markup}</link>'
+        return Paragraph(markup, style[variant])
 
     def heading(value: str) -> Paragraph:
         return p(value, "heading")
@@ -332,7 +337,7 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
     story: list[Any] = []
 
     if _text(document.get("title")):
-        story.append(p(document["title"], "title"))
+        story.append(p(document["title"], "title", 'title'))
     meta = [("Date du document", _date(document.get("issueDate")))]
     if credit:
         meta.append(("Facture corrigée", _text(credit.get("invoiceNumber"))))
@@ -341,7 +346,8 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
         meta.append(("Valable jusqu'au", _date(document.get("validUntil"))))
     elif not credit or document.get("dueDate"):
         meta.append(("Date prévue de règlement" if credit else "Date d'échéance", _date(document.get("dueDate"))))
-    metadata = Table([[p(label, "muted"), p(value, "small")] for label, value in meta], colWidths=[95, _WIDTH / 2 - 117] if cdi else [110, _WIDTH - 110])
+    meta_fields={'Date du document':'issueDate',"Valable jusqu'au":'validUntil',"Date d'échéance":'dueDate'}
+    metadata = Table([[p(label, "muted"), p(value, "small", meta_fields.get(label))] for label, value in meta], colWidths=[95, _WIDTH / 2 - 117] if cdi else [110, _WIDTH - 110])
     metadata.setStyle(_table_style([("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 8), ("TOPPADDING", (0, 0), (-1, -1), 1), ("BOTTOMPADDING", (0, 0), (-1, -1), 3), ("VALIGN", (0, 0), (-1, -1), "TOP")]))
     if not cdi:
         story.extend([metadata, Spacer(1, 12)])
@@ -349,13 +355,14 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
         story.extend([heading("Motif de l’avoir"), p(_text(credit.get("reason"), "Motif à compléter")), Spacer(1, 10)])
 
     def party_content(party: dict, label: str) -> list[Paragraph]:
-        content = [p(label, "muted"), p(_text(party.get("name"), "Nom à compléter"))]
+        prefix='buyer.' if label=='DESTINATAIRE' else None
+        content = [p(label, "muted"), p(_text(party.get("name"), "Nom à compléter"), field=prefix+'name' if prefix else None)]
         for field in ("addressLine1", "addressLine2"):
             if _text(party.get(field)):
-                content.append(p(party[field], "small"))
+                content.append(p(party[field], "small", prefix+field if prefix else None))
         city = " ".join(_text(party.get(field)) for field in ("postalCode", "city")).strip()
         if city:
-            content.append(p(city, "small"))
+            content.append(p(city, "small", prefix+'city' if prefix else None))
         if _text(party.get("country")):
             content.append(p(party["country"], "small"))
         for field, label in (("siret", "SIRET"), ("siren", "SIREN"), ("vatId", "TVA intracom."), ("email", "Courriel"), ("electronicAddress", "Adresse électronique")):
@@ -363,7 +370,7 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
                 suffix = ""
                 if field == "electronicAddress" and _text(party.get("electronicScheme")):
                     suffix = f" ({party['electronicScheme']})"
-                content.append(p(f"{label} : {party[field]}{suffix}", "small"))
+                content.append(p(f"{label} : {party[field]}{suffix}", "small", prefix+field if prefix else None))
         # Legal information has its own splittable flow below, not a fixed box.
         return content
 
@@ -374,18 +381,23 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
                                 ("TOPPADDING", (0, 0), (-1, -1), 10), ("BOTTOMPADDING", (0, 0), (-1, -1), 10)]))
     story.append(parties)
     references = document.get("references") or {}
+    details = document.get("details") or {}
     ref_labels = (("businessCode", "Code affaire"), ("marketReference", "Marché / contrat"), ("orderReference", "Commande"), ("project", "Projet"), ("serviceCode", "Service destinataire"), ("engagement", "Engagement"))
-    shown_refs = [(label, _text(references.get(key))) for key, label in ref_labels if _text(references.get(key))]
+    shown_refs = [(label, _text(references.get(key)), 'references.'+key) for key, label in ref_labels if _text(references.get(key)) and (key != 'orderReference' or document['kind'] == 'invoice')]
+    shown_refs += [(label, _text(details.get(key)), 'details.'+key) for key, label in (("marketObject", "Objet du marché"), ("personInCharge", "Personne en charge"), ("fundingProgramme", "Programme")) if _text(details.get(key))]
+    if details.get('period'):
+        shown_refs.append(('Période concernée', {'S1': 'Semestre 1', 'S2': 'Semestre 2'}[details['period']], None))
     if shown_refs:
         story.append(heading("Références"))
-        if cdi:
-            story.append(p(" · ".join(f"{label} : {value}" for label, value in shown_refs), "small"))
-        else:
-            for label, value in shown_refs:
-                story.append(p(f"{label} : {value}", "small"))
+        ref_cells = [p(f"{label} : {value}", "small", field) for label, value, field in shown_refs]
+        if len(ref_cells) % 2:
+            ref_cells.append("")
+        ref_table = Table([ref_cells[i:i+2] for i in range(0, len(ref_cells), 2)], colWidths=[_WIDTH/2, _WIDTH/2], splitByRow=1, splitInRow=1)
+        ref_table.setStyle(_table_style([('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),2),('BOTTOMPADDING',(0,0),(-1,-1),2)]))
+        story.append(ref_table)
 
     story.append(heading("Prestations"))
-    labels = ("Désignation", "Qté", "Prix unit. HT", "Remise", "TVA", "Montant HT")
+    labels = ("Désignation", "Qté", "Prix unit. HT", "Remise", "Taux TVA", "Montant HT")
     rows: list[list[Any]] = [[p(label, "tablehead") for label in labels]]
     numeric_widths = [43.0, 68.0, 45.0, 54.0, 82.0]
     for index, line in enumerate(document["lines"], 1):
@@ -409,8 +421,9 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
                 numeric_widths[column] = max(numeric_widths[column], pdfmetrics.stringWidth(displayed, _FONT_NAME, 7.5) + 15)
         if line_total:
             numeric_widths[4] = max(numeric_widths[4], pdfmetrics.stringWidth(_money(line_total["netMinor"]), _FONT_NAME, 7.5) + 15)
-        rows.append([p(description, "cell"), p(quantity, "numeric"), p(_decimal(line.get("unitPrice")) + " €", "numeric"),
-                     p(_decimal(line.get("discountPercent"), percentage=True), "numeric"), p(vat, "numeric"),
+        line_path=f'lines.{index-1}.'
+        rows.append([p(description, "cell", line_path+'description'), p(quantity, "numeric", line_path+'quantity'), p(_decimal(line.get("unitPrice")) + " €", "numeric", line_path+'unitPrice'),
+                     p(_decimal(line.get("discountPercent"), percentage=True), "numeric", line_path+'discountPercent'), p(vat, "numeric", line_path+'vatRate'),
                      p(_money(line_total["netMinor"]) if line_total else "À calculer", "numeric")])
     if not document["lines"]:
         rows.append([p("Aucune prestation renseignée", "cell"), "", "", "", "", ""])
@@ -457,7 +470,7 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
     if _text(document.get("paymentTerms")):
         terms.append(("Conditions de règlement", document["paymentTerms"]))
     for field, label in (("iban", "IBAN"), ("bic", "BIC")):
-        if _text(document.get(field)):
+        if document['kind'] == 'invoice' and _text(document.get(field)):
             terms.append((label, document[field]))
     if _text(document.get("vatDue")):
         due = document["vatDue"]
@@ -469,10 +482,13 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
     if terms:
         story.append(heading("Règlement et mentions"))
         for label, value in terms:
-            story.append(p(f"{label} : {value}", "small"))
+            term_path={'Conditions de règlement':'paymentTerms','Indemnité de recouvrement':'legalNotes.recovery','Pénalités de retard':'legalNotes.penalties','Escompte':'legalNotes.discount'}.get(label)
+            story.append(p(f"{label} : {value}", "legal" if term_path and term_path.startswith('legalNotes.') else "small", term_path))
             story.append(Spacer(1, 1 if cdi else 4))
     if _text(document.get("notes")):
-        story.extend([heading("Informations complémentaires"), p(document["notes"], "small")])
+        story.extend([heading("Informations complémentaires"), p(document["notes"], "small", 'notes')])
+    if document['kind'] == 'invoice' and details.get('returnEmail'):
+        story.append(p('À retourner à : ' + details['returnEmail'], 'small', 'details.returnEmail'))
     for party, label in (("seller", "Informations légales de l'émetteur"), ("buyer", "Informations du destinataire")):
         if party == "seller" and cdi:
             continue
@@ -483,6 +499,17 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
         signature.setStyle(_table_style([("BOX", (0, 0), (-1, -1), 0.6, _RULE), ("LEFTPADDING", (0, 0), (-1, -1), 12),
                                       ("TOPPADDING", (0, 0), (-1, 0), 10), ("BOTTOMPADDING", (0, -1), (-1, -1), 8)]))
         story.append(KeepTogether([Spacer(1, 16), signature]))
+    if document['kind'] == 'invoice' and details.get('interventions'):
+        story.extend([PageBreak(), p('Relevé d’intervention', 'title'), p(reference, 'muted')])
+        if references.get('project'):
+            story.append(p(references['project'], 'body'))
+        report_rows = [[p(v, 'tablehead') for v in ('Prestation BPU', 'Travail effectué', 'Jours')]]
+        for i, row in enumerate(details['interventions']):
+            path=f'details.interventions.{i}.'
+            report_rows.append([p(row['label'], 'cell', path+'label'), p(row['description'], 'cell', path+'description'), p(_decimal(row['days']), 'numeric', path+'days')])
+        report = LongTable(report_rows, colWidths=[145, _WIDTH-195, 50], repeatRows=1, splitByRow=1, splitInRow=1)
+        report.setStyle(_table_style([('BACKGROUND',(0,0),(-1,0),_ACCENT),('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),8),('RIGHTPADDING',(0,0),(-1,-1),8),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8),('LINEBELOW',(0,1),(-1,-1),.35,_RULE)]))
+        story.extend([Spacer(1,12),report])
     # ReportLab's safe default for external resources is not relied upon: all
     # paragraphs contain escaped text; font and logo are packaged local assets.
     pdf.build(story, canvasmaker=_DocumentCanvas)

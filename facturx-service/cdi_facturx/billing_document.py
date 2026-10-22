@@ -117,7 +117,26 @@ class CreditReference(StrictModel):
         return self
 
 
+class DraftIntervention(StrictModel):
+    id: text(36)
+    priceId: text(80)
+    label: text(300)
+    description: text(4000)
+    days: text(40)
+
+
+class DraftDetails(StrictModel):
+    marketObject: text(500)
+    period: Literal['', 'S1', 'S2']
+    personInCharge: text(300)
+    fundingProgramme: text(160)
+    validityMonths: text(3)
+    returnEmail: text(300)
+    interventions: Annotated[list[DraftIntervention], Field(max_length=200)]
+
+
 class DraftDocument(StrictModel):
+    details: DraftDetails | None = None
     schemaVersion: Literal[2, 3]
     creditNote: CreditReference | None = None
     kind: Literal['invoice', 'quote']
@@ -155,6 +174,8 @@ class DraftDocument(StrictModel):
         result = handler(self)
         if self.schemaVersion == 2:
             result.pop('creditNote', None)
+        if 'details' not in self.model_fields_set:
+            result.pop('details', None)
         return result
 
     def calculated(self):
@@ -201,3 +222,4 @@ class DraftDocument(StrictModel):
 
 class PreviewRequest(StrictModel):
     document: DraftDocument
+    editable: bool = False
