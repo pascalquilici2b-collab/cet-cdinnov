@@ -60,9 +60,9 @@ export function DraftValidation({issues,reviewRequest,busy,onRevealEditor,childr
  const go=(path:string)=>{onRevealEditor();setDestination({path,serial:++sequence.current});};
  const groups=[...new Set(issues.map(i=>location(i.path).group))];
  return <BillingValidationContext.Provider value={{issues,reviewed}}><div className="bill-draft-validation" ref={root}>
-  <section className="bill-review" aria-label="Vérification du document" data-complete={!issues.length}>
+  {reviewed&&issues.length>0&&<section className="bill-review" aria-label="Vérification du document" data-complete={!issues.length}>
    <div className="bill-review-heading" ref={heading} tabIndex={-1}><div><strong>{issues.length?`${issues.length} point${issues.length>1?'s':''} à compléter`:'Champs renseignés'}</strong><Help label="Vérification du document" text={issues.length?'Choisissez un point pour aller au champ concerné. Vous pouvez enregistrer le brouillon à tout moment.':'Le contrôle définitif sera effectué avant l’attribution du numéro.'}/></div>{!!issues.length&&<button type="button" className="bill-button" disabled={busy} aria-expanded={expanded} aria-controls={listId} onClick={()=>{setReviewed(true);setExpanded(v=>!v);}}>{expanded?'Masquer les points':'Vérifier le document'}</button>}</div>
    <div className="bill-review-content" id={listId} hidden={!expanded||!issues.length}><div className="bill-review-groups">{groups.map(group=><section key={group}><h3>{group}</h3><ul>{issues.filter(i=>location(i.path).group===group).map((issue,index)=><li key={issue.path+':'+index}><button type="button" disabled={busy} onClick={()=>go(issue.path)}><span>{location(issue.path).label}</span><span>{issue.message}</span><span aria-hidden="true">→</span></button></li>)}</ul></section>)}</div></div>
-  </section>{children}
+  </section>}{children}
  </div></BillingValidationContext.Provider>;
 }

@@ -1,8 +1,7 @@
 import {createHash} from 'node:crypto';
 import type {Database} from './contracts';
 import type {BillingDraft,BillingKind,BillingTotals} from './billing-contracts';
-import {billingId,validBillingDate,normalizeDraft,inspectDraft,calculateBilling} from './billing-domain.ts';
-import {invoiceForFacturX} from './billing-facturx.ts';
+import {billingId,validBillingDate,normalizeDraft,inspectDocumentReadiness,calculateBilling} from './billing-domain.ts';
 
 const fail=(status:number,message:string):never=>{throw Object.assign(new Error(message),{status});};
 const hash=(value:string)=>createHash('sha256').update(value).digest('hex');
@@ -36,7 +35,7 @@ export interface IssuanceJob {
  lease_token:string|null;lease_until:number|null;error_code:string|null;manifest_json:string|null;updated_at:string;updated_by:string;
 }
 export interface IssuanceArtifact {kind:'pdf'|'xml'|'validation'|'verapdf';key:string;sha256:string;size:number;contentType:string;}
-export interface IssuanceManifest {schemaVersion:1;envelopeSha256:string;generatorVersion:string;profile:'quote-pdf'|'en16931';artifacts:IssuanceArtifact[];}
+export interface IssuanceManifest {schemaVersion:1;envelopeSha256:string;generatorVersion:string;profile:'quote-pdf'|'invoice-pdf'|'en16931';artifacts:IssuanceArtifact[];}
 const unpack=(r:IssuanceRow):Issuance=>({id:r.id,documentId:r.document_id,documentVersion:r.document_version,seriesId:r.series_id,
  issuerSiren:r.issuer_siren,sequenceValue:r.sequence_value,number:r.number,issueDate:r.issue_date,snapshot:JSON.parse(r.snapshot_json),
  totals:JSON.parse(r.totals_json),snapshotSha256:r.snapshot_sha256,
@@ -81,12 +80,11 @@ export async function reserveIssuance(db:Database,input:{id:string;documentId:st
  const existing=await replay();if(existing)return existing;
  const source=await db.prepare('SELECT data_json,version FROM billing_documents WHERE id=?').bind(documentId).first<{data_json:string;version:number}>();
  if(!source)return fail(404,'Document introuvable.');if(source.version!==input.documentVersion)return fail(409,'Le document a changé avant la finalisation.');
- const snapshot=normalizeDraft(JSON.parse(source.data_json)),issues=inspectDraft(snapshot);
+ const snapshot=normalizeDraft(JSON.parse(source.data_json)),issues=inspectDocumentReadiness(snapshot);
  // Native v3 rendering is ready; issuance remains closed until the linked allocation ledger is installed.
  if(snapshot.creditNote)return fail(409,'La finalisation des avoirs nécessite le contrôle des montants déjà crédités sur la facture d’origine.');
  if(issues.length)throw Object.assign(new Error('Complétez le document avant la finalisation.'),{status:422,issues});
- // The number-independent adapter gates run now. The actual number is generated in the database below.
- if(snapshot.kind==='invoice')invoiceForFacturX(snapshot,'PREFLIGHT');
+ // Electronic conversion is separate; this reservation binds the definitive PDF.
  const snapshotJSON=JSON.stringify(snapshot),totalsJSON=JSON.stringify(calculateBilling(snapshot));
  const snapshotHash=hash(billingCanonicalJSON({schemaVersion:1,document:snapshot,totals:JSON.parse(totalsJSON)}));
  const stamp=new Date().toISOString();
@@ -124,8 +122,8 @@ export async function failIssuanceJob(db:Database,issuanceId:string,leaseToken:s
 function validateManifest(raw:IssuanceManifest,issuance:Issuance):string{
  if(!raw||typeof raw!=='object'||Object.keys(raw).sort().join()!==['schemaVersion','envelopeSha256','generatorVersion','profile','artifacts'].sort().join()||
   raw.schemaVersion!==1||raw.envelopeSha256!==issuance.envelopeSha256||typeof raw.generatorVersion!=='string'||!/^[-A-Za-z0-9._+]{1,100}$/.test(raw.generatorVersion)||
-  raw.profile!==(issuance.snapshot.kind==='quote'?'quote-pdf':'en16931')||!Array.isArray(raw.artifacts))return fail(422,'Manifeste documentaire invalide.');
- const required=issuance.snapshot.kind==='quote'?['pdf']:['pdf','xml','validation','verapdf'];
+  !(issuance.snapshot.kind==='quote'?raw.profile==='quote-pdf':['invoice-pdf','en16931'].includes(raw.profile))||!Array.isArray(raw.artifacts))return fail(422,'Manifeste documentaire invalide.');
+ const required=raw.profile==='en16931'?['pdf','xml','validation','verapdf']:['pdf'];
  if(raw.artifacts.length!==required.length||raw.artifacts.map(a=>a?.kind).sort().join()!==required.sort().join())return fail(422,'Les fichiers et rapports requis sont incomplets.');
  for(const file of raw.artifacts){
   const mime={pdf:'application/pdf',xml:'application/xml',validation:'application/json',verapdf:'application/xml'}[file.kind];

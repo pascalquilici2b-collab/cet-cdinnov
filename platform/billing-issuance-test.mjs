@@ -72,7 +72,7 @@ await test('registre D1 : numérotation, gel et reprise après échec',async t=>
    }
    const incomplete=await create(blankDraft('invoice'));
    await assert.rejects(()=>reserveIssuance(ctx.db,request(incomplete),user),status(422));
-   const precision=fixture();precision.lines[0].quantity='1.123456';await assert.rejects(async()=>reserveIssuance(ctx.db,request(await create(precision)),user),status(422));
+   const precision=fixture();precision.lines[0].quantity='1.1234567';await assert.rejects(async()=>reserveIssuance(ctx.db,request(await create(precision)),user),status(422));
    assert.equal(await counter(),before);
   });
   await t.test('course entre modification et réservation : version cohérente ou conflit sans numéro consommé',async()=>{

@@ -1,3 +1,4 @@
+import {SheetsBrand} from './sheets-brand';
 import {LoadingScreen} from '../../../platform/client/loading';
 import type {
   CellValue,
@@ -107,14 +108,8 @@ export function AuthGate({
               {"Portail CDInnov"}
             </a>
             <section className={"cloud-login"} aria-label={"Connexion CDInnov"}>
-              <div className={"cloud-symbol"}>
-                <img src="/design/brand/assets/logos/cdinnov-symbol.svg" width="38" height="30" alt="CDInnov"/>
-              </div>
-              <p className={"cloud-eyebrow"}>{"CD INNOVATION"}</p>
-              <h1>{"Votre travail, au même endroit."}</h1>
-              <p>
-                {"Feuilles, Gantt, cartes, formulaires et tableaux de bord."}
-              </p>
+              <SheetsBrand/>
+              <h1>Connexion</h1>
                 <form
                   onSubmit={async (J) => {
                     (J.preventDefault(), q(true), G(""));

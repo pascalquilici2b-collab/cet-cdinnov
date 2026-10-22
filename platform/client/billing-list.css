@@ -61,3 +61,5 @@
 }
 
 .bill-project-filter{min-width:180px;max-width:330px}.bill-project-filter .cdi-select-trigger{min-height:38px;padding:8px 10px}
+
+.bill-list-table td[data-column="action"]{text-align:right}.bill-list-table .bill-row-actions{display:flex;justify-content:flex-end;align-items:center;width:100%;gap:6px}

@@ -15,6 +15,11 @@ export function invoiceForFacturX(raw:BillingDraft,number:string) {
   if(d.kind!=='invoice')issues.push({path:'kind',message:'Le Factur-X concerne une facture.'});
   if(typeof number!=='string'||!number.trim()||number.length>35||/[\x00-\x1f\x7f]/.test(number))issues.push({path:'number',message:'Un numéro de facture de 1 à 35 caractères est requis.'});
   if(issues.length)throw Object.assign(new Error('La facture doit être complétée avant son export Factur-X.'),{status:422,issues});
+  return facturXSeed(d,number);
+}
+/** Incomplete electronic metadata is deliberately allowed when opening the converter. */
+export function facturXSeed(raw:BillingDraft,number:string){
+  const d=normalizeDraft(raw);
   const totals=calculateBilling(d);
   const description=[d.title,d.creditNote&&'Motif de l’avoir : '+d.creditNote.reason,d.notes,
     d.seller.legal&&'Mentions de l’émetteur : '+d.seller.legal,d.buyer.legal&&'Mentions du client : '+d.buyer.legal,

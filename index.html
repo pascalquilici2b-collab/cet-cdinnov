@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
+<style id="cdi-startup-guard">body:not(.authed)>.app{visibility:hidden}.theme-toggle>svg{width:18px;height:18px;fill:none;stroke:currentColor}.theme-toggle .theme-sun{display:none}[data-theme="dark"] .theme-toggle .theme-moon{display:none}[data-theme="dark"] .theme-toggle .theme-sun{display:block}</style>
+<link rel="stylesheet" href="/platform/loading.css?v=sheets-workflow-20261023c">
 <script src="./platform/theme.js?v=apple-motion-20261020"></script>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -578,15 +580,15 @@ body:has(.agenda-shell) .topbar{flex-wrap:wrap;row-gap:12px}
     </div>
     <div class="nav-label applications-label">Applications</div>
     <div class="nav-item cdi-application app-billing" data-view="facturier" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();setView('facturier');toggleSidebar(false)}">
-      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v4H3z"/><path d="M5 7v14h14V7"/><path d="M9 11h6M9 15h6M9 19h3"/></svg>
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14l-3-2-3 2-3-2-4 2V3Z"/><path d="M14 3v5h5M9 12h7M9 16h4"/></svg>
       <span class="cdi-nav-name">Logiciel de facturation</span><span class="cdi-beta">Bêta</span>
     </div>
     <div class="nav-item cdi-application app-budgets" data-view="budgetsprojets" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();setView('budgetsprojets');toggleSidebar(false)}">
-      <svg aria-hidden="true" width="20" height="20" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18M7 16v-4m5 4V9m5 7V5M6 7l5-3 4 1 6-3"></path></svg>
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="5"/><path d="M7 16v-3m5 3V9m5 7V7M7 7h2"/></svg>
 
       <span class="cdi-nav-name">Outil budgets</span><span class="cdi-beta">Bêta</span>
     </div>
-    <a id="cdiSheetsLink" class="nav-item cdi-application app-sheets" href="./feuilles/" style="text-decoration:none"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg><span class="cdi-nav-name">Smartsheet</span><span class="cdi-beta">Bêta</span></a>
+    <a id="cdiSheetsLink" class="nav-item cdi-application app-sheets" href="./feuilles/" style="text-decoration:none"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="5"/><path d="M3 9h18M9 9v12M9 15h12"/></svg><span class="cdi-nav-name">CDInnovSheets</span><span class="cdi-beta">Bêta</span></a>
     <div class="spacer"></div>
     <button class="theme-toggle" type="button" data-theme-toggle aria-label="Activer le mode nuit" aria-pressed="false"><svg class="theme-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 13.1A9 9 0 0 1 10.9 3.2a9 9 0 1 0 9.9 9.9Z"/></svg><svg class="theme-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></svg><span data-theme-label>Mode clair</span><span class="theme-track" aria-hidden="true"></span></button>
     <div id="userChip" class="user-chip"></div>
@@ -691,10 +693,10 @@ body.authed .auth-gate{display:none}
 </style>
 <link rel="stylesheet" href="platform/design-system.css">
 <link rel="stylesheet" href="design/portal.css?v=apple1">
-<link rel="stylesheet" href="design/apple.css?v=refinement-20261023b">
-<link rel="stylesheet" href="design/interactions.css?v=refinement-20261023b">
-<script src="platform/icons.js?v=refinement-20261023b"></script>
-<link rel="stylesheet" href="/platform/loading.css?v=screen-20261020">
+<link rel="stylesheet" href="design/apple.css?v=sheets-workflow-20261023c">
+<link rel="stylesheet" href="design/interactions.css?v=sheets-workflow-20261023c">
+<script src="platform/icons.js?v=sheets-workflow-20261023c"></script>
+
 <div id="authGate" class="auth-gate" data-loading="true" aria-busy="true">
   <span class="auth-startup-status cdi-loading-sr" role="status">Connexion en cours…</span>
   <div class="auth-card">
@@ -1061,8 +1063,8 @@ function renderDashboard(){
   const user=AUTH_USER,epoch=++dashboardEpoch;
   $('#content').innerHTML='<div id="dashboardRoot">'+loadingScreenMarkup('Chargement du tableau de bord…')+'</div>';
   const element=$('#dashboardRoot');
-  if(!document.getElementById('dashboardStyle')){const css=document.createElement('link');css.id='dashboardStyle';css.rel='stylesheet';css.href='platform/dashboard.css';document.head.append(css);}
-  dashboardModule ||= import('./platform/dashboard.js?v=refinement-20261023b').catch(error=>{dashboardModule=null;throw error;});
+  if(!document.getElementById('dashboardStyle')){const css=document.createElement('link');css.id='dashboardStyle';css.rel='stylesheet';css.href='platform/dashboard.css?v=sheets-workflow-20261023c';document.head.append(css);}
+  dashboardModule ||= import('./platform/dashboard.js?v=sheets-workflow-20261023c').catch(error=>{dashboardModule=null;throw error;});
   dashboardModule.then(module=>{
     if(epoch!==dashboardEpoch||AUTH_USER!==user||currentView!=='dashboard'||!element.isConnected)return;
     dashboardDispose=module.mountDashboard(element,{
@@ -2198,7 +2200,7 @@ async function exportNoteFraisPDF(id,preview=false){
     const filename='Note_de_frais_N'+(n.numero||'')+'_'+(s.nom||'').replace(/\s+/g,'')+'.pdf';
     if(AUTH_USER!==user||!financeExpenseAllowed(n)||preview&&!id&&nfDraft!==initialDraft)return;
     if(preview){
-      const blob=doc.output('blob'),module=await financeModule();if(AUTH_USER!==user||!financeExpenseAllowed(n))return;if(!document.getElementById('billingStyle')){const css=document.createElement('link');css.id='billingStyle';css.rel='stylesheet';css.href='platform/billing.css?v=refinement-20261023b';document.head.append(css);}
+      const blob=doc.output('blob'),module=await financeModule();if(AUTH_USER!==user||!financeExpenseAllowed(n))return;if(!document.getElementById('billingStyle')){const css=document.createElement('link');css.id='billingStyle';css.rel='stylesheet';css.href='platform/billing.css?v=sheets-workflow-20261023c';document.head.append(css);}
       modal('<div class="modal-head"><h3>Aperçu — Note de frais N°'+esc(n.numero)+'</h3><div class="grow"></div><button type="button" class="btn btn-ghost" id="nfPreviewDownload">Télécharger PDF</button><button type="button" class="btn btn-ghost" id="nfPreviewClose">'+(id?'Fermer':'Retour')+'</button></div><div class="modal-body bill-app"><div id="nfPreviewRoot"></div></div>',true);
       financeEditorDispose=module.mountExpensePreview($('#nfPreviewRoot'),blob);$('#nfPreviewDownload').onclick=()=>doc.save(filename);$('#nfPreviewClose').onclick=()=>id?closeModal():renderNoteEditor();
     }else{doc.save(filename);toast('PDF généré');}
@@ -2423,8 +2425,8 @@ let financeModulePromise=null,financeMounted=null,financeEpoch=0,financeView=nul
 let financeEditorDispose=null,financeEditorEpoch=0,financeClientStatus='',financeClientError=false;
 let nfPage=1,nfPer=20;
 function financeModule(){
-  if(!$('#financeStyle')){const link=document.createElement('link');link.id='financeStyle';link.rel='stylesheet';link.href='platform/finance.css?v=refinement-20261023b';document.head.append(link);}
-  return financeModulePromise ||= import('./platform/finance.js?v=refinement-20261023b').catch(error=>{financeModulePromise=null;throw error;});
+  if(!$('#financeStyle')){const link=document.createElement('link');link.id='financeStyle';link.rel='stylesheet';link.href='platform/finance.css?v=sheets-workflow-20261023c';document.head.append(link);}
+  return financeModulePromise ||= import('./platform/finance.js?v=sheets-workflow-20261023c').catch(error=>{financeModulePromise=null;throw error;});
 }
 function financeForget(){financeEpoch++;financeMounted?.dispose();financeMounted=null;financeView=null;$('#financeRoot')?.remove();}
 function financeEditorForget(){financeEditorEpoch++;if(financeEditorDispose){financeEditorDispose();financeEditorDispose=null;}}
@@ -2483,7 +2485,7 @@ async function financeOpenEditor(kind,record,existing){
 
 /* React personnel screens. Existing CET calculations, imports and storage remain authoritative. */
 let personnelPromise=null,personnelMounted=null,personnelEpoch=0,personnelView=null,personnelEditorDispose=null,personnelEditorEpoch=0;
-function personnelModule(){return personnelPromise||=import('./platform/personnel.js?v=refinement-20261023b').catch(error=>{personnelPromise=null;throw error;});}
+function personnelModule(){return personnelPromise||=import('./platform/personnel.js?v=sheets-workflow-20261023c').catch(error=>{personnelPromise=null;throw error;});}
 function personnelStyle(){if(!$('#personnelStyle')){const css=document.createElement('link');css.id='personnelStyle';css.rel='stylesheet';css.href='platform/personnel.css';document.head.append(css);}}
 function personnelEditorForget(){personnelEditorEpoch++;if(personnelEditorDispose){personnelEditorDispose();personnelEditorDispose=null;}}
 function personnelForget(){personnelEpoch++;if(personnelMounted){personnelMounted.dispose();personnelMounted=null;}personnelView=null;$('#personnelRoot')?.remove();}
@@ -3170,17 +3172,17 @@ async function facturxViewPage(delta){
   }catch(e){if(s.image.isConnected){s.status.hidden=false;s.status.textContent=e.message;}}
   finally{if(_facturxViewer===s&&s.image.isConnected){s.busy=false;facturxViewControls(s);}}
 }
-function facturxFinal(id){const f=factures().find(x=>x.id===id);if(facturxSnapshotMatches(f))facturxDownload(f.facturx.pdfUrl,f.facturx.filename);}
+function facturxFinal(id){const f=facturxRecord(id);if(facturxSnapshotMatches(f))facturxDownload(f.facturx.pdfUrl,f.facturx.filename);}
 
 async function openFacturX(id){
   if(!facturierAdmin()){toast('Accès réservé à la direction.');return;}
-  const f=factures().find(x=>x.id===id);if(!f)return;
+  const f=facturxRecord(id);if(!f)return;
   if(!f.pdfSource){openFacture(id);toast('Joignez le PDF original, enregistrez puis cliquez sur Factur-X.');return;}
-  modal(`<div class="modal-head"><h3>Factur-X · ${esc(f.number||'Facture')}</h3><div class="grow"></div><button class="icon-btn" title="Fermer" onclick="closeModal()">${ic('close')}</button></div><div class="modal-body"><div id="facturxLoading" class="hint" role="status">${loadingMarkup('Chargement du PDF…',true)}</div><iframe id="facturxFrame" title="Conversion de la facture en Factur-X" style="width:100%;height:76vh;border:0" hidden></iframe></div>`,true);
+  modal(`<div class="modal-head"><h3>Factur-X · ${esc(f.number||'Facture')}</h3><div class="grow"></div>${facturxSnapshotMatches(f)?'<button type="button" class="btn btn-primary" onclick="facturxFinal(\''+esc(f.id)+'\')">Télécharger le Factur-X</button>':''}<button class="icon-btn" title="Fermer" onclick="closeModal()">${ic('close')}</button></div><div class="modal-body"><div id="facturxLoading" class="hint" role="status">${loadingMarkup('Chargement du PDF…',true)}</div><iframe id="facturxFrame" title="Conversion de la facture en Factur-X" style="width:100%;height:76vh;border:0" hidden></iframe></div>`,true);
   document.querySelector('#overlay .modal').style.maxWidth='1260px';
   const frame=document.getElementById('facturxFrame');const session=crypto.randomUUID();
   try{
-    const file=await facturxReadFile(f.pdfSource.url);const bytes=await file.arrayBuffer();
+    const file=f.nativeDocumentId?await billingTransport.issuedFile(f.nativeDocumentId,'pdf'):await facturxReadFile(f.pdfSource.url);const bytes=await file.arrayBuffer();
     if(!frame.isConnected)return;
     const sha=await facturxDigest(bytes);
     if(sha!==f.pdfSource.sha256)throw new Error('Le PDF joint a changé depuis son dépôt. Joignez de nouveau l’original.');
@@ -3194,7 +3196,7 @@ async function openFacturX(id){
     _facturxSession={session,frame,id,bytes,name:f.pdfSource.name,sha,snapshot:facturxSignature(f),invoice:seed,invoiceIsDraft:!!f.facturxDraft,draftMatchesSource:f.facturxDraftSourceSha===sha,record:{number:f.number,issue_date:f.dateFacture,buyer:{name:f.client},totals:{net:f.ht,gross:f.ttc}},profile:f.facturxDraftProfile||'en16931',saving:false};
     const config={apiBase:FACTURX_SERVICE_URL,parentOrigin:location.origin,session,token:auth?.token||null};
     const bootstrap='<script>window.FACTURX_EMBED_CONFIG='+JSON.stringify(config).replace(/</g,'\\u003c')+';<\/script>';
-    frame.srcdoc=CDI_FACTURX_DOCUMENT.replace('<!--FACTURX_CONFIG-->',bootstrap);
+    frame.srcdoc=CDI_FACTURX_DOCUMENT.replace('<!--FACTURX_CONFIG-->',bootstrap).replace('</body>',billingFacturxGuardScript(f)+'</body>');
     document.getElementById('facturxLoading').hidden=true;frame.hidden=false;
   }catch(e){const el=document.getElementById('facturxLoading');if(el)el.textContent=facturxError(e);}
 }
@@ -3203,7 +3205,7 @@ window.addEventListener('message',async event=>{
   if(!s||!s.frame.isConnected||event.source!==s.frame.contentWindow||event.origin!==location.origin||m?.session!==s.session||!facturierAdmin())return;
   if(m.type==='cdi-facturx-auth-expired'){facturxForgetAuth();return;}
   const reply=(ok,message)=>s.frame.contentWindow.postMessage({type:'cdi-facturx-saved',session:s.session,ok,message},location.origin);
-  const f=factures().find(x=>x.id===s.id);
+  const f=facturxRecord(s.id);
   if(!f||facturxSignature(f)!==s.snapshot){reply(false,'La facture a été modifiée. Fermez puis rouvrez la conversion.');return;}
   if(m.type==='cdi-facturx-ready'){
     s.frame.contentWindow.postMessage({type:'cdi-facturx-init',session:s.session,pdf:s.bytes,name:s.name,invoice:s.invoice,invoiceIsDraft:s.invoiceIsDraft,draftMatchesSource:s.draftMatchesSource,record:s.record,profile:s.profile,partyMemory:state.facturxPartyMemory||{},paymentDefaults:state.params.facturxPaymentDefaults||{}},location.origin);return;
@@ -3223,11 +3225,12 @@ window.addEventListener('message',async event=>{
     state.facturxPartyMemory=CDIPartyMemory.remember(state.facturxPartyMemory,m.invoice);save();return;
   }
   if(m.type==='cdi-facturx-draft'){
-    f.facturxDraft=m.invoice;f.facturxDraftProfile=m.profile;f.facturxDraftSourceSha=s.sha;save();reply(true,'La saisie a été conservée dans cette facture.');return;
+    f.facturxDraft=m.invoice;f.facturxDraftProfile=m.profile;f.facturxDraftSourceSha=s.sha;save();const synced=await cloudPush();reply(synced,synced?'La saisie a été conservée dans cette facture.':'Saisie conservée sur cet ordinateur ; la synchronisation doit être reprise.');return;
   }
   if(m.type!=='cdi-facturx-save'||s.saving)return;
   s.saving=true;
   try{
+    if(f.nativeDocumentId&&!billingFacturxMatchesSnapshot(m.invoice,f))throw new Error('Le numéro, la date, les prestations et les montants doivent correspondre au PDF finalisé. Les coordonnées électroniques peuvent être complétées ici.');
     const r=m.result;const required=['source_review','amounts','xsd','schematron','france','embedding','pdfa_3b'];
     if(r?.valid!==true||r.source_sha256!==s.sha||!required.every(k=>r.checks?.[k]===true))throw new Error('Le rapport de validation est incomplet ou concerne un autre PDF.');
     const binary=Uint8Array.from(atob(r.pdf_base64),c=>c.charCodeAt(0));
@@ -3238,11 +3241,11 @@ window.addEventListener('message',async event=>{
     const xmlUrl=await facturxStoreFile(new File([xml],'factur-x.xml',{type:'application/xml'}),'facturx-xml-'+f.id);
     const reportUrl=await facturxStoreFile(new File([JSON.stringify(report,null,2)],'validation.json',{type:'application/json'}),'facturx-rapport-'+f.id);
     const veraUrl=await facturxStoreFile(new File([verapdf_report],'verapdf.xml',{type:'application/xml'}),'facturx-pdfa-'+f.id);
-    const current=factures().find(x=>x.id===s.id);
+    const current=facturxRecord(s.id);
     if(!current||facturxSignature(current)!==s.snapshot)throw new Error('La facture a changé pendant l’enregistrement. Rouvrez la conversion.');
     current.facturxDraft=m.invoice;current.facturxDraftProfile=r.profile;current.facturxDraftSourceSha=s.sha;
     current.facturx={pdfUrl,xmlUrl,reportUrl,veraUrl,filename:r.filename,profile:r.profile,checkedAt:r.checked_at,sourceSha256:s.sha,pdfSha256:r.pdf_sha256,snapshot:s.snapshot,invoiceNumber:m.invoice.number,invoiceTotals:m.invoice.totals};
-    save();renderFacturier();reply(true,'Factur-X enregistré dans la facture. Il est disponible depuis le bouton de téléchargement du Facturier.');toast('Factur-X enregistré');
+    save();const synced=await cloudPush();if(!f.nativeDocumentId)renderFacturier();reply(synced,synced?'Factur-X enregistré dans cette facture. Vous pouvez le télécharger ici.':'Factur-X conservé localement ; la synchronisation doit être reprise.');if(synced)toast('Factur-X enregistré');
   }catch(e){reply(false,'Enregistrement impossible : '+e.message);}
   finally{s.saving=false;}
 });
@@ -3414,7 +3417,7 @@ const agendaState={trips:[],leaves:null,members:[],loaded:false,loading:false,er
 let agendaTimer=null,agendaConfirmationTimer=null,agendaEditing=null,agendaFocus=null;
 let agendaPickers={},agendaSharedProjects=[];
 let agendaModeExplicit=false,agendaPromise=null,agendaMounted=null,agendaRenderEpoch=0,agendaEditorDispose=null,agendaEditorEpoch=0;
-function agendaModule(){return agendaPromise||=import('./platform/agenda.js?v=refinement-20261023b').catch(error=>{agendaPromise=null;throw error;});}
+function agendaModule(){return agendaPromise||=import('./platform/agenda.js?v=sheets-workflow-20261023c').catch(error=>{agendaPromise=null;throw error;});}
 function agendaStyleSheet(){if(!$('#agendaReactStyle')){const link=document.createElement('link');link.id='agendaReactStyle';link.rel='stylesheet';link.href='platform/agenda.css';document.head.append(link);}}
 function agendaReactForget(){agendaRenderEpoch++;if(agendaMounted){agendaMounted.dispose();agendaMounted=null;}$('#agendaRoot')?.remove();}
 function agendaEditorForget(){agendaEditorEpoch++;if(agendaEditorDispose){agendaEditorDispose();agendaEditorDispose=null;}agendaPickers={};}
@@ -4848,10 +4851,10 @@ function agendaNotificationHTML(t){
         const link = document.createElement("link");
         link.id = "marketStyle";
         link.rel = "stylesheet";
-        link.href = "platform/markets.css?v=refinement-20261023b";
+        link.href = "platform/markets.css?v=sheets-workflow-20261023c";
         document.head.append(link);
       }
-      marketPromise = import("./platform/markets.js?v=refinement-20261023b").then((module) => {
+      marketPromise = import("./platform/markets.js?v=sheets-workflow-20261023c").then((module) => {
         marketModule = module;
         marketPromise = null;
         if (currentView === "marches" && allowed()) render();
@@ -5093,8 +5096,8 @@ let billingMode='modern',billingModulePromise=null,billingMounted=null,billingTr
 function billingLockForLogout(){billingLogoutPending=true;$('#content').inert=true;}
 function billingUnlockLogout(){billingLogoutPending=false;$('#content').inert=false;}
 function billingModule(){
-  if(!$('#billingStyle')){const link=document.createElement('link');link.id='billingStyle';link.rel='stylesheet';link.href='platform/billing.css?v=refinement-20261023b';document.head.append(link);}
-  return billingModulePromise ||= import('./platform/billing.js?v=refinement-20261023b').catch(error=>{billingModulePromise=null;throw error;});
+  if(!$('#billingStyle')){const link=document.createElement('link');link.id='billingStyle';link.rel='stylesheet';link.href='platform/billing.css?v=sheets-workflow-20261023c';document.head.append(link);}
+  return billingModulePromise ||= import('./platform/billing.js?v=sheets-workflow-20261023c').catch(error=>{billingModulePromise=null;throw error;});
 }
 function billingLeave(){return billingMounted?.canLeave?.()!==false;}
 function billingForget(){
@@ -5120,7 +5123,7 @@ function renderBillingWorkspace(){
   });
 }
 function billingWorkspaceProps(){
-  return {transport:billingTransport,imported:{invoices:factures().map(f=>({...f,validFacturx:facturxSnapshotMatches(f)})),act:(action,id)=>{
+  return {transport:billingTransport,onFacturX:billingOpenFacturX,imported:{invoices:factures().map(f=>({...f,validFacturx:facturxSnapshotMatches(f)})),act:(action,id)=>{
     if(!AUTH_USER||!facturierAdmin())return;
     const handlers={edit:openFacture,delete:delFacture,pdf:billingImportedPdf,facturx:openFacturX,downloadFacturx:facturxFinal,upload:openFacturePdf};
     handlers[action]?.(id);
@@ -5129,6 +5132,49 @@ function billingWorkspaceProps(){
 async function billingImportedPdf(id){
   const f=factures().find(f=>f.id===id);if(!f?.pdfSource)return;
   try{await facturxDownload(f.pdfSource.url,f.pdfSource.name||'facture-'+f.number+'.pdf');}catch(e){toast('Téléchargement impossible : '+e.message);}
+}
+
+/* Native invoice conversion reuses the imported-invoice mini-software. Only
+ * conversion metadata lives in this sidecar; the issued document stays frozen. */
+function facturxRecord(id){return id?.startsWith('billing:')?state.billingFacturx?.[id.slice(8)]:factures().find(f=>f.id===id);}
+function billingFacturxMatchesSnapshot(invoice,record){
+  const original=record.nativeSeed;
+  if(!original||!facturxMatchesRecord(invoice,record)||invoice.currency!==original.currency||invoice.type_code!==original.type_code||invoice.lines?.length!==original.lines.length)return false;
+  const number=value=>Number(String(value??'').replace(',','.'));
+  return invoice.lines.every((line,index)=>{
+    const source=original.lines[index];
+    return line.description.trim()===source.description.trim()&&line.unit===source.unit&&line.vat_category===source.vat_category&&['quantity','unit_price','vat_rate','discount_percent'].every(key=>Number.isFinite(number(line[key]??0))&&number(line[key]??0)===number(source[key]??0));
+  })&&['net','vat','gross','due'].every(key=>number(invoice.totals?.[key])===number(original.totals[key]))&&number(invoice.totals?.rounding??0)===0&&number(invoice.payment?.prepaid??0)===0;
+}
+async function billingOpenFacturX(document,seed){
+  if(!facturierAdmin()||document.status!=='issued'||document.data.kind!=='invoice'||!document.issuance)return;
+  const user=AUTH_USER;
+  const fresh=await billingTransport.get(document.id);
+  if(fresh.issuance?.id!==document.issuance.id||fresh.status!=='issued')throw new Error('La facture a changé. Rouvrez-la.');
+  const pdf=await billingTransport.issuedFile(document.id,'pdf'),sha=await facturxDigest(await pdf.arrayBuffer());
+  if(AUTH_USER!==user||!facturierAdmin())return;
+  state.billingFacturx??={};
+  const previous=state.billingFacturx[document.id];
+  const linked=previous?.nativeIssuanceId===document.issuance.id&&previous?.pdfSource?.sha256===sha;
+  const number=document.issuance.number;
+  state.billingFacturx[document.id]={...(linked?previous:{}),id:'billing:'+document.id,nativeDocumentId:document.id,nativeIssuanceId:document.issuance.id,nativeSeed:seed,
+    number,dateFacture:document.data.issueDate,client:document.data.buyer.name,code:document.data.references.businessCode,
+    ht:seed.totals.net,ttc:seed.totals.gross,pdfSource:{sha256:sha,name:number+'.pdf'},
+    facturxDraft:linked&&previous.facturxDraft||seed,facturxDraftSourceSha:sha,facturxDraftProfile:linked&&previous.facturxDraftProfile||'en16931'};
+  save();
+  await openFacturX('billing:'+document.id);
+}
+function billingFacturxGuardScript(record){
+  if(!record.nativeDocumentId)return '';
+  const bound={nativeSeed:record.nativeSeed,number:record.number,dateFacture:record.dateFacture,ht:record.ht,ttc:record.ttc};
+  const attach=function(bound){
+    document.querySelector('#invoice-form').addEventListener('submit',event=>{
+      if(billingFacturxMatchesSnapshot(invoiceData(),bound))return;
+      event.preventDefault();event.stopImmediatePropagation();
+      message('Les prestations, le numéro, la date et les montants doivent rester identiques au PDF finalisé. Vous pouvez compléter les coordonnées électroniques.',true);
+    },true);
+  };
+  return '<script>'+facturxMatchesRecord.toString()+'\n'+billingFacturxMatchesSnapshot.toString()+'\n('+attach.toString()+')('+JSON.stringify(bound).replace(/</g,'\\u003c')+');<\/script>';
 }
 
 setView('dashboard');

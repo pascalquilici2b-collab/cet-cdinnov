@@ -27,7 +27,7 @@ export async function billingPreview(testOptions={}){
       cloudEnabled=()=>false;budgetsObserveClients=()=>{};budgetsApi=()=>location.origin+'/budgets';
       budgetsEnsureSession=async()=>AUTH_USER===${JSON.stringify(users[0])}?${JSON.stringify(sessions[0])}:${JSON.stringify(sessions[1])};
       window.qaNotifications=[];notify=(...args)=>qaNotifications.push(args);
-      window.qaFacturx=[];openFacturX=id=>{qaFacturx.push(id);toast('Aperçu local : aucun document fictif envoyé au convertisseur.');};
+      window.qaFacturx=[];window.qaOpenFacturX=openFacturX;openFacturX=id=>{qaFacturx.push(id);toast('Aperçu local : aucun document fictif envoyé au convertisseur.');};
       const consultant=new URLSearchParams(location.search).has('consultant');
       unlockApp(consultant?${JSON.stringify(users[1])}:${JSON.stringify(users[0])});
       setView(consultant?'notesfrais':'facturier');`;

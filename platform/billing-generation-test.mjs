@@ -16,14 +16,12 @@ const fixture=()=>{
  d.paymentMeans='10';d.businessProcess='S1';d.legalNotes={recovery:'Test',penalties:'Test',discount:'Test'};return d;
 };
 function syntheticResult(request,mode){
- const pdf=Buffer.from('%PDF-synthetic-not-a-conformance-test'),xml=Buffer.from('<synthetic/>');
- const checks={structured_source:true,amounts:true,xsd:true,schematron:true,france:true,embedding:true,pdfa_3b:true};
- if(mode==='bad-report')checks.pdfa_3b=false;
- const report={valid:true,profile:'en16931',envelope_sha256:request.envelopeSha256,pdf_sha256:sha(pdf),xml_sha256:sha(xml),checks,pdf_differences_acknowledged:false};
- const artifacts=[['pdf',pdf,'application/pdf'],['xml',xml,'application/xml'],['validation',Buffer.from(JSON.stringify(report)),'application/json'],['verapdf',Buffer.from('<synthetic/>'),'application/xml']].map(([kind,bytes,contentType])=>({kind,sha256:sha(bytes),size:bytes.length,contentType,base64:bytes.toString('base64')}));
+ const pdf=Buffer.from('%PDF-synthetic-not-a-conformance-test');
+ const artifacts=[{kind:'pdf',sha256:sha(pdf),size:pdf.length,contentType:'application/pdf',base64:pdf.toString('base64')}];
  if(mode==='bad-file-hash')artifacts[0].sha256='0'.repeat(64);
- if(mode==='missing-report')artifacts.pop();
- return {schemaVersion:1,generatorVersion:'synthetic-test',profile:'en16931',envelopeSha256:mode==='wrong-envelope'?'0'.repeat(64):request.envelopeSha256,artifacts};
+ if(mode==='missing-pdf')artifacts.pop();
+ if(mode==='bad-mime')artifacts[0].contentType='text/html';
+ return {schemaVersion:1,generatorVersion:'synthetic-test',profile:mode==='wrong-profile'?'en16931':'invoice-pdf',envelopeSha256:mode==='wrong-envelope'?'0'.repeat(64):request.envelopeSha256,artifacts};
 }
 await test('HTTP émission : refus avant réservation et contrôle des fichiers après réservation',async t=>{
  let mode='ok',requests=0,concurrentEdit;const key='synthetic-service-key-01234567890123456789';
@@ -32,11 +30,11 @@ await test('HTTP émission : refus avant réservation et contrôle des fichiers 
   if(mode==='redirect')return new Response(null,{status:302,headers:{Location:'https://must-not-follow.test'}});
   if(mode==='unavailable')return Response.json({detail:'private upstream details'}, {status:503});
   const payload=await request.json();
-  if(new URL(request.url).pathname.endsWith('/preflight')){
+  if(new URL(request.url).pathname.endsWith('/preflight-pdf')){
    if(concurrentEdit)await concurrentEdit();
    const result={valid:true,snapshotSha256:sha(billingCanonicalJSON({schemaVersion:1,document:payload.document,totals:calculateBilling(payload.document)})),checks:{render:true,amounts:true,xsd:true,schematron:true,france:true}};
    if(mode==='wrong-snapshot')result.snapshotSha256='0'.repeat(64);
-   if(mode==='missing-check')delete result.checks.france;
+   if(mode==='missing-check')delete result.checks.amounts;
    return Response.json(result);
   }
   return Response.json(syntheticResult(payload,mode));
@@ -75,8 +73,8 @@ await test('HTTP émission : refus avant réservation et contrôle des fichiers 
   const current=await (await call('/documents/'+doc.id)).json();assert.equal((await reserve(current)).status,200);assert.equal(await counter(),42);
   const found=await (await call('/documents?q=test-0041')).json();assert.equal(found.total,1);assert.equal(found.documents[0].id,doc.id);
   assert.equal((await (await call('/documents?q='+encodeURIComponent('%_'))).json()).total,0);
-  await t.test('fichiers incomplets, mauvais numéro, empreinte ou contrôle faux ne deviennent jamais téléchargeables',async()=>{
-   for(const value of ['wrong-envelope','bad-file-hash','missing-report','bad-report']){
+  await t.test('fichiers incomplets, mauvais numéro, empreinte ou profil invalide ne deviennent jamais téléchargeables',async()=>{
+   for(const value of ['wrong-envelope','bad-file-hash','missing-pdf','bad-mime','wrong-profile']){
     mode=value;const result=await call('/documents/'+doc.id+'/finalize','POST',{}, {'If-Match':'2'});assert.equal(result.status,200);const failed=await result.json();assert.equal(failed.status,'issue_failed');assert.equal(failed.issuance.number,'TEST-0041');assert.equal(failed.issuance.errorCode,'validation');
     assert.equal((await call('/documents/'+doc.id+'/files/pdf')).status,409);assert.equal(await counter(),42);
    }

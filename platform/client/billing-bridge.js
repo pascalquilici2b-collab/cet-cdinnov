@@ -3,8 +3,8 @@ let billingMode='modern',billingModulePromise=null,billingMounted=null,billingTr
 function billingLockForLogout(){billingLogoutPending=true;$('#content').inert=true;}
 function billingUnlockLogout(){billingLogoutPending=false;$('#content').inert=false;}
 function billingModule(){
-  if(!$('#billingStyle')){const link=document.createElement('link');link.id='billingStyle';link.rel='stylesheet';link.href='platform/billing.css?v=refinement-20261023b';document.head.append(link);}
-  return billingModulePromise ||= import('./platform/billing.js?v=refinement-20261023b').catch(error=>{billingModulePromise=null;throw error;});
+  if(!$('#billingStyle')){const link=document.createElement('link');link.id='billingStyle';link.rel='stylesheet';link.href='platform/billing.css?v=sheets-workflow-20261023c';document.head.append(link);}
+  return billingModulePromise ||= import('./platform/billing.js?v=sheets-workflow-20261023c').catch(error=>{billingModulePromise=null;throw error;});
 }
 function billingLeave(){return billingMounted?.canLeave?.()!==false;}
 function billingForget(){
@@ -30,7 +30,7 @@ function renderBillingWorkspace(){
   });
 }
 function billingWorkspaceProps(){
-  return {transport:billingTransport,imported:{invoices:factures().map(f=>({...f,validFacturx:facturxSnapshotMatches(f)})),act:(action,id)=>{
+  return {transport:billingTransport,onFacturX:billingOpenFacturX,imported:{invoices:factures().map(f=>({...f,validFacturx:facturxSnapshotMatches(f)})),act:(action,id)=>{
     if(!AUTH_USER||!facturierAdmin())return;
     const handlers={edit:openFacture,delete:delFacture,pdf:billingImportedPdf,facturx:openFacturX,downloadFacturx:facturxFinal,upload:openFacturePdf};
     handlers[action]?.(id);

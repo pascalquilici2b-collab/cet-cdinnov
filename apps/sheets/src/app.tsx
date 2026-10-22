@@ -1,3 +1,4 @@
+import {SheetsBrand} from './sheets-brand';
 import {LoadingScreen} from '../../../platform/client/loading';
 import type {
   CellValue,
@@ -203,16 +204,16 @@ export function App() {
     React.useEffect(() => {
       const j = state?.sheets.find((K) => K.id === route[1]);
       (j?.folderId && setExpandedFolders((K) => ({ ...K, [j.folderId]: true })),
-        (document.title = `${j?.name || state?.dashboards.find((K) => K.id === route[1])?.name || "Accueil"} \xB7 CD Innovation`));
+        (document.title = `${j?.name || state?.dashboards.find((K) => K.id === route[1])?.name || "Accueil"} \xB7 CDInnovSheets`));
     }, [route[1], state?.sheets.length]),
     !state)
   )
     return saveStatus === "loading" ? <LoadingScreen label="Chargement de votre espace de travail…"/> : (
       <div className={"loading-screen"}>
         <div className={"brand-symbol"}>
-          <IconFileSpreadsheet size={30} />
+          <SheetsBrand symbolOnly/>
         </div>
-        <h1>{"CD Innovation"}</h1>
+        <h1>CDInnovSheets</h1>
         <p>
           {saveError}
         </p>
@@ -665,15 +666,7 @@ export function App() {
         <aside className={"workspace-sidebar"} aria-label={"Espace de travail"}>
           <div className={"workspace-brand"}>
             <button className={"brand"} onClick={() => navigate("/home")}>
-              <IconTriangle size={29} />
-              <span>
-                {"cdi"}
-                <small>
-                  {"développement"}
-                  <br />
-                  {"innovation"}
-                </small>
-              </span>
+              <SheetsBrand/>
             </button>
             <IconButton
               label={"Fermer le panneau Espace de travail"}
@@ -1063,7 +1056,7 @@ export function App() {
               </div>
               <p className={"home-note"}>
                 {state.sampleData
-                  ? "Données de démonstration · les noms des projets reprennent votre environnement Smartsheet."
+                  ? "Données de démonstration · les noms des projets reprennent votre environnement CDInnovSheets."
                   : "Espace partagé CDInnov · modifications enregistrées en ligne."}
               </p>
             </section>
@@ -1227,7 +1220,7 @@ export function App() {
             </section>
             <footer className={"home-footer"}>
               <span>
-                {"CD Innovation · "}
+                {"CDInnovSheets · "}
                 {"Espace partagé"}
               </span>
               <span>
@@ -1510,10 +1503,10 @@ export function App() {
           <div className={"modal-body help-body"}>
             <div className={"help-lead"}>
               <span className={"brand-symbol"}>
-                <IconFileSpreadsheet size={25} />
+                <SheetsBrand symbolOnly/>
               </span>
               <div>
-                <h3>{"CD Innovation · Feuilles"}</h3>
+                <h3>{"CDInnovSheets"}</h3>
                 <p>{"Votre espace de travail partagé CDInnov."}</p>
               </div>
             </div>

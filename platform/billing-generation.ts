@@ -44,20 +44,20 @@ async function service(env:Environment,path:string,payload:unknown,timeout:numbe
  finally{clearTimeout(timer);}
 }
 
-/** No number is reserved if configuration, rendering, identifiers or XML preflight fail. */
+/** Ordinary PDF issuance; electronic conversion is an explicit later action. */
 export async function preflightIssuance(env:Environment,data:BillingDraft):Promise<void>{
  bucketFor(env);serviceConfig(env);
- const result=await service(env,'/api/billing/preflight',{document:data},75000,30000);
+ const result=await service(env,'/api/billing/preflight-pdf',{document:data},75000,30000);
  const hash=digest(billingCanonicalJSON({schemaVersion:1,document:data,totals:calculateBilling(data)}));
- const checks=data.kind==='invoice'?['render','amounts','xsd','schematron','france']:['render','amounts'];
+ const checks=['render','amounts'];
  if(result.valid!==true||result.snapshotSha256!==hash||!object(result.checks)||checks.some(key=>result.checks[key]!==true))return fail(502,'Le contrôle préalable ne correspond pas au document ou reste incomplet.');
 }
 
 function decodeArtifacts(result:Record<string,any>,issuance:Issuance):{manifest:IssuanceManifest;files:{metadata:IssuanceArtifact;bytes:Uint8Array}[]}{
  if(!exactKeys(result,['schemaVersion','envelopeSha256','generatorVersion','profile','artifacts'])||result.schemaVersion!==1||result.envelopeSha256!==issuance.envelopeSha256||
   typeof result.generatorVersion!=='string'||!/^[-A-Za-z0-9._+]{1,100}$/.test(result.generatorVersion)||
-  result.profile!==(issuance.snapshot.kind==='quote'?'quote-pdf':'en16931')||!Array.isArray(result.artifacts))return fail(502,'Les fichiers retournés ne correspondent pas à la réservation.');
- const kinds=issuance.snapshot.kind==='quote'?['pdf']:['pdf','xml','validation','verapdf'];
+  result.profile!==(issuance.snapshot.kind==='quote'?'quote-pdf':'invoice-pdf')||!Array.isArray(result.artifacts))return fail(502,'Les fichiers retournés ne correspondent pas à la réservation.');
+ const kinds=['pdf'];
  if(result.artifacts.length!==kinds.length||result.artifacts.some((a:unknown)=>!object(a))||result.artifacts.map((a:any)=>a.kind).sort().join()!==kinds.sort().join())return fail(502,'Le moteur n’a pas fourni tous les fichiers et rapports requis.');
  const files=result.artifacts.map((a:Record<string,any>)=>{
   const mime=({pdf:'application/pdf',xml:'application/xml',validation:'application/json',verapdf:'application/xml'} as Record<string,string>)[a.kind];
@@ -67,12 +67,6 @@ function decodeArtifacts(result:Record<string,any>,issuance:Issuance):{manifest:
   const metadata:IssuanceArtifact={kind:a.kind,key:`billing/${issuance.id}/${a.kind}/${a.sha256}`,sha256:a.sha256,size:a.size,contentType:a.contentType};
   return {metadata,bytes};
  });
- if(issuance.snapshot.kind==='invoice'){
-  const read=(kind:string)=>files.find(f=>f.metadata.kind===kind)!;
-  let report;try{report=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(read('validation').bytes));}catch{return fail(502,'Rapport de validation illisible.');}
-  if(!object(report)||report.valid!==true||report.profile!=='en16931'||report.envelope_sha256!==issuance.envelopeSha256||report.pdf_sha256!==read('pdf').metadata.sha256||report.xml_sha256!==read('xml').metadata.sha256||
-   !object(report.checks)||['structured_source','amounts','xsd','schematron','france','embedding','pdfa_3b'].some(key=>report.checks[key]!==true)||report.pdf_differences_acknowledged!==false)return fail(502,'Le rapport ne valide pas les fichiers de cette facture.');
- }
  return {manifest:{schemaVersion:1,envelopeSha256:issuance.envelopeSha256,generatorVersion:result.generatorVersion,profile:result.profile,artifacts:files.map(f=>f.metadata)},files};
 }
 
@@ -92,7 +86,7 @@ export async function generateIssuance(db:Database,env:Environment,issuanceId:st
  if(!claim)return;
  let stage:'render'|'validation'|'storage'|'unavailable'='render';
  try{
-  const result=await service(env,'/api/billing/generate-issued',{
+  const result=await service(env,'/api/billing/generate-issued-pdf',{
    schemaVersion:1,id:issuance.id,documentId:issuance.documentId,documentVersion:issuance.documentVersion,issuerSiren:issuance.issuerSiren,
    number:issuance.number,document:issuance.snapshot,snapshotSha256:issuance.snapshotSha256,envelopeSha256:issuance.envelopeSha256
   },180000,32*1024*1024);

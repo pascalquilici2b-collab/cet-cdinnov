@@ -7,7 +7,7 @@
  height:calc(var(--cdi-bolt-size) * .8);
  flex:none;
  vertical-align:middle;
- background:url("/design/brand/assets/logos/cdinnov-symbol.svg") center/contain no-repeat;
+ background:var(--cdi-loading-symbol,url("/design/brand/assets/logos/cdinnov-symbol.svg")) center/contain no-repeat;
  animation:cdi-bolt-pulse 1.8s ease-in-out infinite;
 }
 .cdi-bolt::after{
@@ -15,8 +15,8 @@
  position:absolute;
  inset:0;
  background:linear-gradient(112deg,transparent 38%,rgba(192,239,255,.5) 45%,#fff 50%,rgba(192,239,255,.5) 55%,transparent 62%) 130% 0/320% 100% no-repeat;
- -webkit-mask:url("/design/brand/assets/logos/cdinnov-symbol.svg") center/contain no-repeat;
- mask:url("/design/brand/assets/logos/cdinnov-symbol.svg") center/contain no-repeat;
+ -webkit-mask:var(--cdi-loading-symbol,url("/design/brand/assets/logos/cdinnov-symbol.svg")) center/contain no-repeat;
+ mask:var(--cdi-loading-symbol,url("/design/brand/assets/logos/cdinnov-symbol.svg")) center/contain no-repeat;
  animation:cdi-bolt-flash 1.8s ease-in-out infinite;
 }
 .cdi-loading{
@@ -65,7 +65,7 @@ body.cdi-sheets-app:has(.cdi-loading-screen)>.cdi-app-header{visibility:hidden}
 [data-theme="dark"] .cdi-loading{color:#a1a1a6}
 @keyframes cdi-bolt-pulse{
  0%,100%{filter:drop-shadow(0 0 0 transparent);transform:scale(1)}
- 40%{filter:drop-shadow(0 0 7px rgba(0,174,239,.3));transform:scale(1.035)}
+ 40%{filter:drop-shadow(0 0 7px var(--cdi-loading-glow,rgba(0,174,239,.3)));transform:scale(1.035)}
 }
 @keyframes cdi-bolt-flash{
  0%,12%{background-position:130% 0;opacity:0}

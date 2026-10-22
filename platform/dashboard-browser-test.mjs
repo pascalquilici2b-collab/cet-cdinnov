@@ -52,7 +52,11 @@ try{
  assert.equal(badges.length,3);assert.ok(badges.every(b=>b.text==='Bêta'&&Math.abs(b.right-badges[0].right)<1));
  const colors=await page.locator('.cdi-application svg').evaluateAll(nodes=>nodes.map(n=>getComputedStyle(n).stroke));assert.equal(new Set(colors).size,3);
  assert.equal(await page.locator('.applications-label').innerText(),'APPLICATIONS');
- assert.match(await page.locator('#cdiSheetsLink').innerText(),/Smartsheet/);
+ assert.match(await page.locator('#cdiSheetsLink').innerText(),/CDInnovSheets/);
+ await page.getByRole('group',{name:'Événements du planning'}).getByRole('button',{name:'Déplacements',exact:true}).click();
+ assert.equal(await page.locator('.db-event.is-leave,.db-event.is-pending').count(),0);assert.ok(await page.locator('.db-event.is-trip').count()>0);
+ await page.getByRole('group',{name:'Événements du planning'}).getByRole('button',{name:'Congés',exact:true}).click();assert.equal(await page.locator('.db-event.is-trip').count(),0);
+ await page.getByRole('group',{name:'Événements du planning'}).getByRole('button',{name:'Tout',exact:true}).click();
  await page.screenshot({path:join(out,'tableau-de-bord-desktop.png'),fullPage:true});
  assert.equal(await page.locator('.db-person-row').first().locator('.db-avatar img').count(),1);
  await page.waitForFunction(()=>document.querySelector('.db-person-row .db-avatar img')?.naturalWidth===1);
