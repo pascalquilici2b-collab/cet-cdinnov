@@ -1,5 +1,5 @@
 export const TYPES = {framework:'Accord-cadre à bons de commande',fixed:'Marché forfaitaire',quote:'Devis accepté',mixed:'Marché mixte'};
-export const UNITS = {day:'Jour',hour:'Heure',flat:'Forfait',unit:'Unité'};
+export const UNITS = {day:'Jour',hour:'Heure',flat:'Forfait',unit:'Unité',km:'Kilomètre'};
 export const BILLING = {actual:'Au réel',fixed:'Forfait',milestone:'Jalon',schedule:'Échéancier',mixed:'Mixte'};
 export const CONDITIONS={payment:'Paiement',billing:'Facturation / échéancier',orders:'Bons de commande',revision:'Révision des prix',expenses:'Frais et déplacements',deliverables:'Livrables',report:'Relevés d’intervention',tax:'TVA',other:'Autre condition'};
 export function minor(value) {
@@ -31,7 +31,7 @@ function common(v,documentIds) {
   return r;
 }
 export function emptyMarket() {
-  return {title:'',reference:'',clientName:'',clientId:'',type:'framework',currency:'EUR',status:'draft',billingMode:'actual',notificationDate:'',periodBasis:'unknown',renewalMode:'unknown',renewalCount:null,noMinimum:false,minimumMinor:null,feesIncluded:false,notes:'',prices:[],ceilings:[],periods:[],issues:[],conditions:[],projects:[]};
+  return {title:'',reference:'',clientName:'',clientId:'',type:'framework',currency:'EUR',status:'draft',billingMode:'actual',notificationDate:'',startBasis:'',startDate:'',initialDurationMonths:null,maximumMinor:null,periodBasis:'unknown',renewalMode:'unknown',renewalCount:null,noMinimum:false,minimumMinor:null,feesIncluded:false,notes:'',prices:[],ceilings:[],periods:[],issues:[],conditions:[],projects:[]};
 }
 export function validateProjects(input=[],documentIds=new Set()){
  if(!Array.isArray(input)||input.length>100)throw new Error('Liste de projets invalide (100 maximum).');
@@ -67,6 +67,15 @@ export function validateMarket(input,documents=[]) {
     noMinimum:input.noMinimum===true,minimumMinor:amount(input.minimumMinor,'Minimum'),
     feesIncluded:input.feesIncluded===true,notes:text(input.notes,'Notes',6000)
   };
+  // Optional fields preserve the wire shape of old contract snapshots.
+  if(Object.hasOwn(input,'startBasis'))m.startBasis=choice(input.startBasis,['','notification','first_order','date'],'Démarrage');
+  if(Object.hasOwn(input,'startDate'))m.startDate=date(input.startDate,'Date de démarrage');
+  if(Object.hasOwn(input,'initialDurationMonths')){
+    m.initialDurationMonths=input.initialDurationMonths===null?null:Number(input.initialDurationMonths);
+    if(m.initialDurationMonths!==null&&![12,24,36].includes(m.initialDurationMonths))throw new Error('Durée initiale : choisissez 12, 24 ou 36 mois.');
+  }
+  if(Object.hasOwn(input,'maximumMinor'))m.maximumMinor=amount(input.maximumMinor,'Montant maximum contractuel');
+  if(m.startBasis==='date'&&!m.startDate)throw new Error('Renseignez la date de démarrage du marché.');
   if(m.renewalCount!==null&&(!Number.isInteger(m.renewalCount)||m.renewalCount<0||m.renewalCount>20))throw new Error('Nombre de reconductions invalide.');
   if(m.noMinimum&&m.minimumMinor!==null)throw new Error('Le marché sans minimum ne peut pas avoir un montant minimum.');
   for(const list of ['prices','ceilings','periods','issues']){
@@ -115,6 +124,13 @@ export function validateMarket(input,documents=[]) {
     if(blockers.length)throw new Error('Paramétrage non validable : '+blockers.join(' ; '));
   }
   return m;
+}
+export function marketTracking(m){
+ const orders=(m.projects||[]).flatMap(p=>p.orders||[]).filter(o=>o.reference&&o.date);
+ const orderedMinor=orders.reduce((sum,o)=>sum+(o.amountMinor??0),0);
+ const maximumMinor=m.maximumMinor??m.ceilings?.find(c=>c.scope==='contract'&&c.basis==='HT')?.amountMinor??null;
+ return {orderCount:orders.length,orderedMinor,unknownAmounts:orders.filter(o=>o.amountMinor==null).length,maximumMinor,
+  startDate:m.startBasis==='notification'?m.notificationDate:m.startBasis==='first_order'?(orders.map(o=>o.date).sort()[0]||''):m.startDate||''};
 }
 export function activationBlockers(m) {
   const b=[];

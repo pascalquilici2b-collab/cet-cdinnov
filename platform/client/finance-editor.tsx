@@ -1,4 +1,4 @@
-import {useLayoutEffect,useState} from 'react';
+import {useEffect,useLayoutEffect,useState} from 'react';
 import type {InputHTMLAttributes,ReactNode} from 'react';
 import {createRoot} from 'react-dom/client';
 import {flushSync} from 'react-dom';
@@ -6,6 +6,7 @@ import type {BusinessCode,Invoice,Expense,ExpenseLine,Employee} from './finance-
 import {codeInput,invoiceInput,codeKey,codeLabel,money,expenseTotal,expenseRefund,expenseStatus} from './finance-domain';
 
 export interface EditorProps {
+  loadProjects:()=>Promise<{projects:{id:string;name:string;clientName:string;archived:boolean}[]}>;
   kind:'code'|'invoice'|'expense';record:BusinessCode|Invoice|Expense;existing:boolean;today:string;
   employees:Employee[];codes:BusinessCode[];lockedMat:string|null;paymentLocked:boolean;
   categories:string[];statuses:string[];vehicles:Record<string,{label:string;cv:Record<string,unknown>}>;
@@ -48,16 +49,21 @@ function ExpenseLineEditor({line:l,index:i,p}:{line:ExpenseLine;index:number;p:E
   </div></div>}
   <div style={{marginTop:8}}><Field id={id('desc')} label="Description / commentaire" initial={l.description}/></div></div>;
 }
-function ExpenseEditor(p:EditorProps){const n=p.record as Expense;const employees=p.employees.filter(e=>!p.lockedMat||e.matricule===p.lockedMat);return <>
-  <header className="modal-head"><h3 id="financeEditorTitle">Note de frais — N°{n.numero}</h3><div className="grow"/><button className="icon-btn" type="button" aria-label="Fermer" onClick={()=>p.act('close')}>×</button></header><div className="modal-body"><div className="form-grid">
-    <div className="form-row"><label htmlFor="nfSal">Salarié</label><select className="inp" id="nfSal" defaultValue={p.lockedMat||n.matricule} disabled={!!p.lockedMat}>{employees.map(e=><option key={e.matricule} value={e.matricule}>{e.nom} {e.prenom}</option>)}</select></div>
+function ExpenseProject({p,n}:{p:EditorProps;n:Expense}){
+ const [projects,setProjects]=useState<{id:string;name:string;clientName:string;archived:boolean}[]>([]),[error,setError]=useState(''),[loading,setLoading]=useState(true),[retry,setRetry]=useState(0);
+ useEffect(()=>{let active=true;setLoading(true);void p.loadProjects().then(r=>{if(active){setProjects(r.projects);setError('');}}).catch(e=>{if(active)setError(e.message);}).finally(()=>{if(active)setLoading(false);});return()=>{active=false;};},[retry]);
+ return <div className="form-row full"><label htmlFor="nfProject">Projet</label><select className="inp" id="nfProject" defaultValue={String(n.projectId||'')} disabled={loading||!!error}><option value="">{loading?'Chargement…':'Aucun projet'}</option>{n.projectId&&!projects.some(p=>p.id===n.projectId)&&<option value={String(n.projectId)} data-name={String(n.projectName||'')}>{String(n.projectName||'Projet enregistré')}</option>}{projects.filter(p=>!p.archived||p.id===n.projectId).map(p=><option key={p.id} value={p.id} data-name={p.name}>{p.name} · {p.clientName}</option>)}</select>{error&&<span role="alert">{error} <button type="button" className="btn btn-ghost btn-sm" onClick={()=>setRetry(n=>n+1)}>Réessayer</button></span>}</div>;
+}
+function ExpenseEditor(p:EditorProps){const n=p.record as Expense;const [mat,setMat]=useState(p.lockedMat||n.matricule);const person=p.employees.find(e=>e.matricule===mat);const employees=p.employees.filter(e=>!p.lockedMat||e.matricule===p.lockedMat);return <>
+  <header className="modal-head"><h3 id="financeEditorTitle">Note de frais — N°{n.numero}</h3><div className="grow"/><button className="icon-btn" type="button" aria-label="Fermer" onClick={()=>p.act('close')}>×</button></header><div className="modal-body"><section className="finance-employee-header" aria-label="Identification du salarié"><strong>{person?.prenom} {person?.nom}</strong><span>Matricule {mat}</span></section><div className="form-grid">
+    <div className="form-row"><label htmlFor="nfSal">Salarié</label><select className="inp" id="nfSal" value={mat} onChange={e=>setMat(e.target.value)} disabled={!!p.lockedMat}>{employees.map(e=><option key={e.matricule} value={e.matricule}>{e.nom} {e.prenom}</option>)}</select></div>
     <div className="form-row"><label htmlFor="nfStatut">Statut</label><select className="inp" id="nfStatut" defaultValue={expenseStatus(n.statut)} disabled={p.paymentLocked}>{p.statuses.map(s=><option key={s}>{s}</option>)}</select></div>
-    <Field id="nfObjet" label="Objet de la mission" initial={n.objet} full placeholder="ex. Mission Livorno"/><Field id="nfAffaire" label="Affaire / SG" initial={n.affaire}/><Field id="nfCodeA" label="Code affaire / SG" initial={n.codeAffaire}/><Field id="nfLieu" label="Lieu(x)" initial={n.lieu}/><Field id="nfCodeC" label="Code compta" initial={n.codeCompta}/>
+    <Field id="nfObjet" label="Objet de la mission" initial={n.objet} full placeholder="ex. Mission Livorno"/><ExpenseProject p={p} n={n}/><Field id="nfLieu" label="Lieu(x)" initial={n.lieu}/><Field id="nfCodeC" label="Code compta" initial={n.codeCompta}/>
     <Field id="nfD1" label="Date départ" type="date" initial={n.dateDepart} onChange={()=>p.act('duration')}/><Field id="nfD2" label="Date retour" type="date" initial={n.dateRetour} onChange={()=>p.act('duration')}/><Field id="nfDuree" label="Durée (jours)" initial={n.duree} disabled/><Field id="nfDateNote" label="Date de la note" type="date" initial={n.dateNote}/><Field id="nfFaitA" label="Fait à (lieu)" initial={n.faitA} placeholder="ex. Bastia"/>
   </div><div className="section-title">Lignes de dépenses</div><div id="nfLines">{(n.lignes||[]).map((line,i)=><ExpenseLineEditor key={line.id||i} line={line} index={i} p={p}/>)}</div><button type="button" className="btn btn-ghost btn-sm" style={{marginTop:10}} onClick={()=>p.act('addLine')}>Ajouter une ligne</button>
   <div className="finance-refund"><Field id="nfAvance" label="Avance à déduire (€)" type="number" step="0.01" initial={n.avance} onInput={()=>p.act('total')}/><div className="finance-refund-total"><div className="hint">Total / Montant à rembourser</div><strong><span id="nfTotalDisp">{money(expenseTotal(n))}</span> / <span id="nfRembDisp">{money(expenseRefund(n))}</span></strong></div></div>
   <div className="section-title">Signature de l’intéressé(e)</div><div className="finance-sign"><canvas id="nfSign" width={360} height={130} aria-label="Signature de l’intéressé"/><button type="button" className="btn btn-ghost btn-sm" onClick={()=>p.act('clearSignature')}>Effacer</button></div><div className="hint" style={{marginTop:6}}>Signez à la main (souris ou tactile) — la signature sera reprise sur le PDF.</div>
-  </div><Buttons><button type="button" className="btn btn-ghost" onClick={()=>p.act('close')}>Fermer</button><div className="grow"/><button type="submit" className="btn btn-ghost">Enregistrer</button><button type="button" className="btn btn-primary" onClick={()=>p.act('saveExpense',true)}>Enregistrer + PDF</button></Buttons>
+  </div><Buttons><button type="button" className="btn btn-ghost" onClick={()=>p.act('close')}>Fermer</button><div className="grow"/><button type="button" className="btn btn-ghost" onClick={()=>p.act('previewExpense')}>Aperçu</button><button type="submit" className="btn btn-ghost">Enregistrer</button><button type="button" className="btn btn-primary" onClick={()=>p.act('saveExpense',true)}>Enregistrer + PDF</button></Buttons>
   </>;
 }
 function Editor(p:EditorProps){const [error,setError]=useState('');useLayoutEffect(()=>{p.init();},[]);return <form className="finance-editor" data-react-editor={p.kind} noValidate aria-labelledby="financeEditorTitle" onSubmit={async e=>{

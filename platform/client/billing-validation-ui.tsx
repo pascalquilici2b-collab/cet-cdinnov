@@ -8,6 +8,8 @@ export type BillingSection='document'|'seller'|'buyer'|'lines'|'conditions'|'ref
 const documentPaths=['title','issueDate','dueDate','validUntil'];
 export function sectionForPath(path:string):BillingSection{
  if(documentPaths.includes(path))return 'document';
+ if(path.startsWith('details.')&&!path.startsWith('details.interventions')&&path!=='details.returnEmail')return 'document';
+ if(path.startsWith('details.interventions')||path==='details.returnEmail')return 'references';
  for(const section of ['seller','buyer','lines','references'] as const)if(path===section||path.startsWith(section+'.'))return section;
  return 'conditions';
 }

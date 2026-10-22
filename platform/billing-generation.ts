@@ -47,7 +47,7 @@ async function service(env:Environment,path:string,payload:unknown,timeout:numbe
 /** No number is reserved if configuration, rendering, identifiers or XML preflight fail. */
 export async function preflightIssuance(env:Environment,data:BillingDraft):Promise<void>{
  bucketFor(env);serviceConfig(env);
- const result=await service(env,'/api/billing/preflight',{document:data},45000,30000);
+ const result=await service(env,'/api/billing/preflight',{document:data},75000,30000);
  const hash=digest(billingCanonicalJSON({schemaVersion:1,document:data,totals:calculateBilling(data)}));
  const checks=data.kind==='invoice'?['render','amounts','xsd','schematron','france']:['render','amounts'];
  if(result.valid!==true||result.snapshotSha256!==hash||!object(result.checks)||checks.some(key=>result.checks[key]!==true))return fail(502,'Le contrôle préalable ne correspond pas au document ou reste incomplet.');

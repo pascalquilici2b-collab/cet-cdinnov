@@ -59,6 +59,12 @@ export interface Market {
   status: string;
   billingMode: string;
   notificationDate: string;
+  startBasis?: ''|'notification'|'first_order'|'date';
+  startDate?: string;
+  initialDurationMonths?: number|null;
+  maximumMinor?: number|null;
+  invoicedMinor?: number|null;
+  tracking?:{sentQuoteCount:number;quotedMinor:number};
   periodBasis: string;
   renewalMode: string;
   renewalCount: number | null;

@@ -1,7 +1,7 @@
 import {createHash} from 'node:crypto';
 import type {Database,Environment,Reply} from './contracts';
 import type {BillingContext,BillingDocument,BillingDraft,BillingIssue,BillingTotals,BillingSettings,BillingIssuanceSummary,BillingQuoteSummary} from './billing-contracts';
-import {normalizeDraft,calculateBilling,inspectDraft,blankSettings,normalizeSettings} from './billing-domain';
+import {normalizeDraft,calculateBilling,inspectDraft,blankSettings,normalizeSettings,blankDocumentDetails} from './billing-domain';
 import {sessionIdentity} from './identity';
 import {boundedBody} from './portal';
 import {draftPDF} from './billing-pdf';
@@ -10,6 +10,7 @@ import {preflightIssuance,generateIssuance,issuedFile} from './billing-generatio
 import {billingDirectoryRoute} from './billing-directory';
 import {billingQuoteRoute,quoteJSON} from './billing-quote';
 import {billingPaymentRoute,settlementJSON} from './billing-payments';
+import {billingEmail} from './billing-delivery';
 import {createQuoteRevision,abandonQuoteRevision,quoteVersions} from './billing-revisions';
 
 interface Row {
@@ -79,16 +80,18 @@ function documentServiceConfigured(env:Environment):boolean {
 }
 async function context(db:Database,env:Environment):Promise<BillingContext> {
  // Read only the allowed business columns. Account verifiers and portal authentication never enter this response.
- const [clients,codes,markets,settings]=await Promise.all([
+ const [clients,codes,markets,settings,people]=await Promise.all([
   db.prepare('SELECT data_json FROM budget_clients ORDER BY position,record_key').all<{data_json:string}>(),
   db.prepare('SELECT data_json FROM portal_business_codes ORDER BY position,record_key').all<{data_json:string}>(),
-  db.prepare('SELECT id,payload FROM markets ORDER BY updated_at DESC,id').all<{id:string;payload:string}>(),readSettings(db)
+  db.prepare('SELECT id,payload,version FROM markets ORDER BY updated_at DESC,id').all<{id:string;payload:string;version:number}>(),readSettings(db),
+  db.prepare('SELECT data_json FROM portal_employees ORDER BY position,record_key').all<{data_json:string}>()
  ]);
  return {
   documentService:{configured:documentServiceConfigured(env)},
+  people:people.results.map(r=>JSON.parse(r.data_json)).map(p=>({id:text(p.matricule),name:[text(p.prenom),text(p.nom)].filter(Boolean).join(' ')})).filter(p=>p.id&&p.name),
   clients:clients.results.map(r=>JSON.parse(r.data_json)).filter(object).map(r=>({id:text(r.id),name:text(r.name)})).filter(r=>r.id&&r.name),
   businessCodes:codes.results.map(r=>JSON.parse(r.data_json)).filter(object).map(r=>({id:text(r.id),code:[r.code1,r.code2].filter(v=>typeof v==='number'||(typeof v==='string'&&v)).join(' '),label:text(r.label),client:text(r.client)})).filter(r=>r.id),
-  markets:markets.results.filter(r=>JSON.parse(r.payload).status!=='archived').map(r=>{const p=JSON.parse(r.payload);return {id:r.id,title:text(p.title),reference:text(p.reference),clientName:text(p.clientName),projects:Array.isArray(p.projects)?p.projects:[]};}),
+  markets:markets.results.filter(r=>JSON.parse(r.payload).status!=='archived').map(r=>{const p=JSON.parse(r.payload);return {id:r.id,version:r.version,title:text(p.title),reference:text(p.reference),clientName:text(p.clientName),clientId:text(p.clientId),prices:Array.isArray(p.prices)?p.prices:[],projects:Array.isArray(p.projects)?p.projects:[]};}),
   seller:settings.data.seller,settings
  };
 }
@@ -150,6 +153,11 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
   return reply(405,{error:'Méthode non autorisée.'});
  }
  if(path==='/api/v1/billing/context')return request.method==='GET'?reply(200,await context(db,env)):reply(405,{error:'Méthode non autorisée.'});
+ if(path==='/api/v1/billing/preview.pdf'){
+  if(request.method!=='POST')return reply(405,{error:'Méthode non autorisée.'});
+  const input=await body(request,['data']),p=prepared(input.data);
+  return draftPDF({id:'preview',version:0,data:p.data},env,reply,true);
+ }
  if(path==='/api/v1/billing/documents') {
   if(request.method==='GET')return list(request,db,reply);
   if(request.method!=='POST')return reply(405,{error:'Méthode non autorisée.'});
@@ -167,10 +175,14 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
   }
   return reply(200,document(existing));
  }
- const match=path.match(/^\/api\/v1\/billing\/documents\/([^/]+)(\/payments|\/quote-versions|\/revise|\/abandon-revision|\/quote-events|\/convert|\/preview\.pdf|\/issue|\/finalize|\/files\/(?:pdf|xml|validation|verapdf))?$/);
+ const match=path.match(/^\/api\/v1\/billing\/documents\/([^/]+)(\/email|\/payments|\/quote-versions|\/revise|\/abandon-revision|\/quote-events|\/convert|\/preview\.pdf|\/issue|\/finalize|\/files\/(?:pdf|xml|validation|verapdf))?$/);
  if(!match)return reply(404,{error:'Accès de facturation introuvable.'});
  if(!uuid(match[1]))return fail(400,'Identifiant de document invalide.');
  const id=match[1].toLowerCase();
+ if(match[2]==='/email'){
+  const row=await get(db,id);if(!row)return reply(404,{error:'Document introuvable.'});
+  return billingEmail(request,db,env,document(row),session.email,reply);
+ }
  if(match[2]==='/quote-versions'||match[2]==='/revise'||match[2]==='/abandon-revision'){
   const row=await get(db,id);if(!row)return reply(404,{error:'Devis introuvable.'});const current=document(row);
   if(match[2]==='/quote-versions'){
@@ -249,7 +261,8 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
    return conflict();
   }
   if(source.version!==expected)return conflict();
-  const p=prepared({...JSON.parse(source.data_json),kind:'invoice',validUntil:''}),stamp=new Date().toISOString();
+  const sourceData=JSON.parse(source.data_json),settings=await readSettings(db);
+  const p=prepared({...sourceData,kind:'invoice',validUntil:'',iban:settings.data.iban,bic:settings.data.bic,details:{...blankDocumentDetails(),...sourceData.details,validityMonths:'',returnEmail:settings.data.returnEmail??'cdi@cdinnov.com',interventions:[]}}),stamp=new Date().toISOString();
   let created:Row|null;
   try {
    created=await db.prepare(`INSERT INTO billing_documents(id,kind,status,version,data_json,totals_json,issues_json,create_hash,source_document_id,source_version,created_at,updated_at,created_by,updated_by)

@@ -16,12 +16,15 @@ export interface BillingReferences {
   projectId?:string; orderId?:string;
 }
 export interface BillingDraft {
+  details?:BillingDocumentDetails;
   schemaVersion:2|3; kind:BillingKind; title:string; currency:'EUR'; issueDate:string;
   creditNote?:BillingCreditReference;
   dueDate:string; validUntil:string; clientId:string; seller:BillingParty; buyer:BillingParty;
   lines:BillingLine[]; references:BillingReferences; paymentTerms:string; iban:string; bic:string; notes:string;
   paymentMeans:BillingPaymentMeans; vatDue:BillingVatDue; legalNotes:BillingLegalNotes; businessProcess:BillingBusinessProcess;
 }
+export interface BillingIntervention {id:string;priceId:string;label:string;description:string;days:string;}
+export interface BillingDocumentDetails {marketObject:string;period:''|'S1'|'S2';personInCharge:string;fundingProgramme:string;validityMonths:string;returnEmail:string;interventions:BillingIntervention[];}
 /** Only schema v3 carries a credit reference; old v2 snapshots keep their exact wire shape. */
 export interface BillingCreditReference {invoiceId:string;invoiceVersion:number;invoiceNumber:string;invoiceDate:string;reason:string;}
 export type BillingBusinessProcess = ''|'B1'|'S1'|'M1'|'B2'|'S2'|'M2'|'S3'|'B4'|'S4'|'M4'|'S5'|'S6'|'B7'|'S7'|'B8'|'S8'|'M8'|'B9'|'S9'|'M9';
@@ -29,6 +32,7 @@ export type BillingPaymentMeans = '30'|'58'|'10'|'48';
 export type BillingVatDue = ''|'invoice'|'payment'|'delivery';
 export interface BillingLegalNotes {recovery:string;penalties:string;discount:string;}
 export interface BillingSettingsData {
+  fundingProgrammes?:string[];returnEmail?:string;
   schemaVersion:1; seller:BillingParty;paymentMeans:BillingPaymentMeans;vatDue:BillingVatDue;
   paymentTerms:string;iban:string;bic:string;legalNotes:BillingLegalNotes;
   businessProcess:BillingBusinessProcess;
@@ -78,14 +82,19 @@ export interface BillingDirectoryPage {records:BillingDirectoryRecord[];total:nu
 export interface BillingFilterOption {value:string;label:string;}
 export interface BillingPage {documents:BillingDocument[]; total:number; limit:number; offset:number; filters?:{clients:BillingFilterOption[];projects:BillingFilterOption[]};}
 export interface BillingContext {
+  people?:{id:string;name:string}[];
   documentService:{configured:boolean};
   clients:{id:string; name:string}[];
   businessCodes:{id:string; code:string; label:string; client:string}[];
-  markets:{id:string; title:string; reference:string; clientName:string;projects?:import('./client/markets-contracts').MarketProject[]}[];
+  markets:{id:string;version?:number; title:string; reference:string; clientName:string;clientId?:string;prices?:import('./client/markets-contracts').Price[];projects?:import('./client/markets-contracts').MarketProject[]}[];
   seller:BillingParty;
   settings:BillingSettings;
 }
 export interface BillingTransport {
+  emailHistory(id:string):Promise<{deliveries:import('./billing-delivery').EmailDelivery[]}>;
+  email(id:string,version:number,input:import('./billing-delivery').EmailInput):Promise<{delivery:import('./billing-delivery').EmailDelivery}>;
+  projects():Promise<{projects:import('./projects').SharedProject[]}>;
+  saveProject(data:import('./projects').ProjectInput):Promise<{project:import('./projects').SharedProject}>;
   directoryList(kind:BillingDirectoryKind,query:{q:string;offset:number;limit:number;archived:boolean}):Promise<BillingDirectoryPage>;
   directoryGet(kind:BillingDirectoryKind,id:string):Promise<BillingDirectoryRecord>;
   directoryCreate(kind:BillingDirectoryKind,id:string,data:BillingDirectoryData):Promise<BillingDirectoryRecord>;
@@ -106,6 +115,7 @@ export interface BillingTransport {
   settings():Promise<BillingSettings>;
   saveSettings(version:number,data:BillingSettingsData):Promise<BillingSettings>;
   previewPDF(id:string,version:number):Promise<Blob>;
+  previewDraft(data:BillingDraft):Promise<Blob>;
   numberSeries():Promise<BillingNumberSeries[]>;
   createNumberSeries(data:{id:string;issuerSiren:string;kind:BillingKind;prefix:string;width:number;firstValue:number;startDate:string;endDate:string}):Promise<BillingNumberSeries>;
   issue(id:string,version:number,attemptId:string,seriesId:string):Promise<BillingDocument>;

@@ -1,5 +1,5 @@
 import {createRequire} from 'node:module';
-import {mkdir,readFile,writeFile} from 'node:fs/promises';
+import {mkdir,readFile,writeFile,copyFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 const root=fileURLToPath(new URL('../',import.meta.url));
@@ -7,6 +7,10 @@ const require=createRequire(process.env.MARCHES_BUILD_PACKAGE||new URL('../packa
 const {build}=require('esbuild');
 const output=process.env.CDI_BUILD_OUTPUT||path.join(root,'.build');
 await mkdir(output,{recursive:true});
+// Ship the PDF writer locally so expense previews work without a third-party CDN.
+const jspdfRoot=path.dirname(require.resolve('jspdf/package.json'));
+await copyFile(path.join(jspdfRoot,'dist/jspdf.umd.min.js'),path.join(root,'platform/jspdf.umd.min.js'));
+await copyFile(path.join(jspdfRoot,'LICENSE'),path.join(root,'platform/jspdf-LICENSE.txt'));
 await build({absWorkingDir:root,entryPoints:[path.join(root,'platform/worker.ts')],outfile:path.join(output,'entry.mjs'),bundle:true,platform:'node',format:'esm',target:'es2022'});
 await build({absWorkingDir:root,entryPoints:[path.join(root,'platform/client/workspace-client.ts')],outfile:path.join(root,'platform/workspace-client.js'),bundle:true,platform:'browser',format:'iife',globalName:'CDIPlatform',target:'es2022'});
 await build({absWorkingDir:root,entryPoints:['dashboard','finance','billing','personnel','agenda','markets'].map(name=>path.join(root,'platform/client/'+name+'.tsx')),outdir:path.join(root,'platform'),entryNames:'[name]',chunkNames:'chunks/[name]-[hash]',splitting:true,bundle:true,platform:'browser',format:'esm',target:'es2022',minify:true,jsx:'automatic',loader:{'.component.css':'text'},define:{'process.env.NODE_ENV':'"production"'}});
@@ -33,7 +37,7 @@ updated=updated.replace('\nbootAuth();','\n/* CDI_BILLING_START */\n'+billingBri
 portal=portal.slice(0,scriptStart)+updated+portal.slice(scriptEnd);
 const marker=/\/\* CDI_MARKETS_START \*\/[\s\S]*?\/\* CDI_MARKETS_END \*\//;
 if(!marker.test(portal))throw new Error('Market controller integration marker missing.');
-const controller=await build({absWorkingDir:root,entryPoints:[path.join(root,'marches/ui.js')],bundle:true,format:'iife',platform:'browser',write:false,external:['./marches/vendor/pdf.mjs','./marches/reader.mjs','./platform/markets.js?v=loading-20261020']});
+const controller=await build({absWorkingDir:root,entryPoints:[path.join(root,'marches/ui.js')],bundle:true,format:'iife',platform:'browser',write:false,external:['./marches/vendor/pdf.mjs','./marches/reader.mjs','./platform/markets.js?v=modules-20261022']});
 portal=portal.replace(marker,()=> '/* CDI_MARKETS_START */\n'+controller.outputFiles[0].text.replace(/<\/script/gi,'<\\/script')+'\n/* CDI_MARKETS_END */');
 await writeFile(portalPath,portal);
 console.log('Application Worker, typed transport, shared React modules and market controller built.');

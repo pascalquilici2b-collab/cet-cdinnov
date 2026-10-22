@@ -202,9 +202,9 @@ function assign(path, value) {
 function inputValue(e) {
   const path = e.dataset.path;
   let value = e.type === "checkbox" ? e.checked : e.value;
-  if (path.endsWith("amountMinor") || path === "minimumMinor")
+  if (path.endsWith("amountMinor") || path === "minimumMinor" || path === "maximumMinor")
     value = minor(value);
-  if (path === "renewalCount") value = value === "" ? null : Number(value);
+  if (path === "renewalCount" || path === "initialDurationMonths") value = value === "" ? null : Number(value);
   assign(path, value);
   if (path === "noMinimum" && value) {
     s.current.minimumMinor = null;
@@ -276,7 +276,7 @@ async function save() {
     return false;
   }
 }
-function add(list) {
+function add(list,expense) {
   const common = {
     id: uid(),
     status: "proposed",
@@ -286,8 +286,8 @@ function add(list) {
     list === "prices"
       ? {
           ...common,
-          label: "",
-          unit: "day",
+          label: expense==='mission'?"Frais de mission":expense==='travel'?"Frais de déplacement":"",
+          unit: expense?'unit':"day",
           amountMinor: null,
           profile: "",
           location: "",
@@ -475,6 +475,7 @@ function bind() {
       return;
     }
     if (s.busy) return;
+    if (b.dataset.addExpense) {add('prices',b.dataset.addExpense);return;}
     if (b.dataset.action === "add-project") {
       s.current.projects ||= [];
       s.current.projects.push({id:uid(),name:"",code:"",notes:"",archived:false,orders:[]});
@@ -842,8 +843,8 @@ function render(preserveFields = false) {
   if (!marketModule) {
     if (marketPromise) return;
     container.innerHTML = loadingMarkup('Chargement des marchés…');
-    if (!document.getElementById("marketStyle")) { const link=document.createElement("link"); link.id="marketStyle"; link.rel="stylesheet"; link.href="platform/markets.css?v=loading-20261020"; document.head.append(link); }
-    marketPromise = import("./platform/markets.js?v=loading-20261020")
+    if (!document.getElementById("marketStyle")) { const link=document.createElement("link"); link.id="marketStyle"; link.rel="stylesheet"; link.href="platform/markets.css?v=modules-20261022"; document.head.append(link); }
+    marketPromise = import("./platform/markets.js?v=modules-20261022")
       .then((module) => {
         marketModule = module;
         marketPromise = null;

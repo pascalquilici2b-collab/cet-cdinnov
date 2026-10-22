@@ -5,9 +5,9 @@ export function createBillingTransport(options:{baseUrl:string;getToken:()=>Prom
   async function request<T>(path:string,method='GET',body?:unknown,version?:number,binary=false):Promise<T>{
     active();const token=await options.getToken();active();
     const controller=new AbortController();controllers.add(controller);
-    const timer=setTimeout(()=>controller.abort(),path.endsWith('/finalize')?210000:path.endsWith('/issue')?60000:30000);
+    const timer=setTimeout(()=>controller.abort(),path.endsWith('/finalize')?210000:path.endsWith('/issue')||path.endsWith('/preview.pdf')?90000:30000);
     try{
-      const response=await fetch(options.baseUrl.replace(/\/$/,'')+'/api/v1/billing'+path,{method,cache:'no-store',signal:controller.signal,headers:{Authorization:'Bearer '+token,...(body===undefined?{}:{'Content-Type':'application/json'}),...(version===undefined?{}:{'If-Match':String(version)})},...(body===undefined?{}:{body:JSON.stringify(body)})});
+      const response=await fetch(options.baseUrl.replace(/\/$/,'')+(path.startsWith('/api/v1/')?'':'/api/v1/billing')+path,{method,cache:'no-store',signal:controller.signal,headers:{Authorization:'Bearer '+token,...(body===undefined?{}:{'Content-Type':'application/json'}),...(version===undefined?{}:{'If-Match':String(version)})},...(body===undefined?{}:{body:JSON.stringify(body)})});
       const data=response.ok&&binary?await response.blob():await response.json();active();
       if(!response.ok)throw Object.assign(new Error(data.error||'La sauvegarde n’a pas abouti. Vos modifications sont conservées.'),{status:response.status});
       return data as T;
@@ -15,6 +15,10 @@ export function createBillingTransport(options:{baseUrl:string;getToken:()=>Prom
     finally{clearTimeout(timer);controllers.delete(controller);}
   }
   return {
+    emailHistory:id=>request('/documents/'+encodeURIComponent(id)+'/email'),
+    email:(id,version,input)=>request('/documents/'+encodeURIComponent(id)+'/email','POST',input,version),
+    projects:()=>request('/api/v1/projects'),
+    saveProject:data=>request('/api/v1/projects','PUT',data),
     directoryList:(kind,query)=>request<BillingDirectoryPage>('/'+kind+'?'+new URLSearchParams({q:query.q,offset:String(query.offset),limit:String(query.limit),archived:String(query.archived)})),
     directoryGet:(kind,id)=>request<BillingDirectoryRecord>('/'+kind+'/'+encodeURIComponent(id)),
     directoryCreate:(kind,id,data)=>request<BillingDirectoryRecord>('/'+kind,'POST',{id,data}),
@@ -35,6 +39,7 @@ export function createBillingTransport(options:{baseUrl:string;getToken:()=>Prom
     settings:()=>request<BillingSettings>('/settings'),
     saveSettings:(version,data)=>request<BillingSettings>('/settings','PUT',{data},version),
     previewPDF:(id,version)=>request<Blob>('/documents/'+encodeURIComponent(id)+'/preview.pdf','GET',undefined,version,true),
+    previewDraft:data=>request<Blob>('/preview.pdf','POST',{data},undefined,true),
     numberSeries:()=>request<BillingNumberSeries[]>('/number-series'),
     createNumberSeries:data=>request<BillingNumberSeries>('/number-series','POST',{data}),
     issue:(id,version,attemptId,seriesId)=>request<BillingDocument>('/documents/'+encodeURIComponent(id)+'/issue','POST',{id:attemptId,seriesId},version),

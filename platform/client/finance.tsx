@@ -57,3 +57,4 @@ function Expenses({snapshot:s,filter,act}:FinanceProps){
 function Finance(props:FinanceProps){const ref=useResponsiveTables();return <div ref={ref} className="cdi-finance" data-react-finance={props.snapshot.view}><ExpensePresentationStyle/>{props.snapshot.view==='facturier'?<Billing {...props}/>:<Expenses {...props}/>}</div>;}
 export function mountFinance(element:HTMLElement,props:FinanceProps){const root=createRoot(element);const update=(p:FinanceProps)=>flushSync(()=>root.render(<Finance {...p}/>));update(props);return {update,dispose:()=>root.unmount()};}
 export {mountFinanceEditor} from './finance-editor';
+export {mountExpensePreview} from './expense-preview';

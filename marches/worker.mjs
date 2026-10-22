@@ -2,6 +2,7 @@ import {handleAnalysis,handleReading,aiStatus} from './ai-worker.mjs';
 import {Buffer} from 'node:buffer';
 import {createHash} from 'node:crypto';
 import {validateMarket,suggestFromText} from './domain.mjs';
+import {quoteConsumption} from './tracking.mjs';
 
 const MAX_FILE=5*1024*1024;
 const MAX_MARKET=50*1024*1024;
@@ -34,7 +35,8 @@ export async function handleMarkets(request,db,email,admin,reply,jsonBody,env={}
       const result=await db.prepare('SELECT * FROM markets ORDER BY updated_at DESC LIMIT 500').all();
       const directory=await db.prepare("SELECT record_id AS id,name FROM app_budget_records WHERE workspace_id='shared' AND collection='clients' ORDER BY position").all();
       const clients=directory.results;
-      return reply(200,{markets:result.results.map(unpack),clients});
+      const consumption=await quoteConsumption(db);
+      return reply(200,{markets:result.results.map(r=>({...unpack(r),tracking:consumption.get(r.id)||{sentQuoteCount:0,quotedMinor:0}})),clients});
     }
     if(request.method!=='POST')return reply(405,{error:'Méthode non autorisée.'});
     const data=await jsonBody(request,256000);
@@ -54,19 +56,21 @@ export async function handleMarkets(request,db,email,admin,reply,jsonBody,env={}
   if(section==='reading'&&documentId)return await handleReading(request,db,email,current,documentId,reply,jsonBody);
   if(section==='analysis')return await handleAnalysis(request,db,email,current,documentId,reply,jsonBody,env);
   if(!section){
-    if(request.method==='GET')return reply(200,{market:unpack(current),documents:(await getDocs(id)).map(doc)});
+    if(request.method==='GET')return reply(200,{market:{...unpack(current),tracking:(await quoteConsumption(db)).get(id)||{sentQuoteCount:0,quotedMinor:0}},documents:(await getDocs(id)).map(doc)});
     if(request.method!=='PUT')return reply(405,{error:'Méthode non autorisée.'});
     const raw=request.headers.get('if-match');
     if(!raw||!/^[1-9]\d*$/.test(raw)||!Number.isSafeInteger(Number(raw)))return reply(428,{error:'Version de la fiche requise.'});
     const input=await jsonBody(request,256000);
     // Older tabs do not know the project tree: omission must never delete it.
-    if(input&&typeof input==='object'&&!Object.hasOwn(input,'projects')){
-      const previous=JSON.parse(current.payload);if(previous.projects)input.projects=previous.projects;
+    if(input&&typeof input==='object'){
+      const previous=JSON.parse(current.payload);
+      for(const key of ['projects','startBasis','startDate','initialDurationMonths','maximumMinor'])
+        if(!Object.hasOwn(input,key)&&Object.hasOwn(previous,key))input[key]=previous[key];
     }
     let market;try{market=validateMarket(input,await getDocs(id));}catch(e){return reply(400,{error:e.message});}
     const row=await db.prepare('UPDATE markets SET payload=?,version=version+1,updated_at=?,updated_by=? WHERE id=? AND version=? RETURNING *').bind(JSON.stringify(market),new Date().toISOString(),email,id,Number(raw)).first();
     if(!row)return reply(409,{error:'Un collègue a modifié ce marché. Votre saisie est conservée : exportez-la avant de recharger la fiche.'});
-    return reply(200,{market:unpack(row),documents:(await getDocs(id)).map(doc)});
+    return reply(200,{market:{...unpack(row),tracking:(await quoteConsumption(db)).get(id)||{sentQuoteCount:0,quotedMinor:0}},documents:(await getDocs(id)).map(doc)});
   }
   if(section==='history'&&!documentId&&request.method==='GET'){
     const rows=await db.prepare('SELECT version,payload,updated_at,updated_by FROM market_versions WHERE market_id=? ORDER BY version DESC LIMIT 100').bind(id).all();

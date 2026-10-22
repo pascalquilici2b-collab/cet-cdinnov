@@ -692,7 +692,7 @@ body.authed .auth-gate{display:none}
 <link rel="stylesheet" href="platform/design-system.css">
 <link rel="stylesheet" href="design/portal.css?v=apple1">
 <link rel="stylesheet" href="design/apple.css?v=portalaccess1">
-<link rel="stylesheet" href="design/interactions.css?v=editor-motion-20261020">
+<link rel="stylesheet" href="design/interactions.css?v=modules-20261022">
 <script src="platform/icons.js?v=expenseui1"></script>
 <link rel="stylesheet" href="/platform/loading.css?v=screen-20261020">
 <div id="authGate" class="auth-gate" data-loading="true" aria-busy="true">
@@ -2048,7 +2048,8 @@ function nfSync(){
   const n=nfDraft; if(!n) return; const g=s=>{const e=$(s);return e?e.value:undefined;};
   if($('#nfSal')) n.matricule=$('#nfSal').value;
   if($('#nfStatut')) n.statut=$('#nfStatut').value;
-  ['objet:nfObjet','affaire:nfAffaire','codeAffaire:nfCodeA','codeCompta:nfCodeC','lieu:nfLieu','dateDepart:nfD1','dateRetour:nfD2','dateNote:nfDateNote','faitA:nfFaitA'].forEach(p=>{const[k,id]=p.split(':'); const v=g('#'+id); if(v!==undefined) n[k]=v;});
+  const project=$('#nfProject');if(project&&!project.disabled){n.projectId=project.value;n.projectName=project.selectedOptions[0]?.dataset.name||'';}
+  ['objet:nfObjet','codeCompta:nfCodeC','lieu:nfLieu','dateDepart:nfD1','dateRetour:nfD2','dateNote:nfDateNote','faitA:nfFaitA'].forEach(p=>{const[k,id]=p.split(':'); const v=g('#'+id); if(v!==undefined) n[k]=v;});
   n.duree=nfCalcDuree(n.dateDepart,n.dateRetour);
   const av=g('#nfAvance'); if(av!==undefined) n.avance=Number(av)||0;
   (n.lignes||[]).forEach((l,i)=>{
@@ -2078,7 +2079,7 @@ function nfRemoveLine(i){ nfSync(); nfDraft.lignes.splice(i,1); renderNoteEditor
 function nfJustif(i,input){
   const f=input&&input.files&&input.files[0]; if(!f) return; input.value='';
   nfSync();
-  const draft=nfDraft,line=draft.lignes[i],user=AUTH_USER;if(!line)return;
+  const draft=nfDraft,line=draft.lignes[i],user=AUTH_USER;if(!line)return;const oldUrl=line.justificatif;
   toast('Envoi du justificatif…');
   uploadFileToR2(f,'justif-'+(nfDraft.id||'note')+'-'+i).then(url=>{
     if(AUTH_USER!==user||nfDraft!==draft||!draft.lignes.includes(line)||!$('#nfLines'))return;
@@ -2129,9 +2130,11 @@ function dupNoteFrais(id){
 }
 function loadJsPDF(){
   if(window.jspdf && window.jspdf.jsPDF) return Promise.resolve(window.jspdf);
-  return new Promise((res,rej)=>{ const s=document.createElement('script'); s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'; s.onload=()=>res(window.jspdf); s.onerror=()=>rej(new Error('Génération PDF indisponible (connexion internet requise).')); document.head.appendChild(s); });
+  return new Promise((res,rej)=>{ const s=document.createElement('script'); s.src='platform/jspdf.umd.min.js?v=4.2.1'; s.onload=()=>res(window.jspdf); s.onerror=()=>rej(new Error('Génération PDF indisponible (connexion internet requise).')); document.head.appendChild(s); });
 }
-async function exportNoteFraisPDF(id){
+async function exportNoteFraisPDF(id,preview=false){
+  if(preview&&!id)nfSync();
+  const user=AUTH_USER,initialDraft=nfDraft;
   let n = id? notesFrais().find(x=>x.id===id) : nfDraft;
   if(!financeExpenseAllowed(n)){ toast('Note introuvable ou accès non autorisé'); return; }
   toast('Génération du PDF…');
@@ -2150,7 +2153,8 @@ async function exportNoteFraisPDF(id){
     const info=(label,val)=>{ doc.setFont(F,'bold'); doc.text(label,14,y); doc.setFont(F,'normal'); const ls=doc.splitTextToSize(clean(val)||'—',140); doc.text(ls,52,y); y+=Math.max(6,ls.length*5); };
     info('Nom / Prénom :',(s.nom||'')+' '+(s.prenom||''));
     info('Objet :',n.objet);
-    info('Affaire / SG :',(n.affaire||'')+(n.codeAffaire?' ('+n.codeAffaire+')':''));
+    info('Matricule :',n.matricule);
+    if(n.projectName)info('Projet :',n.projectName);
     info('Lieu(x) :',n.lieu);
     info('Période :',(n.dateDepart?dateFR(n.dateDepart):'')+(n.dateRetour?' au '+dateFR(n.dateRetour):'')+(n.duree?'   ('+n.duree+' jours)':''));
     y+=3;
@@ -2191,8 +2195,13 @@ async function exportNoteFraisPDF(id){
         }catch(e){}
       }
     }
-    doc.save('Note_de_frais_N'+(n.numero||'')+'_'+(s.nom||'').replace(/\s+/g,'')+'.pdf');
-    toast('PDF généré');
+    const filename='Note_de_frais_N'+(n.numero||'')+'_'+(s.nom||'').replace(/\s+/g,'')+'.pdf';
+    if(AUTH_USER!==user||!financeExpenseAllowed(n)||preview&&!id&&nfDraft!==initialDraft)return;
+    if(preview){
+      const blob=doc.output('blob'),module=await financeModule();if(AUTH_USER!==user||!financeExpenseAllowed(n))return;if(!document.getElementById('billingStyle')){const css=document.createElement('link');css.id='billingStyle';css.rel='stylesheet';css.href='platform/billing.css?v=modules-20261022';document.head.append(css);}
+      modal('<div class="modal-head"><h3>Aperçu — Note de frais N°'+esc(n.numero)+'</h3><div class="grow"></div><button type="button" class="btn btn-ghost" id="nfPreviewDownload">Télécharger PDF</button><button type="button" class="btn btn-ghost" id="nfPreviewClose">'+(id?'Fermer':'Retour')+'</button></div><div class="modal-body bill-app"><div id="nfPreviewRoot"></div></div>',true);
+      financeEditorDispose=module.mountExpensePreview($('#nfPreviewRoot'),blob);$('#nfPreviewDownload').onclick=()=>doc.save(filename);$('#nfPreviewClose').onclick=()=>id?closeModal():renderNoteEditor();
+    }else{doc.save(filename);toast('PDF généré');}
   }catch(e){ toast(e.message||'Erreur lors de la génération du PDF'); }
 }
 
@@ -2413,8 +2422,8 @@ let financeModulePromise=null,financeMounted=null,financeEpoch=0,financeView=nul
 let financeEditorDispose=null,financeEditorEpoch=0,financeClientStatus='',financeClientError=false;
 let nfPage=1,nfPer=20;
 function financeModule(){
-  if(!$('#financeStyle')){const link=document.createElement('link');link.id='financeStyle';link.rel='stylesheet';link.href='platform/finance.css?v=loading-20261020';document.head.append(link);}
-  return financeModulePromise ||= import('./platform/finance.js?v=loading-20261020').catch(error=>{financeModulePromise=null;throw error;});
+  if(!$('#financeStyle')){const link=document.createElement('link');link.id='financeStyle';link.rel='stylesheet';link.href='platform/finance.css?v=modules-20261022';document.head.append(link);}
+  return financeModulePromise ||= import('./platform/finance.js?v=modules-20261022').catch(error=>{financeModulePromise=null;throw error;});
 }
 function financeForget(){financeEpoch++;financeMounted?.dispose();financeMounted=null;financeView=null;$('#financeRoot')?.remove();}
 function financeEditorForget(){financeEditorEpoch++;if(financeEditorDispose){financeEditorDispose();financeEditorDispose=null;}}
@@ -2434,7 +2443,7 @@ function financeProps(view,user){
     },act:(command,arg)=>{
       if(AUTH_USER!==user||currentView!==view)return;
       if(['editExpense','deleteExpense','duplicateExpense','expensePdf'].includes(command)&&!financeExpenseAllowed(notesFrais().find(n=>n.id===arg)))return;
-      const handlers={section:setBillingSection,clients:budgetsOpenClients,clientsRetry:()=>budgetsSyncClients().catch(budgetsClientsError),newCode:()=>openCodeAffaire(),editCode:openCodeAffaire,deleteCode:delCodeAffaire,newInvoice:()=>openFacture(),editInvoice:openFacture,deleteInvoice:delFacture,uploadPdf:openFacturePdf,originalPdf:facturxOriginal,createFacturx:openFacturX,finalFacturx:facturxFinal,removePdf:facturxRemovePdf,removeFacturx:facturxRemoveFinal,importSql:importSqlBiller,exportCodes:exportCodesCSV,exportInvoices:exportFacturesCSV,newExpense:()=>openNoteFrais(),editExpense:openNoteFrais,deleteExpense:delNoteFrais,duplicateExpense:dupNoteFrais,expensePdf:exportNoteFraisPDF};
+      const handlers={section:setBillingSection,clients:budgetsOpenClients,clientsRetry:()=>budgetsSyncClients().catch(budgetsClientsError),newCode:()=>openCodeAffaire(),editCode:openCodeAffaire,deleteCode:delCodeAffaire,newInvoice:()=>openFacture(),editInvoice:openFacture,deleteInvoice:delFacture,uploadPdf:openFacturePdf,originalPdf:facturxOriginal,createFacturx:openFacturX,finalFacturx:facturxFinal,removePdf:facturxRemovePdf,removeFacturx:facturxRemoveFinal,importSql:importSqlBiller,exportCodes:exportCodesCSV,exportInvoices:exportFacturesCSV,newExpense:()=>openNoteFrais(),editExpense:openNoteFrais,deleteExpense:delNoteFrais,duplicateExpense:dupNoteFrais,expensePdf:id=>exportNoteFraisPDF(id,true)};
       if(!command.toLowerCase().includes('expense')&&!isAdmin(user))return;
       Promise.resolve(handlers[command]?.(arg)).catch(error=>toast(error.message));
     }};
@@ -2461,8 +2470,8 @@ async function financeOpenEditor(kind,record,existing){
   const element=$('#financeEditorRoot'),epoch=++financeEditorEpoch;
   try{
     const module=await financeModule();if(epoch!==financeEditorEpoch||AUTH_USER!==user||!element.isConnected)return;
-    const actions={close:closeModal,choosePdf:fvChoosePdf,ttcAuto:fvTtcAuto,lineChanged:nfLineChanged,total:nfTot,lineKm:nfLineKm,address:nfAddrInput,itinerarySync:nfItinSync,itinerary:nfCalcItineraire,maps:nfOpenMaps,duration:nfDureeUpd,addLine:nfAddLine,removeLine:nfRemoveLine,receipt:nfJustif,removeReceipt:nfJustifRemove,previewReceipt:nfJustifPreview,clearSignature:nfSignClear,saveExpense:saveNoteFrais};
-    financeEditorDispose=module.mountFinanceEditor(element,{kind,record,existing,today:ymd(new Date()),employees:state.salaries.map(({matricule,nom,prenom})=>({matricule,nom,prenom})),codes:codesAff(),lockedMat:isAdmin(user)?null:AUTH_USER_MAT[user]||null,paymentLocked:!isAlbert()&&record.statut==='Payée',categories:NF_CATS,statuses:nfStatutOptions(record.statut),vehicles:BAREME_KM,formula:baremeFormule,
+    const actions={close:closeModal,choosePdf:fvChoosePdf,ttcAuto:fvTtcAuto,lineChanged:nfLineChanged,total:nfTot,lineKm:nfLineKm,address:nfAddrInput,itinerarySync:nfItinSync,itinerary:nfCalcItineraire,maps:nfOpenMaps,duration:nfDureeUpd,addLine:nfAddLine,removeLine:nfRemoveLine,receipt:nfJustif,removeReceipt:nfJustifRemove,previewReceipt:nfJustifPreview,clearSignature:nfSignClear,saveExpense:saveNoteFrais,previewExpense:()=>exportNoteFraisPDF(null,true)};
+    financeEditorDispose=module.mountFinanceEditor(element,{loadProjects:async()=>{const r=await portalFetch(budgetsApi().replace(/\/budgets\/?$/,'')+'/api/v1/projects');return r.json();},kind,record,existing,today:ymd(new Date()),employees:state.salaries.map(({matricule,nom,prenom})=>({matricule,nom,prenom})),codes:codesAff(),lockedMat:isAdmin(user)?null:AUTH_USER_MAT[user]||null,paymentLocked:!isAlbert()&&record.statut==='Payée',categories:NF_CATS,statuses:nfStatutOptions(record.statut),vehicles:BAREME_KM,formula:baremeFormule,
       act:(name,...args)=>{if(AUTH_USER===user&&element.isConnected)return actions[name]?.(...args);},
       save:values=>{if(AUTH_USER!==user||!element.isConnected)throw new Error('La session ou le formulaire a changé.');return kind==='code'?saveCodeAffaire(existing?record.id:'',values):saveFacture(existing?record.id:'',values);},
       init:()=>{if(kind==='invoice')fvInitPdfForm(existing);if(kind==='expense')nfInitSign();}
@@ -2473,7 +2482,7 @@ async function financeOpenEditor(kind,record,existing){
 
 /* React personnel screens. Existing CET calculations, imports and storage remain authoritative. */
 let personnelPromise=null,personnelMounted=null,personnelEpoch=0,personnelView=null,personnelEditorDispose=null,personnelEditorEpoch=0;
-function personnelModule(){return personnelPromise||=import('./platform/personnel.js?v=loading-20261020').catch(error=>{personnelPromise=null;throw error;});}
+function personnelModule(){return personnelPromise||=import('./platform/personnel.js?v=modules-20261022').catch(error=>{personnelPromise=null;throw error;});}
 function personnelStyle(){if(!$('#personnelStyle')){const css=document.createElement('link');css.id='personnelStyle';css.rel='stylesheet';css.href='platform/personnel.css';document.head.append(css);}}
 function personnelEditorForget(){personnelEditorEpoch++;if(personnelEditorDispose){personnelEditorDispose();personnelEditorDispose=null;}}
 function personnelForget(){personnelEpoch++;if(personnelMounted){personnelMounted.dispose();personnelMounted=null;}personnelView=null;$('#personnelRoot')?.remove();}
@@ -3404,7 +3413,7 @@ const agendaState={trips:[],leaves:null,members:[],loaded:false,loading:false,er
 let agendaTimer=null,agendaConfirmationTimer=null,agendaEditing=null,agendaFocus=null;
 let agendaPickers={};
 let agendaModeExplicit=false,agendaPromise=null,agendaMounted=null,agendaRenderEpoch=0,agendaEditorDispose=null,agendaEditorEpoch=0;
-function agendaModule(){return agendaPromise||=import('./platform/agenda.js?v=loading-20261020').catch(error=>{agendaPromise=null;throw error;});}
+function agendaModule(){return agendaPromise||=import('./platform/agenda.js?v=modules-20261022').catch(error=>{agendaPromise=null;throw error;});}
 function agendaStyleSheet(){if(!$('#agendaReactStyle')){const link=document.createElement('link');link.id='agendaReactStyle';link.rel='stylesheet';link.href='platform/agenda.css';document.head.append(link);}}
 function agendaReactForget(){agendaRenderEpoch++;if(agendaMounted){agendaMounted.dispose();agendaMounted=null;}$('#agendaRoot')?.remove();}
 function agendaEditorForget(){agendaEditorEpoch++;if(agendaEditorDispose){agendaEditorDispose();agendaEditorDispose=null;}agendaPickers={};}
@@ -3816,7 +3825,7 @@ function agendaNotificationHTML(t){
 
   // marches/domain.mjs
   var TYPES = { framework: "Accord-cadre \xE0 bons de commande", fixed: "March\xE9 forfaitaire", quote: "Devis accept\xE9", mixed: "March\xE9 mixte" };
-  var UNITS = { day: "Jour", hour: "Heure", flat: "Forfait", unit: "Unit\xE9" };
+  var UNITS = { day: "Jour", hour: "Heure", flat: "Forfait", unit: "Unit\xE9", km: "Kilom\xE8tre" };
   var BILLING = { actual: "Au r\xE9el", fixed: "Forfait", milestone: "Jalon", schedule: "\xC9ch\xE9ancier", mixed: "Mixte" };
   var CONDITIONS = { payment: "Paiement", billing: "Facturation / \xE9ch\xE9ancier", orders: "Bons de commande", revision: "R\xE9vision des prix", expenses: "Frais et d\xE9placements", deliverables: "Livrables", report: "Relev\xE9s d\u2019intervention", tax: "TVA", other: "Autre condition" };
   function minor(value) {
@@ -3861,7 +3870,7 @@ function agendaNotificationHTML(t){
     return r;
   }
   function emptyMarket() {
-    return { title: "", reference: "", clientName: "", clientId: "", type: "framework", currency: "EUR", status: "draft", billingMode: "actual", notificationDate: "", periodBasis: "unknown", renewalMode: "unknown", renewalCount: null, noMinimum: false, minimumMinor: null, feesIncluded: false, notes: "", prices: [], ceilings: [], periods: [], issues: [], conditions: [], projects: [] };
+    return { title: "", reference: "", clientName: "", clientId: "", type: "framework", currency: "EUR", status: "draft", billingMode: "actual", notificationDate: "", startBasis: "", startDate: "", initialDurationMonths: null, maximumMinor: null, periodBasis: "unknown", renewalMode: "unknown", renewalCount: null, noMinimum: false, minimumMinor: null, feesIncluded: false, notes: "", prices: [], ceilings: [], periods: [], issues: [], conditions: [], projects: [] };
   }
   function validateProjects(input = [], documentIds = /* @__PURE__ */ new Set()) {
     if (!Array.isArray(input) || input.length > 100) throw new Error("Liste de projets invalide (100 maximum).");
@@ -3907,6 +3916,14 @@ function agendaNotificationHTML(t){
       feesIncluded: input.feesIncluded === true,
       notes: text(input.notes, "Notes", 6e3)
     };
+    if (Object.hasOwn(input, "startBasis")) m.startBasis = choice(input.startBasis, ["", "notification", "first_order", "date"], "D\xE9marrage");
+    if (Object.hasOwn(input, "startDate")) m.startDate = date(input.startDate, "Date de d\xE9marrage");
+    if (Object.hasOwn(input, "initialDurationMonths")) {
+      m.initialDurationMonths = input.initialDurationMonths === null ? null : Number(input.initialDurationMonths);
+      if (m.initialDurationMonths !== null && ![12, 24, 36].includes(m.initialDurationMonths)) throw new Error("Dur\xE9e initiale : choisissez 12, 24 ou 36 mois.");
+    }
+    if (Object.hasOwn(input, "maximumMinor")) m.maximumMinor = amount(input.maximumMinor, "Montant maximum contractuel");
+    if (m.startBasis === "date" && !m.startDate) throw new Error("Renseignez la date de d\xE9marrage du march\xE9.");
     if (m.renewalCount !== null && (!Number.isInteger(m.renewalCount) || m.renewalCount < 0 || m.renewalCount > 20)) throw new Error("Nombre de reconductions invalide.");
     if (m.noMinimum && m.minimumMinor !== null) throw new Error("Le march\xE9 sans minimum ne peut pas avoir un montant minimum.");
     for (const list of ["prices", "ceilings", "periods", "issues"]) {
@@ -4204,9 +4221,9 @@ function agendaNotificationHTML(t){
   function inputValue(e) {
     const path = e.dataset.path;
     let value = e.type === "checkbox" ? e.checked : e.value;
-    if (path.endsWith("amountMinor") || path === "minimumMinor")
+    if (path.endsWith("amountMinor") || path === "minimumMinor" || path === "maximumMinor")
       value = minor(value);
-    if (path === "renewalCount") value = value === "" ? null : Number(value);
+    if (path === "renewalCount" || path === "initialDurationMonths") value = value === "" ? null : Number(value);
     assign(path, value);
     if (path === "noMinimum" && value) {
       s.current.minimumMinor = null;
@@ -4272,7 +4289,7 @@ function agendaNotificationHTML(t){
       return false;
     }
   }
-  function add(list) {
+  function add(list, expense) {
     const common2 = {
       id: uid(),
       status: "proposed",
@@ -4280,8 +4297,8 @@ function agendaNotificationHTML(t){
     };
     const row = list === "prices" ? {
       ...common2,
-      label: "",
-      unit: "day",
+      label: expense === "mission" ? "Frais de mission" : expense === "travel" ? "Frais de d\xE9placement" : "",
+      unit: expense ? "unit" : "day",
       amountMinor: null,
       profile: "",
       location: "",
@@ -4447,6 +4464,10 @@ function agendaNotificationHTML(t){
         return;
       }
       if (s.busy) return;
+      if (b.dataset.addExpense) {
+        add("prices", b.dataset.addExpense);
+        return;
+      }
       if (b.dataset.action === "add-project") {
         s.current.projects ||= [];
         s.current.projects.push({ id: uid(), name: "", code: "", notes: "", archived: false, orders: [] });
@@ -4817,10 +4838,10 @@ function agendaNotificationHTML(t){
         const link = document.createElement("link");
         link.id = "marketStyle";
         link.rel = "stylesheet";
-        link.href = "platform/markets.css?v=loading-20261020";
+        link.href = "platform/markets.css?v=modules-20261022";
         document.head.append(link);
       }
-      marketPromise = import("./platform/markets.js?v=loading-20261020").then((module) => {
+      marketPromise = import("./platform/markets.js?v=modules-20261022").then((module) => {
         marketModule = module;
         marketPromise = null;
         if (currentView === "marches" && allowed()) render();
@@ -5062,8 +5083,8 @@ let billingMode='modern',billingModulePromise=null,billingMounted=null,billingTr
 function billingLockForLogout(){billingLogoutPending=true;$('#content').inert=true;}
 function billingUnlockLogout(){billingLogoutPending=false;$('#content').inert=false;}
 function billingModule(){
-  if(!$('#billingStyle')){const link=document.createElement('link');link.id='billingStyle';link.rel='stylesheet';link.href='platform/billing.css?v=editor-motion-20261020';document.head.append(link);}
-  return billingModulePromise ||= import('./platform/billing.js?v=editor-motion-20261020').catch(error=>{billingModulePromise=null;throw error;});
+  if(!$('#billingStyle')){const link=document.createElement('link');link.id='billingStyle';link.rel='stylesheet';link.href='platform/billing.css?v=modules-20261022';document.head.append(link);}
+  return billingModulePromise ||= import('./platform/billing.js?v=modules-20261022').catch(error=>{billingModulePromise=null;throw error;});
 }
 function billingLeave(){return billingMounted?.canLeave?.()!==false;}
 function billingForget(){

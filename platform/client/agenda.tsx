@@ -6,6 +6,7 @@ import type {CSSProperties} from 'react';
 import type {AgendaEntry,AgendaPerson,AgendaSnapshot,PendingLeave} from './agenda-domain';
 import {calendarWeeks,filterEntries,participants,dateLabel,range} from './agenda-domain';
 import './agenda.css';
+import contrast from './agenda-contrast.component.css';
 export interface AgendaProps {snapshot:AgendaSnapshot;change:(patch:Partial<Pick<AgendaSnapshot,'person'|'kind'|'type'|'mode'|'panel'|'month'|'year'>>)=>void;open:(kind:'trip'|'leave'|'day',id:string)=>void;refresh:()=>void;balances:()=>void;validate:(p:PendingLeave)=>void;reject:(p:PendingLeave)=>void;validateAll:()=>void;exportCSV:()=>void;}
 export function Avatar({person}:{person?:AgendaPerson}){const [failed,setFailed]=useState(false);return <span className="agenda-avatar" aria-hidden="true"><span>{person?.name.split(/[\s.@_-]+/).filter(Boolean).slice(0,2).map(n=>n[0]).join('').toUpperCase()}</span>{person?.photo&&!failed&&<img src={person.photo} alt="" loading="lazy" referrerPolicy="no-referrer" onError={()=>setFailed(true)}/>}</span>;}
 const attrs=(e:AgendaEntry)=>e.kind==='leave'?{'data-ag-leave-period':e.id}:{'data-ag-trip':e.id};
@@ -16,7 +17,7 @@ function Agenda(p:AgendaProps){const s=p.snapshot,entries=filterEntries(s.entrie
  const names=(e:AgendaEntry)=>participants(e).map(name).join(' + ');
  const open=(e:AgendaEntry)=>p.open(e.kind,e.id);
  const move=(n:number)=>p.change({month:new Date(Date.UTC(Number(s.month.slice(0,4)),Number(s.month.slice(5,7))-1+n,1)).toISOString().slice(0,7)});
- return <section className="agenda-shell" data-react-agenda={s.panel} aria-label={s.panel==='balances'?'Soldes et gestion des congés':'Agenda partagé des déplacements et congés'}>
+ return <section className="agenda-shell" data-react-agenda={s.panel} aria-label={s.panel==='balances'?'Soldes et gestion des congés':'Agenda partagé des déplacements et congés'}><style>{contrast}</style>
  {s.notice&&<div className="agenda-conflict" role="status">{s.notice}</div>}{s.error&&<div className="agenda-error" role="alert">{s.error}{s.loaded&&' Les dernières données chargées restent affichées.'}<button className="btn btn-ghost btn-sm" onClick={p.refresh}>Réessayer</button></div>}
  {s.panel==='balances'?<Balances {...p}/>:<>
  <div className="ag-heading ag-heading-actions"><button className="btn agenda-balances-button" id="agendaBalances" onClick={p.balances}>Soldes et gestion des congés <span aria-hidden="true">↗</span></button></div>

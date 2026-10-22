@@ -8,6 +8,7 @@ import {portalEnvironment,portalRoute,filesRoute,notificationRequest} from './po
 import {createHash} from 'node:crypto';
 import {workspaceRecords,workspacePut} from './workspace-records';
 import {billingRoute} from './billing';
+import {projectsRoute} from './projects';
 
 /** One deployable entry; modern and compatibility routes share the typed identity module. */
 export default {
@@ -19,6 +20,7 @@ export default {
       headers = responseHeaders(request,env);
       if(request.method==='OPTIONS') return new Response(null,{status:204,headers});
       env=portalEnvironment(env);
+      if(path==='/api/v1/projects')return await projectsRoute(request,env,reply);
       if(path==='/api/v1/billing'||path.startsWith('/api/v1/billing/'))return await billingRoute(request,env,reply);
       if(path==='/api/v1/portal'||path.startsWith('/api/v1/portal/'))return await portalRoute(request,env,reply);
       if(path.startsWith('/files/'))return await filesRoute(request,env,headers,reply);

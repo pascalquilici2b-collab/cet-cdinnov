@@ -1,0 +1,10 @@
+:root[data-theme=dark] body .content .agenda-shell .agenda-travel{--trip-color:#9cf0ec;--trip-bg:#153f43;color:var(--trip-color)}
+:root[data-theme=dark] body .content .agenda-shell .agenda-leave{--trip-color:#b4edc9;--trip-bg:#234332;color:var(--trip-color)}
+:root[data-theme=dark] body .content .agenda-shell .agenda-pending{--trip-color:#ffe0a3;--trip-bg:#4c391d;color:var(--trip-color)}
+:root[data-theme=dark] body .content .agenda-shell .agenda-trip{background:var(--trip-bg);border-color:var(--trip-color)}
+:root[data-theme=dark] body .content .agenda-shell .agenda-cell.today .agenda-day-number{background:#9cf0ec;color:#102a2d}
+:root[data-theme=dark] body .content .agenda-shell .agenda-cell.selected{box-shadow:inset 0 0 0 2px #9cf0ec}
+:root[data-theme=dark] body .content .agenda-shell .agenda-cell.outside{color:#a4acb6}
+:root[data-theme=dark] body .content .agenda-shell .ag-key:before{background:#9cf0ec}
+:root[data-theme=dark] body .content .agenda-shell .ag-key-leave:before{background:#b4edc9}
+:root[data-theme=dark] body .content .agenda-shell .ag-key-pending:before{background:#4c391d;border-color:#ffe0a3}

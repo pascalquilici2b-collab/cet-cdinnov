@@ -18,6 +18,7 @@ import {
   CONDITIONS,
   activationBlockers,
   money,
+  marketTracking,
 } from "../../marches/domain.mjs";
 import type {
   MarketsProps,
@@ -228,11 +229,11 @@ function RuleCard({
     </article>
   );
 }
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function Section({ title, children }: { title: string; children?: ReactNode }) {
   return (
     <div className="mk-section-title">
       <h2>{title}</h2>
-      <p>{children}</p>
+      {children&&<p>{children}</p>}
     </div>
   );
 }
@@ -245,10 +246,8 @@ function Summary({ s, m }: { s: MarketsSnapshot; m: Market }) {
   ];
   return (
     <>
-      <Section title="Identité et règles générales">
-        Les règles propres au marché seront utilisées par les commandes et la
-        facturation.
-      </Section>
+      <MarketTracking m={m}/>
+      <Section title="Identité et règles générales" />
       <div className="mk-fields">
         <Field
           path="title"
@@ -276,12 +275,10 @@ function Summary({ s, m }: { s: MarketsSnapshot; m: Market }) {
           value={m.type}
           options={TYPES}
         />
-        <Field
-          path="billingMode"
-          label="Mode de facturation"
-          value={m.billingMode}
-          options={BILLING}
-        />
+        <Field path="startBasis" label="Démarrage du marché" value={m.startBasis||''} options={{'':'Choisir',notification:'À notification',first_order:'Au premier bon de commande',date:'Date de démarrage'}}/>
+        {m.startBasis==='date'&&<Field path="startDate" label="Date de démarrage" type="date" value={m.startDate} required/>}
+        <Field path="initialDurationMonths" label="Durée initiale du marché" value={m.initialDurationMonths} options={{'':'Choisir','12':'12 mois','24':'24 mois','36':'36 mois'}}/>
+        <Field path="maximumMinor" label="Montant maximum contractuel (€ HT)" value={amount(m.maximumMinor??null)}/>
         <Field
           path="notificationDate"
           label="Date portée sur la notification"
@@ -356,13 +353,13 @@ function Summary({ s, m }: { s: MarketsSnapshot; m: Market }) {
   );
 }
 function Prices({ s, m }: { s: MarketsSnapshot; m: Market }) {
+  const [selected,setSelected]=useState(()=>m.prices.find(p=>!p.label)?.id||m.prices.at(-1)?.id||'');
   return (
     <>
-      <Section title="Grille des tarifs">
-        Un prix par prestation, profil, lieu et période de validité. Les
-        quantités estimées du bordereau ne sont pas des jours commandés.
-      </Section>
+      <Section title="Grille des tarifs" />
+      {!!m.prices.length&&<label className="mk-field">Tarif<select aria-label="Tarif du BPU" value={selected} onChange={e=>setSelected(e.target.value)}>{m.prices.map((p,i)=><option key={p.id} value={p.id}>{p.label||'Nouveau tarif'}{p.profile?' · '+p.profile:''} · {money(p.amountMinor)}</option>)}</select></label>}
       {m.prices.map((r, i) => {
+        if(r.id!==selected)return null;
         const p = "prices." + i;
         return (
           <RuleCard key={r.id} prefix={p} row={r} index={i} docs={s.docs}>
@@ -422,8 +419,20 @@ function Prices({ s, m }: { s: MarketsSnapshot; m: Market }) {
       <Button className="mk-secondary" data-add="prices">
         + Ajouter un tarif
       </Button>
+      <Button className="mk-secondary" data-add-expense="mission">+ Frais de mission</Button>
+      <Button className="mk-secondary" data-add-expense="travel">+ Frais de déplacement</Button>
     </>
   );
+}
+function MarketTracking({m}:{m:Market}){
+ const t=marketTracking(m),consumed=m.tracking?.quotedMinor??0,ratio=t.maximumMinor?100*consumed/t.maximumMinor:0;
+ return <section className="mk-tracking" aria-label="Suivi actualisé du marché">
+  <h2><Gauge size={19}/> Suivi actualisé du marché</h2>
+  <div className="mk-tracking-values"><div><strong>{t.orderCount}</strong><span>Bons de commande émis <span tabIndex={0} title="Bons datés, y compris ceux des projets archivés. L’archivage ne supprime pas un engagement contractuel." aria-label="Calcul des commandes">ⓘ</span></span></div><div><strong>{money(consumed)}</strong><span>Devis envoyés HT <span tabIndex={0} title="Prévisionnel des devis envoyés ou acceptés, même échus. Les refus, versions remplacées et brouillons sont exclus. Les commandes et factures ne s’y ajoutent pas." aria-label="Calcul des devis envoyés">ⓘ</span></span></div><div><strong>{money(t.maximumMinor)}</strong><span>Maximum contractuel HT</span></div></div>
+  {t.maximumMinor!==null&&<><progress aria-label="Consommation prévisionnelle par devis envoyés" value={Math.min(consumed,t.maximumMinor)} max={t.maximumMinor||1}/><small>{ratio.toLocaleString('fr-FR',{maximumFractionDigits:1})} % prévisionnel{consumed>t.maximumMinor?' · Maximum dépassé':''}</small></>}
+  {t.unknownAmounts>0&&<small role="status">{t.unknownAmounts} bon(s) sans montant : consommation incomplète.</small>}
+  {t.startDate&&<small>Début d’exécution : {t.startDate.split('-').reverse().join('/')}</small>}
+ </section>;
 }
 function Ceilings({ s, m }: { s: MarketsSnapshot; m: Market }) {
   return (

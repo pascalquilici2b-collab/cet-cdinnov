@@ -5,6 +5,7 @@ import {CompanyLookup} from './billing-company-lookup';
 import {ClientAvatar} from './billing-client-avatar';
 import {useEffect,useRef,useState} from 'react';
 import type {KeyboardEvent} from 'react';
+import type {ReactNode} from 'react';
 import {Search,Plus,Pencil} from 'lucide-react';
 import type {BillingClientData,BillingDirectoryData,BillingDirectoryKind,BillingDirectoryRecord,BillingKind,BillingServiceData,BillingTransport,VatCategory} from '../billing-contracts';
 import {blankClient,blankService} from '../billing-directory-domain';
@@ -16,7 +17,7 @@ const units:Record<string,string>={DAY:'jour',HUR:'heure',C62:'unité',MON:'mois
 const name=(r:BillingDirectoryRecord)=>r.kind==='clients'?r.data.party.name:r.data.label;
 const message=(e:unknown)=>e instanceof Error?e.message:'Le répertoire est indisponible. Votre saisie est conservée.';
 type Edit={id:string;version:number|null;data:BillingDirectoryData;saved:string|null};
-type Props={kind:BillingDirectoryKind;transport:BillingTransport;busy:boolean;onBusy:(value:string)=>void;onDirty:(value:boolean)=>void;onChanged:()=>void;onPick?:(record:BillingDirectoryRecord)=>void;onNewDocument?:(record:BillingDirectoryRecord,kind:BillingKind)=>void;};
+type Props={kind:BillingDirectoryKind;transport:BillingTransport;busy:boolean;onBusy:(value:string)=>void;onDirty:(value:boolean)=>void;onChanged:()=>void;onPick?:(record:BillingDirectoryRecord)=>void;onNewDocument?:(record:BillingDirectoryRecord,kind:BillingKind)=>void;contextualServices?:ReactNode;};
 
 function ServiceFields({data,onChange}:{data:BillingServiceData;onChange:(data:BillingServiceData)=>void}){
  const patch=(value:Partial<BillingServiceData>)=>onChange({...data,...value});
@@ -32,7 +33,7 @@ function ServiceFields({data,onChange}:{data:BillingServiceData;onChange:(data:B
  </div>;
 }
 
-export function DirectoryPanel({kind,transport,busy,onBusy,onDirty,onChanged,onPick,onNewDocument}:Props){
+export function DirectoryPanel({kind,transport,busy,onBusy,onDirty,onChanged,onPick,onNewDocument,contextualServices}:Props){
  const [query,setQuery]=useState(''),[search,setSearch]=useState(''),[archived,setArchived]=useState(false),[offset,setOffset]=useState(0),[total,setTotal]=useState(0),[rows,setRows]=useState<BillingDirectoryRecord[]>([]),[loading,setLoading]=useState(true),[revision,setRevision]=useState(0);
  const [editor,setEditor]=useState<Edit|null>(null),[error,setError]=useState(''),[notice,setNotice]=useState(''),[listError,setListError]=useState(''),[conflict,setConflict]=useState(false),[pending,setPending]=useState('');
  const live=useRef(true),running=useRef(false),editRef=useRef(editor),root=useRef<HTMLElement>(null),copy=useRef<{key:string;id:string}|null>(null);editRef.current=editor;
@@ -74,15 +75,22 @@ export function DirectoryPanel({kind,transport,busy,onBusy,onDirty,onChanged,onP
   else results[Math.min(results.length-1,index+(event.key==='ArrowDown'?1:-1))]?.focus();
  }
  const current=editor&&editor.version!==null?{kind,id:editor.id,version:editor.version,data:editor.data,updatedAt:null} as BillingDirectoryRecord:null;
+ const prefillClient=(party:BillingClientData['party'],details:BillingClientData['details'])=>{
+  if(busy||!canLeave())return;
+  setEditor({id:crypto.randomUUID(),version:null,data:{...blankClient(),party,details},saved:null});
+  onDirty(true);setError('');setNotice('');setConflict(false);
+ };
  return <section ref={root} className="bill-directory" data-kind={kind} data-picker={!!onPick} aria-label={titles[kind].many} onKeyDown={navigateResults}>
   <header className="bill-directory-heading"><div>{editor?<button type="button" className="bill-back" disabled={busy} onClick={back}>‹ {titles[kind].many}</button>:<p className="bill-eyebrow">{kind==='clients'?'CARNET CLIENTS':'CATALOGUE'}</p>}<h2 className="bill-title-help">{editor?(editor.version===null?titles[kind].create:kind==='clients'?(editor.data as BillingClientData).party.name:(editor.data as BillingServiceData).label):titles[kind].many}{<Help label={titles[kind].many} text={kind==='clients'?'Choisir un client préremplit ses coordonnées dans le document. Elles restent modifiables. Les documents existants conservent leurs informations.':'Le catalogue préremplit la désignation, le tarif, l’unité et la TVA. Ces valeurs restent modifiables dans le document.'}/>}</h2></div>{!editor&&<button type="button" className="bill-button bill-button-primary" disabled={busy} onClick={newEntry}>+ {titles[kind].create}</button>}</header>
   {error&&<div className="bill-message bill-message-error" role="alert"><div><b>{conflict?'Cette fiche doit être vérifiée.':'L’action n’a pas abouti.'}</b><p>{error}</p>{conflict&&editor&&<div className="bill-message-actions"><button type="button" disabled={busy} onClick={()=>open(editor.id)}>Recharger la fiche</button><button type="button" disabled={busy} onClick={()=>save(true)}>Conserver dans une nouvelle fiche</button></div>}</div></div>}
   {notice&&<div className="bill-message bill-message-success" role="status"><BlueCheck label="Enregistrement confirmé"/>{notice}</div>}
   {pending==='open'&&<div className="bill-directory-pending" role="status"><BrandMark/>Ouverture de la fiche…</div>}
+  {!editor&&contextualServices}
   {editor?<div className={'bill-directory-edit-layout'+(!current?' bill-directory-edit-new':'')}><form className="bill-directory-editor bill-editor" onSubmit={e=>{e.preventDefault();void save();}}><fieldset disabled={busy}><div className="bill-section">{kind==='clients'?<><CompanyLookup key={editor.id} party={(editor.data as BillingClientData).party} disabled={busy} onSelect={(party,details)=>{const previous=editor.data as BillingClientData;change({...previous,party,details:{...details,shareCapital:party.siren===previous.party.siren?(previous.details?.shareCapital||''):''}});}}/><PartyFields party={(editor.data as BillingClientData).party} prefix="Client" onChange={patch=>change({...editor.data,party:{...(editor.data as BillingClientData).party,...patch}} as BillingClientData)}/><ClientLegalFields data={editor.data as BillingClientData} onChange={change}/><details className="bill-extra-fields"><summary>Notes internes</summary><Field label="Notes internes du client" wide hint="Ces notes ne sont pas copiées dans les devis ni dans les factures."><textarea rows={3} maxLength={4000} value={(editor.data as BillingClientData).notes} onChange={e=>change({...editor.data,notes:e.target.value} as BillingClientData)}/></Field></details></>:<ServiceFields data={editor.data as BillingServiceData} onChange={change}/>}</div><div className="bill-directory-save"><span role="status">{pending==='save'?'Enregistrement…':dirty?'Modifications non enregistrées':editor.version===0?'Coordonnées à compléter':'Fiche enregistrée'}</span><button type="submit" className="bill-button bill-button-primary" disabled={busy||(!dirty&&editor.version!==0)}>{pending==='save'?'Enregistrement…':onPick?'Enregistrer et choisir':'Enregistrer la fiche'}</button></div></fieldset></form><aside className="bill-directory-aside">
    {current&&kind==='clients'&&onNewDocument&&<div><h3>Préparer un document</h3><button type="button" className="bill-button" disabled={busy||dirty||editor.data.archived} onClick={()=>onNewDocument(current,'quote')}>Créer un devis pour ce client</button><button type="button" className="bill-button" disabled={busy||dirty||editor.data.archived} onClick={()=>onNewDocument(current,'invoice')}>Créer une facture pour ce client</button>{dirty&&<small>Enregistrez d’abord les modifications.</small>}</div>}
    {current&&current.version>0&&<div><h3 className="bill-title-help">{editor.data.archived?'Fiche archivée':'Archivage'}<Help label="Archivage de la fiche" text="L’archivage retire cette fiche des choix proposés pour les nouveaux documents. Elle reste consultable et peut être restaurée."/></h3><button type="button" className="bill-button" disabled={busy||dirty} onClick={()=>save(false,{...editor.data,archived:!editor.data.archived})}>{editor.data.archived?'Restaurer la fiche':'Archiver la fiche'}</button></div>}
   </aside></div>:<><div className="bill-directory-search"><Field label={'Rechercher '+(kind==='clients'?'un client':'une prestation')}><Search className="bill-directory-search-icon" size={18} aria-hidden="true"/><input type="search" value={query} placeholder={kind==='clients'?'Nom, SIREN ou e-mail…':'Nom ou référence…'} onChange={e=>setQuery(e.target.value)}/></Field>{!onPick&&<label className="bill-directory-archived"><input type="checkbox" checked={archived} onChange={e=>{setArchived(e.target.checked);setOffset(0);}}/>Voir les archives</label>}</div>
+   {kind==='clients'&&!archived&&<div className="bill-client-prefill"><CompanyLookup party={blankClient().party} disabled={busy} onSelect={prefillClient}/></div>}
    {loading?<div className="bill-loading" role="status"><BrandMark/>Chargement du répertoire…</div>:listError?<div className="bill-empty" role="alert"><p>{listError}</p><button type="button" className="bill-button" onClick={()=>setRevision(n=>n+1)}>Réessayer le répertoire</button></div>:rows.length?<><div className="bill-directory-rows">{rows.map(row=><div className="bill-directory-row" key={row.id}>
     <button type="button" className="bill-directory-name" disabled={busy} aria-label={(onPick?'Choisir ':'Ouvrir la fiche ')+name(row)} onClick={()=>onPick?onPick(row):open(row.id)}>
      {row.kind==='clients'&&<ClientAvatar name={name(row)} identifier={row.data.party.siren||row.data.party.siret}/>}

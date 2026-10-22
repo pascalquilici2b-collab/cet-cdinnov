@@ -3,7 +3,7 @@ import {randomUUID,createHash} from 'node:crypto';
 import {test} from 'node:test';
 import {testEnvironment,users} from '../marches/test.mjs';
 import {migrateBilling} from './billing-schema.mjs';
-import {blankDraft,blankSettings,draftWithSettings,normalizeDraft} from './billing-domain.ts';
+import {blankDraft,blankSettings,draftWithSettings,normalizeDraft,blankDocumentDetails} from './billing-domain.ts';
 import {seedBusinessDocument} from './business-migration.mjs';
 
 const fixture=(kind='invoice',title='Mission fictive')=>{
@@ -131,7 +131,7 @@ await test('API de brouillons : identité, conservation, concurrence et traçabi
    await read(await convert(randomUUID(),1,randomUUID()),404);
    const target=randomUUID();converted=await read(await convert(quoteId,1,target),201);
    assert.equal(converted.sourceDocumentId,quoteId);assert.equal(converted.status,'draft');assert.equal(converted.version,1);assert.equal(converted.data.kind,'invoice');
-   assert.deepEqual(converted.data,{...quoteData,kind:'invoice',validUntil:''});assert.equal('number' in converted.data,false);
+   assert.deepEqual(converted.data,{...quoteData,kind:'invoice',validUntil:'',details:{...blankDocumentDetails(),returnEmail:'cdi@cdinnov.com'}});assert.equal('number' in converted.data,false);
    assert.equal((await read(await call('/documents/'+quoteId),200)).version,1);assert.equal((await history(quoteId)).results.length,1);assert.equal((await history(target)).results.length,1);
    assert.equal((await read(await convert(quoteId,1,target),200)).id,target);
    await read(await convert(quoteId,1,randomUUID()),409);
@@ -190,7 +190,7 @@ await test('API de brouillons : identité, conservation, concurrence et traçabi
    await ctx.db.prepare("INSERT INTO markets(id,payload,version,updated_at,updated_by) VALUES(?,?,1,?,?)").bind('market-context',JSON.stringify({title:'Marché contexte',reference:'M-TEST',clientName:'Client contexte',private:'never-expose'}),'2026-10-20',users[0]).run();
    const result=await read(await call('/context'),200);
    assert.deepEqual(result.clients,[{id:'c-test',name:'Client contexte'}]);assert.deepEqual(result.businessCodes,[{id:'code-test',code:'31 AC',label:'Mission contexte',client:'Client contexte'}]);
-   assert.deepEqual(result.markets,[{id:'market-context',title:'Marché contexte',reference:'M-TEST',clientName:'Client contexte',projects:[]}]);
+   assert.deepEqual(result.markets,[{id:'market-context',title:'Marché contexte',reference:'M-TEST',clientName:'Client contexte',clientId:'',version:1,prices:[],projects:[]}]);
    assert.deepEqual(result.seller,blankSettings().seller);assert.deepEqual(result.settings,{version:0,data:blankSettings(),updatedAt:null});assert.doesNotMatch(JSON.stringify(result),/never-expose|password|salt|hash|accounts/);
   });
 

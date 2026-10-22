@@ -4,6 +4,13 @@ const uuid=()=>crypto.randomUUID();
 export const billingId=(v:unknown):v is string=>typeof v==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
 export const blankParty=():BillingParty=>({name:'',addressLine1:'',addressLine2:'',postalCode:'',city:'',country:'FR',siren:'',siret:'',vatId:'',email:'',legal:'',electronicAddress:'',electronicScheme:''});
 const blankLegal=():BillingLegalNotes=>({recovery:'',penalties:'',discount:''});
+export const blankDocumentDetails=():NonNullable<BillingDraft['details']>=>({marketObject:'',period:'',personInCharge:'',fundingProgramme:'',validityMonths:'',returnEmail:'',interventions:[]});
+export const defaultFundingProgrammes=['Interreg Italie-France Maritime','Interreg Euro-Med','Horizon Europe','Interreg Next-Med'];
+export function addBillingMonths(date:string,months:string){
+ if(!validBillingDate(date)||!/^\d{1,2}$/.test(months)||Number(months)<1||Number(months)>36)return '';
+ const [y,m,d]=date.split('-').map(Number),last=new Date(Date.UTC(y,m-1+Number(months)+1,0)),day=Math.min(d,last.getUTCDate());
+ return new Date(Date.UTC(last.getUTCFullYear(),last.getUTCMonth(),day)).toISOString().slice(0,10);
+}
 export const billingBusinessProcesses:BillingBusinessProcess[]=['','S1','B1','M1','B2','S2','M2','S3','B4','S4','M4','S5','S6','B7','S7','B8','S8','M8','B9','S9','M9'];
 export const blankSettings=():BillingSettingsData=>({schemaVersion:1,seller:blankParty(),paymentTerms:'',iban:'',bic:'',paymentMeans:'30',vatDue:'',legalNotes:blankLegal(),businessProcess:''});
 export const newLine=():BillingLine=>({id:uuid(),description:'',quantity:'1',unitCode:'DAY',unitPrice:'',discountPercent:'0',vatRate:'20',vatCategory:'S',exemptionReason:''});
@@ -12,8 +19,8 @@ export function blankDraft(kind:BillingKind,today=new Intl.DateTimeFormat('sv-SE
 }
 /** Settings are copied, never linked: later edits cannot rewrite an existing document. */
 export function draftWithSettings(kind:BillingKind,settings:BillingSettingsData):BillingDraft {
-  const {schemaVersion,...defaults}=structuredClone(settings);
-  return {...blankDraft(kind),...defaults};
+  const {schemaVersion,fundingProgrammes,returnEmail,...defaults}=structuredClone(settings);
+  return {...blankDraft(kind),...defaults,details:{...blankDocumentDetails(),returnEmail:kind==='invoice'?(returnEmail??'cdi@cdinnov.com'):''}};
 }
 const fail=(message:string):never=>{throw Object.assign(new Error(message),{status:422});};
 function object(value:unknown,allowed:string[],name:string):Record<string,unknown> {
@@ -43,9 +50,21 @@ function commercial(value:Record<string,unknown>){
   return {paymentMeans:value.paymentMeans as BillingPaymentMeans,vatDue:value.vatDue as BillingVatDue,legalNotes:legalNotes(value.legalNotes),businessProcess:value.businessProcess as BillingBusinessProcess};
 }
 export function normalizeSettings(raw:unknown):BillingSettingsData {
-  const v=object(raw,['schemaVersion','seller','paymentTerms','iban','bic','paymentMeans','vatDue','legalNotes','businessProcess'],'Paramètres de facturation');
+  const v=object(raw,['schemaVersion','seller','paymentTerms','iban','bic','paymentMeans','vatDue','legalNotes','businessProcess','fundingProgrammes','returnEmail'],'Paramètres de facturation');
   if(v.schemaVersion!==1)fail('Version des paramètres non prise en charge.');
-  return {schemaVersion:1,seller:party(v.seller),paymentTerms:textField(v,'paymentTerms',4000),iban:textField(v,'iban',50),bic:textField(v,'bic',20),...commercial(v)};
+  if(Object.hasOwn(v,'fundingProgrammes')&&(!Array.isArray(v.fundingProgrammes)||v.fundingProgrammes.length>100||v.fundingProgrammes.some(p=>typeof p!=='string'||p.length>160||/[\x00-\x1f]/.test(p))))fail('Liste des programmes invalide.');
+  return {schemaVersion:1,seller:party(v.seller),paymentTerms:textField(v,'paymentTerms',4000),iban:textField(v,'iban',50),bic:textField(v,'bic',20),...commercial(v),...(Object.hasOwn(v,'fundingProgrammes')?{fundingProgrammes:[...new Set((v.fundingProgrammes as string[]).map(p=>p.trim()).filter(Boolean))]}:{}),...(Object.hasOwn(v,'returnEmail')?{returnEmail:textField(v,'returnEmail',300)}:{})};
+}
+function documentDetails(raw:unknown):NonNullable<BillingDraft['details']>{
+ const keys=Object.keys(blankDocumentDetails()),v=object(raw,keys,'Informations du document');
+ if(!['','S1','S2'].includes(v.period as string))fail('Période concernée invalide.');
+ if(!Array.isArray(v.interventions)||v.interventions.length>200)fail('Relevé d’intervention invalide.');
+ const seen=new Set<string>();const interventions=(v.interventions as unknown[]).map(row=>{
+  const r=object(row,['id','priceId','label','description','days'],'Intervention');
+  if(!billingId(r.id)||seen.has(r.id as string))fail('Identifiant d’intervention invalide.');seen.add(r.id as string);
+  return {id:r.id as string,priceId:textField(r,'priceId',80),label:textField(r,'label',300),description:textField(r,'description',4000),days:textField(r,'days',40)};
+ });
+ return {marketObject:textField(v,'marketObject',500),period:v.period as ''|'S1'|'S2',personInCharge:textField(v,'personInCharge',300),fundingProgramme:textField(v,'fundingProgramme',160),validityMonths:textField(v,'validityMonths',3),returnEmail:textField(v,'returnEmail',300),interventions};
 }
 const referenceKeys=['businessCode','marketId','marketReference','orderReference','project','serviceCode','engagement'];
 const lineKeys=['id','description','quantity','unitCode','unitPrice','discountPercent','vatRate','vatCategory','exemptionReason'];
@@ -54,7 +73,7 @@ const categories:VatCategory[]=['S','Z','E','AE','O'];
 export function normalizeDraft(raw:unknown):BillingDraft {
   const legacy=!!raw&&typeof raw==='object'&&'schemaVersion' in raw&&raw.schemaVersion===1;
   const credit=!!raw&&typeof raw==='object'&&'schemaVersion' in raw&&raw.schemaVersion===3;
-  const value=object(raw,['schemaVersion','kind','title','currency','issueDate','dueDate','validUntil','clientId','seller','buyer','lines','references','paymentTerms','iban','bic','notes',...(legacy?[]:['paymentMeans','vatDue','legalNotes','businessProcess']),...(credit?['creditNote']:[])],'Document');
+  const value=object(raw,['schemaVersion','kind','title','currency','issueDate','dueDate','validUntil','clientId','seller','buyer','lines','references','paymentTerms','iban','bic','notes','details',...(legacy?[]:['paymentMeans','vatDue','legalNotes','businessProcess']),...(credit?['creditNote']:[])],'Document');
   if((value.schemaVersion!==1&&value.schemaVersion!==2&&value.schemaVersion!==3)||!['invoice','quote'].includes(String(value.kind))||value.currency!=='EUR'||(credit&&value.kind!=='invoice'))fail('Type, version ou devise de document non pris en charge.');
   let creditNote:BillingDraft['creditNote'];
   if(credit){
@@ -78,6 +97,7 @@ export function normalizeDraft(raw:unknown):BillingDraft {
   const references=object(value.references,[...referenceKeys,'projectId','orderId'],'Références');
   return {
     schemaVersion:credit?3:2,kind:value.kind as BillingKind,currency:'EUR',...(creditNote?{creditNote}:{}),
+    ...(Object.hasOwn(value,'details')?{details:documentDetails(value.details)}:{}),
     title:textField(value,'title',300),issueDate:textField(value,'issueDate',10),dueDate:textField(value,'dueDate',10),validUntil:textField(value,'validUntil',10),clientId:textField(value,'clientId',200),
     seller:party(value.seller,legacy),buyer:party(value.buyer,legacy),lines,
     references:Object.fromEntries([...referenceKeys,...['projectId','orderId'].filter(k=>Object.hasOwn(references,k))].map(k=>[k,textField(references,k,300)])) as unknown as BillingReferences,
@@ -132,6 +152,10 @@ export const validBillingDate=(s:string)=>/^\d{4}-\d{2}-\d{2}$/.test(s)&&Number(
 /** Guidance for incomplete drafts. Issuance and legal qualification require additional server gates. */
 export function inspectDraft(d:BillingDraft):BillingIssue[] {
   const issues:BillingIssue[]=[],add=(path:string,message:string)=>issues.push({path,message});
+  if(d.details?.validityMonths&&(!/^\d{1,2}$/.test(d.details.validityMonths)||Number(d.details.validityMonths)<1||Number(d.details.validityMonths)>36))add('details.validityMonths','Choisissez une durée de 1 à 36 mois.');
+  if(d.kind==='quote'&&d.details?.validityMonths&&d.validUntil!==addBillingMonths(d.issueDate,d.details.validityMonths))add('validUntil','La date doit correspondre à la durée de validité.');
+  if(d.details?.returnEmail&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.details.returnEmail))add('details.returnEmail','Vérifiez l’adresse de retour.');
+  d.details?.interventions.forEach((r,i)=>{if(!r.description.trim())add('details.interventions.'+i+'.description','Décrivez le travail effectué.');try{billingDecimal(r.days,6,'Nombre de jours');}catch{add('details.interventions.'+i+'.days','Renseignez un nombre de jours positif.');}});
   if(!validBillingDate(d.issueDate))add('issueDate','Renseignez une date valide.');
   if(d.creditNote){
     if(d.issueDate<d.creditNote.invoiceDate)add('issueDate','La date de l’avoir ne peut pas précéder la facture corrigée.');
