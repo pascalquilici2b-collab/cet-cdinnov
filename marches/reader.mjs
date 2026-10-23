@@ -615,6 +615,13 @@ var Unzip = /* @__PURE__ */ (function() {
 })();
 
 // marches/pdf-text.mjs
+function needsPdfOcr(text) {
+  const content = String(text).replace(/\[Page \d+\]/g, "").trim();
+  if (content.length < 80) return true;
+  if (!/accus[eé] de r[eé]ception|r[eé]ception en pr[eé]fecture/i.test(content)) return false;
+  const body = content.split("\n").filter((line) => !/^\s*(?:accus[eé] de r[eé]ception|date de (?:t[ée]l[ée]transmission|r[eé]ception)|[\w]+-\d{6,}-\d{8}-)/i.test(line)).join("\n").trim();
+  return body.length < 80;
+}
 function pdfTextRows(items) {
   const text = items.filter((x) => typeof x.str === "string" && x.str.trim());
   if (text.some((x) => !Number.isFinite(x.transform?.[4]) || !Number.isFinite(x.transform?.[5]))) return text.map((x) => x.str + (x.hasEOL ? "\n" : " ")).join("");
@@ -788,7 +795,7 @@ async function readDocument(file, progress = () => {
         progress("Page " + i + " / " + document.numPages);
         const page = await document.getPage(i), data = await page.getTextContent();
         let content = pdfTextRows(data.items);
-        if (content.trim().length < 80) {
+        if (needsPdfOcr(content)) {
           progress("Reconnaissance du scan \xB7 page " + i + " / " + document.numPages);
           const viewport = page.getViewport({ scale: 3 }), canvas = documentGlobalCanvas();
           const scale = Math.min(1, 3e3 / Math.max(viewport.width, viewport.height)), vp = page.getViewport({ scale: 3 * scale });
@@ -799,6 +806,7 @@ async function readDocument(file, progress = () => {
           content = result.text;
           canvas.width = canvas.height = 1;
           if (result.confidence < 45 && content.trim()) warnings.push("Page " + i + " : reconnaissance incertaine, v\xE9rifier l\u2019original.");
+          if (!content.trim()) warnings.push("Page " + i + " : reconnaissance incertaine, aucun texte lu dans le scan.");
         }
         text += "[Page " + i + "]\n" + content + "\n";
         page.cleanup();

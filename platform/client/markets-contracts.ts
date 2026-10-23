@@ -11,6 +11,7 @@ export interface Rule {
 export interface Price extends Rule {
   label: string;
   amountMinor: number | null;
+  vatRate?: number | null;
   unit: string;
   profile: string;
   location: string;

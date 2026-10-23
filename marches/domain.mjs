@@ -96,6 +96,10 @@ export function validateMarket(input,documents=[]) {
   }
   m.prices=input.prices.map(v=>{
     const r={...common(v,ids),label:text(v.label,'Prestation',240,true),profile:text(v.profile,'Profil',120),location:text(v.location,'Lieu / modalité',120),unit:choice(v.unit,Object.keys(UNITS),'Unité'),amountMinor:amount(v.amountMinor,'Tarif'),startDate:date(v.startDate,'Début du tarif'),endDate:date(v.endDate,'Fin du tarif'),notes:text(v.notes,'Note tarif',1500)};
+    if(Object.hasOwn(v,'vatRate')){
+      if(v.vatRate!==null&&(typeof v.vatRate!=='number'||!Number.isFinite(v.vatRate)||v.vatRate<0||v.vatRate>100||Math.abs(Math.round(v.vatRate*100)-v.vatRate*100)>1e-7))throw new Error('Taux TVA : pourcentage entre 0 et 100, avec deux décimales maximum.');
+      r.vatRate=v.vatRate;
+    }
     if(r.startDate&&r.endDate&&r.endDate<r.startDate)throw new Error('La fin du tarif précède son début.');
     if(r.status==='validated'&&r.amountMinor===null)throw new Error('Un tarif validé doit avoir un montant.');
     return r;

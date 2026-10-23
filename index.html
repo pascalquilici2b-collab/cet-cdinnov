@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <style id="cdi-startup-guard">body:not(.authed)>.app{visibility:hidden}.theme-toggle>svg{width:18px;height:18px;fill:none;stroke:currentColor}.theme-toggle .theme-sun{display:none}[data-theme="dark"] .theme-toggle .theme-moon{display:none}[data-theme="dark"] .theme-toggle .theme-sun{display:block}</style>
-<link rel="stylesheet" href="/platform/loading.css?v=market-import-20261023e">
+<link rel="stylesheet" href="/platform/loading.css?v=bpu-catalogue-20261023a">
 <script src="./platform/theme.js?v=apple-motion-20261020"></script>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -693,9 +693,9 @@ body.authed .auth-gate{display:none}
 </style>
 <link rel="stylesheet" href="platform/design-system.css">
 <link rel="stylesheet" href="design/portal.css?v=apple1">
-<link rel="stylesheet" href="design/apple.css?v=market-import-20261023e">
-<link rel="stylesheet" href="design/interactions.css?v=market-import-20261023e">
-<script src="platform/icons.js?v=market-import-20261023e"></script>
+<link rel="stylesheet" href="design/apple.css?v=bpu-catalogue-20261023a">
+<link rel="stylesheet" href="design/interactions.css?v=bpu-catalogue-20261023a">
+<script src="platform/icons.js?v=bpu-catalogue-20261023a"></script>
 
 <div id="authGate" class="auth-gate" data-loading="true" aria-busy="true">
   <span class="auth-startup-status cdi-loading-sr" role="status">Connexion en cours…</span>
@@ -1063,8 +1063,8 @@ function renderDashboard(){
   const user=AUTH_USER,epoch=++dashboardEpoch;
   $('#content').innerHTML='<div id="dashboardRoot">'+loadingScreenMarkup('Chargement du tableau de bord…')+'</div>';
   const element=$('#dashboardRoot');
-  if(!document.getElementById('dashboardStyle')){const css=document.createElement('link');css.id='dashboardStyle';css.rel='stylesheet';css.href='platform/dashboard.css?v=market-import-20261023e';document.head.append(css);}
-  dashboardModule ||= import('./platform/dashboard.js?v=market-import-20261023e').catch(error=>{dashboardModule=null;throw error;});
+  if(!document.getElementById('dashboardStyle')){const css=document.createElement('link');css.id='dashboardStyle';css.rel='stylesheet';css.href='platform/dashboard.css?v=bpu-catalogue-20261023a';document.head.append(css);}
+  dashboardModule ||= import('./platform/dashboard.js?v=bpu-catalogue-20261023a').catch(error=>{dashboardModule=null;throw error;});
   dashboardModule.then(module=>{
     if(epoch!==dashboardEpoch||AUTH_USER!==user||currentView!=='dashboard'||!element.isConnected)return;
     dashboardDispose=module.mountDashboard(element,{
@@ -2200,7 +2200,7 @@ async function exportNoteFraisPDF(id,preview=false){
     const filename='Note_de_frais_N'+(n.numero||'')+'_'+(s.nom||'').replace(/\s+/g,'')+'.pdf';
     if(AUTH_USER!==user||!financeExpenseAllowed(n)||preview&&!id&&nfDraft!==initialDraft)return;
     if(preview){
-      const blob=doc.output('blob'),module=await financeModule();if(AUTH_USER!==user||!financeExpenseAllowed(n))return;if(!document.getElementById('billingStyle')){const css=document.createElement('link');css.id='billingStyle';css.rel='stylesheet';css.href='platform/billing.css?v=market-import-20261023e';document.head.append(css);}
+      const blob=doc.output('blob'),module=await financeModule();if(AUTH_USER!==user||!financeExpenseAllowed(n))return;if(!document.getElementById('billingStyle')){const css=document.createElement('link');css.id='billingStyle';css.rel='stylesheet';css.href='platform/billing.css?v=bpu-catalogue-20261023a';document.head.append(css);}
       modal('<div class="modal-head"><h3>Aperçu — Note de frais N°'+esc(n.numero)+'</h3><div class="grow"></div><button type="button" class="btn btn-ghost" id="nfPreviewDownload">Télécharger PDF</button><button type="button" class="btn btn-ghost" id="nfPreviewClose">'+(id?'Fermer':'Retour')+'</button></div><div class="modal-body bill-app"><div id="nfPreviewRoot"></div></div>',true);
       financeEditorDispose=module.mountExpensePreview($('#nfPreviewRoot'),blob);$('#nfPreviewDownload').onclick=()=>doc.save(filename);$('#nfPreviewClose').onclick=()=>id?closeModal():renderNoteEditor();
     }else{doc.save(filename);toast('PDF généré');}
@@ -2425,8 +2425,8 @@ let financeModulePromise=null,financeMounted=null,financeEpoch=0,financeView=nul
 let financeEditorDispose=null,financeEditorEpoch=0,financeClientStatus='',financeClientError=false;
 let nfPage=1,nfPer=20;
 function financeModule(){
-  if(!$('#financeStyle')){const link=document.createElement('link');link.id='financeStyle';link.rel='stylesheet';link.href='platform/finance.css?v=market-import-20261023e';document.head.append(link);}
-  return financeModulePromise ||= import('./platform/finance.js?v=market-import-20261023e').catch(error=>{financeModulePromise=null;throw error;});
+  if(!$('#financeStyle')){const link=document.createElement('link');link.id='financeStyle';link.rel='stylesheet';link.href='platform/finance.css?v=bpu-catalogue-20261023a';document.head.append(link);}
+  return financeModulePromise ||= import('./platform/finance.js?v=bpu-catalogue-20261023a').catch(error=>{financeModulePromise=null;throw error;});
 }
 function financeForget(){financeEpoch++;financeMounted?.dispose();financeMounted=null;financeView=null;$('#financeRoot')?.remove();}
 function financeEditorForget(){financeEditorEpoch++;if(financeEditorDispose){financeEditorDispose();financeEditorDispose=null;}}
@@ -2485,7 +2485,7 @@ async function financeOpenEditor(kind,record,existing){
 
 /* React personnel screens. Existing CET calculations, imports and storage remain authoritative. */
 let personnelPromise=null,personnelMounted=null,personnelEpoch=0,personnelView=null,personnelEditorDispose=null,personnelEditorEpoch=0;
-function personnelModule(){return personnelPromise||=import('./platform/personnel.js?v=market-import-20261023e').catch(error=>{personnelPromise=null;throw error;});}
+function personnelModule(){return personnelPromise||=import('./platform/personnel.js?v=bpu-catalogue-20261023a').catch(error=>{personnelPromise=null;throw error;});}
 function personnelStyle(){if(!$('#personnelStyle')){const css=document.createElement('link');css.id='personnelStyle';css.rel='stylesheet';css.href='platform/personnel.css';document.head.append(css);}}
 function personnelEditorForget(){personnelEditorEpoch++;if(personnelEditorDispose){personnelEditorDispose();personnelEditorDispose=null;}}
 function personnelForget(){personnelEpoch++;if(personnelMounted){personnelMounted.dispose();personnelMounted=null;}personnelView=null;$('#personnelRoot')?.remove();}
@@ -3417,7 +3417,7 @@ const agendaState={trips:[],leaves:null,members:[],loaded:false,loading:false,er
 let agendaTimer=null,agendaConfirmationTimer=null,agendaEditing=null,agendaFocus=null;
 let agendaPickers={},agendaSharedProjects=[];
 let agendaModeExplicit=false,agendaPromise=null,agendaMounted=null,agendaRenderEpoch=0,agendaEditorDispose=null,agendaEditorEpoch=0;
-function agendaModule(){return agendaPromise||=import('./platform/agenda.js?v=market-import-20261023e').catch(error=>{agendaPromise=null;throw error;});}
+function agendaModule(){return agendaPromise||=import('./platform/agenda.js?v=bpu-catalogue-20261023a').catch(error=>{agendaPromise=null;throw error;});}
 function agendaStyleSheet(){if(!$('#agendaReactStyle')){const link=document.createElement('link');link.id='agendaReactStyle';link.rel='stylesheet';link.href='platform/agenda.css';document.head.append(link);}}
 function agendaReactForget(){agendaRenderEpoch++;if(agendaMounted){agendaMounted.dispose();agendaMounted=null;}$('#agendaRoot')?.remove();}
 function agendaEditorForget(){agendaEditorEpoch++;if(agendaEditorDispose){agendaEditorDispose();agendaEditorDispose=null;}agendaPickers={};}
@@ -3954,6 +3954,10 @@ function agendaNotificationHTML(t){
     }
     m.prices = input.prices.map((v) => {
       const r = { ...common(v, ids), label: text(v.label, "Prestation", 240, true), profile: text(v.profile, "Profil", 120), location: text(v.location, "Lieu / modalit\xE9", 120), unit: choice(v.unit, Object.keys(UNITS), "Unit\xE9"), amountMinor: amount(v.amountMinor, "Tarif"), startDate: date(v.startDate, "D\xE9but du tarif"), endDate: date(v.endDate, "Fin du tarif"), notes: text(v.notes, "Note tarif", 1500) };
+      if (Object.hasOwn(v, "vatRate")) {
+        if (v.vatRate !== null && (typeof v.vatRate !== "number" || !Number.isFinite(v.vatRate) || v.vatRate < 0 || v.vatRate > 100 || Math.abs(Math.round(v.vatRate * 100) - v.vatRate * 100) > 1e-7)) throw new Error("Taux TVA : pourcentage entre 0 et 100, avec deux d\xE9cimales maximum.");
+        r.vatRate = v.vatRate;
+      }
       if (r.startDate && r.endDate && r.endDate < r.startDate) throw new Error("La fin du tarif pr\xE9c\xE8de son d\xE9but.");
       if (r.status === "validated" && r.amountMinor === null) throw new Error("Un tarif valid\xE9 doit avoir un montant.");
       return r;
@@ -4003,8 +4007,25 @@ function agendaNotificationHTML(t){
 
   // marches/ai-domain.mjs
   var normalize = (s2) => String(s2 ?? "").normalize("NFKC").toLowerCase().replace(/\s+/g, " ").trim();
-  var listKey = (section, r) => section === "prices" ? [r.label, r.profile, r.location, r.unit, r.startDate, r.endDate].map(normalize).join("|") : section === "ceilings" ? [r.label, r.scope, r.periodId].map(normalize).join("|") : section === "periods" ? normalize(r.label) : section === "conditions" ? [r.category, r.label].map(normalize).join("|") : normalize(r.title);
-  var sameRule = (section, a, b) => JSON.stringify(section === "prices" ? [a.amountMinor, a.unit] : section === "ceilings" ? [a.amountMinor, a.basis, a.consumptionBasis] : section === "periods" ? [a.startDate, a.endDate] : section === "conditions" ? normalize(a.value) : normalize(a.detail)) === JSON.stringify(section === "prices" ? [b.amountMinor, b.unit] : section === "ceilings" ? [b.amountMinor, b.basis, b.consumptionBasis] : section === "periods" ? [b.startDate, b.endDate] : section === "conditions" ? normalize(b.value) : normalize(b.detail));
+  var priceKey = (r) => [...new Set(normalize([r.label, r.profile, r.location].filter(Boolean).join(" ")).normalize("NFD").replace(/[\u0300-\u036f]/g, "").split(/[^\p{L}\p{N}]+/u).filter((w) => w && !["de", "du", "des", "en", "a", "au", "aux", "le", "la", "les", "l", "d"].includes(w)))].sort().join(" ");
+  var listKey = (section, r) => section === "prices" ? [priceKey(r), r.unit, r.startDate, r.endDate].map(normalize).join("|") : section === "ceilings" ? [r.label, r.scope, r.periodId].map(normalize).join("|") : section === "periods" ? normalize(r.label) : section === "conditions" ? [r.category, r.label].map(normalize).join("|") : normalize(r.title);
+  var sameRule = (section, a, b) => {
+    if (section === "prices") return a.unit === b.unit && (a.amountMinor == null || b.amountMinor == null || a.amountMinor === b.amountMinor) && (a.vatRate == null || b.vatRate == null || a.vatRate === b.vatRate);
+    const value = (r) => section === "ceilings" ? [r.amountMinor, r.basis, r.consumptionBasis] : section === "periods" ? [r.startDate, r.endDate] : section === "conditions" ? normalize(r.value) : normalize(r.detail);
+    return JSON.stringify(value(a)) === JSON.stringify(value(b));
+  };
+  function enrichPriceTax(section, current, incoming) {
+    if (section !== "prices") return;
+    let changed = false;
+    for (const field of ["amountMinor", "vatRate"]) if (current[field] == null && incoming[field] != null) {
+      current[field] = incoming[field];
+      changed = true;
+    }
+    if (changed) {
+      current.source = structuredClone(incoming.source);
+      current.status = "proposed";
+    }
+  }
   function issue(title, detail, source2, blocking = true) {
     return { id: crypto.randomUUID(), title: title.slice(0, 240), detail: detail.slice(0, 2500), blocking, status: "open", resolution: "", source: source2 || { documentId: "", locator: "", note: "" } };
   }
@@ -4031,6 +4052,7 @@ function agendaNotificationHTML(t){
         const existing = m[section].find((x) => listKey(section, x) === listKey(section, r));
         if (!existing) m[section].push(structuredClone(r));
         else if (!sameRule(section, existing, r)) addIssue(issue("V\xE9rifier : " + r.label, "La r\xE8gle d\xE9j\xE0 saisie a \xE9t\xE9 conserv\xE9e. Proposition IA : " + JSON.stringify(r).slice(0, 1800), r.source));
+        else enrichPriceTax(section, existing, r);
       }
     }
     for (const r of result.issues || []) addIssue(structuredClone(r));
@@ -4765,6 +4787,15 @@ function agendaNotificationHTML(t){
     return { files, warnings: [...new Set(warnings)].slice(0, 50) };
   }
 
+  // marches/pdf-text.mjs
+  function needsPdfOcr(text2) {
+    const content = String(text2).replace(/\[Page \d+\]/g, "").trim();
+    if (content.length < 80) return true;
+    if (!/accus[eé] de r[eé]ception|r[eé]ception en pr[eé]fecture/i.test(content)) return false;
+    const body = content.split("\n").filter((line) => !/^\s*(?:accus[eé] de r[eé]ception|date de (?:t[ée]l[ée]transmission|r[eé]ception)|[\w]+-\d{6,}-\d{8}-)/i.test(line)).join("\n").trim();
+    return body.length < 80;
+  }
+
   // marches/ui.js
   var s = {
     rows: [],
@@ -4964,6 +4995,7 @@ function agendaNotificationHTML(t){
     if (path.endsWith("amountMinor") || path === "minimumMinor" || path === "maximumMinor")
       value = minor(value);
     if (path === "renewalCount" || path === "initialDurationMonths") value = value === "" ? null : Number(value);
+    if (path.endsWith(".vatRate")) value = value === "" ? null : Number(value.replace(",", "."));
     assign(path, value);
     if (path === "noMinimum" && value) {
       s.current.minimumMinor = null;
@@ -5095,7 +5127,7 @@ function agendaNotificationHTML(t){
     try {
       const expanded = await expandImportFiles(files, progress);
       warnings.push(...expanded.warnings);
-      const { readDocument } = await import("./marches/reader.mjs?v=market-import-20261023");
+      const { readDocument } = await import("./marches/reader.mjs?v=bpu-catalogue-20261023a");
       for (const file of expanded.files) {
         if (s.stop || epoch !== s.epoch) break;
         progress("Lecture : " + file.name);
@@ -5468,11 +5500,15 @@ function agendaNotificationHTML(t){
         throw new Error(
           "Le moteur IA n\u2019est pas encore activ\xE9 sur le serveur. Vous pouvez continuer le param\xE9trage manuel."
         );
-      const { readDocument } = await import("./marches/reader.mjs?v=market-import-20261023");
+      const { readDocument } = await import("./marches/reader.mjs?v=bpu-catalogue-20261023a");
       for (const did of selected) {
         if (s.stop) break;
         const d = s.docs.find((d2) => d2.id === did);
-        if (s.readings.find((r) => r.id === did)?.read && s.readings.find((r) => r.id === did)?.complete) continue;
+        if (s.readings.find((r) => r.id === did)?.read && s.readings.find((r) => r.id === did)?.complete) {
+          if (!/\.pdf$/i.test(d.name)) continue;
+          const stored = await api("/" + id + "/reading/" + did);
+          if (stored.reading?.method !== "pdf" || !needsPdfOcr(stored.reading.text)) continue;
+        }
         progress("Lecture : " + d.name);
         const blob = await api("/" + id + "/documents/" + did, { binary: true });
         const reading = await readDocument(
@@ -5607,10 +5643,10 @@ function agendaNotificationHTML(t){
         const link = document.createElement("link");
         link.id = "marketStyle";
         link.rel = "stylesheet";
-        link.href = "platform/markets.css?v=market-import-20261023e";
+        link.href = "platform/markets.css?v=bpu-catalogue-20261023a";
         document.head.append(link);
       }
-      marketPromise = import("./platform/markets.js?v=market-import-20261023e").then((module) => {
+      marketPromise = import("./platform/markets.js?v=bpu-catalogue-20261023a").then((module) => {
         marketModule = module;
         marketPromise = null;
         if (currentView === "marches" && allowed()) render();
@@ -5852,8 +5888,8 @@ let billingMode='modern',billingModulePromise=null,billingMounted=null,billingTr
 function billingLockForLogout(){billingLogoutPending=true;$('#content').inert=true;}
 function billingUnlockLogout(){billingLogoutPending=false;$('#content').inert=false;}
 function billingModule(){
-  if(!$('#billingStyle')){const link=document.createElement('link');link.id='billingStyle';link.rel='stylesheet';link.href='platform/billing.css?v=market-import-20261023e';document.head.append(link);}
-  return billingModulePromise ||= import('./platform/billing.js?v=market-import-20261023e').catch(error=>{billingModulePromise=null;throw error;});
+  if(!$('#billingStyle')){const link=document.createElement('link');link.id='billingStyle';link.rel='stylesheet';link.href='platform/billing.css?v=bpu-catalogue-20261023a';document.head.append(link);}
+  return billingModulePromise ||= import('./platform/billing.js?v=bpu-catalogue-20261023a').catch(error=>{billingModulePromise=null;throw error;});
 }
 function billingLeave(){return billingMounted?.canLeave?.()!==false;}
 function billingForget(){

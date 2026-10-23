@@ -1,24 +1,22 @@
 import {useState} from 'react';
 import {ListChecks,Plus} from 'lucide-react';
-import type {BillingContext,BillingDraft,BillingLine} from '../billing-contracts';
 import type {Price} from './markets-contracts';
-import {newLine,formatMinor} from '../billing-domain';
+import {formatMinor} from '../billing-domain';
+import {applicablePrices,priceDescription,priceTtcMinor,type BpuMarket} from '../billing-market-prices';
 import {Field} from './billing-fields';
+import {Help} from './billing-help';
 import {ActivitySelect} from './activity-select';
-export type BpuMarket=BillingContext['markets'][number];
-export const clientMarkets=(context:BillingContext|null,d:BillingDraft)=>{
- const name=(v:string)=>v.normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLocaleLowerCase('fr');
- return context?.markets.filter(m=>m.id===d.references.marketId||(d.clientId&&m.clientId===d.clientId)||(d.buyer.name&&name(m.clientName)===name(d.buyer.name)))||[];
-};
-export function bpuLine(price:Price):BillingLine{
- return {...newLine(),description:[price.label,price.profile,price.location].filter(Boolean).join(' · '),unitPrice:price.amountMinor===null?'':(price.amountMinor/100).toFixed(2),unitCode:({day:'DAY',hour:'HUR',flat:'C62',unit:'C62',km:'KMT'} as Record<string,string>)[price.unit]||'C62'};
-}
-export function BpuPicker({markets,marketId,date,busy,onPick}:{markets:BpuMarket[];marketId:string;date:string;busy:boolean;onPick:(market:BpuMarket,price:Price)=>void}){
- const [id,setId]=useState(marketId|| (markets.length===1?markets[0].id:'')),market=markets.find(m=>m.id===id);
+export {bpuLine,clientMarkets} from '../billing-market-prices';
+export function BpuPicker({markets,marketId,date,query='',busy,onPick}:{markets:BpuMarket[];marketId:string;date:string;query?:string;busy:boolean;onPick:(market:BpuMarket,price:Price)=>void}){
+ const [id,setId]=useState(markets.length===1?markets[0].id:''),market=markets.find(m=>m.id===(marketId||id));
  if(!markets.length)return null;
- const prices=market?.prices?.filter(p=>(!p.startDate||!date||p.startDate<=date)&&(!p.endDate||!date||p.endDate>=date))||[];
- return <section className="bill-bpu-picker" aria-label="BPU du client"><h3><ListChecks size={18}/> Bordereau du marché</h3>
-  <Field label="Marché du client"><ActivitySelect label="Marché du client" value={id} disabled={busy} onChange={setId} placeholder="Choisir un marché" options={markets.map(m=>({value:m.id,label:m.clientName||'Client à renseigner',detail:[m.reference,m.title].filter(Boolean).join(' · '),activity:m.activity}))}/></Field>
-  {market&&<div className="bill-bpu-lines">{prices.map(p=><button key={p.id} type="button" disabled={busy||p.amountMinor===null} onClick={()=>onPick(market,p)}><span><strong>{p.label}</strong>{(p.profile||p.location)&&<small>{[p.profile,p.location].filter(Boolean).join(' · ')}</small>}</span><span>{p.amountMinor===null?'Tarif à compléter':formatMinor(String(p.amountMinor))}</span><Plus size={16}/></button>)}{!prices.length&&<p>Aucun tarif applicable à cette date.</p>}</div>}
+ const prices=applicablePrices(market,date,query);
+ return <section className="bill-bpu-picker" aria-label="Tarifs du marché">
+  <div className="bill-bpu-heading"><h3><ListChecks size={18}/>Tarifs du marché <span className="bill-bpu-count">{prices.length}</span></h3><Help label="Tarifs BPU et DQE" text="Prestations du BPU ou du DQE du marché. Le prix HT, l’unité et le taux de TVA renseignés sont repris. Un taux absent utilise la TVA habituelle de 20 %. Les montants et quantités restent modifiables ; vérifiez les tarifs issus d’une lecture automatique."/></div>
+  {marketId&&market?<p className="bill-bpu-contract">{market.clientName}<span>{market.reference} · BPU / DQE</span></p>:<Field label="Marché du client"><ActivitySelect label="Marché du client" value={id} disabled={busy} onChange={setId} placeholder="Choisir un marché" options={markets.map(m=>({value:m.id,label:m.clientName||'Client à renseigner',detail:[m.reference,m.title].filter(Boolean).join(' · '),activity:m.activity}))}/></Field>}
+  {market&&<div className="bill-bpu-lines">{prices.map(p=>{const ttc=priceTtcMinor(p),unit=({day:'jour',hour:'heure',flat:'forfait',unit:'unité',km:'km'} as Record<string,string>)[p.unit]||p.unit;return <button key={p.id} type="button" aria-label={'Choisir le tarif '+priceDescription(p)} disabled={busy} onClick={()=>onPick(market,p)}>
+   <span className="bill-bpu-label"><strong>{priceDescription(p)}</strong></span>
+   <span className="bill-bpu-amount"><strong>{p.amountMinor==null?'Tarif à compléter':formatMinor(String(p.amountMinor))+' HT / '+unit}</strong><small>{ttc==null?(p.vatRate==null?'':`TVA ${p.vatRate} %`):formatMinor(String(ttc))+' TTC · TVA '+p.vatRate+' %'}</small></span><Plus size={18} aria-hidden="true"/>
+  </button>;})}{!prices.length&&<p className="bill-bpu-empty">{query?'Aucun tarif correspondant.':'Aucun tarif applicable à cette date.'}</p>}</div>}
  </section>;
 }

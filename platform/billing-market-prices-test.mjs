@@ -1,0 +1,33 @@
+import assert from 'node:assert/strict';
+import {build} from 'esbuild';
+import {bpuPrices} from './billing-bpu-fixture.mjs';
+import {emptyMarket,validateMarket} from '../marches/domain.mjs';
+import {decode,mergeProposal,consolidate} from '../marches/ai-domain.mjs';
+import {needsPdfOcr} from '../marches/pdf-text.mjs';
+const bundle=await build({stdin:{contents:"export * from './platform/billing-market-prices';export * from './platform/billing-domain';export * from './platform/billing-units'",resolveDir:process.cwd()},bundle:true,format:'esm',write:false});
+const {bpuLine,applicablePrices,clientMarkets,priceTtcMinor,blankDraft,calculateBilling,saleUnits,unitLabels}=await import('data:text/javascript;base64,'+Buffer.from(bundle.outputFiles[0].text).toString('base64'));
+const prices=bpuPrices(),draft=blankDraft('quote','2026-10-23');draft.buyer.name='Client Test';draft.references.marketId='cab';
+const stamp='[Page 1]\nAccusé de réception en préfecture\n02B-242000354-20240318-24002DDET-CC\nDate de télétransmission : 23/04/2024\nDate de réception préfecture : 23/04/2024';assert.equal(needsPdfOcr(stamp),true);assert.equal(needsPdfOcr(stamp+'\n'+prices.map(p=>p.label+' '+p.amountMinor).join('\n')),false);
+const market={id:'cab',clientName:'Client Test',prices},context={markets:[{id:'other',clientName:'Client Test',prices:[]},market]};
+assert.deepEqual(clientMarkets(context,draft),[market]);draft.references.marketId='';assert.equal(clientMarkets(context,draft).length,2);draft.references.marketId='unavailable';assert.equal(clientMarkets(context,draft).length,0);
+assert.equal(applicablePrices(market,draft.issueDate,'senior corse').length,1);assert.equal(applicablePrices({...market,prices:[{...prices[0],endDate:'2025-12-31'}]},draft.issueDate).length,0);
+for(const [i,p] of prices.entries()){
+ const line=bpuLine(p);assert.equal(line.description,p.label);assert.equal(line.unitPrice,(p.amountMinor/100).toFixed(2));assert.equal(line.vatRate,'20');assert.equal(line.unitCode,'DAY');
+ assert.equal(priceTtcMinor(p),[86400,60000,86400,60000,96000,69600][i]);
+ const total=calculateBilling({...draft,lines:[{...line,quantity:'2.5'}]});assert.equal(total.grossMinor,String(priceTtcMinor(p)*2.5));
+}
+assert.equal(bpuLine({...prices[0],amountMinor:null}).unitPrice,'');assert.equal(bpuLine({...prices[0],amountMinor:0}).unitPrice,'0.00');
+assert.equal(bpuLine({...prices[0],vatRate:5.5}).vatRate,'5.5');assert.equal(bpuLine({...prices[0],vatRate:0}).vatCategory,'Z');assert.equal(priceTtcMinor({...prices[0],vatRate:null}),null);
+assert.deepEqual(Object.keys(saleUnits),['DAY','HUR','C62']);assert.equal(unitLabels.MON,'mois');assert.equal(bpuLine({...prices[0],unit:'km'}).unitCode,'KMT');
+const m={...emptyMarket(),title:'Marché test',clientName:'Client Test',prices};assert.equal(validateMarket(m).prices[0].vatRate,20);
+assert.throws(()=>validateMarket({...m,prices:[{...prices[0],vatRate:100.001}]}),/Taux TVA/);
+const rows=prices.map((p,i)=>`${String(i+1).padStart(2,'0')} ${p.label} ${p.amountMinor/100} 20 ${priceTtcMinor(p)/100}`),part={document_id:'bpu',name:'BPU.pdf',text:'[Page 1]\nRéférence Prestation Prix unitaire HT Taux de TVA % Prix unitaire TTC\n'+rows.join('\n')};
+const proposal=decode({prices:prices.map((p,i)=>({label:p.label,amount:p.amountMinor/100,vatRate:20,grossAmount:priceTtcMinor(p)/100,unit:'day',profile:p.profile,location:p.location,quote:rows[i]}))},part);
+assert.equal(proposal.prices.length,6);assert.ok(proposal.prices.every(p=>p.vatRate===20));
+assert.equal(decode({prices:[{label:prices[0].label,amount:720,vatRate:20,grossAmount:864,unit:'day',quote:rows[0]}]},{...part,text:part.text.replace('TTC','ITC')}).prices[0].vatRate,20);
+const wrong=decode({prices:[{label:prices[0].label,amount:720,vatRate:10,grossAmount:864,unit:'day',quote:rows[0]}]},part);assert.equal(wrong.prices[0].vatRate,undefined);
+const merged=mergeProposal({...m,prices:prices.map(p=>({...p,vatRate:null}))},proposal);assert.equal(merged.prices.length,6);assert.ok(merged.prices.every(p=>p.vatRate===20));
+const structured=mergeProposal({...m,prices:[{...prices[0],amountMinor:null,vatRate:null}]},{prices:[{...proposal.prices[0],label:'Journée de travail',profile:'Consultant senior',location:'Corse'}]});assert.equal(structured.prices.length,1);assert.equal(structured.prices[0].id,prices[0].id);assert.equal(structured.prices[0].amountMinor,72000);assert.equal(structured.prices[0].vatRate,20);
+const manual=mergeProposal({...m,prices:[{...proposal.prices[0],vatRate:5.5}]},{prices:[proposal.prices[0]]});assert.equal(manual.prices[0].vatRate,5.5);assert.equal(manual.issues.length,1);
+assert.equal(consolidate([{prices:[{...proposal.prices[0],vatRate:null}]},{prices:[proposal.prices[0]]}]).prices[0].vatRate,20);
+console.log('OK: selected market priority, six CAB rates/HT/TVA/TTC, decimal quantities, optional rates/prices, legacy units, sourced AI tax and preservation of manual tax.');

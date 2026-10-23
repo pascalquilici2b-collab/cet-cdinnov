@@ -378,10 +378,16 @@ function Prices({ s, m }: { s: MarketsSnapshot; m: Market }) {
               value={amount(r.amountMinor)}
             />
             <Field
+              path={p + ".vatRate"}
+              label="Taux TVA (%)"
+              value={r.vatRate==null?'':String(r.vatRate)}
+              placeholder="À renseigner"
+            />
+            <Field
               path={p + ".unit"}
               label="Unité"
               value={r.unit}
-              options={UNITS}
+              options={Object.fromEntries(Object.entries(UNITS).filter(([unit])=>unit!=='km'||r.unit==='km'))}
             />
             <Field
               path={p + ".profile"}
