@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import {randomUUID,createHash} from 'node:crypto';
 import {createNumberSeries,reserveIssuance,claimIssuanceJob,completeIssuanceJob} from './billing-issuance.ts';
-import {emptyMarket,validateMarket} from '../marches/domain.mjs';
+import {marketActivity} from './project-activity.ts';
+import {emptyMarket,validateMarket,marketTracking} from '../marches/domain.mjs';
 import {testEnvironment,users} from '../marches/test.mjs';
 import {migrateBilling} from './billing-schema.mjs';
 import {quoteFixtureTools,quoteFixture,samplePDF} from './billing-quote-fixture.mjs';
@@ -85,4 +86,10 @@ test('received order links market and project; consumption survives invoice tras
 test('miscellaneous market information can be validated without citing a source',()=>{
  const m={...emptyMarket(),title:'Marché',clientName:'Client',periods:[{id:'period',label:'Initiale',startDate:'2026-01-01',endDate:'2026-12-31',decision:'Notification',status:'validated',source:{documentId:'',locator:'',note:''}}],conditions:[{id:'condition',label:'Livrable',category:'other',value:'Rapport',status:'validated',source:{documentId:'',locator:'',note:''}}]};
  assert.equal(validateMarket(m,[]).periods[0].status,'validated');assert.equal(validateMarket(m,[]).conditions[0].status,'validated');
+});
+
+test('linked orders count once and start markets configured on their first order',()=>{
+ const e={kind:'order',orderId:'bc-1',reference:'BC-1',date:'2026-10-01',amountMinor:10000},m={...emptyMarket(),startBasis:'first_order',initialDurationMonths:12,linkedEngagements:[e,e]};
+ assert.equal(marketTracking(m).orderCount,1);assert.equal(marketTracking(m).orderedMinor,10000);assert.equal(marketActivity(m,'2026-10-24').state,'active');
+ m.projects=[{orders:[{id:'bc-1',reference:'BC-1',date:'2026-10-01',amountMinor:10000}]}];assert.equal(marketTracking(m).orderCount,1);
 });

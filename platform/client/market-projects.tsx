@@ -13,11 +13,12 @@ export function Projects({s,m}:{s:MarketsSnapshot;m:Market}){
   <div className="mk-projects-heading"><h3><FolderKanban size={20}/> Projets liés</h3><button type="button" className="mk-primary" data-action="add-project" disabled={s.busy}><Plus size={16}/> Ajouter un projet</button></div>
   {!projects.length&&<p className="mk-muted">Ajoutez un projet à ce marché, puis ses bons de commande.</p>}
   {projects.map((project,i)=>{
+   const orderCount=new Set([...project.orders.map(o=>o.id),...(m.linkedEngagements||[]).filter(e=>e.kind==='order'&&e.projectId===project.id).map(e=>e.orderId)]).size;
    const path='projects.'+i,expanded=open===project.id||!project.name||project.orders.some(o=>!o.reference),complete=!s.dirty&&!!project.name&&project.orders.every(o=>!!o.reference);
    return <section key={project.id} className="mk-project" data-archived={project.archived}>
     <div className="mk-project-heading">
      <span className={'mk-completion'+(complete?' is-complete':'')} aria-label={complete?'Projet enregistré':'Projet à compléter'}>{complete?<Check size={18}/>:<FolderKanban size={18}/>}</span>
-     <div><strong>{project.name||'Nouveau projet'}</strong><small>{[project.code,project.orders.length+' bon'+(project.orders.length>1?'s':'')+' de commande',project.archived?'Archivé':''].filter(Boolean).join(' · ')}</small></div>
+     <div><strong>{project.name||'Nouveau projet'}</strong><small>{[project.code,orderCount+' bon'+(orderCount>1?'s':'')+' de commande',project.archived?'Archivé':''].filter(Boolean).join(' · ')}</small></div>
      <ActivityBadge activity={projectActivity(project)}/><button type="button" className="mk-project-edit" aria-label={'Modifier le projet '+(project.name||'nouveau')} onClick={()=>setOpen(expanded?null:project.id)}><Pencil size={16}/></button>
     </div>
     {expanded&&<div className="mk-project-body">

@@ -110,7 +110,7 @@ async function context(db:Database,env:Environment):Promise<BillingContext> {
   clientLogos:logos.results.map(r=>{const p=JSON.parse(r.data_json);return {id:r.id,name:text(p.party?.name),siren:text(p.party?.siren),siret:text(p.party?.siret),logoKey:text(p.logoKey),logoData:text(p.logoData)};}),
   clients:clients.results.map(r=>JSON.parse(r.data_json)).filter(object).map(r=>({id:text(r.id),name:text(r.name)})).filter(r=>r.id&&r.name),
   businessCodes:codes.results.map(r=>JSON.parse(r.data_json)).filter(object).map(r=>({id:text(r.id),code:[r.code1,r.code2].filter(v=>typeof v==='number'||(typeof v==='string'&&v)).join(' '),label:text(r.label),client:text(r.client)})).filter(r=>r.id),
-  markets:parsedMarkets.filter(r=>r.market.status!=='archived').map(r=>{const p=r.market;return {id:r.id,version:r.version,title:text(p.title),reference:text(p.reference),clientName:text(p.clientName),clientId:text(p.clientId),activity:marketActivity(p),prices:Array.isArray(p.prices)?p.prices:[],projects:marketProjects(r.id)};}),
+  markets:parsedMarkets.filter(r=>r.market.status!=='archived').map(r=>{const p=r.market;return {id:r.id,version:r.version,title:text(p.title),reference:text(p.reference),clientName:text(p.clientName),clientId:text(p.clientId),activity:marketActivity({...p,projects:marketProjects(r.id)}),prices:Array.isArray(p.prices)?p.prices:[],projects:marketProjects(r.id)};}),
   seller:settings.data.seller,settings
  };
 }

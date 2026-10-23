@@ -142,6 +142,7 @@ export function validateMarket(input,documents=[]) {
 }
 export function marketTracking(m){
  const orders=(m.projects||[]).flatMap(p=>p.orders||[]).filter(o=>o.reference&&o.date);
+ for(const e of m.linkedEngagements||[])if(e.kind==='order'&&e.reference&&e.date&&!orders.some(o=>o.id===e.orderId))orders.push({...e,id:e.orderId});
  const orderedMinor=orders.reduce((sum,o)=>sum+(o.amountMinor??0),0);
  const maximumMinor=m.maximumMinor??m.ceilings?.find(c=>c.scope==='contract'&&c.basis==='HT')?.amountMinor??null;
  return {orderCount:orders.length,orderedMinor,unknownAmounts:orders.filter(o=>o.amountMinor==null).length,maximumMinor,
