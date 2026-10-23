@@ -54,6 +54,39 @@ class BodyLimitMiddleware:
 
 app.add_middleware(BodyLimitMiddleware)
 
+
+@app.post('/api/stamping/process')
+async def stamping_process(request: Request, file: UploadFile = File(...), payload: str = Form(...)):
+    # Stamping consumes saved server-side data. Ordinary Factur-X browser sessions cannot invoke it.
+    key = os.getenv('FACTURX_API_KEY', '')
+    if len(key) < 32 or not secrets.compare_digest(request.headers.get('x-api-key', ''), key):
+        raise HTTPException(401, 'Accès serveur requis.')
+    if len(payload) > 1500000:
+        raise HTTPException(413, 'Lot trop volumineux.')
+    raw = await file.read(20 * 1024 * 1024 + 1)
+    if len(raw) > 20 * 1024 * 1024:
+        raise HTTPException(413, 'PDF limité à 20 Mo.')
+    if not SLOTS.acquire(blocking=False):
+        raise HTTPException(503, 'Le moteur traite déjà un document. Réessayez.')
+    try:
+        import sys
+        data = json.loads(payload)
+        data['file'] = base64.b64encode(raw).decode()
+        child = await asyncio.create_subprocess_exec(sys.executable, '-m', 'cdi_facturx.stamping_job',
+                    stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+        try:
+            stdout, _ = await asyncio.wait_for(child.communicate(json.dumps(data).encode()), timeout=95)
+        except (asyncio.TimeoutError, asyncio.CancelledError):
+            child.kill(); await child.wait()
+            raise HTTPException(503, 'Temps de traitement dépassé. Réessayez cette pièce.') from None
+        if child.returncode or len(stdout) > 40 * 1024 * 1024:
+            raise HTTPException(422, 'Traitement documentaire interrompu.')
+        return json.loads(stdout)
+    except (ValueError, TypeError):
+        raise HTTPException(422, 'Requête documentaire invalide.') from None
+    finally:
+        SLOTS.release()
+
 ALLOWED_ORIGINS = set(filter(None, os.getenv('FACTURX_ALLOWED_ORIGINS', 'https://app.cdinnov.eu').split(',')))
 
 

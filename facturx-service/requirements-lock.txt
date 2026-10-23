@@ -26,6 +26,9 @@ python-multipart==0.0.32
 python-stdnum==2.2
 requests==2.34.2
 reportlab==4.4.9
+openpyxl==3.1.5
+et_xmlfile==2.0.0
+pypdfium2==5.14.0
 saxonche==13.0.0
 starlette==1.6.0
 typing-inspection==0.4.4
