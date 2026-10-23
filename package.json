@@ -29,7 +29,11 @@
     "build:sheets": "node apps/build-sheets.mjs",
     "typecheck:sheets": "tsc -p apps/sheets/tsconfig.json && tsc -p apps/sheets/tsconfig.core.json",
     "test:sheets": "node --test apps/sheets/test/*.test.mjs",
-    "test:markets:browser": "node platform/markets-browser-test.mjs"
+    "test:markets:browser": "node platform/markets-browser-test.mjs",
+    "test:stamping": "node platform/stamping-test.mjs",
+    "test:stamping:browser": "node platform/stamping-browser-test.mjs",
+    "test:stamping:portal": "node platform/stamping-portal-test.mjs",
+    "test:stamping:load": "node platform/stamping-load-test.mjs"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "4.2.1",

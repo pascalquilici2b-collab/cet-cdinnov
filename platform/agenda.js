@@ -1,20 +1,20 @@
-import{a as _}from"./chunks/chunk-EFM7HPMY.js";import{a as j,b as P}from"./chunks/chunk-CIMSSA65.js";import{F as E,a as D,f as L,qa as N,ra as z,sa as M}from"./chunks/chunk-ABMUYSXJ.js";import{c as p}from"./chunks/chunk-7SZRL6FY.js";var O=p(M(),1),A=p(z(),1);var J=p(D(),1);var F=(t,n)=>new Date(Date.parse(t+"T12:00:00Z")+n*864e5).toISOString().slice(0,10),m=(t,n={day:"numeric",month:"short"})=>new Intl.DateTimeFormat("fr-FR",{timeZone:"UTC",...n}).format(new Date(t+"T12:00:00Z")),y=(t,n)=>t===n?m(t):m(t)+" \u2192 "+m(n),w=t=>[...new Set([t.owner,...t.participants].filter(Boolean))];function R(t,n){return t.filter(r=>(!n.person||w(r).includes(n.person))&&(!n.kind||r.kind===n.kind)&&(!n.type||r.types.includes(n.type))).sort((r,d)=>r.start.localeCompare(d.start)||(r.startTime||"").localeCompare(d.startTime||"")||r.owner.localeCompare(d.owner))}function q(t,n){let r=t+"-01",d=(new Date(r+"T12:00:00Z").getUTCDay()+6)%7,l=new Date(Date.UTC(Number(t.slice(0,4)),Number(t.slice(5,7)),0)).getUTCDate();return Array.from({length:Math.ceil((d+l)/7)},(v,x)=>{let s=F(r,x*7-d),u=F(s,6),c=[],b=n.filter(a=>a.start<=u&&a.end>=s).sort((a,i)=>a.start.localeCompare(i.start)||i.end.localeCompare(a.end)).map(a=>{let i=Math.max(0,Math.round((Date.parse(a.start)-Date.parse(s))/864e5)),h=Math.min(6,Math.round((Date.parse(a.end)-Date.parse(s))/864e5)),k=c.findIndex(Z=>Z<i);return k<0&&(k=c.length),c[k]=h,{entry:a,from:i,to:h,lane:k,continued:a.start<s,continues:a.end>u}});return{start:s,days:Array.from({length:7},(a,i)=>F(s,i)),bars:b,lanes:Math.max(2,c.length)}})}var V=`/* Filled calendar labels with soft edges. Colour distinguishes kind without neon outlines. */
-body .content .agenda-shell .agenda-trip{border:0;border-radius:6px;box-shadow:none;padding:4px 8px;background:var(--trip-bg);color:var(--trip-color)}
-body .content .agenda-shell .agenda-trip.continued{border-radius:2px 6px 6px 2px}
-body .content .agenda-shell .agenda-trip:hover{filter:brightness(.96)}
-:root[data-theme=dark] body .content .agenda-shell .agenda-travel{--trip-color:#d4d7ff;--trip-bg:#34344f;color:var(--trip-color)}
-:root[data-theme=dark] body .content .agenda-shell .agenda-leave{--trip-color:#c9ded2;--trip-bg:#2b3b34;color:var(--trip-color)}
-:root[data-theme=dark] body .content .agenda-shell .agenda-pending{--trip-color:#ead6ad;--trip-bg:#433b2d;color:var(--trip-color)}
-:root[data-theme=dark] body .content .agenda-shell .agenda-trip{background:var(--trip-bg);border:0}
-:root[data-theme=dark] body .content .agenda-shell .agenda-trip:hover{filter:brightness(1.15)}
-:root[data-theme=dark] body .content .agenda-shell .agenda-cell.today .agenda-day-number{background:#b4bbef;color:#202339}
-:root[data-theme=dark] body .content .agenda-shell .agenda-cell.selected{box-shadow:inset 0 0 0 1px #929bc7}
-:root[data-theme=dark] body .content .agenda-shell .agenda-cell.outside{color:#8d939f}
-:root[data-theme=dark] body .content .agenda-shell .ag-key:before{background:#9294c8;border:0}
-:root[data-theme=dark] body .content .agenda-shell .ag-key-leave:before{background:#90b19c}
-:root[data-theme=dark] body .content .agenda-shell .ag-key-pending:before{background:#bb9f6e;border:0}
-:root[data-theme=dark] body .content .agenda-shell .agenda-aside-head>span{background:#34344f;color:#c6cbff}
-:root[data-theme=dark] body .content .agenda-shell .agenda-side-dates{color:#b7bee8}
+import{a as _}from"./chunks/chunk-EFM7HPMY.js";import{a as j,b as P}from"./chunks/chunk-3NMBT2JS.js";import{F as E,a as D,f as L,sa as N,ta as z,ua as M}from"./chunks/chunk-PB6AWTSS.js";import{c as p}from"./chunks/chunk-7SZRL6FY.js";var O=p(M(),1),A=p(z(),1);var J=p(D(),1);var F=(t,n)=>new Date(Date.parse(t+"T12:00:00Z")+n*864e5).toISOString().slice(0,10),m=(t,n={day:"numeric",month:"short"})=>new Intl.DateTimeFormat("fr-FR",{timeZone:"UTC",...n}).format(new Date(t+"T12:00:00Z")),y=(t,n)=>t===n?m(t):m(t)+" \u2192 "+m(n),w=t=>[...new Set([t.owner,...t.participants].filter(Boolean))];function R(t,n){return t.filter(r=>(!n.person||w(r).includes(n.person))&&(!n.kind||r.kind===n.kind)&&(!n.type||r.types.includes(n.type))).sort((r,d)=>r.start.localeCompare(d.start)||(r.startTime||"").localeCompare(d.startTime||"")||r.owner.localeCompare(d.owner))}function q(t,n){let r=t+"-01",d=(new Date(r+"T12:00:00Z").getUTCDay()+6)%7,l=new Date(Date.UTC(Number(t.slice(0,4)),Number(t.slice(5,7)),0)).getUTCDate();return Array.from({length:Math.ceil((d+l)/7)},(v,x)=>{let s=F(r,x*7-d),u=F(s,6),c=[],b=n.filter(a=>a.start<=u&&a.end>=s).sort((a,i)=>a.start.localeCompare(i.start)||i.end.localeCompare(a.end)).map(a=>{let i=Math.max(0,Math.round((Date.parse(a.start)-Date.parse(s))/864e5)),h=Math.min(6,Math.round((Date.parse(a.end)-Date.parse(s))/864e5)),k=c.findIndex(Z=>Z<i);return k<0&&(k=c.length),c[k]=h,{entry:a,from:i,to:h,lane:k,continued:a.start<s,continues:a.end>u}});return{start:s,days:Array.from({length:7},(a,i)=>F(s,i)),bars:b,lanes:Math.max(2,c.length)}})}var V=`/* Filled calendar labels with soft edges. Colour distinguishes kind without neon outlines. */\r
+body .content .agenda-shell .agenda-trip{border:0;border-radius:6px;box-shadow:none;padding:4px 8px;background:var(--trip-bg);color:var(--trip-color)}\r
+body .content .agenda-shell .agenda-trip.continued{border-radius:2px 6px 6px 2px}\r
+body .content .agenda-shell .agenda-trip:hover{filter:brightness(.96)}\r
+:root[data-theme=dark] body .content .agenda-shell .agenda-travel{--trip-color:#d4d7ff;--trip-bg:#34344f;color:var(--trip-color)}\r
+:root[data-theme=dark] body .content .agenda-shell .agenda-leave{--trip-color:#c9ded2;--trip-bg:#2b3b34;color:var(--trip-color)}\r
+:root[data-theme=dark] body .content .agenda-shell .agenda-pending{--trip-color:#ead6ad;--trip-bg:#433b2d;color:var(--trip-color)}\r
+:root[data-theme=dark] body .content .agenda-shell .agenda-trip{background:var(--trip-bg);border:0}\r
+:root[data-theme=dark] body .content .agenda-shell .agenda-trip:hover{filter:brightness(1.15)}\r
+:root[data-theme=dark] body .content .agenda-shell .agenda-cell.today .agenda-day-number{background:#b4bbef;color:#202339}\r
+:root[data-theme=dark] body .content .agenda-shell .agenda-cell.selected{box-shadow:inset 0 0 0 1px #929bc7}\r
+:root[data-theme=dark] body .content .agenda-shell .agenda-cell.outside{color:#8d939f}\r
+:root[data-theme=dark] body .content .agenda-shell .ag-key:before{background:#9294c8;border:0}\r
+:root[data-theme=dark] body .content .agenda-shell .ag-key-leave:before{background:#90b19c}\r
+:root[data-theme=dark] body .content .agenda-shell .ag-key-pending:before{background:#bb9f6e;border:0}\r
+:root[data-theme=dark] body .content .agenda-shell .agenda-aside-head>span{background:#34344f;color:#c6cbff}\r
+:root[data-theme=dark] body .content .agenda-shell .agenda-side-dates{color:#b7bee8}\r
 :root[data-theme=dark] body .content .agenda-shell .agenda-avatar{border-color:#ffffff15;background:#ffffff0c;color:#dde0e7}\r
 :root[data-theme=dark] body .content .agenda-shell .agenda-aside-head svg{color:#c6cbff;stroke:currentColor}\r
 `;var U=p(M(),1),I=p(z(),1),f=p(D(),1);var B=`.agenda-editor{background:var(--surface);color:var(--ink);border-radius:18px;isolation:isolate}\r
