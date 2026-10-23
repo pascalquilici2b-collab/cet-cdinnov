@@ -39,7 +39,7 @@ export async function handleMarkets(request,db,email,admin,reply,jsonBody,env={}
       return reply(200,{markets:result.results.map(r=>({...unpack(r),tracking:consumption.get(r.id)||{sentQuoteCount:0,quotedMinor:0}})),clients});
     }
     if(request.method!=='POST')return reply(405,{error:'Méthode non autorisée.'});
-    const data=await jsonBody(request,256000);
+    const data=await jsonBody(request,1500000);
     if(!validId(data?.id))return reply(400,{error:'Identifiant de création requis.'});
     let market;try{market=validateMarket(data.market,[]);}catch(e){return reply(400,{error:e.message});}
     if(market.status!=='draft')return reply(400,{error:'Créez d’abord le marché en préparation, puis ajoutez ses pièces.'});
@@ -60,12 +60,16 @@ export async function handleMarkets(request,db,email,admin,reply,jsonBody,env={}
     if(request.method!=='PUT')return reply(405,{error:'Méthode non autorisée.'});
     const raw=request.headers.get('if-match');
     if(!raw||!/^[1-9]\d*$/.test(raw)||!Number.isSafeInteger(Number(raw)))return reply(428,{error:'Version de la fiche requise.'});
-    const input=await jsonBody(request,256000);
+    const input=await jsonBody(request,1500000);
     // Older tabs do not know the project tree: omission must never delete it.
     if(input&&typeof input==='object'){
       const previous=JSON.parse(current.payload);
       for(const key of ['projects','startBasis','startDate','initialDurationMonths','maximumMinor'])
         if(!Object.hasOwn(input,key)&&Object.hasOwn(previous,key))input[key]=previous[key];
+      if(Array.isArray(input.projects))for(const project of input.projects){
+        const old=previous.projects?.find(p=>p.id===project?.id);
+        for(const key of ['logoData','marketIds','clientIds'])if(old&&project&&!Object.hasOwn(project,key)&&Object.hasOwn(old,key))project[key]=old[key];
+      }
     }
     let market;try{market=validateMarket(input,await getDocs(id));}catch(e){return reply(400,{error:e.message});}
     const row=await db.prepare('UPDATE markets SET payload=?,version=version+1,updated_at=?,updated_by=? WHERE id=? AND version=? RETURNING *').bind(JSON.stringify(market),new Date().toISOString(),email,id,Number(raw)).first();

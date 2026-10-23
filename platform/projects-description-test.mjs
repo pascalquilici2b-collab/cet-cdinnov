@@ -1,0 +1,66 @@
+import assert from 'node:assert/strict';
+import {createRequire} from 'node:module';
+import {randomUUID} from 'node:crypto';
+import {mkdir,readFile} from 'node:fs/promises';
+import {billingPreview} from './billing-preview.mjs';
+import {quoteFixture,quoteFixtureTools,samplePDF} from './billing-quote-fixture.mjs';
+import {emptyMarket} from '../marches/domain.mjs';
+import {seedBusinessDocument} from './business-migration.mjs';
+const require=createRequire('C:/Users/quili/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright/package.json');
+const preview=await billingPreview({outboundService:async()=>new Response(samplePDF(),{headers:{'Content-Type':'application/pdf'}})});
+const browser=await require('playwright').chromium.launch({channel:'msedge',headless:true}),out='platform/.private/projects-description-20261023';await mkdir(out,{recursive:true});
+try{
+ const headers={Origin:'https://app.cdinnov.eu',Authorization:'Bearer '+preview.sessions[0].token,'Content-Type':'application/json'};
+ const api=(path,method='GET',body,extra={})=>preview.ctx.worker.dispatchFetch('https://test'+path,{method,headers:{...headers,...extra},...(body?{body:JSON.stringify(body)}:{})});
+ await seedBusinessDocument(preview.ctx.db,'budgets',{clients:[{id:'client-a',name:'Client Alpha'},{id:'client-b',name:'Client Bêta'},{id:'client-c',name:'Client Gamma'}]},2);
+ const project={id:'project-shared',name:'Projet commun',code:'PC',notes:'Note privée',archived:false,orders:[{id:'order-alpha',reference:'BC-ALPHA',date:'2026-10-01',amountMinor:20000,documentId:'',notes:'',archived:false}]};
+ for(const [id,clientId,clientName,projects] of [['market-a','client-a','Client Alpha',[project]],['market-b','client-b','Client Bêta',[]]]){
+  const r=await api('/budgets/markets','POST',{id,market:{...emptyMarket(),title:'Accompagnement '+clientName,reference:id,clientId,clientName,projects}});assert.equal(r.status,201,await r.clone().text());
+ }
+ const logo='data:image/png;base64,'+(await readFile('platform/programme-logos/maritime.png')).toString('base64');
+ const input={...project,orders:undefined,marketId:'market-a',marketVersion:1,marketIds:['market-a','market-b'],clientIds:['client-c'],logoData:logo};
+ let r=await api('/api/v1/projects','PUT',input);assert.equal(r.status,200,await r.clone().text());
+ assert.equal((await api('/api/v1/projects','PUT',input)).status,409);
+ assert.equal((await api('/api/v1/projects','PUT',{...input,marketVersion:2,marketIds:['missing']})).status,400);
+ assert.equal((await api('/api/v1/projects','PUT',{...input,marketVersion:2,clientIds:['missing']})).status,400);
+ assert.equal((await api('/api/v1/projects','PUT',{...input,marketVersion:2,logoData:'data:image/svg+xml;base64,PHN2Zz4='})).status,400);
+ assert.equal((await api('/api/v1/projects','PUT',{...input,marketVersion:2},{Authorization:'Bearer '+preview.sessions[1].token})).status,403);
+ let directory=await(await api('/api/v1/projects')).json();assert.equal(directory.projects.length,1);assert.deepEqual(new Set(directory.projects[0].clientNames),new Set(['Client Alpha','Client Bêta','Client Gamma']));
+ let context=await(await api('/api/v1/billing/context')).json();assert.equal(context.markets.find(m=>m.id==='market-a').projects[0].orders.length,1);assert.equal(context.markets.find(m=>m.id==='market-b').projects[0].orders.length,0);
+ // An older market tab must not erase new metadata on save.
+ let market=(await(await api('/budgets/markets/market-a')).json()).market;
+ for(const key of ['logoData','marketIds','clientIds'])delete market.projects[0][key];
+ r=await api('/budgets/markets/market-a','PUT',market,{'If-Match':String(market.version)});assert.equal(r.status,200,await r.clone().text());
+ directory=await(await api('/api/v1/projects')).json();assert.equal(directory.projects[0].logoData,logo);assert.equal(directory.projects[0].marketIds.length,2);
+ const data=quoteFixture('Document à réorganiser');data.seller.siren='322556580';data.description='Suivi et animation, gestion administrative et rapports.\nCadrage du projet et mobilisation partenariale.';
+ data.references={...data.references,marketId:'market-b',marketReference:'market-b',projectId:'project-shared',project:'Projet commun'};
+ data.lines=[{...data.lines[0],description:'Prestation Alpha'},{...data.lines[0],id:randomUUID(),description:'Prestation Bêta'}];
+ const q=await quoteFixtureTools(preview.ctx,preview.sessions[0].token),doc=await q.create(data,false);
+ assert.equal(doc.data.description,data.description);
+ r=await q.call('/documents','POST',{id:randomUUID(),data:{...data,references:{...data.references,orderId:'order-alpha'}}});assert.equal(r.status,422);
+ const browserContext=await browser.newContext({viewport:{width:1440,height:1050},reducedMotion:'reduce'}),page=await browserContext.newPage(),errors=[];
+ page.on('pageerror',e=>errors.push(e.message));page.setDefaultTimeout(15000);
+ await browserContext.route('**/*',r=>r.request().url().startsWith(preview.base)||r.request().url().startsWith('data:')?r.continue():r.abort());
+ await page.goto(preview.base);
+ const nav=page.getByRole('navigation',{name:'Documents commerciaux'});await nav.getByRole('button',{name:'Projets',exact:true}).click();await page.getByRole('button',{name:/Projet commun/}).click();
+ assert.equal(await page.locator('.bill-project-link').count(),2);assert.equal(await page.locator('.bill-project-client-chip').count(),3);
+ await page.getByLabel('Importer le logo du projet',{exact:true}).setInputFiles('platform/programme-logos/euro-med.png');await page.getByRole('button',{name:'Changer le logo',exact:true}).waitFor();
+ await page.getByLabel('Nom du projet',{exact:true}).fill('Projet commun modifié');
+ await page.screenshot({path:out+'/project-light.png'});await page.evaluate(()=>CDITheme.set('dark'));await page.screenshot({path:out+'/project-dark.png'});
+ await page.setViewportSize({width:390,height:844});assert.ok(await page.locator('.bill-editor').evaluate(el=>el.scrollWidth<=el.clientWidth+1));await page.screenshot({path:out+'/project-mobile.png'});await page.setViewportSize({width:1440,height:1050});
+ await page.getByRole('button',{name:'Enregistrer le projet',exact:true}).click();await page.getByText('Projet enregistré.',{exact:true}).waitFor();
+ directory=await(await api('/api/v1/projects')).json();assert.equal(directory.projects.length,1);assert.equal(directory.projects[0].name,'Projet commun modifié');assert.match(directory.projects[0].logoData,/^data:image\/webp;base64,/);assert.equal(directory.projects[0].marketIds.length,2);
+ await nav.getByRole('button',{name:'Devis',exact:true}).click();await page.getByRole('button',{name:'Ouvrir Document à réorganiser',exact:true}).click();
+ if(await page.locator('[data-step=document]').getAttribute('open')===null)await page.locator('[data-step=document]>summary').click();await page.getByRole('combobox',{name:'Projet lié',exact:true}).click();await page.getByRole('option',{name:'Sans projet lié',exact:true}).click();await page.getByRole('combobox',{name:'Projet lié',exact:true}).click();await page.getByRole('option').filter({hasText:'Projet commun modifié'}).click();
+ assert.ok((await page.getByRole('combobox',{name:'Marché lié',exact:true}).innerText()).includes('Client Bêta'));
+ await page.locator('[data-step=lines]>summary').click();const description=page.locator('.bill-document-description');assert.equal(await description.getAttribute('open'),null);await description.locator('summary').click();
+ await page.getByLabel('Description du document',{exact:true}).fill(data.description+'\nValidation et transmission au chef de file.');
+ assert.equal(await page.getByRole('button',{name:'Monter la prestation 1',exact:true}).isDisabled(),true);
+ await page.getByRole('button',{name:'Descendre la prestation 1',exact:true}).click();
+ assert.deepEqual(await page.locator('[data-step=lines]').getByLabel('Description',{exact:true}).evaluateAll(els=>els.map(e=>e.value)),['Prestation Bêta','Prestation Alpha']);
+ await page.screenshot({path:out+'/description-lines-dark.png'});
+ await page.getByRole('button',{name:'Enregistrer',exact:true}).click();await page.waitForFunction(()=>document.querySelector('.bill-save-state')?.textContent?.startsWith('Enregistré'));
+ const saved=await(await q.call('/documents/'+doc.id)).json();assert.deepEqual(saved.data.lines.map(l=>l.id),data.lines.map(l=>l.id).reverse());assert.equal(saved.totals.grossMinor,doc.totals.grossMinor);assert.ok(saved.data.description.includes('chef de file'));assert.equal(saved.data.references.marketId,'market-b');
+ const finalized=await q.create({...saved.data,seller:quoteFixture().seller});assert.equal((await q.send(finalized)).status,201);r=await q.call('/documents/'+finalized.id+'/convert','POST',{id:randomUUID()},{'If-Match':String(finalized.version)});assert.equal(r.status,201,await r.clone().text());const invoice=await r.json();assert.equal(invoice.data.description,saved.data.description);assert.deepEqual(invoice.data.lines.map(l=>l.description),saved.data.lines.map(l=>l.description));
+ assert.deepEqual(errors,[]);console.log('OK: unique multi-client/multi-market project, logos, permissions, version conflicts, old-tab preservation, isolated purchase orders, related market selection, description and line order persisted through quote → invoice, light/dark/mobile.');
+}catch(e){const page=browser.contexts()[0]?.pages()[0];if(page){await page.screenshot({path:out+'/failure.png'});console.log((await page.locator('#billingRoot').innerText()).slice(-2200));}throw e;}finally{await browser.close();await preview.close();}

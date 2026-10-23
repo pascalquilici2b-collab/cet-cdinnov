@@ -16,6 +16,7 @@ export interface BillingReferences {
   projectId?:string; orderId?:string; quoteNumber?:string;
 }
 export interface BillingDraft {
+  description?:string;
   details?:BillingDocumentDetails;
   schemaVersion:2|3; kind:BillingKind; title:string; currency:'EUR'; issueDate:string;
   creditNote?:BillingCreditReference;
@@ -95,7 +96,7 @@ export interface BillingContext {
 export interface BillingTransport {
   emailHistory(id:string):Promise<{deliveries:import('./billing-delivery').EmailDelivery[]}>;
   email(id:string,version:number,input:import('./billing-delivery').EmailInput):Promise<{delivery:import('./billing-delivery').EmailDelivery}>;
-  projects():Promise<{projects:import('./projects').SharedProject[]}>;
+  projects():Promise<{projects:import('./projects').SharedProject[];clients?:{id:string;name:string}[]}>;
   saveProject(data:import('./projects').ProjectInput):Promise<{project:import('./projects').SharedProject}>;
   directoryList(kind:BillingDirectoryKind,query:{q:string;offset:number;limit:number;archived:boolean}):Promise<BillingDirectoryPage>;
   directoryGet(kind:BillingDirectoryKind,id:string):Promise<BillingDirectoryRecord>;

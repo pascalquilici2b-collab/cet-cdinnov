@@ -1,3 +1,4 @@
+import {projectsForMarket,projectMarketIds} from './project-links';
 import {marketActivity} from './project-activity';
 import {createHash} from 'node:crypto';
 import type {Database,Environment,Reply} from './contracts';
@@ -91,13 +92,15 @@ async function context(db:Database,env:Environment):Promise<BillingContext> {
   db.prepare('SELECT data_json FROM portal_employees ORDER BY position,record_key').all<{data_json:string}>(),
   db.prepare("SELECT id,data_json FROM billing_directory WHERE kind='clients'").all<{id:string;data_json:string}>()
  ]);
+ const parsedMarkets=markets.results.map(r=>({...r,market:JSON.parse(r.payload)}));
+ const projectOwners=parsedMarkets.map(r=>({id:r.id,projects:r.market.projects||[]}));
  return {
   documentService:{configured:documentServiceConfigured(env)},
   people:people.results.map(r=>JSON.parse(r.data_json)).map(p=>({id:text(p.matricule),name:[text(p.prenom),text(p.nom)].filter(Boolean).join(' '),photo:text(p.photo)})).filter(p=>p.id&&p.name),
   clientLogos:logos.results.map(r=>{const p=JSON.parse(r.data_json);return {id:r.id,name:text(p.party?.name),siren:text(p.party?.siren),siret:text(p.party?.siret),logoKey:text(p.logoKey),logoData:text(p.logoData)};}),
   clients:clients.results.map(r=>JSON.parse(r.data_json)).filter(object).map(r=>({id:text(r.id),name:text(r.name)})).filter(r=>r.id&&r.name),
   businessCodes:codes.results.map(r=>JSON.parse(r.data_json)).filter(object).map(r=>({id:text(r.id),code:[r.code1,r.code2].filter(v=>typeof v==='number'||(typeof v==='string'&&v)).join(' '),label:text(r.label),client:text(r.client)})).filter(r=>r.id),
-  markets:markets.results.filter(r=>JSON.parse(r.payload).status!=='archived').map(r=>{const p=JSON.parse(r.payload);return {id:r.id,version:r.version,title:text(p.title),reference:text(p.reference),clientName:text(p.clientName),clientId:text(p.clientId),activity:marketActivity(p),prices:Array.isArray(p.prices)?p.prices:[],projects:Array.isArray(p.projects)?p.projects:[]};}),
+  markets:parsedMarkets.filter(r=>r.market.status!=='archived').map(r=>{const p=r.market;return {id:r.id,version:r.version,title:text(p.title),reference:text(p.reference),clientName:text(p.clientName),clientId:text(p.clientId),activity:marketActivity(p),prices:Array.isArray(p.prices)?p.prices:[],projects:projectsForMarket(r.id,projectOwners)};}),
   seller:settings.data.seller,settings
  };
 }
@@ -105,7 +108,11 @@ async function checkProjectLinks(db:Database,draft:BillingDraft){
  const r=draft.references;if(!r.projectId&&!r.orderId)return;
  if(!r.marketId||!r.projectId)return fail(422,'Rattachez la commande à un projet et à son marché.');
  const market=await db.prepare('SELECT payload FROM markets WHERE id=?').bind(r.marketId).first<{payload:string}>();
- const project=market?JSON.parse(market.payload).projects?.find((p:{id:string})=>p.id===r.projectId):null;
+ let project=market?JSON.parse(market.payload).projects?.find((p:{id:string})=>p.id===r.projectId):null;
+ if(!project&&market){
+  const shared=await db.prepare('SELECT market_id,data_json FROM commercial_projects WHERE id=?').bind(r.projectId).first<{market_id:string;data_json:string}>();
+  if(shared){const data=JSON.parse(shared.data_json);if(projectMarketIds(shared.market_id,data).includes(r.marketId))project={...data,orders:[]};}
+ }
  if(!project)return fail(422,'Ce projet ne fait pas partie du marché sélectionné.');
  if(r.orderId&&!project.orders?.some((o:{id:string})=>o.id===r.orderId))return fail(422,'Ce bon de commande ne fait pas partie du projet sélectionné.');
 }

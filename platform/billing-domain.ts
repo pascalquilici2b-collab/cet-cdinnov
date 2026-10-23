@@ -74,7 +74,7 @@ const categories:VatCategory[]=['S','Z','E','AE','O'];
 export function normalizeDraft(raw:unknown):BillingDraft {
   const legacy=!!raw&&typeof raw==='object'&&'schemaVersion' in raw&&raw.schemaVersion===1;
   const credit=!!raw&&typeof raw==='object'&&'schemaVersion' in raw&&raw.schemaVersion===3;
-  const value=object(raw,['schemaVersion','kind','title','currency','issueDate','dueDate','validUntil','clientId','seller','buyer','lines','references','paymentTerms','iban','bic','notes','details',...(legacy?[]:['paymentMeans','vatDue','legalNotes','businessProcess']),...(credit?['creditNote']:[])],'Document');
+  const value=object(raw,['schemaVersion','kind','title','currency','issueDate','dueDate','validUntil','clientId','seller','buyer','lines','references','paymentTerms','iban','bic','notes','description','details',...(legacy?[]:['paymentMeans','vatDue','legalNotes','businessProcess']),...(credit?['creditNote']:[])],'Document');
   if((value.schemaVersion!==1&&value.schemaVersion!==2&&value.schemaVersion!==3)||!['invoice','quote'].includes(String(value.kind))||value.currency!=='EUR'||(credit&&value.kind!=='invoice'))fail('Type, version ou devise de document non pris en charge.');
   let creditNote:BillingDraft['creditNote'];
   if(credit){
@@ -99,6 +99,7 @@ export function normalizeDraft(raw:unknown):BillingDraft {
   return {
     schemaVersion:credit?3:2,kind:value.kind as BillingKind,currency:'EUR',...(creditNote?{creditNote}:{}),
     ...(Object.hasOwn(value,'details')?{details:documentDetails(value.details)}:{}),
+    ...(Object.hasOwn(value,'description')?{description:textField(value,'description',4000)}:{}),
     title:textField(value,'title',300),issueDate:textField(value,'issueDate',10),dueDate:textField(value,'dueDate',10),validUntil:textField(value,'validUntil',10),clientId:textField(value,'clientId',200),
     seller:party(value.seller,legacy),buyer:party(value.buyer,legacy),lines,
     references:Object.fromEntries([...referenceKeys,...['projectId','orderId','quoteNumber'].filter(k=>Object.hasOwn(references,k))].map(k=>[k,textField(references,k,300)])) as unknown as BillingReferences,

@@ -137,6 +137,7 @@ class DraftDetails(StrictModel):
 
 
 class DraftDocument(StrictModel):
+    description: text(4000) = ''
     details: DraftDetails | None = None
     schemaVersion: Literal[2, 3]
     creditNote: CreditReference | None = None
@@ -177,6 +178,8 @@ class DraftDocument(StrictModel):
             result.pop('creditNote', None)
         if 'details' not in self.model_fields_set:
             result.pop('details', None)
+        if 'description' not in self.model_fields_set:
+            result.pop('description', None)
         return result
 
     def calculated(self):

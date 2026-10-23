@@ -41,6 +41,14 @@ export function validateProjects(input=[],documentIds=new Set()){
   const project={id:id(p?.id,seen),name:text(p.name,'Nom du projet',180,true),code:text(p.code,'ID du projet',80),...(p.programme!==undefined?{programme:text(p.programme,'Programme du projet',160)}:{}),notes:text(p.notes,'Notes du projet',2000),archived:p.archived===true,orders:[]};
   if(p.startDate!==undefined)project.startDate=date(p.startDate,'Début du projet');
   if(p.endDate!==undefined)project.endDate=date(p.endDate,'Fin du projet');
+  for(const field of ['marketIds','clientIds'])if(p[field]!==undefined){
+   if(!Array.isArray(p[field])||p[field].length>100||p[field].some(v=>typeof v!=='string'||!/^[-\w]{1,80}$/.test(v)))throw new Error('Rattachements du projet invalides.');
+   project[field]=[...new Set(p[field])];
+  }
+  if(p.logoData!==undefined){
+   if(typeof p.logoData!=='string'||p.logoData.length>350000||(p.logoData&&!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(p.logoData)))throw new Error('Logo du projet invalide.');
+   project.logoData=p.logoData;
+  }
   if(project.startDate&&project.endDate&&project.endDate<project.startDate)throw new Error('La fin du projet précède son début.');
   if(!Array.isArray(p.orders)||p.orders.length>100)throw new Error('Liste de bons de commande invalide (100 maximum par projet).');
   const refs=new Set();

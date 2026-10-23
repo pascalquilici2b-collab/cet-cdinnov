@@ -363,9 +363,11 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
         city = " ".join(_text(party.get(field)) for field in ("postalCode", "city")).strip()
         if city:
             content.append(p(city, "small", prefix+'city' if prefix else None))
-        if _text(party.get("country")):
+        if not prefix and _text(party.get("country")):
             content.append(p(party["country"], "small"))
         for field, label in (("siret", "SIRET"), ("siren", "SIREN"), ("vatId", "TVA intracom."), ("email", "Courriel"), ("electronicAddress", "Adresse électronique")):
+            if prefix and field in ('siret', 'siren', 'vatId', 'electronicAddress'):
+                continue
             if _text(party.get(field)):
                 suffix = ""
                 if field == "electronicAddress" and _text(party.get("electronicScheme")):
@@ -397,6 +399,8 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
         story.append(ref_table)
 
     story.append(heading("Prestations"))
+    if _text(document.get('description')):
+        story.extend([p(document['description'], 'body', 'description'), Spacer(1, 9)])
     labels = ("Désignation", "Qté", "Prix unit. HT", "Remise", "Taux TVA", "Montant HT")
     rows: list[list[Any]] = [[p(label, "tablehead") for label in labels]]
     numeric_widths = [43.0, 68.0, 45.0, 54.0, 82.0]

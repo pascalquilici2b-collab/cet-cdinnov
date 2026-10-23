@@ -319,3 +319,24 @@ select.bill-status-filter{background:var(--bill-surface,#fff);color:var(--bill-i
 /* Leave the portal's persistent header visible above document controls. */
 .bill-preview-shell,.bill-pdf-viewer,.bill-preview{top:110px}
 @media(min-width:821px){.bill-paper-scroll{max-height:calc(100dvh - 235px);overflow:auto;overscroll-behavior:contain}.bill-pdf-viewport{max-height:calc(100dvh - 235px)}}
+.bill-line-actions{display:flex;align-items:center;gap:4px;margin-left:auto}
+.bill-line-actions .bill-icon-button{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:8px}
+.bill-document-description{margin:0 0 18px;padding:0 0 14px;border-top:0;border-bottom:1px solid var(--bill-line)}
+.bill-document-description>.bill-field{margin-top:12px}
+.bill-document-description .bill-optional{font-size:10px;font-weight:400;color:var(--bill-muted);margin-left:auto}
+.bill-app .bill-paper-description{margin:0 0 16px;white-space:pre-wrap;line-height:1.65;color:inherit}
+.bill-project-logo-wide{grid-column:1/-1}
+.bill-project-logo-field{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+.bill-project-avatar{width:38px;height:38px;flex:0 0 38px;display:inline-flex;align-items:center;justify-content:center;border-radius:10px;background:var(--bill-bg);color:var(--bill-muted);overflow:hidden}
+.bill-project-avatar img{width:100%;height:100%;object-fit:contain;padding:3px;background:#fff}
+.bill-project-logo-field .bill-project-avatar{width:64px;height:64px;flex-basis:64px;border:1px solid var(--bill-line);border-radius:14px}
+.bill-project-links{display:grid;gap:8px;margin-bottom:10px}
+.bill-project-link{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--bill-line);border-radius:12px;background:var(--bill-bg);color:var(--bill-ink)}
+.bill-project-link>span:first-child{flex:1;min-width:0}
+.bill-project-link strong,.bill-project-link small{display:block;overflow-wrap:anywhere}
+.bill-project-link small{font-size:11px;color:var(--bill-muted)}
+.bill-project-client-links{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:10px}
+.bill-project-client-chip{display:inline-flex;align-items:center;gap:7px;padding:6px 9px;border-radius:9px;background:var(--bill-bg);color:var(--bill-ink);border:1px solid var(--bill-line);font-size:11px}
+.bill-project-client-chip button{display:inline-flex;padding:2px;border:0;background:transparent;color:inherit;border-radius:5px}
+.cdi-select-trigger .bill-project-avatar,.cdi-select-option .bill-project-avatar{width:30px;height:30px;flex-basis:30px}
+@media(max-width:560px){.bill-project-link{flex-wrap:wrap}.bill-project-link>span:first-child{flex-basis:calc(100% - 36px)}.bill-project-link .cdi-activity{margin-right:auto}}
