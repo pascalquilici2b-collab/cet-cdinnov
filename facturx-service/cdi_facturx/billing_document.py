@@ -130,11 +130,19 @@ class DraftIntervention(StrictModel):
 class DraftDetails(StrictModel):
     marketObject: text(500)
     period: Literal['', 'S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8']
+    periods: Annotated[list[Literal['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8']], Field(max_length=8)] = Field(default_factory=list)
     personInCharge: text(300)
     fundingProgramme: text(160)
     validityMonths: text(3)
     returnEmail: text(300)
     interventions: Annotated[list[DraftIntervention], Field(max_length=200)]
+
+    @model_serializer(mode='wrap')
+    def preserve_legacy_period(self, handler):
+        result = handler(self)
+        if 'periods' not in self.model_fields_set:
+            result.pop('periods', None)
+        return result
 
 
 class DraftDocument(StrictModel):
