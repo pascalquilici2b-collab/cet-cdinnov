@@ -579,6 +579,10 @@ body:has(.agenda-shell) .topbar{flex-wrap:wrap;row-gap:12px}
       Congés et déplacements
     </div>
     <div class="nav-label applications-label">Applications</div>
+    <div class="nav-item cdi-application app-stamping" data-view="tamponnage" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();setView('tamponnage');toggleSidebar(false)}">
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M5 17h14v4H5zM8 17v-3c0-2 2-3 2-5V5a2 2 0 0 1 4 0v4c0 2 2 3 2 5v3M3 21h18"/></svg>
+      <span class="cdi-nav-name">Tamponnage des pièces</span><span class="cdi-beta">Bêta</span>
+    </div>
     <div class="nav-item cdi-application app-billing" data-view="facturier" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();setView('facturier');toggleSidebar(false)}">
       <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14l-3-2-3 2-3-2-4 2V3Z"/><path d="M14 3v5h5M9 12h7M9 16h4"/></svg>
       <span class="cdi-nav-name">Logiciel de facturation</span><span class="cdi-beta">Bêta</span>
@@ -956,6 +960,7 @@ function availableYears(){
 /* Symbole CDInnov du 21 septembre 2026 : SVG intégré, PNG pour les exports PDF. */
 
 const VIEW_META = {
+  tamponnage:{title:'Tamponnage des pièces',sub:'Bulletins, factures et imputations par projet',action:null},
   marches:{title:'Logiciel de facturation',sub:'Marchés et contrats · prix, plafonds et périodes',action:null},
   agenda:{title:'Agenda',sub:'Déplacements et congés de l’équipe',action:'Nouveau déplacement',actFn:()=>openAgendaTrip()},
   budgetsprojets:{title:'Outil budgets',sub:'',action:null},
@@ -994,7 +999,7 @@ function setView(v,billingSection='modern'){
   if(v!=='marches')marchesUnmount();
   if(v==='conges')v='agenda';
   if(typeof budgetsDirty!=='undefined'&&currentView==='budgetsprojets'&&v!==currentView&&!budgetsLeave())return;
-  document.querySelector('.year-pick').style.display=['dashboard','budgetsprojets','marches','facturier'].includes(v)?'none':'';
+  document.querySelector('.year-pick').style.display=['dashboard','budgetsprojets','marches','facturier','tamponnage'].includes(v)?'none':'';
   if(v!=='agenda'){clearInterval(agendaTimer);agendaTimer=null;}
   if(v==='facturier'){billingMode=nextBillingMode;if(nextBillingMode==='legacy')factTab=billingSection;}
   currentView=v;document.body.dataset.view=v;
@@ -1022,6 +1027,7 @@ $('#yearSelect').addEventListener('change', e=>{ currentYear=Number(e.target.val
 
 /* ---------- render dispatch ---------- */
 function render(){
+  if(currentView!=='tamponnage')stampingForget();
   if(currentView!=='agenda')agendaReactForget();
   if(currentView!=='dashboard')dashboardForget();
   if(!['facturier','notesfrais'].includes(currentView))financeForget();
@@ -1041,6 +1047,7 @@ function render(){
   else if(currentView==='marches') renderMarches();
   else if(currentView==='facturier') renderFacturier();
   else if(currentView==='budgetsprojets') renderBudgetsProjets();
+  else if(currentView==='tamponnage') renderStamping();
   else if(currentView==='parametres') renderParametres();
   injectStorageWarning();
 }
@@ -2800,6 +2807,7 @@ function unlockApp(email){
   const salNav=document.querySelector('.nav-item[data-view="salaries"]'); if(salNav) salNav.style.display = isAdmin(AUTH_USER)?'':'none';
   const parNav=document.querySelector('.nav-item[data-view="parametres"]'); if(parNav) parNav.style.display = isAdmin(AUTH_USER)?'':'none';
   const facNav=document.querySelector('.nav-item[data-view="facturier"]'); if(facNav) facNav.style.display = isAdmin(AUTH_USER)?'':'none';
+  const stampNav=document.querySelector('.nav-item[data-view="tamponnage"]'); if(stampNav) stampNav.style.display=isAdmin(AUTH_USER)?'':'none';
   if(!isAdmin(AUTH_USER) && currentView==='facturier') currentView='dashboard';
   const regLbl=document.getElementById('navLabelReglages'); if(regLbl) regLbl.style.display = isAdmin(AUTH_USER)?'':'none';
   document.body.classList.add('authed');
@@ -2821,7 +2829,7 @@ async function authLogout(){
   const oldSession=budgetsCurrentSession();
   if(cloudEnabled()&&oldSession)try{await fetch(CLOUD_ENDPOINT.replace(/\/$/,'')+'/api/v1/session',{method:'DELETE',headers:{Authorization:'Bearer '+oldSession.token},signal:AbortSignal.timeout(10000)});}catch{}
   toggleSidebar(false);
-  dashboardForget();financeForget();billingForget();personnelForget();closeModal();nfDraft=null;
+  dashboardForget();financeForget();billingForget();stampingForget();personnelForget();closeModal();nfDraft=null;
   marchesForget();
   agendaForget();
   budgetsForget();
@@ -5736,7 +5744,7 @@ window.addEventListener('storage',event=>{
   let email;try{email=JSON.parse(event.newValue)?.email;}catch{}
   if(email===AUTH_USER)return;
   if(portalClean&&JSON.stringify(state)!==portalClean)portalRemember();
-  dashboardForget();financeForget();billingForget();personnelForget();closeModal();nfDraft=null;marchesForget();agendaForget();budgetsForget();facturxForgetAuth();
+  dashboardForget();financeForget();billingForget();stampingForget();personnelForget();closeModal();nfDraft=null;marchesForget();agendaForget();budgetsForget();facturxForgetAuth();
   AUTH_USER=null;movAccess=null;salariesUnlocked=false;portalClear();document.body.classList.remove('authed');renderUserChip();authBack();
 });
 function load(){return freshState();}
@@ -5772,7 +5780,7 @@ async function cloudLoad(options={}){
     await portalLoadPhotos();if(AUTH_USER!==user||portalEpoch!==epoch)return false;
     setSync('ok','Synchronisé');
     if(document.body.classList.contains('authed')&&wasAdmin!==isAdmin(user)){
-      dashboardForget();financeForget();billingForget();personnelForget();marchesForget();agendaForget();budgetsForget();facturxForgetAuth();closeModal();nfDraft=null;
+      dashboardForget();financeForget();billingForget();stampingForget();personnelForget();marchesForget();agendaForget();budgetsForget();facturxForgetAuth();closeModal();nfDraft=null;
       currentView='dashboard';unlockApp(user);
     }else render();
     return true;
@@ -6014,6 +6022,18 @@ function billingFacturxGuardScript(record){
     },true);
   };
   return '<script>'+facturxMatchesRecord.toString()+'\n'+billingFacturxMatchesSnapshot.toString()+'\n('+attach.toString()+')('+JSON.stringify(bound).replace(/</g,'\\u003c')+');<\/script>';
+}
+
+let stampingMounted=null,stampingEpoch=0;
+function stampingForget(){stampingEpoch++;stampingMounted?.dispose();stampingMounted=null;}
+function renderStamping(){
+ if(stampingMounted&&document.getElementById('stampingRoot'))return;
+ stampingForget();const epoch=++stampingEpoch,user=AUTH_USER;
+ if(!user||!isAdmin(user)){$('#content').innerHTML='<div class="card card-pad">Le tamponnage est réservé à la direction.</div>';return;}
+ if(!document.getElementById('stampingStyle')){const css=document.createElement('link');css.id='stampingStyle';css.rel='stylesheet';css.href='platform/stamping.css?v=stamping-20261023-2';document.head.append(css);}
+ $('#content').innerHTML='<div id="stampingRoot">'+loadingMarkup('Chargement du tamponnage…')+'</div>';
+ const element=document.getElementById('stampingRoot'),active=()=>epoch===stampingEpoch&&AUTH_USER===user&&currentView==='tamponnage'&&element.isConnected;
+ import('./platform/stamping.js?v=stamping-20261023-2').then(module=>{if(active())stampingMounted=module.mountStamping(element,{baseUrl:budgetsApi().replace(/\/budgets\/?$/,''),getToken:async()=>(await budgetsEnsureSession()).token,isActive:active});}).catch(()=>{if(active())element.innerHTML='<div role="alert">Chargement impossible. Revenez dans le module pour réessayer.</div>';});
 }
 
 setView('dashboard');

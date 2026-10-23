@@ -9,9 +9,12 @@ import {createHash} from 'node:crypto';
 import {workspaceRecords,workspacePut} from './workspace-records';
 import {billingRoute} from './billing';
 import {projectsRoute} from './projects';
+import {stampingRoute,stampingQueue,purgeStamping} from './stamping';
 
 /** One deployable entry; modern and compatibility routes share the typed identity module. */
 export default {
+  queue: stampingQueue,
+  async scheduled(_event:unknown,env:Environment){await purgeStamping(env);},
   async fetch(request: Request, env: Environment, ctx?: unknown): Promise<Response> {
     const path = new URL(request.url).pathname;
     let headers = new Headers({'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});
@@ -20,6 +23,7 @@ export default {
       headers = responseHeaders(request,env);
       if(request.method==='OPTIONS') return new Response(null,{status:204,headers});
       env=portalEnvironment(env);
+      if(path.startsWith('/api/v1/stamping/'))return await stampingRoute(request,env,reply);
       if(path==='/api/v1/projects')return await projectsRoute(request,env,reply);
       if(path==='/api/v1/billing'||path.startsWith('/api/v1/billing/'))return await billingRoute(request,env,reply);
       if(path==='/api/v1/portal'||path.startsWith('/api/v1/portal/'))return await portalRoute(request,env,reply);
