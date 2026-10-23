@@ -103,7 +103,7 @@ async function context(db:Database,env:Environment):Promise<BillingContext> {
  const parsedMarkets=markets.results.map(r=>({...r,market:JSON.parse(r.payload)}));
  const projectOwners=parsedMarkets.map(r=>({id:r.id,projects:r.market.projects||[]}));
  const engagements=await linkedEngagements(db);
- const marketProjects=(id:string)=>projectsForMarket(id,projectOwners).map(p=>({...p,orders:[...p.orders,...engagements.filter(e=>e.kind==='order'&&e.marketId===id&&e.projectId===p.id&&!p.orders.some(o=>o.id===e.orderId)).map(e=>({id:e.orderId,reference:e.reference,date:e.date,amountMinor:e.amountMinor,documentId:'',notes:'',archived:false}))]}));
+ const marketProjects=(id:string)=>projectsForMarket(id,projectOwners).map(p=>{const orders=[...p.orders,...(parsedMarkets.find(m=>m.id===id)?.market.orders||[])];return {...p,orders:[...orders,...engagements.filter(e=>e.kind==='order'&&e.marketId===id&&e.projectId===p.id&&!orders.some(o=>o.id===e.orderId)).map(e=>({id:e.orderId,reference:e.reference,date:e.date,amountMinor:e.amountMinor,documentId:'',notes:'',archived:false}))]};});
  return {
   documentService:{configured:documentServiceConfigured(env)},
   people:people.results.map(r=>JSON.parse(r.data_json)).map(p=>({id:text(p.matricule),name:[text(p.prenom),text(p.nom)].filter(Boolean).join(' '),photo:text(p.photo)})).filter(p=>p.id&&p.name),
@@ -124,7 +124,7 @@ async function checkProjectLinks(db:Database,draft:BillingDraft){
   if(shared){const data=JSON.parse(shared.data_json);if(projectMarketIds(shared.market_id,data).includes(r.marketId))project={...data,orders:[]};}
  }
  if(!project)return fail(422,'Ce projet ne fait pas partie du marché sélectionné.');
- if(r.orderId&&!project.orders?.some((o:{id:string})=>o.id===r.orderId)&&!(await linkedEngagements(db,r.marketId)).some(e=>e.kind==='order'&&e.projectId===r.projectId&&e.orderId===r.orderId))return fail(422,'Ce bon de commande ne fait pas partie du projet sélectionné.');
+ if(r.orderId&&!project.orders?.some((o:{id:string})=>o.id===r.orderId)&&!JSON.parse(market!.payload).orders?.some((o:{id:string})=>o.id===r.orderId)&&!(await linkedEngagements(db,r.marketId)).some(e=>e.kind==='order'&&e.projectId===r.projectId&&e.orderId===r.orderId))return fail(422,'Ce bon de commande ne fait pas partie du projet sélectionné.');
 }
 function pageParameter(params:URLSearchParams,name:string,fallback:number,max:number,min=0) {
  const value=params.get(name);if(value===null)return fallback;

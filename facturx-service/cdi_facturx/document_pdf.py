@@ -339,7 +339,7 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
     pdf.addPageTemplates(PageTemplate(id="commercial", frames=[frame], onPage=page_frame))
     story: list[Any] = []
 
-    if _text(document.get("title")):
+    if document['kind'] == 'quote' and _text(document.get("title")):
         story.append(p(document["title"], "title", 'title'))
     meta = [("Numéro du document", reference), ("Date du document", _date(document.get("issueDate")))]
     if credit:

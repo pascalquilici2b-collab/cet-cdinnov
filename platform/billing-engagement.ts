@@ -27,7 +27,7 @@ export async function engagementRoute(request:Request,db:Database,env:Environmen
  const markets=(await db.prepare('SELECT id,payload FROM markets').all<{id:string;payload:string}>()).results.map(m=>({id:m.id,...JSON.parse(m.payload)})),market=markets.find(m=>m.id===marketId);
  const project=market?projectsForMarket(marketId,markets).find(p=>p.id===projectId):null;
  if(marketId&&!market||projectId&&!project)return fail(422,'Le projet doit appartenir au marché sélectionné.');
- const order=kind==='order'?project?.orders.find(o=>o.reference.trim().toLocaleLowerCase('fr')===reference.toLocaleLowerCase('fr')):null;
+ const order=kind==='order'?[...(project?.orders||[]),...(market?.orders||[])].find(o=>o.reference.trim().toLocaleLowerCase('fr')===reference.toLocaleLowerCase('fr')):null;
  const metadata={reference,date,amountMinor,marketId,marketReference:market?.reference||'',projectId,project:project?.name||(!refs.projectId?refs.project:''),client:record.data.buyer.name,orderId:kind==='order'?(order?.id||'engagement:'+record.id):''};
  let filename='';try{filename=decodeURIComponent(request.headers.get('x-filename')||'');}catch{}
  if(!filename.trim()||filename.length>200||/[\x00-\x1f\x7f/\\]/.test(filename))return fail(400,'Nom de fichier invalide.');

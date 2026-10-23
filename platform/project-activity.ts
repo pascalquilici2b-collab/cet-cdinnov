@@ -7,10 +7,10 @@ export function projectActivity(p:ProjectDates,today=activityToday()):Activity{
  if(!startDate||!endDate)return {state:'unknown',startDate,endDate,reason:'Renseignez les dates de début et de fin du projet.'};
  return {state:startDate<=today&&today<=endDate?'active':'inactive',startDate,endDate,reason:today<startDate?'Le projet n’a pas encore démarré.':today>endDate?'La date de fin du projet est dépassée.':'Projet en cours'};
 }
-type MarketDates={linkedEngagements?:{kind:string;date:string;reference:string}[];status?:string;startBasis?:string;startDate?:string;notificationDate?:string;initialDurationMonths?:number|null;periods?:{status:string;startDate:string;endDate:string}[];projects?:{orders?:{date:string;reference?:string}[]}[]};
+type MarketDates={orders?:{date:string;reference?:string}[];linkedEngagements?:{kind:string;date:string;reference:string}[];status?:string;startBasis?:string;startDate?:string;notificationDate?:string;initialDurationMonths?:number|null;periods?:{status:string;startDate:string;endDate:string}[];projects?:{orders?:{date:string;reference?:string}[]}[]};
 export function marketActivity(m:MarketDates,today=activityToday()):Activity{
  if(m.status==='archived')return {state:'inactive',startDate:'',endDate:'',reason:'Marché archivé'};
- const startDate=m.startBasis==='notification'?m.notificationDate||'':m.startBasis==='first_order'?[...(m.projects||[]).flatMap(p=>p.orders||[]),...(m.linkedEngagements||[]).filter(e=>e.kind==='order')].filter(o=>o.date&&o.reference).map(o=>o.date).sort()[0]||'':m.startDate||'';
+ const startDate=m.startBasis==='notification'?m.notificationDate||'':m.startBasis==='first_order'?[...(m.orders||[]),...(m.projects||[]).flatMap(p=>p.orders||[]),...(m.linkedEngagements||[]).filter(e=>e.kind==='order')].filter(o=>o.date&&o.reference).map(o=>o.date).sort()[0]||'':m.startDate||'';
  let endDate='';
  if(startDate&&m.initialDurationMonths){const [y,month,day]=startDate.split('-').map(Number),target=new Date(Date.UTC(y,month-1+m.initialDurationMonths,1)),last=new Date(Date.UTC(target.getUTCFullYear(),target.getUTCMonth()+1,0)).getUTCDate();target.setUTCDate(Math.min(day,last));target.setUTCDate(target.getUTCDate()-1);endDate=target.toISOString().slice(0,10);}
  const periods=(m.periods||[]).filter(p=>p.status==='validated'&&p.startDate&&p.endDate);

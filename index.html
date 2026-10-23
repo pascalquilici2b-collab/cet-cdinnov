@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <style id="cdi-startup-guard">body:not(.authed)>.app{visibility:hidden}.theme-toggle>svg{width:18px;height:18px;fill:none;stroke:currentColor}.theme-toggle .theme-sun{display:none}[data-theme="dark"] .theme-toggle .theme-moon{display:none}[data-theme="dark"] .theme-toggle .theme-sun{display:block}</style>
-<link rel="stylesheet" href="/platform/loading.css?v=engagement-support-20261023">
+<link rel="stylesheet" href="/platform/loading.css?v=orders-report-20261024">
 <script src="./platform/theme.js?v=apple-motion-20261020"></script>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -697,10 +697,10 @@ body.authed .auth-gate{display:none}
 </style>
 <link rel="stylesheet" href="platform/design-system.css">
 <link rel="stylesheet" href="design/portal.css?v=apple1">
-<link rel="stylesheet" href="design/apple.css?v=engagement-support-20261023">
-<link rel="stylesheet" href="design/interface-refresh.css?v=engagement-support-20261023">
-<link rel="stylesheet" href="design/interactions.css?v=engagement-support-20261023">
-<script src="platform/icons.js?v=engagement-support-20261023"></script>
+<link rel="stylesheet" href="design/apple.css?v=orders-report-20261024">
+<link rel="stylesheet" href="design/interface-refresh.css?v=orders-report-20261024">
+<link rel="stylesheet" href="design/interactions.css?v=orders-report-20261024">
+<script src="platform/icons.js?v=orders-report-20261024"></script>
 
 <div id="authGate" class="auth-gate" data-loading="true" aria-busy="true">
   <span class="auth-startup-status cdi-loading-sr" role="status">Connexion en cours…</span>
@@ -1072,8 +1072,8 @@ function renderDashboard(){
   const user=AUTH_USER,epoch=++dashboardEpoch;
   $('#content').innerHTML='<div id="dashboardRoot">'+loadingScreenMarkup('Chargement du tableau de bord…')+'</div>';
   const element=$('#dashboardRoot');
-  if(!document.getElementById('dashboardStyle')){const css=document.createElement('link');css.id='dashboardStyle';css.rel='stylesheet';css.href='platform/dashboard.css?v=engagement-support-20261023';document.head.append(css);}
-  dashboardModule ||= import('./platform/dashboard.js?v=engagement-support-20261023').catch(error=>{dashboardModule=null;throw error;});
+  if(!document.getElementById('dashboardStyle')){const css=document.createElement('link');css.id='dashboardStyle';css.rel='stylesheet';css.href='platform/dashboard.css?v=orders-report-20261024';document.head.append(css);}
+  dashboardModule ||= import('./platform/dashboard.js?v=orders-report-20261024').catch(error=>{dashboardModule=null;throw error;});
   dashboardModule.then(module=>{
     if(epoch!==dashboardEpoch||AUTH_USER!==user||currentView!=='dashboard'||!element.isConnected)return;
     dashboardDispose=module.mountDashboard(element,{
@@ -2209,7 +2209,7 @@ async function exportNoteFraisPDF(id,preview=false){
     const filename='Note_de_frais_N'+(n.numero||'')+'_'+(s.nom||'').replace(/\s+/g,'')+'.pdf';
     if(AUTH_USER!==user||!financeExpenseAllowed(n)||preview&&!id&&nfDraft!==initialDraft)return;
     if(preview){
-      const blob=doc.output('blob'),module=await financeModule();if(AUTH_USER!==user||!financeExpenseAllowed(n))return;if(!document.getElementById('billingStyle')){const css=document.createElement('link');css.id='billingStyle';css.rel='stylesheet';css.href='platform/billing.css?v=engagement-support-20261023';document.head.append(css);}
+      const blob=doc.output('blob'),module=await financeModule();if(AUTH_USER!==user||!financeExpenseAllowed(n))return;if(!document.getElementById('billingStyle')){const css=document.createElement('link');css.id='billingStyle';css.rel='stylesheet';css.href='platform/billing.css?v=orders-report-20261024';document.head.append(css);}
       modal('<div class="modal-head"><h3>Aperçu — Note de frais N°'+esc(n.numero)+'</h3><div class="grow"></div><button type="button" class="btn btn-ghost" id="nfPreviewDownload">Télécharger PDF</button><button type="button" class="btn btn-ghost" id="nfPreviewClose">'+(id?'Fermer':'Retour')+'</button></div><div class="modal-body bill-app"><div id="nfPreviewRoot"></div></div>',true);
       financeEditorDispose=module.mountExpensePreview($('#nfPreviewRoot'),blob);$('#nfPreviewDownload').onclick=()=>doc.save(filename);$('#nfPreviewClose').onclick=()=>id?closeModal():renderNoteEditor();
     }else{doc.save(filename);toast('PDF généré');}
@@ -2434,8 +2434,8 @@ let financeModulePromise=null,financeMounted=null,financeEpoch=0,financeView=nul
 let financeEditorDispose=null,financeEditorEpoch=0,financeClientStatus='',financeClientError=false;
 let nfPage=1,nfPer=20;
 function financeModule(){
-  if(!$('#financeStyle')){const link=document.createElement('link');link.id='financeStyle';link.rel='stylesheet';link.href='platform/finance.css?v=engagement-support-20261023';document.head.append(link);}
-  return financeModulePromise ||= import('./platform/finance.js?v=engagement-support-20261023').catch(error=>{financeModulePromise=null;throw error;});
+  if(!$('#financeStyle')){const link=document.createElement('link');link.id='financeStyle';link.rel='stylesheet';link.href='platform/finance.css?v=orders-report-20261024';document.head.append(link);}
+  return financeModulePromise ||= import('./platform/finance.js?v=orders-report-20261024').catch(error=>{financeModulePromise=null;throw error;});
 }
 function financeForget(){financeEpoch++;financeMounted?.dispose();financeMounted=null;financeView=null;$('#financeRoot')?.remove();}
 function financeEditorForget(){financeEditorEpoch++;if(financeEditorDispose){financeEditorDispose();financeEditorDispose=null;}}
@@ -2494,7 +2494,7 @@ async function financeOpenEditor(kind,record,existing){
 
 /* React personnel screens. Existing CET calculations, imports and storage remain authoritative. */
 let personnelPromise=null,personnelMounted=null,personnelEpoch=0,personnelView=null,personnelEditorDispose=null,personnelEditorEpoch=0;
-function personnelModule(){return personnelPromise||=import('./platform/personnel.js?v=engagement-support-20261023').catch(error=>{personnelPromise=null;throw error;});}
+function personnelModule(){return personnelPromise||=import('./platform/personnel.js?v=orders-report-20261024').catch(error=>{personnelPromise=null;throw error;});}
 function personnelStyle(){if(!$('#personnelStyle')){const css=document.createElement('link');css.id='personnelStyle';css.rel='stylesheet';css.href='platform/personnel.css';document.head.append(css);}}
 function personnelEditorForget(){personnelEditorEpoch++;if(personnelEditorDispose){personnelEditorDispose();personnelEditorDispose=null;}}
 function personnelForget(){personnelEpoch++;if(personnelMounted){personnelMounted.dispose();personnelMounted=null;}personnelView=null;$('#personnelRoot')?.remove();}
@@ -3427,7 +3427,7 @@ const agendaState={trips:[],leaves:null,members:[],loaded:false,loading:false,er
 let agendaTimer=null,agendaConfirmationTimer=null,agendaEditing=null,agendaFocus=null;
 let agendaPickers={},agendaSharedProjects=[];
 let agendaModeExplicit=false,agendaPromise=null,agendaMounted=null,agendaRenderEpoch=0,agendaEditorDispose=null,agendaEditorEpoch=0;
-function agendaModule(){return agendaPromise||=import('./platform/agenda.js?v=engagement-support-20261023').catch(error=>{agendaPromise=null;throw error;});}
+function agendaModule(){return agendaPromise||=import('./platform/agenda.js?v=orders-report-20261024').catch(error=>{agendaPromise=null;throw error;});}
 function agendaStyleSheet(){if(!$('#agendaReactStyle')){const link=document.createElement('link');link.id='agendaReactStyle';link.rel='stylesheet';link.href='platform/agenda.css';document.head.append(link);}}
 function agendaReactForget(){agendaRenderEpoch++;if(agendaMounted){agendaMounted.dispose();agendaMounted=null;}$('#agendaRoot')?.remove();}
 function agendaEditorForget(){agendaEditorEpoch++;if(agendaEditorDispose){agendaEditorDispose();agendaEditorDispose=null;}agendaPickers={};}
@@ -3918,6 +3918,7 @@ function agendaNotificationHTML(t){
       const refs = /* @__PURE__ */ new Set();
       project.orders = p.orders.map((o) => {
         const order = { id: id(o?.id, orderIds), reference: text(o.reference, "R\xE9f\xE9rence du bon de commande", 120, true), date: date(o.date, "Date de commande"), amountMinor: amount(o.amountMinor ?? null, "Montant du bon de commande"), documentId: text(o.documentId, "Pi\xE8ce du bon de commande", 80), notes: text(o.notes, "Notes de la commande", 1500), archived: o.archived === true };
+        if (o.historyPending !== void 0) order.historyPending = o.historyPending === true;
         if (refs.has(key(order.reference))) throw new Error("Deux bons de commande portent la m\xEAme r\xE9f\xE9rence dans ce projet.");
         refs.add(key(order.reference));
         if (order.documentId && !documentIds.has(order.documentId)) throw new Error("La pi\xE8ce du bon de commande ne fait pas partie de ce march\xE9.");
@@ -4002,6 +4003,11 @@ function agendaNotificationHTML(t){
     if (!Array.isArray(conditions) || conditions.length > 150 || new Set(conditions.map((v) => v?.id)).size !== conditions.length) throw new Error("Liste de conditions invalide.");
     m.conditions = conditions.map((v) => ({ ...common(v, ids, false), category: choice(v.category, Object.keys(CONDITIONS), "Condition"), label: text(v.label, "Intitul\xE9 de condition", 240, true), value: text(v.value, "Condition contractuelle", 4e3, true) }));
     if (Object.hasOwn(input, "projects")) m.projects = validateProjects(input.projects, ids);
+    if (Object.hasOwn(input, "orders")) {
+      m.orders = validateProjects([{ id: "global", name: "Engagement global", orders: input.orders }], ids)[0].orders;
+      const projectOrderIds = new Set((m.projects || []).flatMap((p) => p.orders.map((o) => o.id)));
+      if (m.orders.some((o) => projectOrderIds.has(o.id))) throw new Error("Un engagement global ne doit pas \xEAtre dupliqu\xE9 dans un projet.");
+    }
     if (m.status === "validated") {
       const blockers = activationBlockers(m);
       if (blockers.length) throw new Error("Param\xE9trage non validable : " + blockers.join(" ; "));
@@ -5158,7 +5164,7 @@ function agendaNotificationHTML(t){
     try {
       const expanded = await expandImportFiles(files, progress);
       warnings.push(...expanded.warnings);
-      const { readDocument } = await import("./marches/reader.mjs?v=engagement-support-20261023");
+      const { readDocument } = await import("./marches/reader.mjs?v=orders-report-20261024");
       for (const file of expanded.files) {
         if (s.stop || epoch !== s.epoch) break;
         progress("Lecture : " + file.name);
@@ -5549,7 +5555,7 @@ function agendaNotificationHTML(t){
         throw new Error(
           "Le moteur IA n\u2019est pas encore activ\xE9 sur le serveur. Vous pouvez continuer le param\xE9trage manuel."
         );
-      const { readDocument } = await import("./marches/reader.mjs?v=engagement-support-20261023");
+      const { readDocument } = await import("./marches/reader.mjs?v=orders-report-20261024");
       for (const did of selected) {
         if (s.stop) break;
         const d = s.docs.find((d2) => d2.id === did);
@@ -5697,10 +5703,10 @@ function agendaNotificationHTML(t){
         const link = document.createElement("link");
         link.id = "marketStyle";
         link.rel = "stylesheet";
-        link.href = "platform/markets.css?v=engagement-support-20261023";
+        link.href = "platform/markets.css?v=orders-report-20261024";
         document.head.append(link);
       }
-      marketPromise = import("./platform/markets.js?v=engagement-support-20261023").then((module) => {
+      marketPromise = import("./platform/markets.js?v=orders-report-20261024").then((module) => {
         marketModule = module;
         marketPromise = null;
         if (currentView === "marches" && allowed()) render();
@@ -5961,8 +5967,8 @@ let billingMode='modern',billingModulePromise=null,billingMounted=null,billingTr
 function billingLockForLogout(){billingLogoutPending=true;$('#content').inert=true;}
 function billingUnlockLogout(){billingLogoutPending=false;$('#content').inert=false;}
 function billingModule(){
-  if(!$('#billingStyle')){const link=document.createElement('link');link.id='billingStyle';link.rel='stylesheet';link.href='platform/billing.css?v=engagement-support-20261023';document.head.append(link);}
-  return billingModulePromise ||= import('./platform/billing.js?v=engagement-support-20261023').catch(error=>{billingModulePromise=null;throw error;});
+  if(!$('#billingStyle')){const link=document.createElement('link');link.id='billingStyle';link.rel='stylesheet';link.href='platform/billing.css?v=orders-report-20261024';document.head.append(link);}
+  return billingModulePromise ||= import('./platform/billing.js?v=orders-report-20261024').catch(error=>{billingModulePromise=null;throw error;});
 }
 function billingLeave(){return billingMounted?.canLeave?.()!==false;}
 function billingForget(){

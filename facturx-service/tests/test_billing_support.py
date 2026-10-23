@@ -28,6 +28,7 @@ def test_report_is_standalone_contains_invoice_context_and_certification():
     pdf = render_document(data, totals, number='FAC-2610065', issued=True)
     text = extract(pdf)
     assert 'Relevé' not in text
+    assert data['title'] not in text
     assert 'Mode de règlement' in text
     report = render_intervention_report(data, 'FAC-2610065', '2026-10-23')
     text = extract(report)
@@ -35,6 +36,31 @@ def test_report_is_standalone_contains_invoice_context_and_certification():
     assert '23/10/2026' in text and data['title'] in text and 'Semestres 1 et 3' in text
     assert 'Certifie que les prestations décrites ci-dessus' in text
     assert 'FACTURE' not in text and 'IBAN' not in text
+
+
+def test_report_compact_font_keeps_six_detailed_rows_on_one_page():
+    data, _ = fixture('invoice')
+    data['details'] = {'periods':['S1','S2','S3','S4'], 'interventions':[
+        {'label':f'PRESTATION-{i} — Gestion administrative et animation du projet',
+         'description':f'TRAVAIL-{i} : '+('Coordination des partenaires, vérification des pièces et préparation du rapport. '*5), 'days':'4.5'}
+        for i in range(6)]}
+    report=render_intervention_report(data,'FAC-TEST','2026-10-24')
+    with fitz.open(stream=report,filetype='pdf') as pages:
+        assert len(pages)==1
+        spans=[s for b in pages[0].get_text('dict')['blocks'] if 'lines' in b for l in b['lines'] for s in l['spans']]
+        assert all(s['size']==6 for s in spans if 'PRESTATION-' in s['text'] or 'TRAVAIL-' in s['text'])
+    assert 'TRAVAIL-5' in extract(report)
+
+
+def test_report_overflow_remains_paginated_without_losing_interventions():
+    data,_=fixture('invoice')
+    data['details']={'interventions':[{'label':f'MISSION-{i}', 'description':'Travail détaillé. '*70,'days':'2'} for i in range(30)]}
+    report=render_intervention_report(data,'FAC-LONG','2026-10-24')
+    with fitz.open(stream=report,filetype='pdf') as pages:
+        assert len(pages)>1
+    text=extract(report)
+    assert all(f'MISSION-{i}' in text for i in range(30))
+    assert 'Certifie que les prestations' in text
 
 
 def test_no_discount_means_no_discount_label():

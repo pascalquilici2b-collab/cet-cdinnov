@@ -11,9 +11,10 @@ export function Projects({s,m}:{s:MarketsSnapshot;m:Market}){
  const projects=m.projects||[];
  return <section className="mk-projects">
   <div className="mk-projects-heading"><h3><FolderKanban size={20}/> Projets liés</h3><button type="button" className="mk-primary" data-action="add-project" disabled={s.busy}><Plus size={16}/> Ajouter un projet</button></div>
+  {!!m.orders?.length&&<section className="mk-project mk-global-orders"><h4><FileCheck2 size={18}/> Engagements globaux du marché</h4>{m.orders.map((order,i)=><div className="mk-order" key={order.id}><div className="mk-order-heading"><strong>{order.reference}</strong><span>{money(order.amountMinor)} HT</span></div><div className="mk-form-grid"><label className="mk-field">Référence du bon<input data-path={'orders.'+i+'.reference'} defaultValue={order.reference} maxLength={120}/></label><label className="mk-field">Date<input type="date" data-path={'orders.'+i+'.date'} defaultValue={order.date}/></label><label className="mk-field">Montant global HT (€)<input inputMode="decimal" data-path={'orders.'+i+'.amountMinor'} defaultValue={order.amountMinor==null?'':(order.amountMinor/100).toFixed(2)}/></label><label className="mk-field">Pièce jointe<select data-path={'orders.'+i+'.documentId'} defaultValue={order.documentId}><option value="">Choisir une pièce du marché</option>{s.docs.map(d=><option key={d.id} value={d.id}>{d.name}</option>)}</select></label>{order.historyPending!==undefined&&<label className="mk-field mk-wide"><span><input type="checkbox" data-path={'orders.'+i+'.historyPending'} defaultChecked={order.historyPending}/> Historique des factures à rapprocher</span></label>}</div></div>)}</section>}
   {!projects.length&&<p className="mk-muted">Ajoutez un projet à ce marché, puis ses bons de commande.</p>}
   {projects.map((project,i)=>{
-   const orderCount=new Set([...project.orders.map(o=>o.id),...(m.linkedEngagements||[]).filter(e=>e.kind==='order'&&e.projectId===project.id).map(e=>e.orderId)]).size;
+   const orderCount=new Set([...project.orders.map(o=>o.id),...(m.orders||[]).map(o=>o.id),...(m.linkedEngagements||[]).filter(e=>e.kind==='order'&&e.projectId===project.id).map(e=>e.orderId)]).size;
    const path='projects.'+i,expanded=open===project.id||!project.name||project.orders.some(o=>!o.reference),complete=!s.dirty&&!!project.name&&project.orders.every(o=>!!o.reference);
    return <section key={project.id} className="mk-project" data-archived={project.archived}>
     <div className="mk-project-heading">
@@ -39,6 +40,7 @@ export function Projects({s,m}:{s:MarketsSnapshot;m:Market}){
         <label className="mk-field">Montant HT (€)<input inputMode="decimal" data-path={prefix+'.amountMinor'} defaultValue={order.amountMinor==null?'':(order.amountMinor/100).toFixed(2)}/></label>
         <label className="mk-field">Pièce jointe<select data-path={prefix+'.documentId'} defaultValue={order.documentId}><option value="">Choisir une pièce du marché</option>{s.docs.map(d=><option key={d.id} value={d.id}>{d.name}</option>)}</select></label>
        </div>
+       {order.historyPending!==undefined&&<label className="mk-field"><span><input type="checkbox" data-path={prefix+'.historyPending'} defaultChecked={order.historyPending}/> Historique des factures à rapprocher</span></label>}
        {order.archived&&<small>Archivé</small>}
       </div>;
      })}

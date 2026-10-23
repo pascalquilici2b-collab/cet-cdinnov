@@ -65,7 +65,7 @@ export async function handleMarkets(request,db,email,admin,reply,jsonBody,env={}
     // Older tabs do not know the project tree: omission must never delete it.
     if(input&&typeof input==='object'){
       const previous=JSON.parse(current.payload);
-      for(const key of ['projects','startBasis','startDate','initialDurationMonths','maximumMinor'])
+      for(const key of ['projects','orders','startBasis','startDate','initialDurationMonths','maximumMinor'])
         if(!Object.hasOwn(input,key)&&Object.hasOwn(previous,key))input[key]=previous[key];
       if(Array.isArray(input.projects))for(const project of input.projects){
         const old=previous.projects?.find(p=>p.id===project?.id);

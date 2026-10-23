@@ -88,8 +88,38 @@ test('miscellaneous market information can be validated without citing a source'
  assert.equal(validateMarket(m,[]).periods[0].status,'validated');assert.equal(validateMarket(m,[]).conditions[0].status,'validated');
 });
 
+test('historical order keeps its original source and incomplete-history flag',async()=>{
+ const ctx=await testEnvironment();try{
+  await migrateBilling(ctx.db);const token=(await ctx.login(users[0])).token,{call}=await quoteFixtureTools(ctx,token),marketId=randomUUID(),docId=randomUUID();
+  const pdf=samplePDF(),m=validateMarket({...emptyMarket(),title:'Accord-cadre historique',clientName:'Client fictif',projects:[{id:randomUUID(),name:'Projet historique',code:'',notes:'',orders:[{id:randomUUID(),reference:'BC-ARCHIVE',date:'2024-05-15',amountMinor:747000,documentId:docId,notes:'Semestre 1',historyPending:true}]}]},[{id:docId}]);
+  await ctx.db.prepare('INSERT INTO markets(id,payload,version,updated_at,updated_by) VALUES(?,?,1,?,?)').bind(marketId,JSON.stringify(m),new Date().toISOString(),users[0]).run();
+  await ctx.db.prepare('INSERT INTO market_documents(id,market_id,name,kind,mime,size,sha256,uploaded_at,uploaded_by,extracted_text) VALUES(?,?,?,?,?,?,?,?,?,?)').bind(docId,marketId,'BC.pdf','order','application/pdf',pdf.length,createHash('sha256').update(pdf).digest('hex'),new Date().toISOString(),users[0],'Bon de commande').run();
+  await ctx.db.prepare('INSERT INTO market_document_chunks(document_id,sequence,data) VALUES(?,0,?)').bind(docId,pdf.toString('base64')).run();
+  const r=await call('/engagements');assert.equal(r.status,200);const order=(await r.json()).orders[0];assert.equal(order.historyPending,true);assert.equal(order.amountMinor,747000);assert.deepEqual(order.files,[{marketId,documentId:docId,filename:'BC.pdf'}]);
+  const download=await ctx.call('markets/'+marketId+'/documents/'+docId,{headers:{Authorization:'Bearer '+token}});assert.equal(download.status,200);assert.deepEqual(Buffer.from(await download.arrayBuffer()),pdf);
+ }finally{await ctx.worker.dispose();}
+});
+
 test('linked orders count once and start markets configured on their first order',()=>{
  const e={kind:'order',orderId:'bc-1',reference:'BC-1',date:'2026-10-01',amountMinor:10000},m={...emptyMarket(),startBasis:'first_order',initialDurationMonths:12,linkedEngagements:[e,e]};
  assert.equal(marketTracking(m).orderCount,1);assert.equal(marketTracking(m).orderedMinor,10000);assert.equal(marketActivity(m,'2026-10-24').state,'active');
  m.projects=[{orders:[{id:'bc-1',reference:'BC-1',date:'2026-10-01',amountMinor:10000}]}];assert.equal(marketTracking(m).orderCount,1);
+});
+
+test('one global order is selectable by two projects and aggregates invoices once',async()=>{
+ const ctx=await testEnvironment();try{
+  await migrateBilling(ctx.db);const token=(await ctx.login(users[0])).token,{call,create}=await quoteFixtureTools(ctx,token),marketId=randomUUID(),orderId=randomUUID();
+  const projects=['Projet A','Projet B'].map(name=>({id:randomUUID(),name,orders:[]}));
+  const m=validateMarket({...emptyMarket(),title:'Marché global',clientName:'Client fictif',projects,orders:[{id:orderId,reference:'BC-GLOBAL',date:'2025-07-24',amountMinor:3990000}]});
+  assert.equal(marketTracking(m).orderCount,1);assert.equal(marketTracking(m).orderedMinor,3990000);
+  await ctx.db.prepare('INSERT INTO markets(id,payload,version,updated_at,updated_by) VALUES(?,?,1,?,?)').bind(marketId,JSON.stringify(m),new Date().toISOString(),users[0]).run();
+  const context=await(await call('/context')).json();assert.ok(context.markets[0].projects.every(p=>p.orders.length===1&&p.orders[0].id===orderId));
+  const series={id:randomUUID(),issuerSiren:'732829320',kind:'invoice',prefix:'GLOBAL-',width:4,firstValue:1,startDate:'2020-01-01',endDate:'2099-12-31'};await createNumberSeries(ctx.db,series,users[0]);
+  for(const project of projects){
+   const d={...quoteFixture(),kind:'invoice',validUntil:'',dueDate:'2020-01-31'};d.references={...d.references,marketId,projectId:project.id,project:project.name,orderId,orderReference:'BC-GLOBAL'};const f=await create(d,false);
+   const issue=await reserveIssuance(ctx.db,{id:randomUUID(),documentId:f.id,documentVersion:f.version,seriesId:series.id},users[0]),lease=randomUUID();assert.ok(await claimIssuanceJob(ctx.db,issue.id,lease,users[0]));const bytes=samplePDF(),sha256=createHash('sha256').update(bytes).digest('hex'),artifact={kind:'pdf',key:'billing/'+issue.id+'/pdf/'+sha256,sha256,size:bytes.length,contentType:'application/pdf'};
+   await(await ctx.worker.getR2Bucket('CET_FILES')).put(artifact.key,bytes,{httpMetadata:{contentType:artifact.contentType}});assert.ok(await completeIssuanceJob(ctx.db,issue.id,lease,{schemaVersion:1,envelopeSha256:issue.envelopeSha256,generatorVersion:'test',profile:'invoice-pdf',artifacts:[artifact]},users[0]));
+  }
+  const result=await(await call('/engagements')).json();assert.equal(result.orders.length,1);assert.equal(result.orders[0].amountMinor,3990000);assert.equal(result.orders[0].invoicedMinor,450000);assert.equal(result.orders[0].invoices.length,2);
+ }finally{await ctx.worker.dispose();}
 });

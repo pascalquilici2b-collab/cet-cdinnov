@@ -54,6 +54,7 @@ export function validateProjects(input=[],documentIds=new Set()){
   const refs=new Set();
   project.orders=p.orders.map(o=>{
    const order={id:id(o?.id,orderIds),reference:text(o.reference,'Référence du bon de commande',120,true),date:date(o.date,'Date de commande'),amountMinor:amount(o.amountMinor??null,'Montant du bon de commande'),documentId:text(o.documentId,'Pièce du bon de commande',80),notes:text(o.notes,'Notes de la commande',1500),archived:o.archived===true};
+   if(o.historyPending!==undefined)order.historyPending=o.historyPending===true;
    if(refs.has(key(order.reference)))throw new Error('Deux bons de commande portent la même référence dans ce projet.');
    refs.add(key(order.reference));
    if(order.documentId&&!documentIds.has(order.documentId))throw new Error('La pièce du bon de commande ne fait pas partie de ce marché.');
@@ -134,6 +135,11 @@ export function validateMarket(input,documents=[]) {
   if(!Array.isArray(conditions)||conditions.length>150||new Set(conditions.map(v=>v?.id)).size!==conditions.length)throw new Error('Liste de conditions invalide.');
   m.conditions=conditions.map(v=>({...common(v,ids,false),category:choice(v.category,Object.keys(CONDITIONS),'Condition'),label:text(v.label,'Intitulé de condition',240,true),value:text(v.value,'Condition contractuelle',4000,true)}));
   if(Object.hasOwn(input,'projects'))m.projects=validateProjects(input.projects,ids);
+  if(Object.hasOwn(input,'orders')){
+    m.orders=validateProjects([{id:'global',name:'Engagement global',orders:input.orders}],ids)[0].orders;
+    const projectOrderIds=new Set((m.projects||[]).flatMap(p=>p.orders.map(o=>o.id)));
+    if(m.orders.some(o=>projectOrderIds.has(o.id)))throw new Error('Un engagement global ne doit pas être dupliqué dans un projet.');
+  }
   if(m.status==='validated'){
     const blockers=activationBlockers(m);
     if(blockers.length)throw new Error('Paramétrage non validable : '+blockers.join(' ; '));
@@ -141,7 +147,7 @@ export function validateMarket(input,documents=[]) {
   return m;
 }
 export function marketTracking(m){
- const orders=(m.projects||[]).flatMap(p=>p.orders||[]).filter(o=>o.reference&&o.date);
+ const orders=[...(m.orders||[]),...(m.projects||[]).flatMap(p=>p.orders||[])].filter(o=>o.reference&&o.date);
  for(const e of m.linkedEngagements||[])if(e.kind==='order'&&e.reference&&e.date&&!orders.some(o=>o.id===e.orderId))orders.push({...e,id:e.orderId});
  const orderedMinor=orders.reduce((sum,o)=>sum+(o.amountMinor??0),0);
  const maximumMinor=m.maximumMinor??m.ceilings?.find(c=>c.scope==='contract'&&c.basis==='HT')?.amountMinor??null;

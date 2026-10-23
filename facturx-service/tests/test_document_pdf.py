@@ -86,9 +86,11 @@ class DocumentPDFTests(unittest.TestCase):
         document, totals = fixture()
         pdf = render_document(document, totals, number="FA-2026-00042", issued=True)
         text = re.sub(r"\s+", " ", extract(pdf))
-        for value in ("FACTURE", "FA-2026-00042", "DOCUMENT ÉMIS", "20/10/2026", "19/11/2026", "450,00 €", "90,00 €", "540,00 €", "50,00 €", "Étude & développement <prototype>", "cœur du système", "AFF-2026-0042", "MARCHÉ-2026-15", "BC-000142", "SERVICE-45", "EJ-2026-412", "TVA exigible sur les encaissements", "Virement SEPA", "SIREN : 123456789", "Adresse électronique : 123456789 (0002)", "Indemnité forfaitaire de recouvrement : 40 €.", "Pas d'escompte pour paiement anticipé."):
+        for value in ("FACTURE", "FA-2026-00042", "20/10/2026", "19/11/2026", "450,00 €", "90,00 €", "540,00 €", "50,00 €", "Étude & développement <prototype>", "cœur du système", "AFF-2026-0042", "MARCHÉ-2026-15", "BC-000142", "SERVICE-45", "EJ-2026-412", "TVA exigible sur les encaissements", "Virement SEPA", "SIREN : 123456789", "Adresse électronique : 123456789 (0002)", "Indemnité forfaitaire de recouvrement : 40 €.", "Pas d'escompte pour paiement anticipé."):
             self.assertIn(value, text)
         self.assertNotIn("BROUILLON", text)
+        self.assertNotIn("DOCUMENT ÉMIS", text)
+        self.assertNotIn(document["title"], text)
         self.assertNotIn(document["references"]["marketId"], text)
         self.assert_page_layout(pdf)
         with fitz.open(stream=pdf, filetype="pdf") as opened:
@@ -113,10 +115,11 @@ class DocumentPDFTests(unittest.TestCase):
         for index in range(1, 201):
             if index != 43:
                 self.assertEqual(text.count(f"PRESTATION-{index:03}"), 1)
-        for value in ("LONGUE-DESIGNATION-DEBUT", "LONGUE-DESIGNATION-FIN", "NOTES-DEBUT", "NOTES-FIN", "MENTION-DEBUT", "MENTION-FIN", "24 000,00 €", "Bon pour accord"):
+        for value in ("LONGUE-DESIGNATION-DEBUT", "LONGUE-DESIGNATION-FIN", "NOTES-DEBUT", "NOTES-FIN", "24 000,00 €", "Bon pour accord"):
             self.assertIn(value, text)
         self.assertGreater(self.assert_page_layout(pdf), 10)
         self.assertGreater(text.count("Désignation"), 5)
+        self.assertNotIn("MENTION-DEBUT", text)
 
     def test_many_vat_groups_paginate_without_overflow(self):
         document, totals = many_taxes_fixture()

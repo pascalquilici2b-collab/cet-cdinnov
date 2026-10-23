@@ -20,10 +20,17 @@ def render_intervention_report(document: dict, number: str, report_date: str) ->
     if not rows or len(rows) > 200:
         raise DocumentPDFError('Renseignez les interventions du relevé.')
     styles = _styles()
+    styles['cell'].fontSize = 6
+    styles['cell'].leading = 8.5
+    styles['title'].fontSize = 12
+    styles['title'].leading = 16
+    styles['title'].spaceAfter = 7
+    styles['heading'].spaceBefore = 5
+    styles['heading'].spaceAfter = 4
     p = lambda value, variant='body': Paragraph(_markup(str(value)), styles[variant])
     stream = BytesIO()
     pdf = SimpleDocTemplate(stream, pagesize=A4, leftMargin=_MARGIN, rightMargin=_MARGIN,
-                            topMargin=85, bottomMargin=58, title='Relevé d’intervention — ' + number,
+                            topMargin=78, bottomMargin=50, title='Relevé d’intervention — ' + number,
                             author=_text(document['seller'].get('name')))
 
     def frame(canvas, doc):
@@ -40,7 +47,7 @@ def render_intervention_report(document: dict, number: str, report_date: str) ->
              p('Date du relevé : ' + _date(report_date), 'small'),
              p('Date du document : ' + _date(document.get('issueDate')), 'small')]
     if document.get('title'):
-        story.extend([Spacer(1, 10), p(document['title'], 'heading')])
+        story.extend([Spacer(1, 5), p(document['title'], 'heading')])
     if document.get('buyer', {}).get('name'):
         story.append(p('Client : ' + document['buyer']['name']))
     project = (document.get('references') or {}).get('project')
@@ -60,8 +67,8 @@ def render_intervention_report(document: dict, number: str, report_date: str) ->
     table.setStyle([('BACKGROUND',(0,0),(-1,0),_ACCENT),('VALIGN',(0,0),(-1,-1),'TOP'),
                     ('ROWBACKGROUNDS',(0,1),(-1,-1),[colors.white,colors.HexColor('#f7fafa')]),
                     ('LEFTPADDING',(0,0),(-1,-1),8),('RIGHTPADDING',(0,0),(-1,-1),8),
-                    ('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8),
+                    ('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5),
                     ('LINEBELOW',(0,1),(-1,-1),.35,_RULE)])
-    story.extend([Spacer(1,16),table,KeepTogether([Spacer(1,24),p('Certifie que les prestations décrites ci-dessus ont été intégralement réalisées et exécutées conformément aux besoins exprimés.', 'small')])])
+    story.extend([Spacer(1,10),table,KeepTogether([Spacer(1,14),p('Certifie que les prestations décrites ci-dessus ont été intégralement réalisées et exécutées conformément aux besoins exprimés.', 'small')])])
     pdf.build(story,onFirstPage=frame,onLaterPages=frame,canvasmaker=_DocumentCanvas)
     return stream.getvalue()
