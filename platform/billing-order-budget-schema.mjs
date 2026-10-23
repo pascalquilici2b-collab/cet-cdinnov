@@ -1,0 +1,29 @@
+/** Atomic capacity checks shared by native invoices and imported invoices. Amounts are integer cents HT. */
+export const billingOrderBudgetSchema=[
+`CREATE VIEW IF NOT EXISTS billing_order_limits AS
+ WITH orders AS (
+ SELECT m.id market_id,json_extract(o.value,'$.id') order_id,json_extract(o.value,'$.reference') reference,json_extract(o.value,'$.amountMinor') limit_minor
+ FROM markets m,json_each(m.payload,'$.orders') o
+ UNION ALL SELECT m.id,json_extract(o.value,'$.id'),json_extract(o.value,'$.reference'),json_extract(o.value,'$.amountMinor') FROM markets m,json_each(m.payload,'$.projects') p,json_each(p.value,'$.orders') o
+ UNION ALL SELECT json_extract(metadata_json,'$.marketId'),json_extract(metadata_json,'$.orderId'),json_extract(metadata_json,'$.reference'),json_extract(metadata_json,'$.amountMinor') FROM billing_quote_engagements WHERE kind='order'
+ ) SELECT market_id,order_id,max(reference) reference,min(limit_minor) limit_minor FROM orders WHERE coalesce(order_id,'')<>'' GROUP BY market_id,order_id`,
+`CREATE VIEW IF NOT EXISTS billing_order_allocations AS
+ WITH native AS (
+ SELECT d.id document_id,'native' origin,json_extract(d.data_json,'$.references.marketId') market_id,json_extract(d.data_json,'$.references.orderId') order_id,json_extract(d.data_json,'$.references.orderReference') reference,
+ CAST(json_extract(d.totals_json,'$.netMinor') AS INTEGER) * CASE WHEN json_extract(d.data_json,'$.creditNote') IS NOT NULL THEN CASE WHEN j.state='ready' THEN -1 ELSE 0 END ELSE 1 END amount_minor,
+ CASE WHEN j.state='ready' THEN 1 ELSE 0 END issued
+ FROM billing_documents d LEFT JOIN billing_issuances i ON i.document_id=d.id LEFT JOIN billing_issue_jobs j ON j.issuance_id=i.id
+ WHERE d.kind='invoice' AND (i.id IS NOT NULL OR NOT EXISTS(SELECT 1 FROM billing_document_trash t WHERE t.document_id=d.id))
+ AND NOT EXISTS(SELECT 1 FROM billing_invoice_rectifications r WHERE r.original_id=d.id AND NOT EXISTS(SELECT 1 FROM billing_document_trash t WHERE t.document_id=r.replacement_id))
+ ), imported AS (
+ SELECT json_extract(data_json,'$.id') document_id,'imported' origin,json_extract(data_json,'$.marketId') market_id,json_extract(data_json,'$.orderId') order_id,json_extract(data_json,'$.orderReference') reference,CAST(round(CAST(json_extract(data_json,'$.ht') AS REAL)*100) AS INTEGER) amount_minor,1 issued FROM portal_invoices
+ ) SELECT n.document_id,n.origin,l.market_id,l.order_id,n.amount_minor,n.issued FROM (SELECT * FROM native UNION ALL SELECT * FROM imported) n JOIN billing_order_limits l ON l.market_id=n.market_id AND (CASE WHEN coalesce(n.order_id,'')<>'' THEN l.order_id=n.order_id ELSE lower(trim(l.reference))=lower(trim(n.reference)) END)
+ WHERE (SELECT count(*) FROM billing_order_limits x WHERE x.market_id=n.market_id AND (CASE WHEN coalesce(n.order_id,'')<>'' THEN x.order_id=n.order_id ELSE lower(trim(x.reference))=lower(trim(n.reference)) END))=1`,
+...['INSERT','UPDATE'].map(action=>`CREATE TRIGGER IF NOT EXISTS billing_imported_order_limit_${action.toLowerCase()} BEFORE ${action} ON portal_invoices
+ WHEN (coalesce(json_extract(NEW.data_json,'$.orderId'),'')<>'' OR coalesce(json_extract(NEW.data_json,'$.orderReference'),'')<>'') ${action==='INSERT'?"AND NOT EXISTS(SELECT 1 FROM portal_invoices WHERE record_key=NEW.record_key)":''} ${action==='UPDATE'?"AND (json_extract(NEW.data_json,'$.ht') IS NOT json_extract(OLD.data_json,'$.ht') OR json_extract(NEW.data_json,'$.orderId') IS NOT json_extract(OLD.data_json,'$.orderId') OR json_extract(NEW.data_json,'$.orderReference') IS NOT json_extract(OLD.data_json,'$.orderReference') OR json_extract(NEW.data_json,'$.marketId') IS NOT json_extract(OLD.data_json,'$.marketId'))":''}
+ BEGIN SELECT CASE WHEN EXISTS(SELECT 1 FROM billing_order_limits l WHERE l.market_id=json_extract(NEW.data_json,'$.marketId') AND (CASE WHEN coalesce(json_extract(NEW.data_json,'$.orderId'),'')<>'' THEN l.order_id=json_extract(NEW.data_json,'$.orderId') ELSE lower(trim(l.reference))=lower(trim(json_extract(NEW.data_json,'$.orderReference'))) END) AND l.limit_minor IS NOT NULL AND
+ coalesce((SELECT sum(a.amount_minor) FROM billing_order_allocations a WHERE a.market_id=l.market_id AND a.order_id=l.order_id AND NOT(a.origin='imported' AND a.document_id=json_extract(NEW.data_json,'$.id'))),0)+CAST(round(CAST(json_extract(NEW.data_json,'$.ht') AS REAL)*100) AS INTEGER)>l.limit_minor) THEN RAISE(ABORT,'BILLING_ORDER_LIMIT') END; END`),
+`CREATE TRIGGER IF NOT EXISTS billing_restore_order_limit AFTER DELETE ON billing_document_trash BEGIN
+ SELECT CASE WHEN EXISTS(SELECT 1 FROM billing_order_allocations own JOIN billing_order_limits l ON l.market_id=own.market_id AND l.order_id=own.order_id WHERE own.document_id=OLD.document_id AND own.origin='native' AND l.limit_minor IS NOT NULL AND (SELECT sum(a.amount_minor) FROM billing_order_allocations a WHERE a.market_id=l.market_id AND a.order_id=l.order_id)>l.limit_minor) THEN RAISE(ABORT,'BILLING_ORDER_LIMIT') END; END`,
+`CREATE TRIGGER IF NOT EXISTS billing_issuance_order_limit BEFORE INSERT ON billing_issuances BEGIN SELECT CASE WHEN EXISTS(SELECT 1 FROM billing_order_allocations own JOIN billing_order_limits l ON l.market_id=own.market_id AND l.order_id=own.order_id WHERE own.document_id=NEW.document_id AND own.origin='native' AND own.amount_minor>0 AND l.limit_minor IS NOT NULL AND (SELECT sum(a.amount_minor) FROM billing_order_allocations a WHERE a.market_id=l.market_id AND a.order_id=l.order_id)>l.limit_minor) THEN RAISE(ABORT,'BILLING_ORDER_LIMIT') END; END`
+];

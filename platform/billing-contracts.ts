@@ -31,8 +31,9 @@ export interface BillingInterventionReport {version:number;date:string;title:str
 export interface BillingEngagementDetails {reference:string;date:string;amountMinor:number|null;marketId:string;marketReference:string;projectId:string;project:string;client:string;orderId:string;}
 export interface BillingEngagement {kind:'order'|'signed_quote';filename:string;createdAt:string;details?:BillingEngagementDetails;}
 export interface BillingEngagementTracking {
+ reviews?:{id:string;number:string;client:string;reference:string;reason:string}[];
  markets:{id:string;reference:string;title:string;client:string;maximumMinor:number|null;quotedMinor:number;sentQuoteCount:number}[];
- orders:{id:string;kind:'order'|'signed_quote';reference:string;date:string;amountMinor:number|null;marketId:string;market:string;client:string;projectId:string;project:string;quoteIds:string[];files:{documentId:string;filename:string;marketId?:string}[];notes?:string;historyPending?:boolean;invoicedMinor:number;invoices:{id:string;number:string;amountMinor:number;trashed:boolean}[]}[];
+ orders:{id:string;kind:'order'|'signed_quote';reference:string;date:string;amountMinor:number|null;marketId:string;market:string;client:string;projectId:string;project:string;quoteIds:string[];files:{documentId:string;filename:string;marketId?:string}[];notes?:string;historyPending?:boolean;reservedMinor?:number;invoicedMinor:number;invoices:{id:string;number:string;amountMinor:number;trashed:boolean}[]}[];
 }
 export interface BillingIntervention {id:string;priceId:string;label:string;description:string;days:string;}
 export type BillingPeriod='S1'|'S2'|'S3'|'S4'|'S5'|'S6'|'S7'|'S8';
@@ -108,6 +109,7 @@ export interface BillingContext {
   settings:BillingSettings;
 }
 export interface BillingTransport {
+  orderBudget(id:string,data:BillingDraft):Promise<{linked:boolean;blocked:boolean;message?:string;reference?:string;maximumMinor?:number|null;usedMinor?:number;availableMinor?:number|null;amountMinor?:number|null}>;
   engagements():Promise<BillingEngagementTracking>;
   report(id:string):Promise<BillingInterventionReport>;
   saveReport(id:string,version:number,data:Omit<BillingInterventionReport,'version'>):Promise<BillingInterventionReport>;

@@ -13,15 +13,15 @@ import type {BillingDocument,BillingTransport,BillingIssue} from '../billing-con
 
 const message=(e:unknown)=>e instanceof Error?e.message:'La finalisation n’a pas abouti.';
 export type DocumentStatusHandle={finalize:()=>Promise<BillingDocument|undefined>};
-type Props={serviceConfigured:boolean;record:BillingDocument|null;saved:boolean;busy:boolean;transport:BillingTransport;onDocument:(d:BillingDocument)=>void;onBusy:(v:string)=>void;onNotice:(v:string)=>void;onSave:()=>Promise<BillingDocument|undefined>;draftIssues:BillingIssue[];onReview:()=>void};
+type Props={capacityBlocked?:boolean;serviceConfigured:boolean;record:BillingDocument|null;saved:boolean;busy:boolean;transport:BillingTransport;onDocument:(d:BillingDocument)=>void;onBusy:(v:string)=>void;onNotice:(v:string)=>void;onSave:()=>Promise<BillingDocument|undefined>;draftIssues:BillingIssue[];onReview:()=>void};
 
-export const DocumentStatus=forwardRef<DocumentStatusHandle,Props>(function DocumentStatus({record,saved,busy,transport,onDocument,onBusy,onNotice,onSave,draftIssues,onReview,serviceConfigured},ref){
+export const DocumentStatus=forwardRef<DocumentStatusHandle,Props>(function DocumentStatus({record,saved,busy,transport,onDocument,onBusy,onNotice,onSave,draftIssues,onReview,serviceConfigured,capacityBlocked=false},ref){
  const [quoteAction,setQuoteAction]=useState<'sent'|'accepted'|null>(null);
  const [error,setError]=useState(''),[paymentMode,setPaymentMode]=useState<'paid'|'unpaid'|null>(null),{confirm,dialog}=useConfirmation();
  const live=useRef(true),running=useRef(false),attempt=useRef<{key:string;id:string}|null>(null);
  useEffect(()=>{live.current=true;return()=>{live.current=false;};},[]);
  async function finish(){
-  if(!record||busy||running.current)return;
+  if(!record||busy||running.current||capacityBlocked)return;
   if(record.issuance?.state==='ready')return record;
   if(!record.issuance&&draftIssues.length){setError('Finalisation impossible : '+draftIssues.length+' point'+(draftIssues.length>1?'s':'')+' à compléter ci-dessous.');onReview();return;}
   if(!record.issuance&&!await confirm({title:'Finaliser ce document ?',message:'Le contenu sera figé et le PDF définitif sera généré. Le numéro réservé est conservé.',accept:'Finaliser'}))return;
@@ -46,7 +46,7 @@ export const DocumentStatus=forwardRef<DocumentStatusHandle,Props>(function Docu
    <BillingStateIcon state={billingDisplayState(record)}/><span>{billingStateLabel(record)}</span><ChevronDown size={14}/>
   </button></DropdownMenu.Trigger><DropdownMenu.Portal><DropdownMenu.Content className="cdi-action-menu bill-state-menu" align="start" sideOffset={6}>
    <DropdownMenu.Item data-status="draft" disabled={!!issue} onSelect={()=>setError('')}><FilePenLine size={17}/>Brouillon{!issue&&<Check className="cdi-menu-check" size={15}/>}</DropdownMenu.Item>
-   <DropdownMenu.Item data-status="finalized" disabled={!serviceConfigured||(ready&&(!record?.settlement||record.settlement.netPaidMinor==='0'||invoiceIsLate(record.data.issueDate,record.data.dueDate)))} onSelect={()=>{if(ready)setPaymentMode('unpaid');else void finish();}}><CheckCircle2 className="bill-finalized-icon" size={17}/>{issue&&!ready?'Reprendre la finalisation':'Finalisé'}{billingDisplayState(record)==='finalized'&&<Check className="cdi-menu-check" size={15}/>}</DropdownMenu.Item>
+   <DropdownMenu.Item data-status="finalized" disabled={capacityBlocked||!serviceConfigured||(ready&&(!record?.settlement||record.settlement.netPaidMinor==='0'||invoiceIsLate(record.data.issueDate,record.data.dueDate)))} onSelect={()=>{if(ready)setPaymentMode('unpaid');else void finish();}}><CheckCircle2 className="bill-finalized-icon" size={17}/>{issue&&!ready?'Reprendre la finalisation':'Finalisé'}{billingDisplayState(record)==='finalized'&&<Check className="cdi-menu-check" size={15}/>}</DropdownMenu.Item>
    {record?.data.kind==='quote'&&<><DropdownMenu.Item data-status="sent" disabled={!ready||!!record.quote?.version||!!record.quote?.invoice} onSelect={()=>setQuoteAction('sent')}><Send size={17}/>Envoyé{record.quote?.state==='sent'&&<Check size={15}/>}</DropdownMenu.Item><DropdownMenu.Item data-status="accepted" disabled={!ready||!!record.quote?.invoice||['accepted','refused'].includes(record.quote?.state||'')} onSelect={()=>setQuoteAction('accepted')}><CheckCheck size={17}/>Accepté{record.quote?.state==='accepted'&&<Check size={15}/>}</DropdownMenu.Item></>}
    {record?.data.kind==='invoice'&&<><DropdownMenu.Separator className="cdi-menu-separator"/><DropdownMenu.Item data-status="overdue" title="Automatique après l’échéance, tant qu’un montant reste à encaisser" disabled={!ready||!invoiceIsLate(record.data.issueDate,record.data.dueDate)||record.settlement?.netPaidMinor==='0'} onSelect={()=>setPaymentMode('unpaid')}><Clock3 size={17}/>En retard d’encaissement{billingDisplayState(record)==='overdue'&&<Check className="cdi-menu-check" size={15}/>}</DropdownMenu.Item><DropdownMenu.Item data-status="paid" disabled={!ready||!record.settlement||record.settlement.dueMinor==='0'} onSelect={()=>setPaymentMode('paid')}><Banknote size={17}/>Réglée{record.settlement?.state==='paid'&&<Check className="cdi-menu-check" size={15}/>}</DropdownMenu.Item></>}
   </DropdownMenu.Content></DropdownMenu.Portal></DropdownMenu.Root>

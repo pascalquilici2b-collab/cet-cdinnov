@@ -1,3 +1,4 @@
+import {EngagementMeter} from './engagement-meter';
 import {Loading} from './loading';
 import {
   createContext,
@@ -13,6 +14,7 @@ import {FolderKanban,FileText,FileSpreadsheet,FileImage,Upload as UploadIcon,Spa
 import './market-projects.css';
 import './markets-apple.css';
 import './markets-import.css';
+import './markets-refresh.css';
 import {ClientAvatar} from './billing-client-avatar';
 import {ActivityBadge} from './activity-select';
 import {marketActivity} from '../project-activity';
@@ -1099,15 +1101,12 @@ function MarketList({ state: s, onQuery }: MarketsProps) {
       <select aria-label="Filtrer les marchés par client" value={client} onChange={e=>setClient(e.target.value)}><option value="">Tous les clients</option>{clients.map(c=><option key={c}>{c}</option>)}</select>
       <Button className="mk-icon-button" aria-label="Actualiser les marchés" title="Actualiser" data-action="refresh"><RefreshCw size={17}/></Button>
     </div>
-    <div id="mkMarketList">{s.busy?<Loading label="Chargement des marchés…"/>:!rows.length?<div className="mk-empty">{query||client?'Aucun marché ne correspond à ces filtres.':'Aucun marché pour le moment.'}</div>:<div className="mk-table-wrap"><table className="mk-table">
-      <thead><tr><th>Marché</th><th>Client</th><th>Devis envoyés / maximum HT</th><th>Validité</th><th><span className="mk-sr-only">Ouvrir</span></th></tr></thead>
-      <tbody>{rows.map(m=>{const maximum=marketTracking(m).maximumMinor,consumed=m.tracking?.quotedMinor||0;return <tr key={m.id}>
-        <td><Button className="mk-market-link" data-open={m.id}><strong>{m.reference||'Sans référence'}</strong><span>{m.title||'Nouveau marché'}</span></Button></td>
-        <td><div className="mk-client"><ClientAvatar name={m.clientName}/><span>{m.clientName||'À renseigner'}</span></div></td>
-        <td className="mk-consumption"><strong>{money(consumed)}</strong><small> / {maximum===null?'À renseigner':money(maximum)}</small>{maximum!==null&&maximum>0&&<progress aria-label={'Consommation du marché '+(m.reference||m.title)} value={Math.min(consumed,maximum)} max={maximum}/>}</td>
-        <td><ActivityBadge activity={marketActivity(m)}/>{m.status==='draft'&&<small className="mk-configuration-state">En préparation</small>}</td>
-        <td><Button className="mk-icon-button" data-open={m.id} aria-label={'Ouvrir le marché '+(m.reference||m.title)}><ChevronRight size={18}/></Button></td>
-      </tr>;})}</tbody></table></div>}</div>
+    <div id="mkMarketList">{s.busy?<Loading label="Chargement des marchés…"/>:!rows.length?<div className="mk-empty">{query||client?'Aucun marché ne correspond à ces filtres.':'Aucun marché pour le moment.'}</div>:<div className="mk-market-cards">{rows.map(m=>{const maximum=marketTracking(m).maximumMinor,consumed=m.tracking?.quotedMinor||0;return <article className="mk-market-card" key={m.id}>
+      <div className="mk-card-client"><ClientAvatar name={m.clientName}/><span className="mk-card-client-name">{m.clientName||'À renseigner'}</span><ActivityBadge activity={marketActivity(m)}/></div>
+      <Button className="mk-card-title" data-open={m.id}><span>{m.reference||'Marché'}</span><strong>{m.title||'Nouveau marché'}</strong></Button>
+      <EngagementMeter used={consumed} maximum={maximum} label={'Consommation du marché '+(m.reference||m.title)}/>
+      <footer><span>{marketTracking(m).orderCount} bon{marketTracking(m).orderCount>1?'s':''} de commande{s.rows.length&&m.status==='draft'?' · En préparation':''}</span><Button className="mk-icon-button" data-open={m.id} aria-label={'Ouvrir le marché '+(m.reference||m.title)}><ChevronRight size={18}/></Button></footer>
+      </article>;})}</div>}</div>
   </>;
 }
 function Markets(props: MarketsProps) {
@@ -1158,7 +1157,7 @@ function Markets(props: MarketsProps) {
                 <Button className="mk-link" data-action="back">
                   <ArrowLeft size={16}/> Tous les marchés
                 </Button>
-                <h1>{m.reference || "Nouveau marché"}</h1><p className="mk-market-title">{m.title}</p>
+                <h1>{m.reference || m.title || "Nouveau marché"}</h1>{m.reference&&<p className="mk-market-title">{m.title}</p>}
                 <p>
                   {m.clientName || "Client à renseigner"}
                   {m.reference ? " · " + m.reference : ""}

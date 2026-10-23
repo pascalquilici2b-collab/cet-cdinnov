@@ -1,3 +1,4 @@
+import {budgetSQL,budgetBindings,checkOrderBudget,orderLimitMessage} from './billing-order-budget';
 import {projectsForMarket,projectMarketIds} from './project-links';
 import {marketActivity} from './project-activity';
 import {createHash} from 'node:crypto';
@@ -196,6 +197,7 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
   if(input.documentId&&!saved)return fail(404,'Document introuvable.');
   return draftPDF({id:'preview',version:0,data:p.data,reservedNumber:saved?document(saved).reservedNumber:null},env,reply,true);
  }
+ if(path==='/api/v1/billing/order-budget'&&request.method==='POST'){const input=await body(request,['id','data']);if(!uuid(input.id))return fail(400,'Identifiant invalide.');return reply(200,await checkOrderBudget(db,input.id,prepared(input.data).data));}
  if(path==='/api/v1/billing/documents') {
   if(request.method==='GET')return list(request,db,reply);
   if(request.method!=='POST')return reply(405,{error:'Méthode non autorisée.'});
@@ -203,9 +205,10 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
   const id=input.id.toLowerCase(),p=prepared(input.data),hash=digest(p.dataJSON),stamp=new Date().toISOString();
   await checkProjectLinks(db,p.data);
   const created=await db.prepare(`INSERT INTO billing_documents(id,kind,status,version,data_json,totals_json,issues_json,create_hash,created_at,updated_at,created_by,updated_by)
-   VALUES(?,?,'draft',1,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING RETURNING *`).bind(id,p.data.kind,p.dataJSON,p.totalsJSON,p.issuesJSON,hash,stamp,stamp,session.email,session.email).first<Row>();
+   SELECT ?,?,'draft',1,?,?,?,?,?,?,?,? WHERE ${budgetSQL()} ON CONFLICT(id) DO NOTHING RETURNING *`).bind(id,p.data.kind,p.dataJSON,p.totalsJSON,p.issuesJSON,hash,stamp,stamp,session.email,session.email,...budgetBindings(id,p.data)).first<Row>();
   if(created)return reply(201,document(created.kind==='quote'?(await get(db,created.id))!:created));
   const existing=await get(db,id);
+  if(!existing){const capacity=await checkOrderBudget(db,id,p.data);if(capacity.blocked)return fail(422,capacity.message||orderLimitMessage);}
   if(await db.prepare('SELECT 1 FROM billing_document_trash WHERE document_id=?').bind(id).first())return fail(410,'Ce document est dans la corbeille. Restaurez-le depuis la liste des documents.');
   if(!existing||existing.source_document_id!==null)return conflict();
   if(existing.create_hash!==hash){
@@ -320,8 +323,9 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
   if(numbered&&numbered.issuer_siren!==(p.data.seller.siren||p.data.seller.siret.slice(0,9)).replace(/\s/g,''))return fail(409,'Le numéro est réservé pour cet émetteur. Créez un nouveau document pour changer d’émetteur.');
   await checkProjectLinks(db,p.data);
   const saved=await db.prepare(`UPDATE billing_documents SET version=version+1,data_json=?,totals_json=?,issues_json=?,updated_at=?,updated_by=?
-   WHERE id=? AND version=? AND kind=? AND status='draft' AND NOT EXISTS(SELECT 1 FROM billing_issuances WHERE document_id=billing_documents.id) AND NOT EXISTS(SELECT 1 FROM billing_quote_revisions WHERE document_id=billing_documents.id AND abandoned_at IS NOT NULL) RETURNING *`).bind(p.dataJSON,p.totalsJSON,p.issuesJSON,new Date().toISOString(),session.email,id,expected,p.data.kind).first<Row>();
+   WHERE id=? AND version=? AND kind=? AND status='draft' AND NOT EXISTS(SELECT 1 FROM billing_issuances WHERE document_id=billing_documents.id) AND NOT EXISTS(SELECT 1 FROM billing_quote_revisions WHERE document_id=billing_documents.id AND abandoned_at IS NOT NULL) AND ${budgetSQL()} RETURNING *`).bind(p.dataJSON,p.totalsJSON,p.issuesJSON,new Date().toISOString(),session.email,id,expected,p.data.kind,...budgetBindings(id,p.data)).first<Row>();
   if(saved)return reply(200,document((await get(db,saved.id))!));
+  const capacity=await checkOrderBudget(db,id,p.data);if(capacity.blocked)return fail(422,capacity.message||orderLimitMessage);
   const existing=await get(db,id);if(!existing)return reply(404,{error:'Document introuvable.'});
   if(existing.kind!==p.data.kind)return fail(400,'Le type du document ne peut pas être modifié. Utilisez la conversion du devis.');
   if(document(existing).quote?.revision.abandoned)return fail(409,'Cette version a été abandonnée et reste consultable. Ouvrez la version en cours pour poursuivre.');
@@ -349,8 +353,8 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
   let created:Row|null;
   try {
    created=await db.prepare(`INSERT INTO billing_documents(id,kind,status,version,data_json,totals_json,issues_json,create_hash,source_document_id,source_version,created_at,updated_at,created_by,updated_by)
-    SELECT ?,'invoice','draft',1,?,?,?,?,id,version,?,?,?,? FROM billing_documents WHERE id=? AND version=? AND kind='quote' AND status='draft'
-    ON CONFLICT DO NOTHING RETURNING *`).bind(targetId,p.dataJSON,p.totalsJSON,p.issuesJSON,digest(p.dataJSON),stamp,stamp,session.email,session.email,id,expected).first<Row>();
+    SELECT ?,'invoice','draft',1,?,?,?,?,id,version,?,?,?,? FROM billing_documents WHERE id=? AND version=? AND kind='quote' AND status='draft' AND ${budgetSQL()}
+    ON CONFLICT DO NOTHING RETURNING *`).bind(targetId,p.dataJSON,p.totalsJSON,p.issuesJSON,digest(p.dataJSON),stamp,stamp,session.email,session.email,id,expected,...budgetBindings(targetId,p.data)).first<Row>();
   } catch(error) {
    if(String(error).includes('BILLING_REVISION_INACTIVE'))return fail(409,'Utilisez la version en cours du devis. Une facture peut déjà être liée à cette proposition.');
    if(String(error).includes('BILLING_QUOTE_ACCEPTANCE_REQUIRED'))return fail(409,'Enregistrez l’accord du client avant de facturer ce devis émis.');
@@ -359,6 +363,7 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
   if(created)return reply(201,document(created.kind==='quote'?(await get(db,created.id))!:created));
   const existing=await get(db,targetId);
   if(existing?.source_document_id===id&&existing.source_version===expected)return reply(200,document(existing));
+  const capacity=await checkOrderBudget(db,targetId,p.data);if(capacity.blocked)return fail(422,capacity.message||orderLimitMessage);
   return fail(409,'Ce devis a changé ou a déjà été converti intégralement en facture.');
  }
  return reply(405,{error:'Méthode non autorisée.'});

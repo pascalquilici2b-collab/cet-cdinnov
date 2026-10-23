@@ -14,7 +14,7 @@ test('échéance calendaire J+30 et états avant/après échéance, sans écritu
  const doc={data:{...invoiceFixture(),issueDate:'2026-10-23',dueDate:'2026-11-22'},issuance:{state:'ready',number:'F-20261023-001'},settlement:{state:'unpaid',dueMinor:'100',overdue:false}};
  assert.equal(billingDisplayState(doc,'2026-11-21'),'finalized');assert.equal(billingDisplayState(doc,'2026-11-22'),'finalized');assert.equal(billingDisplayState(doc,'2026-11-23'),'overdue');
  assert.equal(billingDisplayLabels.overdue,'En retard d’encaissement');assert.equal(billingDisplayState({...doc,settlement:{state:'paid',dueMinor:'0'}},'2026-11-24'),'paid');assert.equal(billingDisplayState({...doc,settlement:{state:'partial',dueMinor:'50'}},'2026-11-23'),'overdue');
- doc.data.references.project='PROTERINA';doc.data.details={period:'S8'};assert.equal(defaultBillingEmail(doc),'Bonjour,\n\nJe vous prie de bien vouloir trouver ci-joint la facture F-20261023-001 relative au projet PROTERINA pour la période Semestre 8.\n\nVous en souhaitant bonne réception,\nConseil Développement Innovation');
+ doc.data.references.project='PROTERINA';doc.data.details={period:'S8'};assert.equal(defaultBillingEmail(doc),'Bonjour,\n\nJe vous prie de bien vouloir trouver ci-joint la facture F-20261023-001 relative au projet PROTERINA pour la période Semestre 8.\n\nLa facture électronique vous sera également adressée sur votre plateforme agréée.\n\nVous en souhaitant bonne réception,\nConseil Développement Innovation');
 });
 test('API : échéance, filtres et rectification avant transmission avec archive immuable',async()=>{
  const ctx=await testEnvironment();try{await migrateBilling(ctx.db);const token=(await ctx.login(users[0])).token,f=await paymentFixtureTools(ctx,token),{call,create,input,send}=f;
