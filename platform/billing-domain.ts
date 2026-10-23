@@ -1,4 +1,5 @@
 import {normalizeAnnotations} from './billing-annotations.ts';
+import {billingPeriods,documentPeriods} from './billing-periods.ts';
 import type {BillingDraft,BillingKind,BillingLine,BillingParty,BillingReferences,BillingTotals,BillingIssue,VatCategory,BillingSettingsData,BillingLegalNotes,BillingPaymentMeans,BillingVatDue,BillingBusinessProcess} from './billing-contracts';
 
 const uuid=()=>crypto.randomUUID();
@@ -62,15 +63,17 @@ export function normalizeSettings(raw:unknown):BillingSettingsData {
   return {schemaVersion:1,seller:party(v.seller),paymentTerms:textField(v,'paymentTerms',4000),iban:textField(v,'iban',50),bic:textField(v,'bic',20),...commercial(v),...(Object.hasOwn(v,'fundingProgrammes')?{fundingProgrammes:[...new Set((v.fundingProgrammes as string[]).map(p=>p.trim()).filter(Boolean))]}:{}),...(Object.hasOwn(v,'returnEmail')?{returnEmail:textField(v,'returnEmail',300)}:{})};
 }
 function documentDetails(raw:unknown):NonNullable<BillingDraft['details']>{
- const keys=Object.keys(blankDocumentDetails()),v=object(raw,keys,'Informations du document');
+ const keys=[...Object.keys(blankDocumentDetails()),'periods'],v=object(raw,keys,'Informations du document');
  if(!['','S1','S2','S3','S4','S5','S6','S7','S8'].includes(v.period as string))fail('Période concernée invalide.');
+ if(Object.hasOwn(v,'periods')&&(!Array.isArray(v.periods)||v.periods.length>8||v.periods.some(p=>!billingPeriods.includes(p))))fail('Périodes concernées invalides.');
+ const periods=Object.hasOwn(v,'periods')?documentPeriods(v as unknown as NonNullable<BillingDraft['details']>):undefined;
  if(!Array.isArray(v.interventions)||v.interventions.length>200)fail('Relevé d’intervention invalide.');
  const seen=new Set<string>();const interventions=(v.interventions as unknown[]).map(row=>{
   const r=object(row,['id','priceId','label','description','days'],'Intervention');
   if(!billingId(r.id)||seen.has(r.id as string))fail('Identifiant d’intervention invalide.');seen.add(r.id as string);
   return {id:r.id as string,priceId:textField(r,'priceId',80),label:textField(r,'label',300),description:textField(r,'description',4000),days:textField(r,'days',40)};
  });
- return {marketObject:textField(v,'marketObject',500),period:v.period as NonNullable<BillingDraft['details']>['period'],personInCharge:textField(v,'personInCharge',300),fundingProgramme:textField(v,'fundingProgramme',160),validityMonths:textField(v,'validityMonths',3),returnEmail:textField(v,'returnEmail',300),interventions};
+ return {marketObject:textField(v,'marketObject',500),period:periods?periods[0]||'':v.period as NonNullable<BillingDraft['details']>['period'],...(periods?{periods}:{}),personInCharge:textField(v,'personInCharge',300),fundingProgramme:textField(v,'fundingProgramme',160),validityMonths:textField(v,'validityMonths',3),returnEmail:textField(v,'returnEmail',300),interventions};
 }
 const referenceKeys=['businessCode','marketId','marketReference','orderReference','project','serviceCode','engagement'];
 const lineKeys=['id','description','quantity','unitCode','unitPrice','discountPercent','vatRate','vatCategory','exemptionReason'];

@@ -28,7 +28,8 @@ export interface BillingDraft {
 interface BillingAnnotationBox {id:string;page:number;x:number;y:number;width:number;height:number;}
 export type BillingAnnotation=(BillingAnnotationBox&{kind:'text';text:string;fontSize:number;color:'ink'|'blue'|'red'})|(BillingAnnotationBox&{kind:'highlight';color:'yellow'|'blue'|'green'});
 export interface BillingIntervention {id:string;priceId:string;label:string;description:string;days:string;}
-export interface BillingDocumentDetails {marketObject:string;period:''|'S1'|'S2'|'S3'|'S4'|'S5'|'S6'|'S7'|'S8';personInCharge:string;fundingProgramme:string;validityMonths:string;returnEmail:string;interventions:BillingIntervention[];}
+export type BillingPeriod='S1'|'S2'|'S3'|'S4'|'S5'|'S6'|'S7'|'S8';
+export interface BillingDocumentDetails {marketObject:string;period:''|BillingPeriod;periods?:BillingPeriod[];personInCharge:string;fundingProgramme:string;validityMonths:string;returnEmail:string;interventions:BillingIntervention[];}
 /** Only schema v3 carries a credit reference; old v2 snapshots keep their exact wire shape. */
 export interface BillingCreditReference {invoiceId:string;invoiceVersion:number;invoiceNumber:string;invoiceDate:string;reason:string;}
 export type BillingBusinessProcess = ''|'B1'|'S1'|'M1'|'B2'|'S2'|'M2'|'S3'|'B4'|'S4'|'M4'|'S5'|'S6'|'B7'|'S7'|'B8'|'S8'|'M8'|'B9'|'S9'|'M9';

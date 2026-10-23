@@ -1,0 +1,13 @@
+.bill-app .bill-period-trigger{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:42px;padding:10px 12px;font:inherit;font-size:14px;text-align:left;border:1px solid var(--bill-line);border-radius:10px;background:var(--bill-input);color:var(--bill-ink);cursor:pointer}
+.bill-period-trigger>span{min-width:0;overflow-wrap:anywhere}.bill-period-trigger>svg{flex:none}
+.bill-period-trigger:focus-visible{outline:2px solid #0071e3;outline-offset:2px}
+.bill-period-trigger:disabled{opacity:.6;cursor:default}
+.bill-period-menu{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:3px;width:290px;max-width:calc(100vw - 24px);padding:7px;background:#fff;color:#29292e}
+.bill-period-menu [role=menuitemcheckbox]{display:flex;align-items:center;gap:9px;min-height:39px;padding:8px 9px;border-radius:7px;font-size:13px;outline:none;cursor:pointer}
+.bill-period-menu [data-highlighted]{background:#edf5ff;color:#0668c7}
+.bill-period-check{display:grid;place-items:center;flex:none;width:17px;height:17px;border:1px solid #a4a4ad;border-radius:5px;background:transparent}
+.bill-period-check>span{display:grid;place-items:center}
+.bill-period-menu [data-state=checked] .bill-period-check{background:#0071e3;border-color:#0071e3;color:#fff}
+[data-theme=dark] .bill-period-menu{background:#29292c;color:#f5f5f7}
+[data-theme=dark] .bill-period-menu [data-highlighted]{background:#193b5c;color:#a8d3ff}
+[data-theme=dark] .bill-period-menu [data-state=checked] .bill-period-check{background:#087df2;border-color:#4899ee}
