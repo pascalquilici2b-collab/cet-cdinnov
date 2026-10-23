@@ -1,7 +1,7 @@
 import { mergeProposal } from "./ai-domain.mjs";
 import { emptyMarket, validateMarket, minor } from "./domain.mjs";
 import {expandImportFiles,classifyDocument} from './import-files.js';
-import {needsPdfOcr} from './pdf-text.mjs';
+import {needsPdfOcr,joinPriceTableRows} from './pdf-text.mjs';
 let s = {
   rows: [],
   clients: [],
@@ -349,7 +349,7 @@ async function upload(files) {
   try {
     const expanded=await expandImportFiles(files,progress);
     warnings.push(...expanded.warnings);
-    const {readDocument}=await import('./marches/reader.mjs?v=bpu-catalogue-20261023a');
+    const {readDocument}=await import('./marches/reader.mjs?v=bpu-catalogue-20261023b');
     for (const file of expanded.files) {
       if(s.stop||epoch!==s.epoch)break;
       progress('Lecture : '+file.name);
@@ -674,13 +674,18 @@ async function runAnalysis(documentIds,autoApply=true) {
       throw new Error(
         "Le moteur IA n’est pas encore activé sur le serveur. Vous pouvez continuer le paramétrage manuel.",
       );
-    const { readDocument } = await import("./marches/reader.mjs?v=bpu-catalogue-20261023a");
+    const { readDocument } = await import("./marches/reader.mjs?v=bpu-catalogue-20261023b");
     for (const did of selected) {
       if (s.stop) break;
       const d = s.docs.find((d) => d.id === did);
       if (s.readings.find((r) => r.id === did)?.read && s.readings.find((r) => r.id === did)?.complete) {
         if(!/\.pdf$/i.test(d.name))continue;
         const stored=await api('/'+id+'/reading/'+did);
+        if(stored.reading?.method==='ocr'){
+          const text=joinPriceTableRows(stored.reading.text);
+          if(text!==stored.reading.text)await api('/'+id+'/reading/'+did,{method:'PUT',body:JSON.stringify({...stored.reading,text,complete:!!stored.reading.complete})});
+          continue;
+        }
         if(stored.reading?.method!=='pdf'||!needsPdfOcr(stored.reading.text))continue;
       }
       progress("Lecture : " + d.name);
@@ -823,8 +828,8 @@ function render(preserveFields = false) {
   if (!marketModule) {
     if (marketPromise) return;
     container.innerHTML = loadingMarkup('Chargement des marchés…');
-    if (!document.getElementById("marketStyle")) { const link=document.createElement("link"); link.id="marketStyle"; link.rel="stylesheet"; link.href="platform/markets.css?v=bpu-catalogue-20261023a"; document.head.append(link); }
-    marketPromise = import("./platform/markets.js?v=bpu-catalogue-20261023a")
+    if (!document.getElementById("marketStyle")) { const link=document.createElement("link"); link.id="marketStyle"; link.rel="stylesheet"; link.href="platform/markets.css?v=bpu-catalogue-20261023b"; document.head.append(link); }
+    marketPromise = import("./platform/markets.js?v=bpu-catalogue-20261023b")
       .then((module) => {
         marketModule = module;
         marketPromise = null;

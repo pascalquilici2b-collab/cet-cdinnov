@@ -1,5 +1,5 @@
 import {Unzip,UnzipInflate,strFromU8} from 'fflate';
-import {pdfTextRows,needsPdfOcr} from './pdf-text.mjs';
+import {pdfTextRows,needsPdfOcr,joinPriceTableRows} from './pdf-text.mjs';
 const MAX_TEXT=500000,MAX_PAGES=150;
 const asset=name=>new URL('marches/vendor/'+name,location.href).href;
 function xml(text){if(/<!DOCTYPE|<!ENTITY/i.test(text))throw new Error('XML externe non accepté.');const d=new DOMParser().parseFromString(text,'application/xml');if(d.querySelector('parsererror'))throw new Error('Document Office illisible.');return d;}
@@ -51,7 +51,7 @@ export async function readDocument(file,progress=()=>{},cancelled=()=>false){
  // beside its own heading instead of being appended after the next service.
  const words=(data.blocks||[]).flatMap(b=>b.paragraphs||[]).flatMap(p=>p.lines||[]).flatMap(l=>l.words||[]).filter(w=>w.text?.trim()&&w.bbox);
  if(words.length){const rows=[];for(const w of words.sort((a,b)=>(a.bbox.y0+a.bbox.y1)-(b.bbox.y0+b.bbox.y1)||a.bbox.x0-b.bbox.x0)){const cy=(w.bbox.y0+w.bbox.y1)/2,h=w.bbox.y1-w.bbox.y0;let row=rows.at(-1);if(!row||Math.abs(row.cy-cy)>Math.max(5,Math.min(row.h,h)*.55)){row={cy,h,words:[]};rows.push(row);}row.words.push(w);}data.text=rows.map(row=>row.words.sort((a,b)=>a.bbox.x0-b.bbox.x0).map(w=>w.text).join(' ')).join('\n');}
- return data;}
+ data.text=joinPriceTableRows(data.text);return data;}
  try{
   if(file.size>5*1024*1024)throw new Error('Maximum 5 Mo par pièce.');check();
   if(/\.(docx|xlsx)$/i.test(file.name))return office(new Uint8Array(await file.arrayBuffer()),file.name);

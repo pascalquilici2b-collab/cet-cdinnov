@@ -15,6 +15,8 @@
 - Parcours navigateur isolé avec Worker/D1 réels : devis et facture, sélection/changement du marché, saisie d’un tarif incomplet, modification du prix/quantité, persistance et captures clair/sombre/mobile.
 - Suite IA et import ZIP/PDF/Excel/Word, OCR réel, reprise et conservation des corrections.
 - Lecture OCR locale du BPU CAB original : les six montants HT et TTC sont retrouvés, comparaison visuelle au tableau fourni. Les originaux restent intacts.
+- Contrôle Qwen réel en production : les six tarifs et leurs taux de 20 % sont reconnus après regroupement des profils renvoyés à la ligne dans le scan. Les propositions sans citation vérifiable restent écartées.
+- CAB : TVA et références de pièce ajoutées aux six lignes existantes, sans changer les prix ni les identifiants. Les quatre documents natifs et 1 217 factures importées sont inchangés.
 
 ## Publication
 

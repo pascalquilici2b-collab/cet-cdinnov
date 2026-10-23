@@ -9,6 +9,20 @@ export function needsPdfOcr(text){
  const body=content.split('\n').filter(line=>!/^\s*(?:accus[eé] de r[eé]ception|date de (?:t[ée]l[ée]transmission|r[eé]ception)|[\w]+-\d{6,}-\d{8}-)/i.test(line)).join('\n').trim();
  return body.length<80;
 }
+export function joinPriceTableRows(text){
+ if(!/bordereau|\bBPU\b|\bDQE\b|prix unitaire/i.test(text))return text;
+ const lines=text.split('\n'),out=[];
+ for(let i=0;i<lines.length;i++){
+  // A wrapped consultant profile belongs to the left-hand label, not after
+  // the numeric columns. Keep every original digit and join just this cell.
+  const row=lines[i].match(/^(\d{1,3}\s+.+?)\s+\|?\s*(\d[\d .,|]*\d)\s*$/);
+  const continuation=lines[i+1]?.trim();
+  if(row&&/^(?:consultant\s+)?(?:s[ée]nior|junior)$/i.test(continuation||'')){
+   out.push(row[1].replace(/\s*\|\s*$/,'')+' '+continuation+' | '+row[2]);i++;
+  }else out.push(lines[i]);
+ }
+ return out.join('\n');
+}
 export function pdfTextRows(items){
  const text=items.filter(x=>typeof x.str==='string'&&x.str.trim());
  if(text.some(x=>!Number.isFinite(x.transform?.[4])||!Number.isFinite(x.transform?.[5])))return text.map(x=>x.str+(x.hasEOL?'\n':' ')).join('');
