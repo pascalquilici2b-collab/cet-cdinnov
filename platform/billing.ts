@@ -6,6 +6,7 @@ import type {BillingContext,BillingDocument,BillingDraft,BillingIssue,BillingTot
 import {normalizeDraft,calculateBilling,inspectDraft,blankSettings,normalizeSettings,blankDocumentDetails} from './billing-domain';
 import {sessionIdentity} from './identity';
 import {boundedBody} from './portal';
+import {engagementTracking,linkedEngagements} from './billing-engagement-tracking';
 import {engagementRoute} from './billing-engagement';
 import {reportRoute} from './billing-report';
 import {blankDraft} from './billing-domain';
@@ -101,13 +102,15 @@ async function context(db:Database,env:Environment):Promise<BillingContext> {
  ]);
  const parsedMarkets=markets.results.map(r=>({...r,market:JSON.parse(r.payload)}));
  const projectOwners=parsedMarkets.map(r=>({id:r.id,projects:r.market.projects||[]}));
+ const engagements=await linkedEngagements(db);
+ const marketProjects=(id:string)=>projectsForMarket(id,projectOwners).map(p=>({...p,orders:[...p.orders,...engagements.filter(e=>e.kind==='order'&&e.marketId===id&&e.projectId===p.id&&!p.orders.some(o=>o.id===e.orderId)).map(e=>({id:e.orderId,reference:e.reference,date:e.date,amountMinor:e.amountMinor,documentId:'',notes:'',archived:false}))]}));
  return {
   documentService:{configured:documentServiceConfigured(env)},
   people:people.results.map(r=>JSON.parse(r.data_json)).map(p=>({id:text(p.matricule),name:[text(p.prenom),text(p.nom)].filter(Boolean).join(' '),photo:text(p.photo)})).filter(p=>p.id&&p.name),
   clientLogos:logos.results.map(r=>{const p=JSON.parse(r.data_json);return {id:r.id,name:text(p.party?.name),siren:text(p.party?.siren),siret:text(p.party?.siret),logoKey:text(p.logoKey),logoData:text(p.logoData)};}),
   clients:clients.results.map(r=>JSON.parse(r.data_json)).filter(object).map(r=>({id:text(r.id),name:text(r.name)})).filter(r=>r.id&&r.name),
   businessCodes:codes.results.map(r=>JSON.parse(r.data_json)).filter(object).map(r=>({id:text(r.id),code:[r.code1,r.code2].filter(v=>typeof v==='number'||(typeof v==='string'&&v)).join(' '),label:text(r.label),client:text(r.client)})).filter(r=>r.id),
-  markets:parsedMarkets.filter(r=>r.market.status!=='archived').map(r=>{const p=r.market;return {id:r.id,version:r.version,title:text(p.title),reference:text(p.reference),clientName:text(p.clientName),clientId:text(p.clientId),activity:marketActivity(p),prices:Array.isArray(p.prices)?p.prices:[],projects:projectsForMarket(r.id,projectOwners)};}),
+  markets:parsedMarkets.filter(r=>r.market.status!=='archived').map(r=>{const p=r.market;return {id:r.id,version:r.version,title:text(p.title),reference:text(p.reference),clientName:text(p.clientName),clientId:text(p.clientId),activity:marketActivity(p),prices:Array.isArray(p.prices)?p.prices:[],projects:marketProjects(r.id)};}),
   seller:settings.data.seller,settings
  };
 }
@@ -121,7 +124,7 @@ async function checkProjectLinks(db:Database,draft:BillingDraft){
   if(shared){const data=JSON.parse(shared.data_json);if(projectMarketIds(shared.market_id,data).includes(r.marketId))project={...data,orders:[]};}
  }
  if(!project)return fail(422,'Ce projet ne fait pas partie du marché sélectionné.');
- if(r.orderId&&!project.orders?.some((o:{id:string})=>o.id===r.orderId))return fail(422,'Ce bon de commande ne fait pas partie du projet sélectionné.');
+ if(r.orderId&&!project.orders?.some((o:{id:string})=>o.id===r.orderId)&&!(await linkedEngagements(db,r.marketId)).some(e=>e.kind==='order'&&e.projectId===r.projectId&&e.orderId===r.orderId))return fail(422,'Ce bon de commande ne fait pas partie du projet sélectionné.');
 }
 function pageParameter(params:URLSearchParams,name:string,fallback:number,max:number,min=0) {
  const value=params.get(name);if(value===null)return fallback;
@@ -168,6 +171,7 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
  if(!session.admin)return reply(403,{error:'La facturation est réservée à la direction.'});
  const path=new URL(request.url).pathname,db=env.BUDGETS_DB.withSession('first-primary');
  if(/^\/api\/v1\/billing\/(clients|services)(?:\/|$)/.test(path))return billingDirectoryRoute(request,db,session.email,reply);
+ if(path==='/api/v1/billing/engagements'&&request.method==='GET')return reply(200,await engagementTracking(db));
  const legacyReport=path.match(/^\/api\/v1\/billing\/imported-invoices\/([^/]+)\/intervention-report(\.pdf)?$/);
  if(legacyReport){
   const id=decodeURIComponent(legacyReport[1]);if(!/^[A-Za-z0-9_-]{1,100}$/.test(id))return fail(400,'Identifiant de facture invalide.');
@@ -202,7 +206,7 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
    VALUES(?,?,'draft',1,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING RETURNING *`).bind(id,p.data.kind,p.dataJSON,p.totalsJSON,p.issuesJSON,hash,stamp,stamp,session.email,session.email).first<Row>();
   if(created)return reply(201,document(created.kind==='quote'?(await get(db,created.id))!:created));
   const existing=await get(db,id);
-  if(await db.prepare('SELECT 1 FROM billing_document_trash WHERE document_id=?').bind(id).first())return fail(410,'Ce brouillon est dans la corbeille. Restaurez-le depuis la liste des documents.');
+  if(await db.prepare('SELECT 1 FROM billing_document_trash WHERE document_id=?').bind(id).first())return fail(410,'Ce document est dans la corbeille. Restaurez-le depuis la liste des documents.');
   if(!existing||existing.source_document_id!==null)return conflict();
   if(existing.create_hash!==hash){
    const initial=await db.prepare('SELECT data_json FROM billing_document_versions WHERE document_id=? AND version=1').bind(id).first<{data_json:string}>();
@@ -226,12 +230,12 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
  if(!match[2]&&request.method==='DELETE'){
   const expected=expectedVersion(request),row=await get(db,id);
   if(!row)return reply(404,{error:'Document introuvable.'});if(row.version!==expected)return conflict();
-  if(row.issuance_json)return fail(409,'Seuls les brouillons peuvent être supprimés.');
+  if(row.issuance_json&&(row.kind!=='invoice'||document(row).status!=='issued'))return fail(409,'Ce document ne peut pas être déplacé dans la corbeille pendant sa finalisation.');
   try{await db.prepare('INSERT INTO billing_document_trash(document_id,document_version,deleted_at,deleted_by) VALUES(?,?,?,?) ON CONFLICT(document_id) DO NOTHING').bind(id,expected,new Date().toISOString(),session.email).run();}
   catch(e){if(String(e).includes('BILLING_TRASH_CONFLICT'))return conflict();throw e;}
   return reply(200,{deleted:true});
  }
- if(trashed)return fail(410,'Ce brouillon est dans la corbeille. Restaurez-le depuis la liste des documents.');
+ if(trashed)return fail(410,'Ce document est dans la corbeille. Restaurez-le depuis la liste des documents.');
 
  if(match[2]==='/rectify'){
   if(request.method!=='POST')return reply(405,{error:'Méthode non autorisée.'});
@@ -339,6 +343,8 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
   const sourceRecord=document(source);
   if(sourceRecord.status!=='issued'||sourceRecord.quote?.state!=='accepted'||!sourceRecord.quote.engagement)return fail(409,'Acceptez le devis puis liez un bon de commande ou un devis signé avant de créer la facture.');
   const sourceData=normalizeDraft(JSON.parse(source.data_json)),settings=await readSettings(db);
+  const commitment=sourceRecord.quote.engagement.details;
+  if(commitment){sourceData.references={...sourceData.references,marketId:commitment.marketId,marketReference:commitment.marketReference,projectId:commitment.projectId,project:commitment.project,...(sourceRecord.quote.engagement.kind==='order'?{orderId:commitment.orderId,orderReference:commitment.reference}:{})};}
   const p=prepared({...sourceData,kind:'invoice',dueDate:'',issueDate:new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Paris'}).format(new Date()),paymentMeans:'30',paymentTerms:settings.data.paymentTerms,legalNotes:settings.data.legalNotes,vatDue:settings.data.vatDue,validUntil:'',references:{...sourceData.references,...(document(source).issuance?.number?{quoteNumber:document(source).issuance!.number}:{})},iban:settings.data.iban,bic:settings.data.bic,details:{...blankDocumentDetails(),...sourceData.details,validityMonths:'',returnEmail:settings.data.returnEmail??'cdi@cdinnov.com',interventions:[]}}),stamp=new Date().toISOString();
   let created:Row|null;
   try {

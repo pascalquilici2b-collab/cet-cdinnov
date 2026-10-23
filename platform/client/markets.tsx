@@ -42,7 +42,8 @@ const labels: Record<string, string> = {
 const tabs: Record<string, string> = {
   setup: "Assistant",
   summary: "Fiche marché",
-  projects: "Projets & commandes",
+  projects: "Projets liés",
+  information: "Informations diverses",
   documents: "Pièces",
   prices: "Tarifs",
   ceilings: "Plafonds",
@@ -192,7 +193,9 @@ function RuleCard({
   index,
   docs,
   children,
+  hideSource = false,
 }: {
+  hideSource?: boolean;
   prefix: string;
   row: Rule & { label: string };
   index: number;
@@ -211,7 +214,7 @@ function RuleCard({
         </Button>
       </div>
       <div className="mk-fields">{children}</div>
-      <details className="mk-proof" open={initiallyOpen || undefined}>
+      {!hideSource?<details className="mk-proof" open={initiallyOpen || undefined}>
         <summary>
           Source et validation{" "}
           {row.status === "validated" ? "· vérifiée" : "· à vérifier"}
@@ -227,7 +230,7 @@ function RuleCard({
           />{" "}
           J’ai vérifié cette règle dans la pièce source
         </label>
-      </details>
+      </details>:<label className="mk-review"><input type="checkbox" data-review={prefix} defaultChecked={row.status==='validated'} key={row.status} disabled={busy}/>Information vérifiée</label>}
     </article>
   );
 }
@@ -526,7 +529,7 @@ function Periods({ s, m }: { s: MarketsSnapshot; m: Market }) {
       {m.periods.map((r, i) => {
         const p = "periods." + i;
         return (
-          <RuleCard key={r.id} prefix={p} row={r} index={i} docs={s.docs}>
+          <RuleCard key={r.id} prefix={p} row={r} index={i} docs={s.docs} hideSource>
             <Field
               path={p + ".label"}
               label="Période"
@@ -572,7 +575,7 @@ function Conditions({ s, m }: { s: MarketsSnapshot; m: Market }) {
       {(m.conditions || []).map((r, i) => {
         const p = "conditions." + i;
         return (
-          <RuleCard key={r.id} prefix={p} row={r} index={i} docs={s.docs}>
+          <RuleCard key={r.id} prefix={p} row={r} index={i} docs={s.docs} hideSource>
             <Field
               path={p + ".category"}
               label="Rubrique"
@@ -602,6 +605,7 @@ function Conditions({ s, m }: { s: MarketsSnapshot; m: Market }) {
     </>
   );
 }
+function Information(props:{s:MarketsSnapshot;m:Market}){return <div className="mk-diverse"><Periods {...props}/><hr/><Conditions {...props}/></div>;}
 function Issues({ s, m }: { s: MarketsSnapshot; m: Market }) {
   return (
     <>
@@ -1119,8 +1123,9 @@ function Markets(props: MarketsProps) {
           documents: Documents,
           prices: Prices,
           ceilings: Ceilings,
-          periods: Periods,
-          conditions: Conditions,
+          information: Information,
+          periods: Information,
+          conditions: Information,
           issues: Issues,
           history: History,
         } as Record<string, typeof Summary>
@@ -1180,7 +1185,7 @@ function Markets(props: MarketsProps) {
               </div>
             </div>
             <nav className="mk-tabs" aria-label="Rubriques du marché">
-              {['summary','projects','prices','documents','periods','conditions'].map(key=><Button key={key} data-tab={key} aria-current={s.tab===key?'page':'false'}>{(()=>{const Glyph=({summary:FileText,projects:FolderKanban,prices:Tags,documents:Files,periods:CalendarDays,conditions:ListChecks} as Record<string,typeof FileText>)[key];return <Glyph size={16}/>;})()}{tabs[key]}</Button>)}
+              {['summary','projects','prices','documents','information'].map(key=><Button key={key} data-tab={key} aria-current={s.tab===key?'page':'false'}>{(()=>{const Glyph=({summary:FileText,projects:FolderKanban,prices:Tags,documents:Files,information:ListChecks} as Record<string,typeof FileText>)[key];return <Glyph size={16}/>;})()}{tabs[key]}</Button>)}
               <details className="mk-more-tabs"><summary aria-label="Autres rubriques du marché"><Settings2 size={16}/>Plus<ChevronDown size={14}/></summary><div>{['setup','ceilings','issues','history'].map(key=><Button key={key} data-tab={key} aria-current={s.tab===key?'page':'false'}>{(()=>{const Glyph=({setup:Settings2,ceilings:Gauge,issues:TriangleAlert,history:HistoryIcon} as Record<string,typeof FileText>)[key];return <Glyph size={16}/>;})()}{tabs[key]}{key==='issues'&&m.issues.some(x=>x.status==='open')&&<span className="mk-count">{m.issues.filter(x=>x.status==='open').length}</span>}</Button>)}</div></details>
             </nav>
             {(s.progress||s.uploadStatus)&&<div className="mk-import-progress" role="status"><Sparkles size={17}/><span>{s.progress||s.uploadStatus}</span><Button className="mk-link" data-action="stop-analysis">Arrêter</Button></div>}

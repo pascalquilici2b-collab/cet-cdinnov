@@ -10,7 +10,7 @@ export function Projects({s,m}:{s:MarketsSnapshot;m:Market}){
  const [open,setOpen]=useState<string|null>(()=>m.projects?.find(p=>!p.name||p.orders.some(o=>!o.reference))?.id||null);
  const projects=m.projects||[];
  return <section className="mk-projects">
-  <div className="mk-projects-heading"><h3><FolderKanban size={20}/> Projets & bons de commande</h3><button type="button" className="mk-primary" data-action="add-project" disabled={s.busy}><Plus size={16}/> Ajouter un projet</button></div>
+  <div className="mk-projects-heading"><h3><FolderKanban size={20}/> Projets liés</h3><button type="button" className="mk-primary" data-action="add-project" disabled={s.busy}><Plus size={16}/> Ajouter un projet</button></div>
   {!projects.length&&<p className="mk-muted">Ajoutez un projet à ce marché, puis ses bons de commande.</p>}
   {projects.map((project,i)=>{
    const path='projects.'+i,expanded=open===project.id||!project.name||project.orders.some(o=>!o.reference),complete=!s.dirty&&!!project.name&&project.orders.every(o=>!!o.reference);
@@ -46,5 +46,6 @@ export function Projects({s,m}:{s:MarketsSnapshot;m:Market}){
    </section>;
   })}
   {!!projects.length&&<button type="button" className="mk-secondary" data-tab="documents">Ajouter une pièce au marché</button>}
+ {!!m.linkedEngagements?.length&&<section className="mk-linked-engagements"><h4><FileCheck2 size={18}/> Engagements reçus</h4>{m.linkedEngagements.map(e=><div className="mk-linked-engagement" key={e.documentId}><div><strong>{e.reference||e.quoteNumber}</strong><small>{[e.project,e.kind==='order'?'Bon de commande':'Devis signé',e.client].filter(Boolean).join(' · ')}</small></div><span>{e.amountMinor==null?'Montant non renseigné':money(e.amountMinor)}</span><button type="button" data-engagement-file={e.documentId} title={e.filename}><FileCheck2 size={16}/>Voir la pièce</button></div>)}</section>}
  </section>;
 }

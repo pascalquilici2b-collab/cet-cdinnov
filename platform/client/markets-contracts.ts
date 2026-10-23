@@ -49,6 +49,7 @@ export interface Issue {
   source: RuleSource;
 }
 export interface Market {
+  linkedEngagements?:(import('../billing-contracts').BillingEngagementDetails&{documentId:string;kind:'order'|'signed_quote';filename:string;quoteNumber:string})[];
   id: string;
   version: number;
   title: string;

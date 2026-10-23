@@ -37,13 +37,13 @@
  .bill-app .bill-list-table tbody {display:block}
  .bill-app .bill-list-table tbody tr {position:relative;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;padding:20px;border-top:1px solid var(--bill-line)}
  .bill-app .bill-list-table td[data-column] {display:block;padding:0;border:0;min-width:0;max-width:none;font-size:13px}
- .bill-app .bill-list-table td[data-column=document] {grid-column:1/-1;padding-right:36px}
+ .bill-app .bill-list-table td[data-column=document] {grid-column:1/-1;padding-right:0}
  .bill-app .bill-list-table td[data-column=client] {grid-column:1/-1}
  .bill-app .bill-list-client {max-width:none}
  .bill-app .bill-list-table td[data-column=date],.bill-app .bill-list-table td[data-column=reference] {color:var(--bill-muted);font-size:12px}
  .bill-app .bill-list-table td[data-column=reference] {text-align:right;overflow-wrap:anywhere}
  .bill-app .bill-list-table td[data-column=amount] {text-align:right;font-size:14px}
- .bill-app .bill-list-table td[data-column=action] {position:absolute;top:16px;right:12px}
+ .bill-app .bill-list-table td[data-column=action] {position:static;grid-column:1/-1;padding-top:8px}
  .bill-app .bill-document-link .bill-document-status-inline {display:none}
  .bill-app .bill-pagination {padding:16px;flex-wrap:wrap}
  .bill-app .bill-pagination>div {gap:10px}
@@ -63,3 +63,5 @@
 .bill-project-filter{min-width:180px;max-width:330px}.bill-project-filter .cdi-select-trigger{min-height:38px;padding:8px 10px}
 
 .bill-list-table td[data-column="action"]{text-align:right}.bill-list-table .bill-row-actions{display:flex;justify-content:flex-end;align-items:center;width:100%;gap:6px}
+
+@media(max-width:720px){.bill-app .bill-list-filters .bill-project-filter{min-width:0;max-width:100%}.bill-app .bill-list-table .bill-row-actions{flex-wrap:wrap;justify-content:flex-end}}

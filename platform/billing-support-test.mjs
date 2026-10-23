@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {randomUUID} from 'node:crypto';
+import {randomUUID,createHash} from 'node:crypto';
+import {createNumberSeries,reserveIssuance,claimIssuanceJob,completeIssuanceJob} from './billing-issuance.ts';
+import {emptyMarket,validateMarket} from '../marches/domain.mjs';
 import {testEnvironment,users} from '../marches/test.mjs';
 import {migrateBilling} from './billing-schema.mjs';
 import {quoteFixtureTools,quoteFixture,samplePDF} from './billing-quote-fixture.mjs';
@@ -50,4 +52,37 @@ test('invoice Outlook message includes the fixed blind copy and platform sentenc
  const input={recipient:'contact@example.test',bcc:'cdi@cdinnov.com',subject:'Facture F-TEST',message,filename:'facture.pdf',pdf:new Blob([samplePDF()])};
  assert.match(await(await outlookMessage(input)).text(),/\r\nBcc: cdi@cdinnov.com\r\n/);
  assert.doesNotMatch(await(await outlookMessage({...input,bcc:undefined})).text(),/\r\nBcc:/);
+});
+
+
+test('received order links market and project; consumption survives invoice trash and restoration',async()=>{
+ const ctx=await testEnvironment();try{
+  await migrateBilling(ctx.db);const token=(await ctx.login(users[0])).token,{call,create,send,input}=await quoteFixtureTools(ctx,token),marketId=randomUUID(),projectId=randomUUID(),orderId=randomUUID();
+  const m={...emptyMarket(),title:'Accord-cadre fictif',reference:'M-TEST',clientName:'Atelier Horizon',maximumMinor:1000000,projects:[{id:projectId,name:'Projet test',code:'P-TEST',notes:'',archived:false,orders:[{id:orderId,reference:'BC-TEST',date:'2026-10-23',amountMinor:500000,documentId:'',notes:'',archived:false}]}]};
+  await ctx.db.prepare('INSERT INTO markets(id,payload,version,updated_at,updated_by) VALUES(?,?,1,?,?)').bind(marketId,JSON.stringify(m),new Date().toISOString(),users[0]).run();
+  const d=quoteFixture();d.references.marketId=marketId;d.references.projectId=projectId;d.references.project='Projet test';d.references.marketReference='M-TEST';let q=await create(d);q=await(await send(q,input(q))).json();
+  const params=new URLSearchParams({kind:'order',reference:'BC-TEST',date:'2026-10-23',amountMinor:'500000',marketId,projectId});
+  let r=await ctx.worker.dispatchFetch('https://preview.test/api/v1/billing/documents/'+q.id+'/engagement?'+params,{method:'PUT',headers:{Origin:'https://app.cdinnov.eu',Authorization:'Bearer '+token,'If-Match':String(q.version),'X-Filename':'BC.pdf','Content-Type':'application/pdf'},body:samplePDF()});assert.equal(r.status,201,await r.clone().text());
+  q=await r.json();assert.equal(q.quote.engagement.details.orderId,orderId);
+  r=await ctx.call('markets/'+marketId,{headers:{Authorization:'Bearer '+token}});assert.equal(r.status,200);const market=(await r.json()).market;assert.equal(market.linkedEngagements[0].projectId,projectId);
+  let tracking=await(await call('/engagements')).json();assert.equal(tracking.orders.length,1);assert.equal(tracking.markets[0].quotedMinor,225000);assert.equal(tracking.orders[0].files.length,1);
+  r=await call('/documents/'+q.id+'/convert','POST',{id:randomUUID()},{'If-Match':String(q.version)});assert.equal(r.status,201,await r.clone().text());let f=await r.json();assert.equal(f.data.references.orderId,orderId);assert.equal(f.data.references.orderReference,'BC-TEST');
+  tracking=await(await call('/engagements')).json();assert.equal(tracking.orders[0].invoicedMinor,0);
+  const series={id:randomUUID(),issuerSiren:'732829320',kind:'invoice',prefix:'TEST-FAC-',width:4,firstValue:1,startDate:'2020-01-01',endDate:'2099-12-31'};await createNumberSeries(ctx.db,series,users[0]);
+  const issue=await reserveIssuance(ctx.db,{id:randomUUID(),documentId:f.id,documentVersion:f.version,seriesId:series.id},users[0]),lease=randomUUID();assert.ok(await claimIssuanceJob(ctx.db,issue.id,lease,users[0]));const bytes=samplePDF(),sha256=createHash('sha256').update(bytes).digest('hex'),artifact={kind:'pdf',key:'billing/'+issue.id+'/pdf/'+sha256,sha256,size:bytes.length,contentType:'application/pdf'};
+  await(await ctx.worker.getR2Bucket('CET_FILES')).put(artifact.key,bytes,{httpMetadata:{contentType:artifact.contentType}});await completeIssuanceJob(ctx.db,issue.id,lease,{schemaVersion:1,envelopeSha256:issue.envelopeSha256,generatorVersion:'synthetic',profile:'invoice-pdf',artifacts:[artifact]},users[0]);
+  const original=await ctx.db.prepare('SELECT * FROM billing_issuances WHERE document_id=?').bind(f.id).first();
+  tracking=await(await call('/engagements')).json();assert.equal(tracking.orders[0].invoicedMinor,225000);
+  r=await call('/documents/'+f.id,'DELETE',undefined,{'If-Match':String(f.version)});assert.equal(r.status,200,await r.clone().text());assert.equal((await call('/documents/'+f.id)).status,410);
+  assert.equal((await(await call('/documents?kind=invoice&state=trash')).json()).total,1);
+  tracking=await(await call('/engagements')).json();assert.equal(tracking.orders[0].invoicedMinor,225000);
+  r=await call('/documents/'+f.id+'/restore','POST',{}, {'If-Match':String(f.version)});assert.equal(r.status,200,await r.clone().text());assert.deepEqual(await ctx.db.prepare('SELECT * FROM billing_issuances WHERE document_id=?').bind(f.id).first(),original);
+  const file=await call('/documents/'+f.id+'/files/pdf');assert.equal(file.status,200,await file.clone().text());assert.ok(Buffer.from(await file.arrayBuffer()).equals(bytes));
+  assert.equal((await call('/documents/'+q.id,'DELETE',undefined,{'If-Match':String(q.version)})).status,409);
+ }finally{await ctx.worker.dispose();}
+});
+
+test('miscellaneous market information can be validated without citing a source',()=>{
+ const m={...emptyMarket(),title:'Marché',clientName:'Client',periods:[{id:'period',label:'Initiale',startDate:'2026-01-01',endDate:'2026-12-31',decision:'Notification',status:'validated',source:{documentId:'',locator:'',note:''}}],conditions:[{id:'condition',label:'Livrable',category:'other',value:'Rapport',status:'validated',source:{documentId:'',locator:'',note:''}}]};
+ assert.equal(validateMarket(m,[]).periods[0].status,'validated');assert.equal(validateMarket(m,[]).conditions[0].status,'validated');
 });

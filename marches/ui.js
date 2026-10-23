@@ -349,7 +349,7 @@ async function upload(files) {
   try {
     const expanded=await expandImportFiles(files,progress);
     warnings.push(...expanded.warnings);
-    const {readDocument}=await import('./marches/reader.mjs?v=multiple-periods-20261023');
+    const {readDocument}=await import('./marches/reader.mjs?v=engagement-support-20261023');
     for (const file of expanded.files) {
       if(s.stop||epoch!==s.epoch)break;
       progress('Lecture : '+file.name);
@@ -431,6 +431,9 @@ function bind() {
       return;
     }
     if (s.busy) return;
+    if(b.dataset.engagementFile){
+      setBusy(true);try{const session=await budgetsEnsureSession();const r=await fetch(budgetsApi()+'/billing/documents/'+encodeURIComponent(b.dataset.engagementFile)+'/engagement',{headers:{Authorization:'Bearer '+session.token},cache:'no-store'});if(!r.ok)throw new Error('La pièce ne peut pas être chargée.');const blob=await r.blob(),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=s.current.linkedEngagements?.find(x=>x.documentId===b.dataset.engagementFile)?.filename||'engagement.pdf';a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);}catch(e){error(e.message);}finally{setBusy(false);}return;
+    }
     if(b.dataset.action==='import'){el('mkImportFiles')?.click();return;}
     if(b.dataset.action==='analyse-all'){await runAnalysis(s.docs.map(d=>d.id),true);return;}
     if(b.dataset.action==='resume-analysis'){await runAnalysis(s.analysis?.documentIds||s.docs.map(d=>d.id),true);return;}
@@ -674,7 +677,7 @@ async function runAnalysis(documentIds,autoApply=true) {
       throw new Error(
         "Le moteur IA n’est pas encore activé sur le serveur. Vous pouvez continuer le paramétrage manuel.",
       );
-    const { readDocument } = await import("./marches/reader.mjs?v=multiple-periods-20261023");
+    const { readDocument } = await import("./marches/reader.mjs?v=engagement-support-20261023");
     for (const did of selected) {
       if (s.stop) break;
       const d = s.docs.find((d) => d.id === did);
@@ -828,8 +831,8 @@ function render(preserveFields = false) {
   if (!marketModule) {
     if (marketPromise) return;
     container.innerHTML = loadingMarkup('Chargement des marchés…');
-    if (!document.getElementById("marketStyle")) { const link=document.createElement("link"); link.id="marketStyle"; link.rel="stylesheet"; link.href="platform/markets.css?v=multiple-periods-20261023"; document.head.append(link); }
-    marketPromise = import("./platform/markets.js?v=multiple-periods-20261023")
+    if (!document.getElementById("marketStyle")) { const link=document.createElement("link"); link.id="marketStyle"; link.rel="stylesheet"; link.href="platform/markets.css?v=engagement-support-20261023"; document.head.append(link); }
+    marketPromise = import("./platform/markets.js?v=engagement-support-20261023")
       .then((module) => {
         marketModule = module;
         marketPromise = null;

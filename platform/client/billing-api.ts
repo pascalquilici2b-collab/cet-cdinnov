@@ -17,10 +17,11 @@ export function createBillingTransport(options:{baseUrl:string;getToken:()=>Prom
   async function numbered(promise:Promise<BillingDocument>){const doc=await promise;const siren=doc.data.seller.siren.replace(/\s/g,'')||doc.data.seller.siret.replace(/\s/g,'').slice(0,9);return !doc.issuance&&!doc.reservedNumber&&!doc.quote?.revision.abandoned&&/^\d{9}$/.test(siren)?request<BillingDocument>('/documents/'+encodeURIComponent(doc.id)+'/number','POST',{},doc.version):doc;}
   const reportPath=(id:string)=>id.startsWith('imported:')?'/imported-invoices/'+encodeURIComponent(id.slice(9))+'/intervention-report':'/documents/'+encodeURIComponent(id)+'/intervention-report';
   return {
+    engagements:()=>request('/engagements'),
     report:id=>request(reportPath(id)),
     saveReport:(id,version,data)=>request(reportPath(id),'PUT',data,version),
     reportPDF:id=>request(reportPath(id)+'.pdf','GET',undefined,undefined,true),
-    uploadEngagement:(id,version,kind,file)=>request('/documents/'+encodeURIComponent(id)+'/engagement?kind='+kind,'PUT',file,version,false,{'X-Filename':encodeURIComponent(file.name),'Content-Type':file.type||'application/octet-stream'}),
+    uploadEngagement:(id,version,kind,file,details)=>request('/documents/'+encodeURIComponent(id)+'/engagement?'+new URLSearchParams({kind,...(details?{reference:details.reference,date:details.date,amountMinor:details.amountMinor===null?'':String(details.amountMinor),marketId:details.marketId,projectId:details.projectId}:{})}),'PUT',file,version,false,{'X-Filename':encodeURIComponent(file.name),'Content-Type':file.type||'application/octet-stream'}),
     engagementFile:id=>request('/documents/'+encodeURIComponent(id)+'/engagement','GET',undefined,undefined,true),
     rectify:(id,version,input)=>numbered(request<BillingDocument>('/documents/'+encodeURIComponent(id)+'/rectify','POST',input,version)),
     session:()=>request('/api/v1/session'),

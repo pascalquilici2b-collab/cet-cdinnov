@@ -23,11 +23,11 @@ function choice(v,choices,label){if(!choices.includes(v))throw new Error(label+'
 function amount(v,label) {if(v===null)return null;if(!Number.isSafeInteger(v)||v<0||v>999999999999)throw new Error(label+' : montant invalide.');return v;}
 function date(v,label){const s=text(v,label,10);if(s&&!dateValid(s))throw new Error(label+' : date invalide.');return s;}
 function source(v={}){return {documentId:text(v?.documentId,'Pièce source',80),locator:text(v?.locator,'Page ou article',120),note:text(v?.note,'Note de lecture',1500)};}
-function common(v,documentIds) {
+function common(v,documentIds,requireSource=true) {
   const r={id:text(v?.id,'Identifiant',80,true),status:choice(v?.status,['proposed','validated'],'Validation'),source:source(v?.source)};
   if(!/^[a-zA-Z0-9_-]+$/.test(r.id))throw new Error('Identifiant invalide.');
   if(r.source.documentId&&!documentIds.has(r.source.documentId))throw new Error('La pièce source ne fait pas partie de ce marché.');
-  if(r.status==='validated'&&(!r.source.documentId||!r.source.locator))throw new Error('Pour valider une règle, rattachez sa pièce source et sa page ou son article.');
+  if(requireSource&&r.status==='validated'&&(!r.source.documentId||!r.source.locator))throw new Error('Pour valider une règle, rattachez sa pièce source et sa page ou son article.');
   return r;
 }
 export function emptyMarket() {
@@ -94,7 +94,7 @@ export function validateMarket(input,documents=[]) {
     if(new Set(input[list].map(x=>x?.id)).size!==input[list].length)throw new Error('Identifiants en double dans '+list+'.');
   }
   m.periods=input.periods.map(v=>{
-    const r={...common(v,ids),label:text(v.label,'Période',180,true),startDate:date(v.startDate,'Début de période'),endDate:date(v.endDate,'Fin de période'),decision:text(v.decision,'Décision de période',1500)};
+    const r={...common(v,ids,false),label:text(v.label,'Période',180,true),startDate:date(v.startDate,'Début de période'),endDate:date(v.endDate,'Fin de période'),decision:text(v.decision,'Décision de période',1500)};
     if(r.startDate&&r.endDate&&r.endDate<r.startDate)throw new Error('La fin de période précède son début.');
     if(r.status==='validated'&&(!r.startDate||!r.endDate||!r.decision))throw new Error('Une période validée exige ses deux dates et la justification de sa prise d’effet.');
     return r;
@@ -132,7 +132,7 @@ export function validateMarket(input,documents=[]) {
   });
   const conditions=input.conditions??[];
   if(!Array.isArray(conditions)||conditions.length>150||new Set(conditions.map(v=>v?.id)).size!==conditions.length)throw new Error('Liste de conditions invalide.');
-  m.conditions=conditions.map(v=>({...common(v,ids),category:choice(v.category,Object.keys(CONDITIONS),'Condition'),label:text(v.label,'Intitulé de condition',240,true),value:text(v.value,'Condition contractuelle',4000,true)}));
+  m.conditions=conditions.map(v=>({...common(v,ids,false),category:choice(v.category,Object.keys(CONDITIONS),'Condition'),label:text(v.label,'Intitulé de condition',240,true),value:text(v.value,'Condition contractuelle',4000,true)}));
   if(Object.hasOwn(input,'projects'))m.projects=validateProjects(input.projects,ids);
   if(m.status==='validated'){
     const blockers=activationBlockers(m);

@@ -516,7 +516,7 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
         signature = Table([[p("Bon pour accord", "body")], [p("Date, nom et signature du client", "muted")], [Spacer(1, 35)]], colWidths=[_WIDTH])
         signature.setStyle(_table_style([("BOX", (0, 0), (-1, -1), 0.6, _RULE), ("LEFTPADDING", (0, 0), (-1, -1), 12),
                                       ("TOPPADDING", (0, 0), (-1, 0), 10), ("BOTTOMPADDING", (0, -1), (-1, -1), 8)]))
-        story.append(KeepTogether([Spacer(1, 16), signature]))
+        story.append(KeepTogether([Spacer(1, 16), p("Acceptation du devis : par signature précédée de la mention « Bon pour accord » ou par transmission d'un bon de commande faisant référence au présent devis et acceptant ses conditions sans réserve.", "small"), Spacer(1, 10), signature]))
     # ReportLab's safe default for external resources is not relied upon: all
     # paragraphs contain escaped text; font and logo are packaged local assets.
     try:

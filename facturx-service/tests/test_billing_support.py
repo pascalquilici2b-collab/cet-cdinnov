@@ -11,6 +11,8 @@ def test_quote_has_no_payment_or_remise_column_and_number_precedes_date():
     text = extract(pdf)
     for hidden in ('DOCUMENT ÉMIS', 'Mode de règlement', 'Conditions de paiement', 'Indemnité de recouvrement', 'Pénalités de retard', 'Escompte', 'IBAN', 'BIC'):
         assert hidden not in text
+    assert 'Acceptation du devis :' in text
+    assert 'acceptant ses conditions sans réserve.' in text.replace('\n',' ')
     assert text.index('Numéro du document') < text.index('Date du document')
     assert text.index('Remise') > text.index('Total HT avant remise')
     assert 'Total HT net' in text

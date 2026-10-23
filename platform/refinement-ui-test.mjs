@@ -33,7 +33,7 @@ try{
  await page.getByRole('button',{name:'Ouvrir le marché EPCI/2026.030',exact:true}).click();await page.getByLabel('Objet du marché *',{exact:true}).waitFor();
  for(const theme of ['light','dark']){await page.evaluate(t=>document.documentElement.dataset.theme=t,theme);await page.screenshot({path:dir+'/fiche-marche-'+theme+'.png',animations:'disabled'});}
  await page.getByRole('button',{name:'Aide — Date portée sur la notification'}).hover();await page.getByRole('tooltip').waitFor();await page.keyboard.press('Escape');
- for(const tab of ['Projets & commandes','Tarifs','Pièces','Périodes','Conditions'])await page.getByRole('button',{name:tab,exact:true}).click();
+ for(const tab of ['Projets liés','Tarifs','Pièces','Informations diverses'])await page.getByRole('button',{name:tab,exact:true}).click();
  for(const tab of ['Assistant','Plafonds','Points à confirmer','Historique']){await page.locator('.mk-more-tabs summary').click();await page.getByRole('button',{name:tab,exact:true}).click();}
  await page.getByRole('button',{name:'Fiche marché',exact:true}).click();await page.setViewportSize({width:390,height:844});await page.screenshot({path:dir+'/marche-mobile.png',animations:'disabled'});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));assert.deepEqual(errors,[]);
  console.log('OK UI : statut + erreurs, suppression/restauration, icônes, import PDF nuit, marchés light/dark, filtres, onglets, aides et mobile.');

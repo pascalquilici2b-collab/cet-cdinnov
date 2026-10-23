@@ -21,7 +21,7 @@ export function quoteJSON(){
   'invoice',json((SELECT json_object('id',d.id,'number',i.number,'state',CASE WHEN j.state='ready' THEN 'issued' WHEN j.state='failed' THEN 'issue_failed' WHEN i.id IS NOT NULL THEN 'finalizing' ELSE 'draft' END)
    FROM billing_documents d LEFT JOIN billing_issuances i ON i.document_id=d.id LEFT JOIN billing_issue_jobs j ON j.issuance_id=i.id
    WHERE d.source_document_id=${quoteFamilyRoot('billing_documents.id')} OR d.source_document_id IN (SELECT document_id FROM billing_quote_revisions WHERE root_document_id=${quoteFamilyRoot('billing_documents.id')}))),
-  'engagement',json((SELECT json_object('kind',kind,'filename',filename,'createdAt',created_at) FROM billing_quote_engagements WHERE document_id=billing_documents.id)),
+  'engagement',json((SELECT json_object('kind',kind,'filename',filename,'createdAt',created_at,'details',json(metadata_json)) FROM billing_quote_engagements WHERE document_id=billing_documents.id)),
   'revision',json(${revisionJSON()})) ELSE NULL END`;
 }
 

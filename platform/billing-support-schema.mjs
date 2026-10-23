@@ -4,8 +4,11 @@ export const billingSupportSchema = [
   document_id TEXT PRIMARY KEY REFERENCES billing_documents(id), document_version INTEGER NOT NULL,
   kind TEXT NOT NULL CHECK(kind IN ('order','signed_quote')), filename TEXT NOT NULL,
   content_type TEXT NOT NULL, size INTEGER NOT NULL CHECK(size BETWEEN 1 AND 10485760),
-  object_key TEXT NOT NULL, sha256 TEXT NOT NULL, created_at TEXT NOT NULL, created_by TEXT NOT NULL
+  object_key TEXT NOT NULL, sha256 TEXT NOT NULL, created_at TEXT NOT NULL, created_by TEXT NOT NULL,
+  metadata_json TEXT NOT NULL DEFAULT '{}' CHECK(json_valid(metadata_json))
  )`,
+ `CREATE TRIGGER IF NOT EXISTS billing_engagement_no_update BEFORE UPDATE ON billing_quote_engagements BEGIN SELECT RAISE(ABORT,'BILLING_ENGAGEMENT_IMMUTABLE'); END`,
+ `CREATE TRIGGER IF NOT EXISTS billing_engagement_no_delete BEFORE DELETE ON billing_quote_engagements BEGIN SELECT RAISE(ABORT,'BILLING_ENGAGEMENT_IMMUTABLE'); END`,
  `CREATE TABLE IF NOT EXISTS billing_intervention_reports (
   document_key TEXT PRIMARY KEY, version INTEGER NOT NULL CHECK(version>=1),
   data_json TEXT NOT NULL CHECK(json_valid(data_json)), updated_at TEXT NOT NULL, updated_by TEXT NOT NULL
