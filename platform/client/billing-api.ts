@@ -16,6 +16,7 @@ export function createBillingTransport(options:{baseUrl:string;getToken:()=>Prom
   }
   async function numbered(promise:Promise<BillingDocument>){const doc=await promise;const siren=doc.data.seller.siren.replace(/\s/g,'')||doc.data.seller.siret.replace(/\s/g,'').slice(0,9);return !doc.issuance&&!doc.reservedNumber&&!doc.quote?.revision.abandoned&&/^\d{9}$/.test(siren)?request<BillingDocument>('/documents/'+encodeURIComponent(doc.id)+'/number','POST',{},doc.version):doc;}
   return {
+    rectify:(id,version,input)=>numbered(request<BillingDocument>('/documents/'+encodeURIComponent(id)+'/rectify','POST',input,version)),
     session:()=>request('/api/v1/session'),
     emailHistory:id=>request('/documents/'+encodeURIComponent(id)+'/email'),
     email:(id,version,input)=>request('/documents/'+encodeURIComponent(id)+'/email','POST',input,version),

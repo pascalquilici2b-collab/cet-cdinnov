@@ -1,0 +1,55 @@
+/* Shared document states: one palette in the list, header, summary and menu. */
+.bill-app [data-status=draft],.bill-state-menu [data-status=draft]{--state-ink:#62626b;--state-bg:#f0f0f3;--state-line:#ddddE3}
+.bill-app [data-status=finalized],.bill-state-menu [data-status=finalized]{--state-ink:#0668c7;--state-bg:#edf5ff;--state-line:#bdd9f7}
+.bill-app [data-status=overdue],.bill-state-menu [data-status=overdue]{--state-ink:#a44507;--state-bg:#fff2e4;--state-line:#f3c391}
+.bill-app [data-status=partial],.bill-state-menu [data-status=partial]{--state-ink:#875c0c;--state-bg:#fff7df;--state-line:#ebd499}
+.bill-app [data-status=paid],.bill-app [data-status=overpaid],.bill-state-menu [data-status=paid]{--state-ink:#176c3e;--state-bg:#eaf7ef;--state-line:#b7ddc5}
+[data-theme=dark] .bill-app [data-status=draft],[data-theme=dark] .bill-state-menu [data-status=draft]{--state-ink:#c3c3cb;--state-bg:#313135;--state-line:#505057}
+[data-theme=dark] .bill-app [data-status=finalized],[data-theme=dark] .bill-state-menu [data-status=finalized]{--state-ink:#91c8ff;--state-bg:#19334f;--state-line:#355a80}
+[data-theme=dark] .bill-app [data-status=overdue],[data-theme=dark] .bill-state-menu [data-status=overdue]{--state-ink:#ffb877;--state-bg:#432d1e;--state-line:#79502c}
+[data-theme=dark] .bill-app [data-status=partial],[data-theme=dark] .bill-state-menu [data-status=partial]{--state-ink:#ebce88;--state-bg:#3d3421;--state-line:#6d5b34}
+[data-theme=dark] .bill-app [data-status=paid],[data-theme=dark] .bill-app [data-status=overpaid],[data-theme=dark] .bill-state-menu [data-status=paid]{--state-ink:#8cddaa;--state-bg:#203c2c;--state-line:#39634a}
+.bill-app :is(.bill-status-trigger,.bill-document-state,.bill-badge,.bill-payment-state)[data-status]{display:inline-flex;align-items:center;gap:7px;background:var(--state-bg,var(--bill-raised))!important;color:var(--state-ink,var(--bill-muted))!important;border:1px solid var(--state-line,var(--bill-line))!important;border-radius:9px;font-weight:550;line-height:1.35;max-width:100%}
+.bill-app .bill-document-state{padding:6px 10px;font-size:12px;white-space:normal}
+.bill-app .bill-payment-state{padding:5px 8px;font-size:11px;text-align:left}
+.bill-app :is(.bill-status-trigger,.bill-document-state,.bill-badge,.bill-payment-state) svg{flex:none;color:inherit!important}
+.bill-state-menu [role=menuitem][data-status]{color:var(--state-ink)!important}
+.bill-state-menu [role=menuitem][data-status] svg{color:inherit!important}
+.bill-state-menu [role=menuitem][data-status][data-highlighted]{background:var(--state-bg)!important}
+.bill-state-menu [role=menuitem][data-disabled]{opacity:1}
+.bill-state-menu{min-width:240px;background:#fff}
+[data-theme=dark] .bill-state-menu{background:#29292c}
+.bill-app .bill-document-status-inline[data-status]{color:var(--state-ink,var(--bill-muted))!important}
+.bill-app :is(.bill-document-state,.bill-payment-state,.bill-status-trigger,.bill-badge)[data-status]::before{content:none!important;display:none!important}
+.bill-app .bill-button-receipt{background:#197448!important;border-color:#197448!important;color:#fff!important;box-shadow:none;gap:8px;white-space:normal}
+.bill-app .bill-button-receipt:hover:not(:disabled){background:#125d38!important;border-color:#125d38!important}
+[data-theme=dark] .bill-app .bill-button-receipt{background:#228653!important;border-color:#339965!important;color:#fff!important}
+.bill-app .bill-payment-balance{padding:14px;border:1px solid var(--bill-line);border-radius:12px}
+.bill-app .bill-payment-balance[data-overdue=true]{background:var(--state-bg,#fff2e4);color:#a44507;border-color:#f3c391}
+[data-theme=dark] .bill-app .bill-payment-balance[data-overdue=true]{background:#432d1e;color:#ffb877;border-color:#79502c}
+.bill-app .bill-delivery-dialog{width:min(640px,calc(100vw - 32px));max-height:calc(100dvh - 32px);padding:0;overflow:auto;border:1px solid var(--bill-line);border-radius:20px;background:var(--bill-surface);color:var(--bill-ink);color-scheme:light;box-shadow:0 28px 90px #0003}
+[data-theme=dark] .bill-app .bill-delivery-dialog{color-scheme:dark;box-shadow:0 28px 90px #0008}
+.bill-app .bill-delivery-dialog .bill-dialog-top{position:sticky;top:0;z-index:1;background:var(--bill-surface);color:var(--bill-ink);border-bottom:1px solid var(--bill-line);padding:18px 22px}
+.bill-delivery-dialog .bill-dialog-top strong{display:flex;align-items:center;gap:9px;font-size:17px}
+.bill-app .bill-delivery-dialog .bill-dialog-top>button{display:grid;place-items:center;border:0;border-radius:9px;width:32px;height:32px;background:var(--bill-raised);color:var(--bill-muted);font-size:23px}
+.bill-app .bill-delivery-dialog .bill-section{padding:22px;background:var(--bill-surface);color:var(--bill-ink);border:0;border-radius:0;display:grid;gap:16px;margin:0;box-shadow:none}
+.bill-app .bill-delivery-dialog .bill-fields{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;width:100%;min-width:0}
+.bill-app .bill-delivery-dialog :is(input,select,textarea){width:100%;min-width:0;box-sizing:border-box;background:var(--bill-input)!important;color:var(--bill-ink)!important;border:1px solid var(--bill-line)!important;border-radius:10px;padding:10px 12px;font-size:14px;line-height:1.5;box-shadow:none}
+.bill-app .bill-delivery-dialog textarea{resize:vertical;min-height:180px}
+.bill-app .bill-delivery-dialog .bill-field-label>label{color:var(--bill-ink);font-size:12px;font-weight:500}
+.bill-app .bill-delivery-dialog .bill-outlook-account{background:var(--bill-raised);padding:14px;margin:0;border:1px solid var(--bill-line);border-radius:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.bill-delivery-dialog .bill-outlook-account-actions{margin:0;flex-wrap:wrap}
+.bill-app .bill-delivery-dialog .bill-button:not(.bill-button-primary){background:var(--bill-surface);color:var(--bill-ink);border:1px solid var(--bill-line)}
+.bill-app .bill-delivery-dialog .bill-button-primary{background:#0668c7!important;border:1px solid #0668c7!important;color:#fff!important}
+.bill-app .bill-delivery-dialog .bill-button-primary:hover:not(:disabled){background:#0058b0!important}
+.bill-app .bill-delivery-dialog .bill-mail-attachment{display:flex;align-items:center;gap:10px;border:1px solid var(--bill-line);border-radius:11px;background:var(--bill-raised);padding:11px 13px;margin:0;font-size:13px;color:var(--bill-ink);min-width:0}
+.bill-mail-attachment>svg{color:#d52d3a;flex:none}.bill-app .bill-mail-attachment .bill-pdf-icon-label{fill:#fff!important}
+.bill-mail-attachment>span{overflow-wrap:anywhere;min-width:0}
+.bill-app .bill-delivery-dialog :is(.bill-outlook-help,.bill-delivery-ready){margin:0;line-height:1.5}
+.bill-app .bill-delivery-dialog [role=alert]{color:#b82a36;font-size:13px}
+[data-theme=dark] .bill-app .bill-delivery-dialog [role=alert]{color:#ffabb3}
+.bill-mail-actions{display:grid;grid-template-columns:42px minmax(0,1fr);gap:10px;align-items:stretch;border-top:1px solid var(--bill-line);padding-top:16px}
+.bill-app .bill-mail-actions>.bill-button{min-height:43px;border-radius:11px;white-space:normal;padding:10px 13px;max-width:100%;text-decoration:none}
+.bill-app .bill-mail-actions>.bill-mail-download{padding:9px;width:42px}
+.bill-outlook-icon{flex:none}.bill-app .bill-delivery-dialog .bill-button:disabled{opacity:.6}
+@media(max-width:600px){.bill-app .bill-delivery-dialog .bill-section{padding:16px}.bill-app .bill-delivery-dialog .bill-dialog-top{padding:15px 16px}.bill-app .bill-delivery-dialog .bill-outlook-account{align-items:flex-start}.bill-app .bill-payment-heading{flex-wrap:wrap;gap:8px}.bill-app .bill-status-trigger{white-space:normal;text-align:left}}

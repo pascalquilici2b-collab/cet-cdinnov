@@ -1,12 +1,14 @@
 import {forwardRef,useEffect,useImperativeHandle,useRef,useState} from 'react';
 import {CheckCircle2,ChevronDown,FilePenLine,LoaderCircle,Check,Banknote,Clock3} from 'lucide-react';
+import {billingStateLabel,billingDisplayState,invoiceIsLate} from '../billing-display-state';
+export {billingStateLabel} from '../billing-display-state';
+import {BillingStateIcon} from './billing-state-icon';
 import {StatusPaymentDialog} from './billing-status-payment';
 import {DropdownMenu} from 'radix-ui';
 import {useConfirmation} from './action-dialog';
 import {Help} from './billing-help';
 import type {BillingDocument,BillingTransport,BillingIssue} from '../billing-contracts';
 
-export const billingStateLabel=(document:BillingDocument|null|undefined)=>document?.quote?.revision.abandoned?'Version abandonnée':!document?.issuance?'Brouillon':document.issuance.state==='ready'?(document.settlement?({paid:'Réglée',unpaid:'À régler',partial:'Partiellement réglée',overpaid:'Trop-perçu'}[document.settlement.state]):'Finalisé'):document.issuance.state==='failed'?'À reprendre':'Finalisation en cours';
 const message=(e:unknown)=>e instanceof Error?e.message:'La finalisation n’a pas abouti.';
 export type DocumentStatusHandle={finalize:()=>Promise<BillingDocument|undefined>};
 type Props={serviceConfigured:boolean;record:BillingDocument|null;saved:boolean;busy:boolean;transport:BillingTransport;onDocument:(d:BillingDocument)=>void;onBusy:(v:string)=>void;onNotice:(v:string)=>void;onSave:()=>Promise<BillingDocument|undefined>;draftIssues:BillingIssue[];onReview:()=>void};
@@ -35,14 +37,14 @@ export const DocumentStatus=forwardRef<DocumentStatusHandle,Props>(function Docu
   }finally{running.current=false;if(live.current)onBusy('');}
  }
  useImperativeHandle(ref,()=>({finalize:finish}));
- const issue=record?.issuance,ready=issue?.state==='ready',inactive=!!record?.quote&&(record.quote.revision.abandoned||record.quote.revision.currentId!==record.id);
- return <div className="bill-status-control" data-ready={ready}>
-  <DropdownMenu.Root><DropdownMenu.Trigger asChild><button type="button" className="bill-status-trigger" data-settlement={record?.settlement?.state} aria-label="Statut du document" disabled={busy||!record||inactive}>
-   {ready?(record?.settlement?.state==='paid'?<Banknote size={17}/>:record?.settlement?<Clock3 size={17}/>:<CheckCircle2 className="bill-finalized-icon" size={17}/>):issue?<LoaderCircle size={17}/>:<FilePenLine size={17}/>}<span>{billingStateLabel(record)}</span><ChevronDown size={14}/>
-  </button></DropdownMenu.Trigger><DropdownMenu.Portal><DropdownMenu.Content className="cdi-action-menu" align="start" sideOffset={6}>
-   <DropdownMenu.Item disabled={!!issue} onSelect={()=>setError('')}><FilePenLine size={17}/>Brouillon{!issue&&<Check className="cdi-menu-check" size={15}/>}</DropdownMenu.Item>
-   <DropdownMenu.Item disabled={ready||!serviceConfigured} onSelect={()=>{void finish();}}><CheckCircle2 className="bill-finalized-icon" size={17}/>{issue&&!ready?'Reprendre la finalisation':'Finalisé'}{ready&&!record?.settlement&&<Check className="cdi-menu-check" size={15}/>}</DropdownMenu.Item>
-   {record?.data.kind==='invoice'&&<><DropdownMenu.Separator className="cdi-menu-separator"/><DropdownMenu.Item disabled={!ready||record.settlement?.state==='unpaid'} onSelect={()=>setPaymentMode('unpaid')}><Clock3 size={17}/>À régler{record.settlement?.state==='unpaid'&&<Check className="cdi-menu-check" size={15}/>}</DropdownMenu.Item><DropdownMenu.Item disabled={!ready||!record.settlement||record.settlement.dueMinor==='0'} onSelect={()=>setPaymentMode('paid')}><Banknote size={17}/>Réglée{record.settlement?.state==='paid'&&<Check className="cdi-menu-check" size={15}/>}</DropdownMenu.Item></>}
+ const issue=record?.issuance,ready=issue?.state==='ready',inactive=!!record?.rectification?.replacementId||!!record?.quote&&(record.quote.revision.abandoned||record.quote.revision.currentId!==record.id);
+ return <div className="bill-status-control" data-ready={ready} data-status={billingDisplayState(record)}>
+  <DropdownMenu.Root><DropdownMenu.Trigger asChild><button type="button" className="bill-status-trigger" data-status={billingDisplayState(record)} aria-label="Statut du document" disabled={busy||!record||inactive}>
+   <BillingStateIcon state={billingDisplayState(record)}/><span>{billingStateLabel(record)}</span><ChevronDown size={14}/>
+  </button></DropdownMenu.Trigger><DropdownMenu.Portal><DropdownMenu.Content className="cdi-action-menu bill-state-menu" align="start" sideOffset={6}>
+   <DropdownMenu.Item data-status="draft" disabled={!!issue} onSelect={()=>setError('')}><FilePenLine size={17}/>Brouillon{!issue&&<Check className="cdi-menu-check" size={15}/>}</DropdownMenu.Item>
+   <DropdownMenu.Item data-status="finalized" disabled={!serviceConfigured||(ready&&(!record?.settlement||record.settlement.netPaidMinor==='0'||invoiceIsLate(record.data.issueDate,record.data.dueDate)))} onSelect={()=>{if(ready)setPaymentMode('unpaid');else void finish();}}><CheckCircle2 className="bill-finalized-icon" size={17}/>{issue&&!ready?'Reprendre la finalisation':'Finalisé'}{billingDisplayState(record)==='finalized'&&<Check className="cdi-menu-check" size={15}/>}</DropdownMenu.Item>
+   {record?.data.kind==='invoice'&&<><DropdownMenu.Separator className="cdi-menu-separator"/><DropdownMenu.Item data-status="overdue" title="Automatique après l’échéance, tant qu’un montant reste à encaisser" disabled={!ready||!invoiceIsLate(record.data.issueDate,record.data.dueDate)||record.settlement?.netPaidMinor==='0'} onSelect={()=>setPaymentMode('unpaid')}><Clock3 size={17}/>En retard d’encaissement{billingDisplayState(record)==='overdue'&&<Check className="cdi-menu-check" size={15}/>}</DropdownMenu.Item><DropdownMenu.Item data-status="paid" disabled={!ready||!record.settlement||record.settlement.dueMinor==='0'} onSelect={()=>setPaymentMode('paid')}><Banknote size={17}/>Réglée{record.settlement?.state==='paid'&&<Check className="cdi-menu-check" size={15}/>}</DropdownMenu.Item></>}
   </DropdownMenu.Content></DropdownMenu.Portal></DropdownMenu.Root>
   <Help label="Statut du document" text={ready?'Le document définitif est archivé. Pour corriger un devis, créez une nouvelle version.':!serviceConfigured?'Le moteur PDF est indisponible.':'Choisissez Finalisé pour figer le document et générer ses fichiers définitifs. Le numéro déjà réservé est conservé.'}/>
   {issue&&!ready&&<button className="bill-button" disabled={busy} onClick={()=>{void finish();}}>Reprendre</button>}

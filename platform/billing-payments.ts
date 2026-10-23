@@ -9,11 +9,11 @@ const fail=(status:number,message:string):never=>{throw Object.assign(new Error(
 /** Values interpolated here are only local calendar values and static SQL. Amounts stay decimal strings on the wire. */
 export function settlementJSON(){
  const net="coalesce(p.balance_minor,0)",gross="CAST(json_extract(billing_documents.totals_json,'$.grossMinor') AS INTEGER)";
- return `(SELECT CASE WHEN billing_documents.kind='invoice' AND j.state='ready' THEN json_object(
+ return `(SELECT CASE WHEN billing_documents.kind='invoice' AND j.state='ready' AND NOT EXISTS(SELECT 1 FROM billing_invoice_rectifications r WHERE r.original_id=billing_documents.id AND NOT EXISTS(SELECT 1 FROM billing_document_trash t WHERE t.document_id=r.replacement_id)) THEN json_object(
   'version',coalesce(p.version,0),'receivedMinor',CAST(coalesce(p.received_minor,0) AS TEXT),'refundedMinor',CAST(coalesce(p.refunded_minor,0) AS TEXT),
   'netPaidMinor',CAST(${net} AS TEXT),'dueMinor',CAST(max(${gross}-${net},0) AS TEXT),'overpaidMinor',CAST(max(${net}-${gross},0) AS TEXT),
   'state',CASE WHEN ${net}>${gross} THEN 'overpaid' WHEN ${net}=${gross} THEN 'paid' WHEN ${net}=0 THEN 'unpaid' ELSE 'partial' END,
-  'overdue',json(CASE WHEN ${net}<${gross} AND coalesce(json_extract(billing_documents.data_json,'$.dueDate'),'')<>'' AND json_extract(billing_documents.data_json,'$.dueDate')<'${billingToday()}' THEN 'true' ELSE 'false' END)) ELSE NULL END
+  'overdue',json(CASE WHEN ${net}<${gross} AND coalesce(nullif(json_extract(billing_documents.data_json,'$.dueDate'),''),date(json_extract(billing_documents.data_json,'$.issueDate'),'+30 days'))<'${billingToday()}' THEN 'true' ELSE 'false' END)) ELSE NULL END
   FROM billing_issuances i JOIN billing_issue_jobs j ON j.issuance_id=i.id LEFT JOIN billing_payment_accounts p ON p.document_id=i.document_id WHERE i.document_id=billing_documents.id)`;
 }
 export async function billingPaymentRoute(request:Request,db:Database,record:BillingDocument,email:string,reply:Reply,read:()=>Promise<BillingDocument>):Promise<Response>{
@@ -45,6 +45,7 @@ export async function billingPaymentRoute(request:Request,db:Database,record:Bil
    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(input.id,record.id,input.documentVersion,version,input.kind,input.targetId,input.amountMinor===null?null:Number(input.amountMinor),input.occurredOn,input.method,input.reference,input.note,input.reason,today,hash,new Date().toISOString(),email).run();
  }catch(error){
   const retry=await existing();if(retry?.document_id===record.id&&retry.request_hash===hash)return reply(200,await read());
+  if(String(error).includes('BILLING_RECTIFICATION_CONFLICT'))return fail(409,'Cette facture fait l’objet d’une rectification. Ouvrez sa version actuelle.');
   if(String(error).includes('BILLING_PAYMENT_BALANCE'))return fail(422,'Cette opération dépasserait les sommes reçues. Corrigez d’abord le mouvement concerné ou réduisez le remboursement.');
   if(/BILLING_PAYMENT_CONFLICT|BILLING_PAYMENT_TARGET|UNIQUE constraint/.test(String(error)))return fail(409,'Les règlements ont changé ou cette saisie a déjà été corrigée. Actualisez les règlements ; vos valeurs sont conservées.');
   throw error;

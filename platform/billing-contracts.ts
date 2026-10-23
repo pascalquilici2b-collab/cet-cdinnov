@@ -49,7 +49,9 @@ export interface BillingTotals {
   lines:BillingLineTotal[]; taxes:BillingTaxTotal[];
   netMinor:string; taxMinor:string; grossMinor:string; discountMinor:string;
 }
+export interface BillingInvoiceRectification {parentId:string|null;parentNumber:string|null;replacementId:string|null;replacementNumber:string|null;replacementState:'draft'|'issued'|null;}
 export interface BillingDocument {
+  rectification?:BillingInvoiceRectification;
   id:string; version:number; status:'draft'|'finalizing'|'issue_failed'|'issued'; data:BillingDraft;
   issuance:BillingIssuanceSummary|null;
   reservedNumber?:{number:string;date:string;seriesId:string}|null;
@@ -66,7 +68,7 @@ type PaymentInputFields={amount:string;occurredOn:string;method:BillingPaymentMe
 export type BillingPaymentOperationInput={id:string;documentVersion:number}&(({kind:'receipt'|'refund'}&PaymentInputFields)|{kind:'void';targetId:string;reason:string}|({kind:'replace';targetId:string;reason:string}&PaymentInputFields));
 export type BillingQuoteAction='sent'|'accepted'|'refused'|'reopened';
 export type BillingQuoteState='prepared'|'sent'|'accepted'|'refused'|'expired';
-export type BillingListState='trash'|'all'|'draft'|'finalizing'|'issue_failed'|'issued'|'previous'|'abandoned'|'overdue'|BillingQuoteState|BillingSettlementState;
+export type BillingListState='trash'|'all'|'draft'|'finalizing'|'issue_failed'|'issued'|'previous'|'abandoned'|'finalized'|'overdue'|BillingQuoteState|BillingSettlementState;
 export interface BillingQuoteRevisionSummary {rootId:string;familyVersion:number;ordinal:number;count:number;parentId:string|null;parentNumber:string|null;reason:string;abandoned:boolean;abandonReason:string|null;currentId:string;currentOrdinal:number;currentNumber:string|null;currentState:BillingDocument['status'];}
 export interface BillingQuoteRevisionItem {id:string;ordinal:number;number:string|null;status:BillingDocument['status'];createdAt:string;reason:string;abandonedAt:string|null;abandonReason:string|null;grossMinor:string|null;}
 export interface BillingQuoteSummary {version:number;state:BillingQuoteState;occurredOn:string|null;invoice:{id:string;number:string|null;state:BillingDocument['status']}|null;revision:BillingQuoteRevisionSummary;}
@@ -98,6 +100,7 @@ export interface BillingContext {
   settings:BillingSettings;
 }
 export interface BillingTransport {
+  rectify(id:string,version:number,input:{id:string;notTransmitted:true}):Promise<BillingDocument>;
   session():Promise<{email:string}>;
   emailHistory(id:string):Promise<{deliveries:import('./billing-delivery').EmailDelivery[]}>;
   email(id:string,version:number,input:import('./billing-delivery').EmailInput):Promise<{delivery:import('./billing-delivery').EmailDelivery}>;

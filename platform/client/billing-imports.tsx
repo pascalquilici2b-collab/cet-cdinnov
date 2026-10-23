@@ -1,3 +1,5 @@
+import {invoiceIsLate} from '../billing-display-state';
+import {BillingStateIcon} from './billing-state-icon';
 import {invoiceDisplayNumber,importedInvoiceLabel} from './billing-invoice-label';
 import {FileCode2,Pencil,Trash2,Upload,Banknote,Clock3} from 'lucide-react';
 import type {BillingDocument,BillingPage,BillingTransport} from '../billing-contracts';
@@ -35,7 +37,8 @@ export async function listWithImports(transport:BillingTransport,query:Parameter
   if(!projectOption&&project){projectOption={value:invoice.projectId?'id:'+invoice.projectId:'name:'+project,label:project};projects.push(projectOption);}
   if(query.client&&clientOption?.value!==query.client||query.project&&projectOption?.value!==query.project)continue;
   if(query.q&&!nameKey([invoice.number,client,invoice.code,project,invoice.dateFacture].join(' ')).includes(nameKey(query.q)))continue;
-  if(query.state&&!['all','issued',invoice.datePaiement?'paid':'unpaid'].includes(query.state))continue;
+  const state=invoice.datePaiement?'paid':invoiceIsLate(invoice.dateFacture||'')?'overdue':'finalized';
+  if(query.state&&!['all','issued',state,...(!invoice.datePaiement?['unpaid']:[])].includes(query.state))continue;
   const data=blankDraft('invoice');data.title='Facture '+(invoice.number||'importée');data.buyer.name=client;data.issueDate=invoice.dateFacture||'';data.references.businessCode=invoice.code||'';
   rows.push({id:'imported:'+invoice.id,imported:invoice,version:0,status:'issued',data,issuance:null,sourceDocumentId:null,createdAt:data.issueDate,updatedAt:data.issueDate+'T00:00:00.000Z',createdBy:'',updatedBy:'',totals:null,issues:[],quote:null,settlement:null});
  }
@@ -45,12 +48,13 @@ export async function listWithImports(transport:BillingTransport,query:Parameter
 }
 
 export function ImportedInvoiceRow({invoice:f,act,label}:{invoice:Invoice;act:ImportedInvoices['act'];label?:string}){
+ const state=f.datePaiement?'paid':invoiceIsLate(f.dateFacture||'')?'overdue':'finalized';
  return <tr data-imported-invoice={f.id}>
   <td data-column="document"><button className="bill-document-link" onClick={()=>act('edit',f.id)}><span><strong>{invoiceDisplayNumber(f.number)}</strong><small>Importée</small></span></button></td>
   <td data-column="label">{importedInvoiceLabel(f)||label||'—'}</td>
   <td data-column="client"><div className="bill-list-client"><ClientAvatar name={f.client||''}/><span>{f.client||'—'}</span></div></td>
   <td data-column="date">{date(f.dateFacture||'')}</td><td data-column="reference">{f.code||'—'}</td>
-  <td data-column="status"><span className="bill-badge" data-status={f.datePaiement?'paid':'unpaid'}>{f.datePaiement?<Banknote size={15}/>:<Clock3 size={15}/>} {f.datePaiement?'Réglée':'À régler'}</span></td>
+  <td data-column="status"><span className="bill-badge" data-status={state}><BillingStateIcon state={state} size={15}/> {state==='paid'?'Réglée':state==='overdue'?'En retard d’encaissement':'Finalisé'}</span></td>
   <td data-column="amount" className="bill-amount">{formatMinor(minor(f.ttc))}</td>
   <td data-column="action"><div className="bill-import-actions">
    {f.pdfSource?<><button className="bill-button bill-button-pdf" aria-label={'Télécharger le PDF '+f.number} title="Télécharger le PDF" onClick={()=>act('pdf',f.id)}><PDFIcon/></button><button className="bill-button bill-button-primary" aria-label={(f.validFacturx?'Télécharger le Factur-X ':'Créer le Factur-X ')+f.number} title={f.validFacturx?'Télécharger le Factur-X':'Créer le Factur-X'} onClick={()=>act(f.validFacturx?'downloadFacturx':'facturx',f.id)}><FileCode2 size={16}/><span>Factur-X</span></button></>:<button className="bill-button" title="Joindre le PDF original" aria-label={'Joindre le PDF '+f.number} onClick={()=>act('upload',f.id)}><Upload size={16}/>PDF</button>}

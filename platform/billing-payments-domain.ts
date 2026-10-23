@@ -2,7 +2,7 @@ import type {BillingPaymentMethod,BillingPaymentOperationInput,BillingSettlement
 import {billingId,validBillingDate} from './billing-domain.ts';
 
 export const paymentMethodLabels:Record<BillingPaymentMethod,string>={transfer:'Virement',card:'Carte bancaire',cash:'Espèces',cheque:'Chèque',direct_debit:'Prélèvement',other:'Autre'};
-export const settlementLabels:Record<BillingSettlementState,string>={unpaid:'À régler',partial:'Partiellement réglée',paid:'Réglée',overpaid:'Trop-perçu'};
+export const settlementLabels:Record<BillingSettlementState,string>={unpaid:'Finalisé',partial:'Partiellement réglée',paid:'Réglée',overpaid:'Trop-perçu'};
 const fail=(message:string):never=>{throw Object.assign(new Error(message),{status:422});};
 /** Accept common French grouping, never exponents, signed values or rounded cents. */
 export function paymentMinor(value:unknown):string {

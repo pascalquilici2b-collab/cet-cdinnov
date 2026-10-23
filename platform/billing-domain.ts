@@ -7,6 +7,10 @@ export const blankParty=():BillingParty=>({name:'',addressLine1:'',addressLine2:
 const blankLegal=():BillingLegalNotes=>({recovery:'',penalties:'',discount:''});
 export const blankDocumentDetails=():NonNullable<BillingDraft['details']>=>({marketObject:'',period:'',personInCharge:'',fundingProgramme:'',validityMonths:'',returnEmail:'',interventions:[]});
 export const defaultFundingProgrammes=['Interreg Italie-France Maritime','Interreg Euro-Med','Horizon Europe','Interreg Next-Med'];
+export function addBillingDays(date:string,days:number){
+ if(!validBillingDate(date)||!Number.isInteger(days))return '';
+ const result=new Date(date+'T12:00:00Z');result.setUTCDate(result.getUTCDate()+days);return result.toISOString().slice(0,10);
+}
 export function addBillingMonths(date:string,months:string){
  if(!validBillingDate(date)||!/^\d{1,2}$/.test(months)||Number(months)<1||Number(months)>36)return '';
  const [y,m,d]=date.split('-').map(Number),last=new Date(Date.UTC(y,m-1+Number(months)+1,0)),day=Math.min(d,last.getUTCDate());
@@ -17,7 +21,7 @@ export const defaultPaymentTerms='Règlement par virement bancaire à l’éché
 export const blankSettings=():BillingSettingsData=>({schemaVersion:1,seller:blankParty(),paymentTerms:defaultPaymentTerms,iban:'',bic:'',paymentMeans:'30',vatDue:'',legalNotes:blankLegal(),businessProcess:''});
 export const newLine=():BillingLine=>({id:uuid(),description:'',quantity:'1',unitCode:'DAY',unitPrice:'',discountPercent:'0',vatRate:'20',vatCategory:'S',exemptionReason:''});
 export function blankDraft(kind:BillingKind,today=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Paris'}).format(new Date())):BillingDraft {
-  return {schemaVersion:2,kind,title:'',currency:'EUR',issueDate:today,dueDate:'',validUntil:'',clientId:'',seller:blankParty(),buyer:blankParty(),lines:[newLine()],references:{businessCode:'',marketId:'',marketReference:'',orderReference:'',project:'',serviceCode:'',engagement:''},paymentTerms:'',iban:'',bic:'',notes:'',paymentMeans:'30',vatDue:'',legalNotes:blankLegal(),businessProcess:''};
+  return {schemaVersion:2,kind,title:'',currency:'EUR',issueDate:today,dueDate:kind==='invoice'?addBillingDays(today,30):'',validUntil:'',clientId:'',seller:blankParty(),buyer:blankParty(),lines:[newLine()],references:{businessCode:'',marketId:'',marketReference:'',orderReference:'',project:'',serviceCode:'',engagement:''},paymentTerms:'',iban:'',bic:'',notes:'',paymentMeans:'30',vatDue:'',legalNotes:blankLegal(),businessProcess:''};
 }
 /** Settings are copied, never linked: later edits cannot rewrite an existing document. */
 export function draftWithSettings(kind:BillingKind,settings:BillingSettingsData):BillingDraft {
