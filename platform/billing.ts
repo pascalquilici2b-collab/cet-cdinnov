@@ -84,15 +84,17 @@ function documentServiceConfigured(env:Environment):boolean {
 }
 async function context(db:Database,env:Environment):Promise<BillingContext> {
  // Read only the allowed business columns. Account verifiers and portal authentication never enter this response.
- const [clients,codes,markets,settings,people]=await Promise.all([
+ const [clients,codes,markets,settings,people,logos]=await Promise.all([
   db.prepare('SELECT data_json FROM budget_clients ORDER BY position,record_key').all<{data_json:string}>(),
   db.prepare('SELECT data_json FROM portal_business_codes ORDER BY position,record_key').all<{data_json:string}>(),
   db.prepare('SELECT id,payload,version FROM markets ORDER BY updated_at DESC,id').all<{id:string;payload:string;version:number}>(),readSettings(db),
-  db.prepare('SELECT data_json FROM portal_employees ORDER BY position,record_key').all<{data_json:string}>()
+  db.prepare('SELECT data_json FROM portal_employees ORDER BY position,record_key').all<{data_json:string}>(),
+  db.prepare("SELECT id,data_json FROM billing_directory WHERE kind='clients'").all<{id:string;data_json:string}>()
  ]);
  return {
   documentService:{configured:documentServiceConfigured(env)},
-  people:people.results.map(r=>JSON.parse(r.data_json)).map(p=>({id:text(p.matricule),name:[text(p.prenom),text(p.nom)].filter(Boolean).join(' ')})).filter(p=>p.id&&p.name),
+  people:people.results.map(r=>JSON.parse(r.data_json)).map(p=>({id:text(p.matricule),name:[text(p.prenom),text(p.nom)].filter(Boolean).join(' '),photo:text(p.photo)})).filter(p=>p.id&&p.name),
+  clientLogos:logos.results.map(r=>{const p=JSON.parse(r.data_json);return {id:r.id,name:text(p.party?.name),siren:text(p.party?.siren),siret:text(p.party?.siret),logoKey:text(p.logoKey),logoData:text(p.logoData)};}),
   clients:clients.results.map(r=>JSON.parse(r.data_json)).filter(object).map(r=>({id:text(r.id),name:text(r.name)})).filter(r=>r.id&&r.name),
   businessCodes:codes.results.map(r=>JSON.parse(r.data_json)).filter(object).map(r=>({id:text(r.id),code:[r.code1,r.code2].filter(v=>typeof v==='number'||(typeof v==='string'&&v)).join(' '),label:text(r.label),client:text(r.client)})).filter(r=>r.id),
   markets:markets.results.filter(r=>JSON.parse(r.payload).status!=='archived').map(r=>{const p=JSON.parse(r.payload);return {id:r.id,version:r.version,title:text(p.title),reference:text(p.reference),clientName:text(p.clientName),clientId:text(p.clientId),activity:marketActivity(p),prices:Array.isArray(p.prices)?p.prices:[],projects:Array.isArray(p.projects)?p.projects:[]};}),

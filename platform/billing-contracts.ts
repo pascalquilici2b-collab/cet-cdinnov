@@ -24,7 +24,7 @@ export interface BillingDraft {
   paymentMeans:BillingPaymentMeans; vatDue:BillingVatDue; legalNotes:BillingLegalNotes; businessProcess:BillingBusinessProcess;
 }
 export interface BillingIntervention {id:string;priceId:string;label:string;description:string;days:string;}
-export interface BillingDocumentDetails {marketObject:string;period:''|'S1'|'S2';personInCharge:string;fundingProgramme:string;validityMonths:string;returnEmail:string;interventions:BillingIntervention[];}
+export interface BillingDocumentDetails {marketObject:string;period:''|'S1'|'S2'|'S3'|'S4'|'S5'|'S6'|'S7'|'S8';personInCharge:string;fundingProgramme:string;validityMonths:string;returnEmail:string;interventions:BillingIntervention[];}
 /** Only schema v3 carries a credit reference; old v2 snapshots keep their exact wire shape. */
 export interface BillingCreditReference {invoiceId:string;invoiceVersion:number;invoiceNumber:string;invoiceDate:string;reason:string;}
 export type BillingBusinessProcess = ''|'B1'|'S1'|'M1'|'B2'|'S2'|'M2'|'S3'|'B4'|'S4'|'M4'|'S5'|'S6'|'B7'|'S7'|'B8'|'S8'|'M8'|'B9'|'S9'|'M9';
@@ -75,7 +75,7 @@ export interface BillingClientDetails {
  legalForm:string; legalFormCode:string; representatives:string; shareCapital:string;
  vatNumbers:string[]; source:string; retrievedAt:string;
 }
-export interface BillingClientData {schemaVersion:1;party:BillingParty;notes:string;archived:boolean;details?:BillingClientDetails;logoKey?:string;}
+export interface BillingClientData {schemaVersion:1;party:BillingParty;notes:string;archived:boolean;details?:BillingClientDetails;logoKey?:string;logoData?:string;}
 export interface BillingServiceData {schemaVersion:1;reference:string;label:string;description:string;unitCode:string;unitPrice:string;vatRate:string;vatCategory:VatCategory;exemptionReason:string;archived:boolean;}
 export type BillingDirectoryData=BillingClientData|BillingServiceData;
 export type BillingDirectoryRecord={id:string;version:number;updatedAt:string|null;} & ({kind:'clients';data:BillingClientData;}|{kind:'services';data:BillingServiceData;});
@@ -83,7 +83,8 @@ export interface BillingDirectoryPage {records:BillingDirectoryRecord[];total:nu
 export interface BillingFilterOption {value:string;label:string;}
 export interface BillingPage {documents:BillingDocument[]; total:number; limit:number; offset:number; filters?:{clients:BillingFilterOption[];projects:BillingFilterOption[]};}
 export interface BillingContext {
-  people?:{id:string;name:string}[];
+  people?:{id:string;name:string;photo?:string}[];
+  clientLogos?:{id:string;name:string;siren:string;siret:string;logoKey?:string;logoData?:string}[];
   documentService:{configured:boolean};
   clients:{id:string; name:string}[];
   businessCodes:{id:string; code:string; label:string; client:string}[];

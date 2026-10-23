@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <style id="cdi-startup-guard">body:not(.authed)>.app{visibility:hidden}.theme-toggle>svg{width:18px;height:18px;fill:none;stroke:currentColor}.theme-toggle .theme-sun{display:none}[data-theme="dark"] .theme-toggle .theme-moon{display:none}[data-theme="dark"] .theme-toggle .theme-sun{display:block}</style>
-<link rel="stylesheet" href="/platform/loading.css?v=sheets-workflow-20261023c">
+<link rel="stylesheet" href="/platform/loading.css?v=market-import-20261023d">
 <script src="./platform/theme.js?v=apple-motion-20261020"></script>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -693,9 +693,9 @@ body.authed .auth-gate{display:none}
 </style>
 <link rel="stylesheet" href="platform/design-system.css">
 <link rel="stylesheet" href="design/portal.css?v=apple1">
-<link rel="stylesheet" href="design/apple.css?v=sheets-workflow-20261023c">
-<link rel="stylesheet" href="design/interactions.css?v=sheets-workflow-20261023c">
-<script src="platform/icons.js?v=sheets-workflow-20261023c"></script>
+<link rel="stylesheet" href="design/apple.css?v=market-import-20261023d">
+<link rel="stylesheet" href="design/interactions.css?v=market-import-20261023d">
+<script src="platform/icons.js?v=market-import-20261023d"></script>
 
 <div id="authGate" class="auth-gate" data-loading="true" aria-busy="true">
   <span class="auth-startup-status cdi-loading-sr" role="status">Connexion en cours…</span>
@@ -1063,8 +1063,8 @@ function renderDashboard(){
   const user=AUTH_USER,epoch=++dashboardEpoch;
   $('#content').innerHTML='<div id="dashboardRoot">'+loadingScreenMarkup('Chargement du tableau de bord…')+'</div>';
   const element=$('#dashboardRoot');
-  if(!document.getElementById('dashboardStyle')){const css=document.createElement('link');css.id='dashboardStyle';css.rel='stylesheet';css.href='platform/dashboard.css?v=sheets-workflow-20261023c';document.head.append(css);}
-  dashboardModule ||= import('./platform/dashboard.js?v=sheets-workflow-20261023c').catch(error=>{dashboardModule=null;throw error;});
+  if(!document.getElementById('dashboardStyle')){const css=document.createElement('link');css.id='dashboardStyle';css.rel='stylesheet';css.href='platform/dashboard.css?v=market-import-20261023d';document.head.append(css);}
+  dashboardModule ||= import('./platform/dashboard.js?v=market-import-20261023d').catch(error=>{dashboardModule=null;throw error;});
   dashboardModule.then(module=>{
     if(epoch!==dashboardEpoch||AUTH_USER!==user||currentView!=='dashboard'||!element.isConnected)return;
     dashboardDispose=module.mountDashboard(element,{
@@ -2200,7 +2200,7 @@ async function exportNoteFraisPDF(id,preview=false){
     const filename='Note_de_frais_N'+(n.numero||'')+'_'+(s.nom||'').replace(/\s+/g,'')+'.pdf';
     if(AUTH_USER!==user||!financeExpenseAllowed(n)||preview&&!id&&nfDraft!==initialDraft)return;
     if(preview){
-      const blob=doc.output('blob'),module=await financeModule();if(AUTH_USER!==user||!financeExpenseAllowed(n))return;if(!document.getElementById('billingStyle')){const css=document.createElement('link');css.id='billingStyle';css.rel='stylesheet';css.href='platform/billing.css?v=sheets-workflow-20261023c';document.head.append(css);}
+      const blob=doc.output('blob'),module=await financeModule();if(AUTH_USER!==user||!financeExpenseAllowed(n))return;if(!document.getElementById('billingStyle')){const css=document.createElement('link');css.id='billingStyle';css.rel='stylesheet';css.href='platform/billing.css?v=market-import-20261023d';document.head.append(css);}
       modal('<div class="modal-head"><h3>Aperçu — Note de frais N°'+esc(n.numero)+'</h3><div class="grow"></div><button type="button" class="btn btn-ghost" id="nfPreviewDownload">Télécharger PDF</button><button type="button" class="btn btn-ghost" id="nfPreviewClose">'+(id?'Fermer':'Retour')+'</button></div><div class="modal-body bill-app"><div id="nfPreviewRoot"></div></div>',true);
       financeEditorDispose=module.mountExpensePreview($('#nfPreviewRoot'),blob);$('#nfPreviewDownload').onclick=()=>doc.save(filename);$('#nfPreviewClose').onclick=()=>id?closeModal():renderNoteEditor();
     }else{doc.save(filename);toast('PDF généré');}
@@ -2425,8 +2425,8 @@ let financeModulePromise=null,financeMounted=null,financeEpoch=0,financeView=nul
 let financeEditorDispose=null,financeEditorEpoch=0,financeClientStatus='',financeClientError=false;
 let nfPage=1,nfPer=20;
 function financeModule(){
-  if(!$('#financeStyle')){const link=document.createElement('link');link.id='financeStyle';link.rel='stylesheet';link.href='platform/finance.css?v=sheets-workflow-20261023c';document.head.append(link);}
-  return financeModulePromise ||= import('./platform/finance.js?v=sheets-workflow-20261023c').catch(error=>{financeModulePromise=null;throw error;});
+  if(!$('#financeStyle')){const link=document.createElement('link');link.id='financeStyle';link.rel='stylesheet';link.href='platform/finance.css?v=market-import-20261023d';document.head.append(link);}
+  return financeModulePromise ||= import('./platform/finance.js?v=market-import-20261023d').catch(error=>{financeModulePromise=null;throw error;});
 }
 function financeForget(){financeEpoch++;financeMounted?.dispose();financeMounted=null;financeView=null;$('#financeRoot')?.remove();}
 function financeEditorForget(){financeEditorEpoch++;if(financeEditorDispose){financeEditorDispose();financeEditorDispose=null;}}
@@ -2485,7 +2485,7 @@ async function financeOpenEditor(kind,record,existing){
 
 /* React personnel screens. Existing CET calculations, imports and storage remain authoritative. */
 let personnelPromise=null,personnelMounted=null,personnelEpoch=0,personnelView=null,personnelEditorDispose=null,personnelEditorEpoch=0;
-function personnelModule(){return personnelPromise||=import('./platform/personnel.js?v=sheets-workflow-20261023c').catch(error=>{personnelPromise=null;throw error;});}
+function personnelModule(){return personnelPromise||=import('./platform/personnel.js?v=market-import-20261023d').catch(error=>{personnelPromise=null;throw error;});}
 function personnelStyle(){if(!$('#personnelStyle')){const css=document.createElement('link');css.id='personnelStyle';css.rel='stylesheet';css.href='platform/personnel.css';document.head.append(css);}}
 function personnelEditorForget(){personnelEditorEpoch++;if(personnelEditorDispose){personnelEditorDispose();personnelEditorDispose=null;}}
 function personnelForget(){personnelEpoch++;if(personnelMounted){personnelMounted.dispose();personnelMounted=null;}personnelView=null;$('#personnelRoot')?.remove();}
@@ -3417,7 +3417,7 @@ const agendaState={trips:[],leaves:null,members:[],loaded:false,loading:false,er
 let agendaTimer=null,agendaConfirmationTimer=null,agendaEditing=null,agendaFocus=null;
 let agendaPickers={},agendaSharedProjects=[];
 let agendaModeExplicit=false,agendaPromise=null,agendaMounted=null,agendaRenderEpoch=0,agendaEditorDispose=null,agendaEditorEpoch=0;
-function agendaModule(){return agendaPromise||=import('./platform/agenda.js?v=sheets-workflow-20261023c').catch(error=>{agendaPromise=null;throw error;});}
+function agendaModule(){return agendaPromise||=import('./platform/agenda.js?v=market-import-20261023d').catch(error=>{agendaPromise=null;throw error;});}
 function agendaStyleSheet(){if(!$('#agendaReactStyle')){const link=document.createElement('link');link.id='agendaReactStyle';link.rel='stylesheet';link.href='platform/agenda.css';document.head.append(link);}}
 function agendaReactForget(){agendaRenderEpoch++;if(agendaMounted){agendaMounted.dispose();agendaMounted=null;}$('#agendaRoot')?.remove();}
 function agendaEditorForget(){agendaEditorEpoch++;if(agendaEditorDispose){agendaEditorDispose();agendaEditorDispose=null;}agendaPickers={};}
@@ -3850,9 +3850,9 @@ function agendaNotificationHTML(t){
   var dateValid = (s2) => typeof s2 === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s2) && Number.isFinite(Date.parse(s2 + "T00:00:00Z")) && (/* @__PURE__ */ new Date(s2 + "T00:00:00Z")).toISOString().slice(0, 10) === s2;
   var key = (s2) => s2.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase().replace(/\s+/g, " ");
   var overlaps = (a, b) => (a.startDate || "0000") <= (b.endDate || "9999") && (b.startDate || "0000") <= (a.endDate || "9999");
-  function text(v, label, max = 500, required = false) {
+  function text(v, label, max2 = 500, required = false) {
     if (v == null) v = "";
-    if (typeof v !== "string" || v.length > max || required && !v.trim()) throw new Error(label + " : valeur manquante ou trop longue.");
+    if (typeof v !== "string" || v.length > max2 || required && !v.trim()) throw new Error(label + " : valeur manquante ou trop longue.");
     return v.trim();
   }
   function choice(v, choices, label) {
@@ -4011,6 +4011,7 @@ function agendaNotificationHTML(t){
   function mergeProposal(current, result, replaceSections = []) {
     const m = structuredClone(current);
     m.conditions ??= [];
+    const unidentified = ["", "March\xE9 \xE0 identifier"].includes(m.title) && ["", "Client \xE0 identifier"].includes(m.clientName);
     for (const section of ["prices", "ceilings", "periods", "conditions", "issues"]) m[section] ??= [];
     const addIssue = (r) => {
       if (!m.issues.some((i) => normalize(i.title) === normalize(r.title))) m.issues.push(r);
@@ -4018,7 +4019,7 @@ function agendaNotificationHTML(t){
     for (const f of result.facts || []) {
       if (f.conflict) continue;
       const vacant = m[f.field] === null || m[f.field] === "" || m[f.field] === "unknown" || ["March\xE9 \xE0 identifier", "Client \xE0 identifier"].includes(m[f.field]);
-      if (vacant || replaceSections.includes("summary")) m[f.field] = f.value;
+      if (vacant || replaceSections.includes("summary") || unidentified && ["type", "billingMode", "noMinimum", "feesIncluded"].includes(f.field)) m[f.field] = f.value;
       else if (JSON.stringify(m[f.field]) !== JSON.stringify(f.value)) addIssue(issue("V\xE9rifier : " + f.field, "La fiche contient " + JSON.stringify(m[f.field]) + ", la pi\xE8ce propose " + JSON.stringify(f.value) + ". Ajustez la fiche si n\xE9cessaire.", f.source));
     }
     for (const section of ["prices", "ceilings", "periods", "conditions"]) {
@@ -4033,9 +4034,735 @@ function agendaNotificationHTML(t){
       }
     }
     for (const r of result.issues || []) addIssue(structuredClone(r));
+    if (result.projects?.length) {
+      m.projects ??= [];
+      mergeProjects(m.projects, result.projects, addIssue);
+    }
+    if (m.startBasis === "date" && !m.startDate) {
+      m.startBasis = "";
+      addIssue(issue("Date de d\xE9marrage \xE0 pr\xE9ciser", "La pi\xE8ce annonce un d\xE9marrage \xE0 date fixe sans date exploitable.", result.facts?.find((f) => f.field === "startBasis")?.source));
+    }
+    if (m.maximumMinor == null) {
+      const caps = (result.ceilings || []).filter((c) => c.scope === "contract" && c.basis === "HT" && c.amountMinor !== null);
+      if (new Set(caps.map((c) => c.amountMinor)).size === 1) m.maximumMinor = caps[0].amountMinor;
+    }
     if (m.noMinimum) m.minimumMinor = null;
     m.status = "draft";
     return m;
+  }
+  function mergeProjects(target, projects, addIssue) {
+    for (const incoming of projects) {
+      let project = target.find((p) => incoming.code && p.code ? normalize(p.code) === normalize(incoming.code) : normalize(p.name) === normalize(incoming.name));
+      if (!project) {
+        project = { ...structuredClone(incoming), orders: [] };
+        target.push(project);
+      } else for (const field of ["code", "programme", "startDate", "endDate"]) {
+        if (!project[field]) project[field] = incoming[field] || "";
+        else if (incoming[field] && normalize(project[field]) !== normalize(incoming[field])) addIssue(issue("Projet \xE0 v\xE9rifier : " + project.name, "La valeur saisie pour " + field + " est conserv\xE9e : " + project[field] + ". La pi\xE8ce indique " + incoming[field] + ".", null));
+      }
+      for (const order of incoming.orders || []) {
+        const existing = target.flatMap((p) => p.orders || []).find((o) => normalize(o.reference) === normalize(order.reference));
+        if (!existing) project.orders.push(structuredClone(order));
+        else if (existing.amountMinor !== order.amountMinor || existing.date !== order.date) addIssue(issue("Commande \xE0 v\xE9rifier : " + order.reference, "Le bon d\xE9j\xE0 renseign\xE9 a \xE9t\xE9 conserv\xE9. La pi\xE8ce propose " + moneyDescription(order.amountMinor) + " au " + (order.date || "date inconnue") + ".", { documentId: order.documentId, locator: "Bon de commande", note: order.notes.slice(0, 1500) }));
+      }
+    }
+  }
+  var moneyDescription = (n) => n === null ? "un montant inconnu" : (n / 100).toFixed(2) + " \u20AC HT";
+
+  // node_modules/fflate/esm/browser.js
+  var u8 = Uint8Array;
+  var u16 = Uint16Array;
+  var i32 = Int32Array;
+  var fleb = new u8([
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    1,
+    1,
+    1,
+    2,
+    2,
+    2,
+    2,
+    3,
+    3,
+    3,
+    3,
+    4,
+    4,
+    4,
+    4,
+    5,
+    5,
+    5,
+    5,
+    0,
+    /* unused */
+    0,
+    0,
+    /* impossible */
+    0
+  ]);
+  var fdeb = new u8([
+    0,
+    0,
+    0,
+    0,
+    1,
+    1,
+    2,
+    2,
+    3,
+    3,
+    4,
+    4,
+    5,
+    5,
+    6,
+    6,
+    7,
+    7,
+    8,
+    8,
+    9,
+    9,
+    10,
+    10,
+    11,
+    11,
+    12,
+    12,
+    13,
+    13,
+    /* unused */
+    0,
+    0
+  ]);
+  var clim = new u8([16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15]);
+  var freb = function(eb, start) {
+    var b = new u16(31);
+    for (var i = 0; i < 31; ++i) {
+      b[i] = start += 1 << eb[i - 1];
+    }
+    var r = new i32(b[30]);
+    for (var i = 1; i < 30; ++i) {
+      for (var j = b[i]; j < b[i + 1]; ++j) {
+        r[j] = j - b[i] << 5 | i;
+      }
+    }
+    return { b, r };
+  };
+  var _a = freb(fleb, 2);
+  var fl = _a.b;
+  var revfl = _a.r;
+  fl[28] = 258, revfl[258] = 28;
+  var _b = freb(fdeb, 0);
+  var fd = _b.b;
+  var revfd = _b.r;
+  var rev = new u16(32768);
+  for (i = 0; i < 32768; ++i) {
+    x = (i & 43690) >> 1 | (i & 21845) << 1;
+    x = (x & 52428) >> 2 | (x & 13107) << 2;
+    x = (x & 61680) >> 4 | (x & 3855) << 4;
+    rev[i] = ((x & 65280) >> 8 | (x & 255) << 8) >> 1;
+  }
+  var x;
+  var i;
+  var hMap = (function(cd, mb, r) {
+    var s2 = cd.length;
+    var i = 0;
+    var l = new u16(mb);
+    for (; i < s2; ++i) {
+      if (cd[i])
+        ++l[cd[i] - 1];
+    }
+    var le = new u16(mb);
+    for (i = 1; i < mb; ++i) {
+      le[i] = le[i - 1] + l[i - 1] << 1;
+    }
+    var co;
+    if (r) {
+      co = new u16(1 << mb);
+      var rvb = 15 - mb;
+      for (i = 0; i < s2; ++i) {
+        if (cd[i]) {
+          var sv = i << 4 | cd[i];
+          var r_1 = mb - cd[i];
+          var v = le[cd[i] - 1]++ << r_1;
+          for (var m = v | (1 << r_1) - 1; v <= m; ++v) {
+            co[rev[v] >> rvb] = sv;
+          }
+        }
+      }
+    } else {
+      co = new u16(s2);
+      for (i = 0; i < s2; ++i) {
+        if (cd[i]) {
+          co[i] = rev[le[cd[i] - 1]++] >> 15 - cd[i];
+        }
+      }
+    }
+    return co;
+  });
+  var flt = new u8(288);
+  for (i = 0; i < 144; ++i)
+    flt[i] = 8;
+  var i;
+  for (i = 144; i < 256; ++i)
+    flt[i] = 9;
+  var i;
+  for (i = 256; i < 280; ++i)
+    flt[i] = 7;
+  var i;
+  for (i = 280; i < 288; ++i)
+    flt[i] = 8;
+  var i;
+  var fdt = new u8(32);
+  for (i = 0; i < 32; ++i)
+    fdt[i] = 5;
+  var i;
+  var flrm = /* @__PURE__ */ hMap(flt, 9, 1);
+  var fdrm = /* @__PURE__ */ hMap(fdt, 5, 1);
+  var max = function(a) {
+    var m = a[0];
+    for (var i = 1; i < a.length; ++i) {
+      if (a[i] > m)
+        m = a[i];
+    }
+    return m;
+  };
+  var bits = function(d, p, m) {
+    var o = p / 8 | 0;
+    return (d[o] | d[o + 1] << 8) >> (p & 7) & m;
+  };
+  var bits16 = function(d, p) {
+    var o = p / 8 | 0;
+    return (d[o] | d[o + 1] << 8 | d[o + 2] << 16) >> (p & 7);
+  };
+  var shft = function(p) {
+    return (p + 7) / 8 | 0;
+  };
+  var slc = function(v, s2, e) {
+    if (s2 == null || s2 < 0)
+      s2 = 0;
+    if (e == null || e > v.length)
+      e = v.length;
+    return new u8(v.subarray(s2, e));
+  };
+  var ec = [
+    "unexpected EOF",
+    "invalid block type",
+    "invalid length/literal",
+    "invalid distance",
+    "stream finished",
+    "no stream handler",
+    ,
+    // determined by compression function
+    "no callback",
+    "invalid UTF-8 data",
+    "extra field too long",
+    "date not in range 1980-2099",
+    "filename too long",
+    "stream finishing",
+    "invalid zip data"
+    // determined by unknown compression method
+  ];
+  var err = function(ind, msg, nt) {
+    var e = new Error(msg || ec[ind]);
+    e.code = ind;
+    if (Error.captureStackTrace)
+      Error.captureStackTrace(e, err);
+    if (!nt)
+      throw e;
+    return e;
+  };
+  var inflt = function(dat, st, buf, dict) {
+    var sl = dat.length, dl = dict ? dict.length : 0;
+    if (!sl || st.f && !st.l)
+      return buf || new u8(0);
+    var noBuf = !buf;
+    var resize = noBuf || st.i != 2;
+    var noSt = st.i;
+    if (noBuf)
+      buf = new u8(sl * 3);
+    var cbuf = function(l2) {
+      var bl = buf.length;
+      if (l2 > bl) {
+        var nbuf = new u8(Math.max(bl * 2, l2));
+        nbuf.set(buf);
+        buf = nbuf;
+      }
+    };
+    var final = st.f || 0, pos = st.p || 0, bt = st.b || 0, lm = st.l, dm = st.d, lbt = st.m, dbt = st.n;
+    var tbts = sl * 8;
+    do {
+      if (!lm) {
+        final = bits(dat, pos, 1);
+        var type = bits(dat, pos + 1, 3);
+        pos += 3;
+        if (!type) {
+          var s2 = shft(pos) + 4, l = dat[s2 - 4] | dat[s2 - 3] << 8, t = s2 + l;
+          if (t > sl) {
+            if (noSt)
+              err(0);
+            break;
+          }
+          if (resize)
+            cbuf(bt + l);
+          buf.set(dat.subarray(s2, t), bt);
+          st.b = bt += l, st.p = pos = t * 8, st.f = final;
+          continue;
+        } else if (type == 1)
+          lm = flrm, dm = fdrm, lbt = 9, dbt = 5;
+        else if (type == 2) {
+          var hLit = bits(dat, pos, 31) + 257, hcLen = bits(dat, pos + 10, 15) + 4;
+          var tl = hLit + bits(dat, pos + 5, 31) + 1;
+          pos += 14;
+          var ldt = new u8(tl);
+          var clt = new u8(19);
+          for (var i = 0; i < hcLen; ++i) {
+            clt[clim[i]] = bits(dat, pos + i * 3, 7);
+          }
+          pos += hcLen * 3;
+          var clb = max(clt), clbmsk = (1 << clb) - 1;
+          var clm = hMap(clt, clb, 1);
+          for (var i = 0; i < tl; ) {
+            var r = clm[bits(dat, pos, clbmsk)];
+            pos += r & 15;
+            var s2 = r >> 4;
+            if (s2 < 16) {
+              ldt[i++] = s2;
+            } else {
+              var c = 0, n = 0;
+              if (s2 == 16)
+                n = 3 + bits(dat, pos, 3), pos += 2, c = ldt[i - 1];
+              else if (s2 == 17)
+                n = 3 + bits(dat, pos, 7), pos += 3;
+              else if (s2 == 18)
+                n = 11 + bits(dat, pos, 127), pos += 7;
+              while (n--)
+                ldt[i++] = c;
+            }
+          }
+          var lt = ldt.subarray(0, hLit), dt = ldt.subarray(hLit);
+          lbt = max(lt);
+          dbt = max(dt);
+          lm = hMap(lt, lbt, 1);
+          dm = hMap(dt, dbt, 1);
+        } else
+          err(1);
+        if (pos > tbts) {
+          if (noSt)
+            err(0);
+          break;
+        }
+      }
+      if (resize)
+        cbuf(bt + 131072);
+      var lms = (1 << lbt) - 1, dms = (1 << dbt) - 1;
+      var lpos = pos;
+      for (; ; lpos = pos) {
+        var c = lm[bits16(dat, pos) & lms], sym = c >> 4;
+        pos += c & 15;
+        if (pos > tbts) {
+          if (noSt)
+            err(0);
+          break;
+        }
+        if (!c)
+          err(2);
+        if (sym < 256)
+          buf[bt++] = sym;
+        else if (sym == 256) {
+          lpos = pos, lm = null;
+          break;
+        } else {
+          var add2 = sym - 254;
+          if (sym > 264) {
+            var i = sym - 257, b = fleb[i];
+            add2 = bits(dat, pos, (1 << b) - 1) + fl[i];
+            pos += b;
+          }
+          var d = dm[bits16(dat, pos) & dms], dsym = d >> 4;
+          if (!d)
+            err(3);
+          pos += d & 15;
+          var dt = fd[dsym];
+          if (dsym > 3) {
+            var b = fdeb[dsym];
+            dt += bits16(dat, pos) & (1 << b) - 1, pos += b;
+          }
+          if (pos > tbts) {
+            if (noSt)
+              err(0);
+            break;
+          }
+          if (resize)
+            cbuf(bt + 131072);
+          var end = bt + add2;
+          if (bt < dt) {
+            var shift = dl - dt, dend = Math.min(dt, end);
+            if (shift + bt < 0)
+              err(3);
+            for (; bt < dend; ++bt)
+              buf[bt] = dict[shift + bt];
+          }
+          for (; bt < end; ++bt)
+            buf[bt] = buf[bt - dt];
+        }
+      }
+      st.l = lm, st.p = lpos, st.b = bt, st.f = final;
+      if (lm)
+        final = 1, st.m = lbt, st.d = dm, st.n = dbt;
+    } while (!final);
+    return bt != buf.length && noBuf ? slc(buf, 0, bt) : buf.subarray(0, bt);
+  };
+  var et = /* @__PURE__ */ new u8(0);
+  var b2 = function(d, b) {
+    return d[b] | d[b + 1] << 8;
+  };
+  var b4 = function(d, b) {
+    return (d[b] | d[b + 1] << 8 | d[b + 2] << 16 | d[b + 3] << 24) >>> 0;
+  };
+  var b8 = function(d, b) {
+    return b4(d, b) + b4(d, b + 4) * 4294967296;
+  };
+  var Inflate = /* @__PURE__ */ (function() {
+    function Inflate2(opts, cb) {
+      if (typeof opts == "function")
+        cb = opts, opts = {};
+      this.ondata = cb;
+      var dict = opts && opts.dictionary && opts.dictionary.subarray(-32768);
+      this.s = { i: 0, b: dict ? dict.length : 0 };
+      this.o = new u8(32768);
+      this.p = new u8(0);
+      if (dict)
+        this.o.set(dict);
+    }
+    Inflate2.prototype.e = function(c) {
+      if (!this.ondata)
+        err(5);
+      if (this.d)
+        err(4);
+      if (!this.p.length)
+        this.p = c;
+      else if (c.length) {
+        var n = new u8(this.p.length + c.length);
+        n.set(this.p), n.set(c, this.p.length), this.p = n;
+      }
+    };
+    Inflate2.prototype.c = function(final) {
+      this.s.i = +(this.d = final || false);
+      var bts = this.s.b;
+      var dt = inflt(this.p, this.s, this.o);
+      this.ondata(slc(dt, bts, this.s.b), this.d);
+      this.o = slc(dt, this.s.b - 32768), this.s.b = this.o.length;
+      this.p = slc(this.p, this.s.p / 8 | 0), this.s.p &= 7;
+    };
+    Inflate2.prototype.push = function(chunk, final) {
+      this.e(chunk), this.c(final);
+    };
+    return Inflate2;
+  })();
+  var td = typeof TextDecoder != "undefined" && /* @__PURE__ */ new TextDecoder();
+  var tds = 0;
+  try {
+    td.decode(et, { stream: true });
+    tds = 1;
+  } catch (e) {
+  }
+  var dutf8 = function(d) {
+    for (var r = "", i = 0; ; ) {
+      var c = d[i++];
+      var eb = (c > 127) + (c > 223) + (c > 239);
+      if (i + eb > d.length)
+        return { s: r, r: slc(d, i - 1) };
+      if (!eb)
+        r += String.fromCharCode(c);
+      else if (eb == 3) {
+        c = ((c & 15) << 18 | (d[i++] & 63) << 12 | (d[i++] & 63) << 6 | d[i++] & 63) - 65536, r += String.fromCharCode(55296 | c >> 10, 56320 | c & 1023);
+      } else if (eb & 1)
+        r += String.fromCharCode((c & 31) << 6 | d[i++] & 63);
+      else
+        r += String.fromCharCode((c & 15) << 12 | (d[i++] & 63) << 6 | d[i++] & 63);
+    }
+  };
+  function strFromU8(dat, latin1) {
+    if (latin1) {
+      var r = "";
+      for (var i = 0; i < dat.length; i += 16384)
+        r += String.fromCharCode.apply(null, dat.subarray(i, i + 16384));
+      return r;
+    } else if (td) {
+      return td.decode(dat);
+    } else {
+      var _a2 = dutf8(dat), s2 = _a2.s, r = _a2.r;
+      if (r.length)
+        err(8);
+      return s2;
+    }
+  }
+  var z64hs = function(d, b, l, z, sc, su, off) {
+    var nsc = sc == 4294967295, nsu = su == 4294967295, noff = off == 4294967295, e = b + l;
+    var nf = nsc + nsu + noff;
+    if (z && nf) {
+      for (; b + 4 < e; b += 4 + b2(d, b + 2)) {
+        if (b2(d, b) == 1) {
+          return [
+            nsc ? b8(d, b + 4 + 8 * nsu) : sc,
+            nsu ? b8(d, b + 4) : su,
+            noff ? b8(d, b + 4 + 8 * (nsu + nsc)) : off,
+            1
+          ];
+        }
+      }
+      if (z < 2)
+        err(13);
+    }
+    return [sc, su, off, 0];
+  };
+  var UnzipPassThrough = /* @__PURE__ */ (function() {
+    function UnzipPassThrough2() {
+    }
+    UnzipPassThrough2.prototype.push = function(chunk, final) {
+      this.ondata(null, chunk, final);
+    };
+    UnzipPassThrough2.compression = 0;
+    return UnzipPassThrough2;
+  })();
+  var UnzipInflate = /* @__PURE__ */ (function() {
+    function UnzipInflate2() {
+      var _this = this;
+      this.i = new Inflate(function(dat, final) {
+        _this.ondata(null, dat, final);
+      });
+    }
+    UnzipInflate2.prototype.push = function(chunk, final) {
+      try {
+        this.i.push(chunk, final);
+      } catch (e) {
+        this.ondata(e, null, final);
+      }
+    };
+    UnzipInflate2.compression = 8;
+    return UnzipInflate2;
+  })();
+  var Unzip = /* @__PURE__ */ (function() {
+    function Unzip2(cb) {
+      this.onfile = cb;
+      this.k = [];
+      this.o = {
+        0: UnzipPassThrough
+      };
+      this.p = et;
+    }
+    Unzip2.prototype.push = function(chunk, final) {
+      var _this = this;
+      if (!this.onfile)
+        err(5);
+      if (!this.p)
+        err(4);
+      if (this.c > 0) {
+        var len = Math.min(this.c, chunk.length);
+        var toAdd = chunk.subarray(0, len);
+        this.c -= len;
+        if (this.d)
+          this.d.push(toAdd, !this.c);
+        else
+          this.k[0].push(toAdd);
+        chunk = chunk.subarray(len);
+        if (chunk.length)
+          return this.push(chunk, final);
+      } else {
+        var f = 0, i = 0, is = void 0, buf = void 0;
+        if (!this.p.length)
+          buf = chunk;
+        else if (!chunk.length)
+          buf = this.p;
+        else {
+          buf = new u8(this.p.length + chunk.length);
+          buf.set(this.p), buf.set(chunk, this.p.length);
+        }
+        var l = buf.length, oc = this.c, add2 = oc && this.d;
+        var _loop_2 = function() {
+          var sig = b4(buf, i);
+          if (sig == 67324752) {
+            f = 1, is = i;
+            this_1.d = null;
+            this_1.c = 0;
+            var bf = b2(buf, i + 6), cmp_1 = b2(buf, i + 8), u = bf & 2048, dd = bf & 8, fnl = b2(buf, i + 26), es = b2(buf, i + 28);
+            if (l > i + 30 + fnl + es) {
+              var chks_3 = [];
+              this_1.k.unshift(chks_3);
+              f = 2;
+              var lsc = b4(buf, i + 18), lsu = b4(buf, i + 22);
+              var fn_1 = strFromU8(buf.subarray(i + 30, i += 30 + fnl), !u);
+              var _a2 = z64hs(buf, i, es, 2, lsc, lsu, 0), sc_1 = _a2[0], su_1 = _a2[1], z64 = _a2[3];
+              if (dd)
+                sc_1 = -1 - z64;
+              i += es;
+              this_1.c = sc_1;
+              var d_1;
+              var file_1 = {
+                name: fn_1,
+                compression: cmp_1,
+                start: function() {
+                  if (!file_1.ondata)
+                    err(5);
+                  if (!sc_1)
+                    file_1.ondata(null, et, true);
+                  else {
+                    var ctr = _this.o[cmp_1];
+                    if (!ctr)
+                      file_1.ondata(err(14, "unknown compression type " + cmp_1, 1), null, false);
+                    d_1 = sc_1 < 0 ? new ctr(fn_1) : new ctr(fn_1, sc_1, su_1);
+                    d_1.ondata = function(err2, dat3, final2) {
+                      file_1.ondata(err2, dat3, final2);
+                    };
+                    for (var _i = 0, chks_4 = chks_3; _i < chks_4.length; _i++) {
+                      var dat2 = chks_4[_i];
+                      d_1.push(dat2, false);
+                    }
+                    if (_this.k[0] == chks_3 && _this.c)
+                      _this.d = d_1;
+                    else
+                      d_1.push(et, true);
+                  }
+                },
+                terminate: function() {
+                  if (d_1 && d_1.terminate)
+                    d_1.terminate();
+                }
+              };
+              if (sc_1 >= 0)
+                file_1.size = sc_1, file_1.originalSize = su_1;
+              this_1.onfile(file_1);
+            }
+            return "break";
+          } else if (oc) {
+            if (sig == 134695760) {
+              is = i += 12 + (oc == -2 && 8), f = 3, this_1.c = 0;
+              return "break";
+            } else if (sig == 33639248) {
+              is = i -= 4, f = 3, this_1.c = 0;
+              return "break";
+            }
+          }
+        };
+        var this_1 = this;
+        for (; i < l - 4; ++i) {
+          var state_1 = _loop_2();
+          if (state_1 === "break")
+            break;
+        }
+        this.p = et;
+        if (oc < 0) {
+          var dat = f ? buf.subarray(0, is - 12 - (oc == -2 && 8) - (b4(buf, is - 16) == 134695760 && 4)) : buf.subarray(0, i);
+          if (add2)
+            add2.push(dat, !!f);
+          else
+            this.k[+(f == 2)].push(dat);
+        }
+        if (f & 2)
+          return this.push(buf.subarray(i), final);
+        this.p = buf.subarray(i);
+      }
+      if (final) {
+        if (this.c)
+          err(13);
+        this.p = null;
+      }
+    };
+    Unzip2.prototype.register = function(decoder) {
+      this.o[decoder.compression] = decoder;
+    };
+    return Unzip2;
+  })();
+
+  // marches/import-files.js
+  var MAX_FILE = 5 * 1024 * 1024;
+  var MAX_BATCH = 50 * 1024 * 1024;
+  var MAX_FILES = 50;
+  var supported = /\.(pdf|docx|xlsx|png|jpe?g|txt|csv)$/i;
+  var plain = (s2) => String(s2).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  function classifyDocument(name, text2 = "") {
+    const match = (value) => {
+      const s2 = plain(value).replace(/[_-]/g, " ");
+      if (/\bavenant\b/.test(s2)) return "amendment";
+      if (/\breconduction\b/.test(s2)) return "renewal";
+      if (/\bnotification\b/.test(s2)) return "notification";
+      if (/\bbon(?:s)? de commande\b|\bbc\b/.test(s2)) return "order";
+      if (/\bbpu\b|bordereau.*prix|\bdpgf\b|\bdqe\b/.test(s2)) return "price";
+      if (/acte d.engagement|\bae\b/.test(s2)) return "ae";
+      if (/\bccap\b|\bcctp\b|cahier.*clauses/.test(s2)) return "clauses";
+      if (/\bdevis\b|\boffre\b|proposition.*(?:commerciale|technique)/.test(s2)) return "offer";
+      return "other";
+    };
+    return match(name) !== "other" ? match(name) : match(text2.slice(0, 1800));
+  }
+  async function expandImportFiles(selected, progress = () => {
+  }) {
+    const files = [], warnings = [];
+    let total = 0, entries = 0;
+    const accept = (name, bytes, lastModified) => {
+      if (!supported.test(name)) {
+        warnings.push(name + " : format non pris en charge.");
+        return;
+      }
+      if (bytes.length > MAX_FILE) throw new Error(name + " d\xE9passe 5 Mo.");
+      total += bytes.length;
+      if (total > MAX_BATCH || files.length >= MAX_FILES) throw new Error("Import limit\xE9 \xE0 50 pi\xE8ces et 50 Mo d\xE9compress\xE9s.");
+      files.push(new File([bytes], name.split("/").at(-1), { lastModified: lastModified || Date.now() }));
+    };
+    for (const file of selected) {
+      if (file.size > MAX_BATCH) throw new Error(file.name + " d\xE9passe 50 Mo.");
+      if (!/\.zip$/i.test(file.name)) {
+        accept(file.name, new Uint8Array(await file.arrayBuffer()), file.lastModified);
+        continue;
+      }
+      progress("Ouverture de " + file.name);
+      const unzip = new Unzip((entry) => {
+        if (++entries > 1e3) throw new Error("Archive contenant trop d\u2019entr\xE9es.");
+        const name = entry.name.replace(/\\/g, "/");
+        if (name.startsWith("/") || /^[a-z]:/i.test(name) || name.split("/").includes("..")) throw new Error("Chemin de pi\xE8ce invalide dans l\u2019archive.");
+        if (name.endsWith("/") || name.split("/").some((p) => p.startsWith(".") || p === "__MACOSX")) return;
+        if (!supported.test(name)) {
+          warnings.push(name + " : format non pris en charge.");
+          return;
+        }
+        if (entry.originalSize > MAX_FILE) throw new Error(name + " d\xE9passe 5 Mo.");
+        const chunks = [];
+        let size = 0;
+        entry.ondata = (error2, bytes, final) => {
+          if (error2) throw new Error("Archive illisible : " + name);
+          size += bytes.length;
+          if (size > MAX_FILE || total + size > MAX_BATCH) {
+            entry.terminate();
+            throw new Error("Archive trop volumineuse apr\xE8s d\xE9compression.");
+          }
+          chunks.push(bytes);
+          if (final) {
+            const data = new Uint8Array(size);
+            let offset = 0;
+            for (const chunk of chunks) {
+              data.set(chunk, offset);
+              offset += chunk.length;
+            }
+            accept(name, data);
+          }
+        };
+        entry.start();
+      });
+      unzip.register(UnzipInflate);
+      unzip.push(new Uint8Array(await file.arrayBuffer()), true);
+    }
+    return { files, warnings: [...new Set(warnings)].slice(0, 50) };
   }
 
   // marches/ui.js
@@ -4343,77 +5070,77 @@ function agendaNotificationHTML(t){
     rule?.scrollIntoView({ block: "center" });
     rule?.querySelector("input")?.focus();
   }
-  async function extract(file) {
-    if (/\.pdf$/i.test(file.name)) {
-      const pdf = await import("./marches/vendor/pdf.mjs");
-      pdf.GlobalWorkerOptions.workerSrc = new URL(
-        "marches/vendor/pdf.worker.mjs",
-        location.href
-      ).href;
-      const document2 = await pdf.getDocument({
-        data: new Uint8Array(await file.arrayBuffer()),
-        isEvalSupported: false,
-        useSystemFonts: true
-      }).promise;
-      try {
-        let text2 = "";
-        for (let i = 1; i <= Math.min(document2.numPages, 150); i++) {
-          const page = await document2.getPage(i);
-          const data = await page.getTextContent();
-          text2 += "[Page " + i + "]\n" + data.items.map((x) => x.str + (x.hasEOL ? "\n" : " ")).join("") + "\n";
-          if (text2.length > 15e4) break;
-        }
-        return text2.replace(/\[Page \d+\]\s*/g, "").trim() ? text2.slice(0, 15e4) : "";
-      } finally {
-        await document2.destroy();
-      }
-    }
-    if (/\.(txt|csv)$/i.test(file.name))
-      return (await file.text()).slice(0, 15e4);
-    return "";
-  }
   async function upload(files) {
     const epoch = s.epoch;
-    if (!files.length) return;
-    const kind = el("mkDocKind")?.value || "other";
+    if (!files.length || s.busy) return;
+    const kind = el("mkDocKind")?.value || "auto";
     if (!s.current.version) {
       s.current.title = s.current.title.trim() || "March\xE9 \xE0 identifier";
       s.current.clientName = s.current.clientName.trim() || "Client \xE0 identifier";
       if (!await save()) return;
     }
+    if (s.dirty && !await save()) return;
     if (epoch !== s.epoch) return;
+    s.stop = false;
+    s.tab = "documents";
+    s.error = "";
+    s.notice = "";
     setBusy(true);
-    let count = 0, duplicates = 0, scan = 0;
+    let count = 0, duplicates = 0;
+    const ids = [], warnings = [];
+    const progress = (message) => {
+      s.uploadStatus = message;
+      render(true);
+    };
     try {
-      for (const file of files) {
-        if (file.size > 5 * 1024 * 1024)
-          throw new Error(file.name + " d\xE9passe 5 Mo.");
-        s.uploadStatus = "Lecture et import : " + file.name;
-        render(true);
-        let text2 = "";
+      const expanded = await expandImportFiles(files, progress);
+      warnings.push(...expanded.warnings);
+      const { readDocument } = await import("./marches/reader.mjs?v=market-import-20261023");
+      for (const file of expanded.files) {
+        if (s.stop || epoch !== s.epoch) break;
+        progress("Lecture : " + file.name);
+        let reading = null;
         try {
-          text2 = await extract(file);
-        } catch {
-          scan++;
+          reading = await readDocument(file, (message) => progress(file.name + " \xB7 " + message), () => s.stop || epoch !== s.epoch);
+        } catch (e) {
+          if (s.stop || epoch !== s.epoch) break;
+          warnings.push(file.name + " : " + e.message);
         }
+        if (epoch !== s.epoch) return;
         const form = new FormData();
         form.append("file", file);
-        form.append("kind", kind);
-        form.append("text", text2);
-        const r = await api("/" + s.current.id + "/documents", {
-          method: "POST",
-          body: form
-        });
-        if (epoch !== s.epoch) return;
-        if (r.duplicate) duplicates++;
-        else {
-          count++;
-          s.docs.push(r.document);
+        form.append("kind", kind === "auto" ? classifyDocument(file.name, reading?.text) : kind);
+        form.append("text", reading?.text.slice(0, 15e4) || "");
+        try {
+          const r = await api("/" + s.current.id + "/documents", {
+            method: "POST",
+            body: form
+          });
+          if (epoch !== s.epoch) return;
+          if (r.duplicate) duplicates++;
+          else {
+            count++;
+            s.docs.push(r.document);
+          }
+          if (reading) {
+            await api("/" + s.current.id + "/reading/" + r.document.id, { method: "PUT", body: JSON.stringify(reading) });
+            ids.push(r.document.id);
+          }
+        } catch (e) {
+          warnings.push(file.name + " : " + e.message);
         }
       }
-      s.notice = count + " pi\xE8ce(s) import\xE9e(s)" + (duplicates ? " \xB7 " + duplicates + " doublon(s) d\xE9j\xE0 pr\xE9sent(s)" : "") + (scan ? " \xB7 Certaines pi\xE8ces demandent une lecture manuelle." : "");
-      s.error = "";
+      const imported = count + " pi\xE8ce(s) import\xE9e(s)" + (duplicates ? " \xB7 " + duplicates + " d\xE9j\xE0 pr\xE9sente(s)" : "");
+      s.notice = imported;
+      s.uploadStatus = "";
       s.busy = false;
+      render();
+      if (ids.length && !s.stop) {
+        await runAnalysis([...new Set(ids)], true);
+        if (epoch !== s.epoch) return;
+        s.notice = imported + (s.notice ? " \xB7 " + s.notice : "");
+      } else if (s.stop) s.notice += " \xB7 Lecture interrompue.";
+      if (warnings.length) s.error = [s.error, ...warnings].filter(Boolean).join("\n");
       render();
     } catch (e) {
       if (epoch === s.epoch) {
@@ -4421,23 +5148,16 @@ function agendaNotificationHTML(t){
         render();
         error(e.message + " Les pi\xE8ces d\xE9j\xE0 import\xE9es sont conserv\xE9es.");
       }
+    } finally {
+      if (epoch === s.epoch) {
+        s.uploadStatus = "";
+        s.busy = false;
+        render();
+      }
     }
   }
   async function analyse(id) {
-    const epoch = s.epoch;
-    try {
-      setBusy(true);
-      const r = await api(
-        "/" + s.current.id + "/documents/" + id + "?analysis=1"
-      );
-      if (epoch !== s.epoch) return;
-      s.suggestions = { documentId: id, items: r.suggestions };
-      render(true);
-    } catch (e) {
-      if (epoch === s.epoch) error(e.message);
-    } finally {
-      if (epoch === s.epoch) setBusy(false);
-    }
+    await runAnalysis([id], true);
   }
   function bind() {
     const root = el("marketRoot");
@@ -4447,14 +5167,20 @@ function agendaNotificationHTML(t){
       e.preventDefault();
       save();
     });
-    el("mkFiles")?.addEventListener("change", (e) => upload([...e.target.files]));
+    root.addEventListener("change", (e) => {
+      if (e.target.matches("[data-market-files]")) {
+        const files = [...e.target.files];
+        e.target.value = "";
+        void upload(files);
+      }
+    });
     root.addEventListener("input", (e) => {
       if (e.target.dataset.path) {
         try {
           inputValue(e.target);
           e.target.setCustomValidity("");
-        } catch (err) {
-          e.target.setCustomValidity(err.message);
+        } catch (err2) {
+          e.target.setCustomValidity(err2.message);
           dirty();
         }
       }
@@ -4477,6 +5203,18 @@ function agendaNotificationHTML(t){
         return;
       }
       if (s.busy) return;
+      if (b.dataset.action === "import") {
+        el("mkImportFiles")?.click();
+        return;
+      }
+      if (b.dataset.action === "analyse-all") {
+        await runAnalysis(s.docs.map((d) => d.id), true);
+        return;
+      }
+      if (b.dataset.action === "resume-analysis") {
+        await runAnalysis(s.analysis?.documentIds || s.docs.map((d) => d.id), true);
+        return;
+      }
       if (b.dataset.addExpense) {
         add("prices", b.dataset.addExpense);
         return;
@@ -4703,8 +5441,8 @@ function agendaNotificationHTML(t){
       render();
     }
   }
-  async function runAnalysis() {
-    const selected = [
+  async function runAnalysis(documentIds, autoApply = true) {
+    const selected = documentIds || [
       ...document.querySelectorAll("[data-ai-document]:checked")
     ].map((e) => e.dataset.aiDocument);
     if (s.dirty && !await save()) return;
@@ -4717,6 +5455,7 @@ function agendaNotificationHTML(t){
     s.stop = false;
     s.progress = "Pr\xE9paration des documents\u2026";
     s.error = "";
+    s.notice = "";
     s.busy = true;
     render();
     const progress = (message) => {
@@ -4729,11 +5468,11 @@ function agendaNotificationHTML(t){
         throw new Error(
           "Le moteur IA n\u2019est pas encore activ\xE9 sur le serveur. Vous pouvez continuer le param\xE9trage manuel."
         );
-      const { readDocument } = await import("./marches/reader.mjs");
+      const { readDocument } = await import("./marches/reader.mjs?v=market-import-20261023");
       for (const did of selected) {
         if (s.stop) break;
         const d = s.docs.find((d2) => d2.id === did);
-        if (s.readings.find((r) => r.id === did)?.read) continue;
+        if (s.readings.find((r) => r.id === did)?.read && s.readings.find((r) => r.id === did)?.complete) continue;
         progress("Lecture : " + d.name);
         const blob = await api("/" + id + "/documents/" + did, { binary: true });
         const reading = await readDocument(
@@ -4769,6 +5508,23 @@ function agendaNotificationHTML(t){
         s.analysis = r.run;
       }
       s.notice = s.analysis.status === "ready" ? "Analyse termin\xE9e. V\xE9rifiez les propositions ci-dessous." : "Analyse mise en pause. Vous pourrez la reprendre.";
+      if (s.analysis.status === "ready" && autoApply) {
+        const run = s.analysis;
+        if (run.baseVersion !== s.current.version) throw new Error("La fiche a chang\xE9. Relancez la lecture pour pr\xE9server vos modifications.");
+        const candidate = mergeProposal(s.current, run.result);
+        candidate.clientId = s.clients.find((c) => c.name.toLocaleLowerCase("fr") === candidate.clientName.toLocaleLowerCase("fr"))?.id || candidate.clientId;
+        validateMarket(candidate, s.docs);
+        s.current = candidate;
+        s.dirty = true;
+        s.tab = "documents";
+        render();
+        if (await save()) {
+          s.busy = true;
+          s.appliedAnalysisId = run.id;
+          const count = ["facts", "prices", "ceilings", "periods", "conditions", "projects"].reduce((n, k) => n + (run.result[k]?.length || 0), 0);
+          s.notice = count ? count + " \xE9l\xE9ment(s) reconnus \xB7 fiche mise \xE0 jour." : "Aucune donn\xE9e reconnue. Consultez les observations de lecture.";
+        }
+      }
     } catch (e) {
       if (epoch === s.epoch) s.error = e.message;
     } finally {
@@ -4851,10 +5607,10 @@ function agendaNotificationHTML(t){
         const link = document.createElement("link");
         link.id = "marketStyle";
         link.rel = "stylesheet";
-        link.href = "platform/markets.css?v=sheets-workflow-20261023c";
+        link.href = "platform/markets.css?v=market-import-20261023d";
         document.head.append(link);
       }
-      marketPromise = import("./platform/markets.js?v=sheets-workflow-20261023c").then((module) => {
+      marketPromise = import("./platform/markets.js?v=market-import-20261023d").then((module) => {
         marketModule = module;
         marketPromise = null;
         if (currentView === "marches" && allowed()) render();
@@ -5096,8 +5852,8 @@ let billingMode='modern',billingModulePromise=null,billingMounted=null,billingTr
 function billingLockForLogout(){billingLogoutPending=true;$('#content').inert=true;}
 function billingUnlockLogout(){billingLogoutPending=false;$('#content').inert=false;}
 function billingModule(){
-  if(!$('#billingStyle')){const link=document.createElement('link');link.id='billingStyle';link.rel='stylesheet';link.href='platform/billing.css?v=sheets-workflow-20261023c';document.head.append(link);}
-  return billingModulePromise ||= import('./platform/billing.js?v=sheets-workflow-20261023c').catch(error=>{billingModulePromise=null;throw error;});
+  if(!$('#billingStyle')){const link=document.createElement('link');link.id='billingStyle';link.rel='stylesheet';link.href='platform/billing.css?v=market-import-20261023d';document.head.append(link);}
+  return billingModulePromise ||= import('./platform/billing.js?v=market-import-20261023d').catch(error=>{billingModulePromise=null;throw error;});
 }
 function billingLeave(){return billingMounted?.canLeave?.()!==false;}
 function billingForget(){

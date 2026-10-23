@@ -30,7 +30,9 @@ const key=(name:string)=>name.normalize('NFD').replace(/[\u0300-\u036f]/g,'').to
 export function clientBrand(name:string,identifier=''):string|undefined {
  const normalized=key(name),siren=identifier.replace(/\s/g,'').slice(0,9);
  if(siren==='392175568')return 'adec.svg';
+ if(siren==='188300016')return 'cci-var.webp';
  if(!normalized)return;
+ if(/^(cci|chambre (de )?commerce et (d )?industrie)( territoriale)?( du)? var$/.test(normalized))return 'cci-var.webp';
  const brand=clientBrands.find(([,names,aliases])=>names.some(n=>key(n)===normalized)||(!identifier&&aliases?.some(n=>key(n)===normalized)));
  return brand?.[0]==='cci-corse.webp'?'epci-corse.png':brand?.[0];
 }

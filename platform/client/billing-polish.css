@@ -1,0 +1,15 @@
+.bill-list-table .bill-badge,.bill-app .bill-list-table .bill-badge{border:0;background:transparent;padding:0;border-radius:0;gap:6px}
+.bill-list-table .bill-badge::before{display:none;content:none}
+.bill-finalized-icon{color:#0071e3;stroke-width:2.5}[data-theme=dark] .bill-finalized-icon{color:#64b2ff}
+.bill-status-trigger[data-settlement=paid]{color:#17845e;background:#f0faf5;border-color:#b6ddcc}
+[data-theme=dark] .bill-status-trigger[data-settlement=paid]{color:#8be2bc;background:#17382d;border-color:#326750}
+.bill-client-logo-field{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:22px}.bill-client-logo-field [role=alert]{font-size:12px;color:#be3131}
+.bill-client-logo-field .bill-client-logo{width:76px;height:62px}
+.bill-consultant-avatar{width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;background:var(--bill-bg,#f5f5f7);border-radius:50%;flex:none;overflow:hidden;color:var(--bill-muted,#777)}
+.bill-consultant-avatar img{width:100%;height:100%;object-fit:cover}
+.bill-programme-logo{display:inline-flex;width:76px;height:32px;padding:3px;background:#fff;border:1px solid #eee;border-radius:5px;flex:none;align-items:center;justify-content:center}.bill-programme-logo img{width:100%;height:100%;object-fit:contain}
+.bill-list-table [data-column=label]{min-width:180px;max-width:280px;line-height:1.45}.bill-list-table [data-column=document]{min-width:145px}
+.bill-status-date{display:grid;gap:8px;margin:20px 0}.bill-status-date input{font:inherit;color:var(--bill-text,#1d1d1f);background:var(--bill-surface,#fff);border:1px solid var(--bill-line,#ddd);border-radius:8px;padding:10px}
+.bill-status-dialog-error{color:#b52f35;font-size:13px}
+@media(max-width:720px){.bill-app .bill-list-table td[data-column=label]{grid-column:1/-1;font-size:13px;color:var(--bill-muted);overflow-wrap:anywhere}}
+[data-theme=dark] .bill-status-date input{background:#29292d;color:#f5f5f7;border-color:#48484c}

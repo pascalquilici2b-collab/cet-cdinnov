@@ -58,14 +58,14 @@ export function normalizeSettings(raw:unknown):BillingSettingsData {
 }
 function documentDetails(raw:unknown):NonNullable<BillingDraft['details']>{
  const keys=Object.keys(blankDocumentDetails()),v=object(raw,keys,'Informations du document');
- if(!['','S1','S2'].includes(v.period as string))fail('Période concernée invalide.');
+ if(!['','S1','S2','S3','S4','S5','S6','S7','S8'].includes(v.period as string))fail('Période concernée invalide.');
  if(!Array.isArray(v.interventions)||v.interventions.length>200)fail('Relevé d’intervention invalide.');
  const seen=new Set<string>();const interventions=(v.interventions as unknown[]).map(row=>{
   const r=object(row,['id','priceId','label','description','days'],'Intervention');
   if(!billingId(r.id)||seen.has(r.id as string))fail('Identifiant d’intervention invalide.');seen.add(r.id as string);
   return {id:r.id as string,priceId:textField(r,'priceId',80),label:textField(r,'label',300),description:textField(r,'description',4000),days:textField(r,'days',40)};
  });
- return {marketObject:textField(v,'marketObject',500),period:v.period as ''|'S1'|'S2',personInCharge:textField(v,'personInCharge',300),fundingProgramme:textField(v,'fundingProgramme',160),validityMonths:textField(v,'validityMonths',3),returnEmail:textField(v,'returnEmail',300),interventions};
+ return {marketObject:textField(v,'marketObject',500),period:v.period as NonNullable<BillingDraft['details']>['period'],personInCharge:textField(v,'personInCharge',300),fundingProgramme:textField(v,'fundingProgramme',160),validityMonths:textField(v,'validityMonths',3),returnEmail:textField(v,'returnEmail',300),interventions};
 }
 const referenceKeys=['businessCode','marketId','marketReference','orderReference','project','serviceCode','engagement'];
 const lineKeys=['id','description','quantity','unitCode','unitPrice','discountPercent','vatRate','vatCategory','exemptionReason'];

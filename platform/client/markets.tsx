@@ -9,9 +9,10 @@ import {
 import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
 import {Projects} from './market-projects';
-import {FolderKanban,FileText,Settings2,Files,Tags,Gauge,CalendarDays,ListChecks,TriangleAlert,History as HistoryIcon,Check,Plus,Search,RefreshCw,Download,ArrowLeft,ChevronRight,ChevronDown} from 'lucide-react';
+import {FolderKanban,FileText,FileSpreadsheet,FileImage,Upload as UploadIcon,Sparkles,Settings2,Files,Tags,Gauge,CalendarDays,ListChecks,TriangleAlert,History as HistoryIcon,Check,Plus,Search,RefreshCw,Download,ArrowLeft,ChevronRight,ChevronDown} from 'lucide-react';
 import './market-projects.css';
 import './markets-apple.css';
+import './markets-import.css';
 import {ClientAvatar} from './billing-client-avatar';
 import {ActivityBadge} from './activity-select';
 import {marketActivity} from '../project-activity';
@@ -679,12 +680,13 @@ function Upload({ setup = false }: { setup?: boolean }) {
   return (
     <div className="mk-upload">
       <label>
-        {setup ? "Type des pièces" : "Nature de la pièce"}
+        Classement
         <select
           id="mkDocKind"
-          defaultValue={setup ? "other" : "ae"}
+          defaultValue="auto"
           disabled={busy}
         >
+          <option value="auto">Automatique</option>
           {Object.entries(kinds).map(([key, title]) => (
             <option key={key} value={key}>
               {title}
@@ -693,22 +695,25 @@ function Upload({ setup = false }: { setup?: boolean }) {
         </select>
       </label>
       <label className="mk-file">
-        {setup ? "Ajouter les pièces du marché" : "Importer des pièces"}
+        <UploadIcon size={17}/> {setup ? "Ajouter le dossier" : "Ajouter des pièces"}
         <input
           id="mkFiles"
+          data-market-files
           type="file"
           multiple
-          accept=".pdf,.docx,.xlsx,.png,.jpg,.jpeg,.txt,.csv"
+          accept=".zip,.pdf,.docx,.xlsx,.png,.jpg,.jpeg,.txt,.csv"
           disabled={busy}
         />
       </label>
-      <p>
-        Acte d’engagement, bordereau, CCAP/CCTP, offre, notification, avenants,
-        reconductions… PDF et scans, Word, Excel, images et texte. 5 Mo par
-        pièce.
-      </p>
+      <Help label="Formats d’import" text="ZIP ou pièces ajoutées progressivement : PDF et scans, Word, Excel, images et texte. 5 Mo par pièce, 50 pièces et 50 Mo par marché. Qwen complète les champs reconnus ; les sources restent consultables et les règles à vérifier."/>
     </div>
   );
+}
+function FileIcon({name}:{name:string}){
+ const ext=name.split('.').at(-1)?.toLowerCase()||'';
+ const type=ext==='pdf'?'pdf':['xlsx','xls','csv'].includes(ext)?'xls':['jpg','jpeg','png'].includes(ext)?'image':['docx','doc'].includes(ext)?'doc':'file';
+ const Glyph=type==='xls'?FileSpreadsheet:type==='image'?FileImage:FileText;
+ return <span className={'mk-file-icon mk-file-icon-'+type} aria-label={'Fichier '+ext.toUpperCase()}><Glyph size={25}/>{type!=='image'&&<b>{type==='file'?'TXT':type.toUpperCase()}</b>}</span>;
 }
 function Documents({ s, m }: { s: MarketsSnapshot; m: Market }) {
   return (
@@ -727,37 +732,11 @@ function Documents({ s, m }: { s: MarketsSnapshot; m: Market }) {
       <div id="mkUploadStatus" role="status">
         {s.uploadStatus}
       </div>
-      <div id="mkSuggestions">
-        {s.suggestions && (
-          <div className="mk-message">
-            <strong>Propositions de lecture à vérifier</strong>
-            {!s.suggestions.items.length ? (
-              <p>
-                Aucun plafond reconnu automatiquement. Consultez la pièce et
-                renseignez les règles dans les onglets correspondants.
-              </p>
-            ) : (
-              s.suggestions.items.map((x, i) => (
-                <div key={i} className="mk-suggestion">
-                  <p>{x.excerpt}</p>
-                  <strong>
-                    {money(x.value)} {x.basis || "base à confirmer"}
-                    {x.annual ? " par an" : ""}
-                  </strong>
-                  <Button data-suggestion={i} disabled={!x.basis}>
-                    Reprendre comme plafond à vérifier
-                  </Button>
-                </div>
-              ))
-            )}
-          </div>
-        )}
-      </div>
       {s.docs.length ? (
         <div className="mk-doc-list">
           {s.docs.map((d) => (
             <article key={d.id}>
-              <div>
+              <FileIcon name={d.name}/><div className="mk-doc-info">
                 <strong>{d.name}</strong>
                 <small>
                   {kinds[d.kind] || d.kind} ·{" "}
@@ -765,20 +744,14 @@ function Documents({ s, m }: { s: MarketsSnapshot; m: Market }) {
                   {new Date(d.uploadedAt).toLocaleDateString("fr-FR")}
                 </small>
                 <small>
-                  {d.hasText
-                    ? "Texte disponible pour la lecture assistée"
-                    : "Texte non extrait — lecture manuelle"}
+                  {s.readings.find(r=>r.id===d.id)?.read?'Lecture disponible':'À analyser'}
                 </small>
               </div>
-              <div>
-                <Button className="mk-secondary" data-download={d.id}>
-                  Télécharger
+              <div className="mk-doc-actions">
+                <Button className="mk-icon-button" data-download={d.id} aria-label={'Télécharger '+d.name} title="Télécharger">
+                  <Download size={17}/>
                 </Button>
-                {d.hasText && (
-                  <Button className="mk-link" data-analyse={d.id}>
-                    Lire les propositions
-                  </Button>
-                )}
+                <Button className="mk-secondary" data-analyse={d.id}><Sparkles size={15}/>Analyser</Button>
               </div>
             </article>
           ))}
@@ -786,6 +759,8 @@ function Documents({ s, m }: { s: MarketsSnapshot; m: Market }) {
       ) : (
         <div className="mk-empty">Aucune pièce importée.</div>
       )}
+      {s.docs.length>0&&<div className="mk-document-analysis">{s.analysis&&s.analysis.status!=='ready'&&!s.analysis.stale?<Button className="mk-secondary" data-action="resume-analysis"><Sparkles size={16}/>Reprendre l’analyse</Button>:<Button className="mk-secondary" data-action="analyse-all"><Sparkles size={16}/>Analyser le dossier</Button>}<Help label="Lecture du dossier" text="Qwen remplit les champs disponibles dans les onglets du marché. Les données déjà saisies sont conservées ; les divergences apparaissent dans les points à confirmer."/></div>}
+      {s.analysis?.result&&<details className="mk-analysis-details"><summary><ListChecks size={17}/>Résultats de lecture</summary><Proposals result={s.analysis.result} s={s} m={m}/></details>}
     </>
   );
 }
@@ -836,9 +811,11 @@ const factLabels: Record<string, string> = {
   renewalMode: "Reconduction",
   renewalCount: "Reconductions prévues",
   noMinimum: "Sans minimum",
-  minimumMinor: "Minimum (centimes)",
+  minimumMinor: "Minimum contractuel",
   feesIncluded: "Frais inclus",
+  startBasis:"Démarrage",startDate:"Date de démarrage",initialDurationMonths:"Durée initiale (mois)",maximumMinor:"Maximum contractuel HT",
 };
+const factValue=(field:string,value:unknown)=>field.endsWith('Minor')?money(value as number):typeof value==='boolean'?(value?'Oui':'Non'):field==='startBasis'?({notification:'À notification',first_order:'Au premier bon de commande',date:'Date de démarrage'}[String(value)]||String(value)):String(value);
 function Proposals({
   result,
   s,
@@ -881,19 +858,21 @@ function Proposals({
         value: x.detail,
         source: x.source,
       })),
+      ...(result.projects||[]).map(x=>({label:x.name,value:[x.code,x.programme,(x.orders?.length||0)+' bon(s) de commande'].filter(Boolean).join(' · '),source:{documentId:'',locator:'',note:x.notes}})),
     ];
   return (
     <div className="mk-ai-result">
       <h3>Propositions de paramétrage</h3>
       <div className="mk-ai-counts">
         {(
-          ["prices", "ceilings", "periods", "conditions", "issues"] as const
-        ).map((key) => (
+          ["facts", "prices", "ceilings", "periods", "conditions", "projects", "issues"] as const
+        ).filter(key=>result[key]?.length).map((key) => (
           <div key={key}>
             <strong>{result[key]?.length || 0}</strong>
             <span>
               {
                 {
+                  facts:"champs",projects:"projets",
                   prices: "tarifs",
                   ceilings: "plafonds",
                   periods: "périodes",
@@ -908,7 +887,7 @@ function Proposals({
       <p>
         {result.coverage.filter((d) => d.selected).length} /{" "}
         {result.coverage.length} pièce(s) incluse(s).{" "}
-        {result.coverage.some((d) => !d.selected || !d.complete)
+        {result.coverage.some((d) => d.selected && !d.complete)
           ? "Attention : le dossier n’a pas été lu intégralement. Les pièces à vérifier sont signalées."
           : "Toutes les pièces sélectionnées ont été parcourues. Les valeurs restent à vérifier."}
       </p>
@@ -924,7 +903,7 @@ function Proposals({
           <div key={"fact-" + i}>
             <strong>{factLabels[f.field] || f.field}</strong>
             <span>
-              {String(f.value)}
+              {factValue(f.field,f.value)}
               {f.conflict ? " · contradictoire" : ""}
             </span>
             <small>{f.source.note}</small>
@@ -949,7 +928,7 @@ function Proposals({
           ))}
         </details>
       )}
-      <div className="mk-apply">
+      {s.appliedAnalysisId===s.analysis?.id?<p className="mk-applied"><Check size={16}/>Champs reconnus enregistrés dans la fiche</p>:<div className="mk-apply">
         <p>
           <strong>Les saisies existantes sont conservées.</strong> Les nouvelles
           règles et les points à vérifier seront ajoutés. Choisissez
@@ -978,14 +957,14 @@ function Proposals({
             </label>
           ))}
         </details>
-        <Button className="mk-primary" data-action="apply-analysis">
+        <Button className="mk-primary" data-action="apply-analysis" disabled={s.analysis?.stale}>
           Appliquer les propositions à la fiche
         </Button>
         <small>
           Vous pourrez tout ajuster avant d’enregistrer. Aucune règle ne sera
           marquée comme vérifiée automatiquement.
         </small>
-      </div>
+      </div>}
     </div>
   );
 }
@@ -994,11 +973,11 @@ function Setup({ s, m }: { s: MarketsSnapshot; m: Market }) {
     busy = useContext(Busy);
   return (
     <>
-      <Section title="Assistant de paramétrage">Ajoutez les pièces du marché, puis vérifiez les règles proposées avant de les appliquer.</Section>
+      <Section title="Assistant de paramétrage">L’import lance automatiquement la lecture et complète la fiche. Vérifiez ensuite les règles dans leurs onglets.</Section>
       <ol className="mk-steps">
         {[
           "Ajouter les pièces",
-          "Analyser le dossier",
+          "Remplissage automatique",
           "Vérifier et ajuster",
         ].map((title, i) => (
           <li key={title}>
@@ -1151,6 +1130,7 @@ function Markets(props: MarketsProps) {
         data-react-markets
         aria-busy={s.busy}
       >
+        {m&&<input id="mkImportFiles" data-market-files type="file" multiple accept=".zip,.pdf,.docx,.xlsx,.png,.jpg,.jpeg,.txt,.csv" hidden disabled={s.busy}/>}
         <div id="marketMessage">
           {s.error ? (
             <div className="mk-message mk-error" role="alert">
@@ -1187,6 +1167,7 @@ function Markets(props: MarketsProps) {
                     : "Nouvelle fiche"}
               </span>
               <div>
+                <Button className="mk-secondary mk-import-button" data-action="import"><UploadIcon size={16}/>Importer</Button>
                 <Button className="mk-secondary" data-action="export">
                   <Download size={16}/> Exporter
                 </Button>
@@ -1199,6 +1180,7 @@ function Markets(props: MarketsProps) {
               {['summary','projects','prices','documents','periods','conditions'].map(key=><Button key={key} data-tab={key} aria-current={s.tab===key?'page':'false'}>{(()=>{const Glyph=({summary:FileText,projects:FolderKanban,prices:Tags,documents:Files,periods:CalendarDays,conditions:ListChecks} as Record<string,typeof FileText>)[key];return <Glyph size={16}/>;})()}{tabs[key]}</Button>)}
               <details className="mk-more-tabs"><summary aria-label="Autres rubriques du marché"><Settings2 size={16}/>Plus<ChevronDown size={14}/></summary><div>{['setup','ceilings','issues','history'].map(key=><Button key={key} data-tab={key} aria-current={s.tab===key?'page':'false'}>{(()=>{const Glyph=({setup:Settings2,ceilings:Gauge,issues:TriangleAlert,history:HistoryIcon} as Record<string,typeof FileText>)[key];return <Glyph size={16}/>;})()}{tabs[key]}{key==='issues'&&m.issues.some(x=>x.status==='open')&&<span className="mk-count">{m.issues.filter(x=>x.status==='open').length}</span>}</Button>)}</div></details>
             </nav>
+            {(s.progress||s.uploadStatus)&&<div className="mk-import-progress" role="status"><Sparkles size={17}/><span>{s.progress||s.uploadStatus}</span><Button className="mk-link" data-action="stop-analysis">Arrêter</Button></div>}
             <form id="mkForm" noValidate>
               <div className="mk-panel">
                 <Content s={s} m={m} />

@@ -2,7 +2,7 @@ import {Buffer} from 'node:buffer';
 import {createHash} from 'node:crypto';
 import {MODEL,MODEL_LABEL,ANALYSIS_VERSION,DAILY_BUDGET as DAILY,OUTPUT_TOKENS as OUTPUT,INPUT_NEURONS_PER_TOKEN,OUTPUT_NEURONS_PER_TOKEN,instruction,decode,consolidate} from './ai-domain.mjs';
 const hash=s=>createHash('sha256').update(s).digest('hex');
-const expose=r=>r&&({id:r.id,status:r.status,total:r.total,completed:r.completed,baseVersion:r.base_version,createdAt:r.created_at,error:r.error,result:r.status==='ready'?JSON.parse(r.result):null});
+const expose=r=>r&&({id:r.id,status:r.status,total:r.total,completed:r.completed,baseVersion:r.base_version,createdAt:r.created_at,error:r.error,documentIds:JSON.parse(r.result).coverage?.filter(d=>d.selected).map(d=>d.id)||[],result:r.status==='ready'?JSON.parse(r.result):null});
 const stamp=()=>new Date().toISOString();
 const documents=async(db,id)=>(await db.prepare('SELECT d.id,d.name,d.sha256,r.text,r.method,r.complete,r.pages,r.warnings FROM market_documents d LEFT JOIN market_document_readings r ON r.document_id=d.id WHERE d.market_id=? ORDER BY d.id').bind(id).all()).results;
 const fingerprint=(docs,ids)=>hash(JSON.stringify([MODEL,ANALYSIS_VERSION,docs.map(d=>[d.id,d.sha256,ids.includes(d.id),ids.includes(d.id)?hash(d.text||''):null,ids.includes(d.id)?d.complete:null])]));
@@ -85,7 +85,7 @@ export async function handleAnalysis(request,db,email,current,runId,reply,jsonBo
   if(run.completed===run.total){
    const outputs=(await db.prepare('SELECT output FROM market_analysis_parts WHERE run_id=? ORDER BY position').bind(runId).all()).results.map(r=>JSON.parse(r.output));
    const result={...consolidate(outputs),coverage:JSON.parse(run.result).coverage,model:MODEL_LABEL};
-   for(const d of result.coverage)if(!d.selected||!d.complete)result.issues.push({id:crypto.randomUUID(),title:'Lecture à compléter : '+d.name.slice(0,180),detail:!d.selected?'Cette pièce n’a pas été incluse dans l’analyse.':'Le texte de cette pièce est incomplet ou contient des zones illisibles. Vérifiez l’original.',blocking:true,status:'open',resolution:'',source:{documentId:d.id,locator:'Document entier',note:''}});
+   for(const d of result.coverage)if(d.selected&&!d.complete)result.issues.push({id:crypto.randomUUID(),title:'Lecture à compléter : '+d.name.slice(0,180),detail:'Le texte de cette pièce est incomplet ou contient des zones illisibles. Vérifiez l’original.',blocking:true,status:'open',resolution:'',source:{documentId:d.id,locator:'Document entier',note:''}});
    await db.prepare("UPDATE market_analysis_runs SET result=?,status='ready',lease_until=0,updated_at=? WHERE id=?").bind(JSON.stringify(result),stamp(),runId).run();
   }else await db.prepare("UPDATE market_analysis_runs SET status='pending',lease_until=0 WHERE id=?").bind(runId).run();
   return reply(200,{run:expose(await db.prepare('SELECT * FROM market_analysis_runs WHERE id=?').bind(runId).first())});

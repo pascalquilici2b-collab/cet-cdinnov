@@ -1,0 +1,42 @@
+import assert from 'node:assert/strict';
+import {createRequire} from 'node:module';
+import {randomUUID} from 'node:crypto';
+import {mkdir} from 'node:fs/promises';
+import {billingPreview} from './billing-preview.mjs';
+import {blankClient} from './billing-directory-domain.ts';
+import {blankSettings,addBillingMonths} from './billing-domain.ts';
+import {quoteFixture,samplePDF} from './billing-quote-fixture.mjs';
+const require=createRequire('C:/Users/quili/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright/package.json');
+const preview=await billingPreview({outboundService:async()=>new Response(samplePDF(),{headers:{'Content-Type':'application/pdf'}})}),browser=await require('playwright').chromium.launch({channel:'msedge',headless:true});
+const out='platform/.private/billing-polish-20261023';await mkdir(out,{recursive:true});
+try{
+ const headers={Origin:'https://app.cdinnov.eu',Authorization:'Bearer '+preview.sessions[0].token,'Content-Type':'application/json'};
+ const call=(path,method='GET',body,version)=>preview.ctx.worker.dispatchFetch('https://test/api/v1/billing'+path,{method,headers:{...headers,...(version!==undefined?{'If-Match':String(version)}:{})},...(body?{body:JSON.stringify(body)}:{})});
+ const source=quoteFixture(''),settings={...blankSettings(),seller:source.seller};assert.equal((await call('/settings','PUT',{data:settings},0)).status,200);
+ const id=randomUUID(),client={...blankClient(),party:{...blankClient().party,name:'CCI du Var'},logoKey:'cci-var.webp'};assert.equal((await call('/clients','POST',{id,data:client})).status,201);
+ const portrait='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l1sAAAAASUVORK5CYII=';
+ await preview.ctx.db.prepare("UPDATE portal_employees SET data_json=json_set(data_json,'$.photo',?)").bind(portrait).run();
+ const context=await browser.newContext({viewport:{width:1600,height:1080}}),page=await context.newPage(),errors=[];page.setDefaultTimeout(15000);page.on('pageerror',e=>errors.push(e.message));
+ await context.route('**/*',route=>{
+  if(route.request().url().startsWith('https://recherche-entreprises.api.gouv.fr/'))return route.fulfill({json:{results:[{siren:'188300016',nom_raison_sociale:"CHAMBRE DE COMMERCE ET D'INDUSTRIE TERRITORIALE DU VAR",etat_administratif:'A',statut_diffusion:'O',siege:{siret:'18830001600014',etat_administratif:'A',statut_diffusion_etablissement:'O',numero_voie:'1',type_voie:'RUE',libelle_voie:'DU TEST',code_postal:'83000',libelle_commune:'TOULON',est_siege:true}}]},headers:{'Access-Control-Allow-Origin':'*'}});
+  return route.request().url().startsWith(preview.base)||route.request().url().startsWith('data:')?route.continue():route.abort();
+ });
+ await page.goto(preview.base);await page.getByRole('columnheader',{name:'Libellé',exact:true}).waitFor();assert.equal(await page.locator('[data-imported-invoice="invoice-1"] [data-column=document]').innerText(),'FAC-2026-001\nImportée');
+ const badge=page.locator('[data-imported-invoice="invoice-1"] .bill-badge');assert.equal(await badge.evaluate(el=>getComputedStyle(el,'::before').content),'none');
+ await page.getByRole('navigation',{name:'Documents commerciaux'}).getByRole('button',{name:'Clients',exact:true}).click();await page.getByRole('button',{name:'Ouvrir la fiche CCI du Var',exact:true}).click();
+ await page.getByLabel('Importer le logo du client',{exact:true}).setInputFiles('platform/client-logos/cci-var.webp');
+ await page.getByRole('button',{name:'Rechercher',exact:true}).click();await page.getByRole('button',{name:/Utiliser CHAMBRE DE COMMERCE/}).click();
+ assert.ok((await page.locator('.bill-client-logo-field img').getAttribute('src')).startsWith('data:image/webp;base64,'));
+ await page.getByRole('button',{name:'Enregistrer la fiche',exact:true}).click();await page.getByText('Fiche enregistrée.',{exact:true}).waitFor();
+ const saved=await (await call('/clients/'+id)).json();assert.equal(saved.data.logoKey,'cci-var.webp');assert.ok(saved.data.logoData.startsWith('data:image/webp;base64,'));assert.equal(saved.data.party.siren,'188300016');assert.equal((await(await call('/clients')).json()).total,2);
+ await page.screenshot({path:out+'/client-logo.png'});
+ await page.getByRole('button',{name:'Créer un devis pour ce client',exact:true}).click();await page.getByLabel('Validité du devis (mois)',{exact:true}).waitFor();assert.equal(await page.getByLabel('Validité du devis (mois)',{exact:true}).inputValue(),'3');
+ assert.equal(await page.locator('input[type=date]').count(),1);
+ await page.getByLabel('Période concernée',{exact:true}).selectOption('S8');await page.getByRole('combobox',{name:'Personne en charge',exact:true}).click();assert.ok(await page.locator('.cdi-select-option .bill-consultant-avatar img').count()>0);await page.getByRole('option',{name:'Camille Direction',exact:false}).click();
+ await page.getByRole('combobox',{name:'Programme de financement',exact:true}).click();assert.equal(await page.locator('.cdi-select-option .bill-programme-logo img').count(),4);await page.getByRole('option',{name:'Interreg Euro-Med',exact:true}).click();await page.getByLabel('Objet du document',{exact:true}).fill('Accompagnement de projet');
+ await page.getByRole('button',{name:'Enregistrer',exact:true}).click();await page.waitForFunction(()=>document.querySelector('.bill-save-state')?.textContent?.startsWith('Enregistré'));
+ const quotes=await(await call('/documents?kind=quote&limit=20')).json();assert.equal(quotes.documents[0].data.details.period,'S8');assert.equal(quotes.documents[0].data.details.validityMonths,'3');
+ await page.screenshot({path:out+'/devis-light.png'});await page.evaluate(()=>document.documentElement.dataset.theme='dark');await page.getByRole('combobox',{name:'Programme de financement',exact:true}).click();await page.screenshot({path:out+'/programmes-dark.png'});await page.keyboard.press('Escape');
+ await page.setViewportSize({width:390,height:844});await page.screenshot({path:out+'/devis-mobile.png'});assert.deepEqual(errors,[]);
+ console.log('OK invoice labels/status, client upload + prefill + same saved identity, quote defaults/S8, consultant photos and programme logos. Local synthetic data only.');
+}catch(error){const page=browser.contexts()[0]?.pages()[0];if(page){await page.screenshot({path:out+'/failure.png'});console.log((await page.locator('#billingRoot').innerText()).slice(0,2000));}throw error;}finally{await browser.close();await preview.close();}

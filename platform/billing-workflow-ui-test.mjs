@@ -53,7 +53,13 @@ try{
  // Clear routing using the UI's editable draft (not direct database mutation).
  await page.evaluate(()=>{const fields=document.querySelectorAll('input');for(const field of fields){if(field.closest('[data-billing-path]')?.dataset.billingPath?.includes('electronicAddress')){const setter=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;setter.call(field,'');field.dispatchEvent(new Event('input',{bubbles:true}));}}});
  await page.getByRole('button',{name:'Statut du document',exact:true}).click();await page.getByRole('menuitem',{name:'Finalisé',exact:true}).click();await page.getByRole('dialog').getByRole('button',{name:'Finaliser',exact:true}).click();
- await page.getByLabel('Statut du document',{exact:true}).filter({hasText:'Finalisé'}).waitFor();
+ await page.getByLabel('Statut du document',{exact:true}).filter({hasText:'À régler'}).waitFor();
+ await page.getByLabel('Statut du document',{exact:true}).click();await page.getByRole('menuitem',{name:'Réglée',exact:true}).click();await page.getByRole('dialog').getByRole('button',{name:'Confirmer le règlement',exact:true}).click();
+ await page.getByLabel('Statut du document',{exact:true}).filter({hasText:'Réglée'}).waitFor();
+ assert.equal((await (await preview.ctx.worker.dispatchFetch('https://preview.test/api/v1/billing/documents/'+row.id,{headers})).json()).settlement.dueMinor,'0');
+ await page.getByLabel('Statut du document',{exact:true}).click();await page.getByRole('menuitem',{name:'À régler',exact:true}).click();await page.getByRole('dialog').getByRole('button',{name:'Confirmer la correction',exact:true}).click();
+ await page.getByLabel('Statut du document',{exact:true}).filter({hasText:'À régler'}).waitFor();
+ const corrected=await (await preview.ctx.worker.dispatchFetch('https://preview.test/api/v1/billing/documents/'+row.id,{headers})).json();assert.equal(corrected.settlement.netPaidMinor,'0');assert.equal(corrected.settlement.version,2);
  assert.equal(await page.getByRole('button',{name:'Télécharger le PDF',exact:true}).count(),1);assert.equal(await page.getByRole('button',{name:'Créer le Factur-X',exact:true}).count(),1);
  await page.getByRole('button',{name:'Créer le Factur-X',exact:true}).click();await page.waitForFunction(()=>qaFacturx.some(id=>id.startsWith('billing:')));
  const saved=await page.evaluate(()=>Object.values(state.billingFacturx)[0]);assert.equal(saved.nativeDocumentId,row.id);assert.equal(saved.facturxDraft.number,saved.number);assert.equal(await page.locator('[data-imported-invoice="billing:'+row.id+'"]').count(),0);

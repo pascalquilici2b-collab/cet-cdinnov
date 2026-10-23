@@ -11,10 +11,10 @@ export function sameClient(current:BillingClientData,party:BillingParty){
  const key=current.logoKey||clientBrand(a.name,an),brand=key==='cci-corse.webp'?'epci-corse.png':key,other=clientBrand(party.name,bn);
  return !!brand&&brand===other;
 }
-export function enrichClient(current:BillingClientData,party:BillingParty,details?:BillingClientDetails):BillingClientData{
- const same=sameClient(current,party),logoKey=same?(current.logoKey||clientBrand(current.party.name,current.party.siren)||clientBrand(party.name,party.siren)):clientBrand(party.name,party.siren);
+export function enrichClient(current:BillingClientData,party:BillingParty,details?:BillingClientDetails,preserveBrand=false):BillingClientData{
+ const same=sameClient(current,party),logoKey=same||preserveBrand?(current.logoKey||clientBrand(current.party.name,current.party.siren)||clientBrand(party.name,party.siren)):clientBrand(party.name,party.siren);
  const merged={...party};
  // The directory omits contact/routing fields. Preserve them only for the same client.
  if(same)for(const key of ['email','legal','vatId','electronicAddress','electronicScheme'] as const)if(!merged[key])merged[key]=current.party[key];
- return {...current,party:merged,logoKey:logoKey||'',...(details?{details:{...details,...(same?{shareCapital:details.shareCapital||current.details?.shareCapital||'',representatives:details.representatives||current.details?.representatives||'',legalForm:details.legalForm||current.details?.legalForm||'',vatNumbers:details.vatNumbers.length?details.vatNumbers:current.details?.vatNumbers||[]}:{} )}}:{})};
+ return {...current,party:merged,logoKey:logoKey||'',...(same||preserveBrand?{}:{logoData:''}),...(details?{details:{...details,...(same?{shareCapital:details.shareCapital||current.details?.shareCapital||'',representatives:details.representatives||current.details?.representatives||'',legalForm:details.legalForm||current.details?.legalForm||'',vatNumbers:details.vatNumbers.length?details.vatNumbers:current.details?.vatNumbers||[]}:{} )}}:{})};
 }

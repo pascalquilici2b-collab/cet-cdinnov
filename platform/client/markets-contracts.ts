@@ -97,6 +97,7 @@ export interface MarketVersion {
   market: Market;
 }
 export interface AnalysisResult {
+  projects?: MarketProject[];
   coverage: {
     id: string;
     name: string;
@@ -118,6 +119,7 @@ export interface AnalysisResult {
   warnings: string[];
 }
 export interface MarketAnalysis {
+  documentIds?:string[];
   id: string;
   status: string;
   completed: number;
@@ -134,6 +136,7 @@ export interface ReadingSuggestion {
   excerpt: string;
 }
 export interface MarketsSnapshot {
+  appliedAnalysisId?:string;
   rows: Market[];
   clients: { id: string; name: string }[];
   current: Market | null;

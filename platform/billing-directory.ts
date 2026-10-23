@@ -33,7 +33,7 @@ const foldSQL=(expression:string)=>{
 async function get(db:Database,kind:BillingDirectoryKind,id:string){return db.prepare(directorySQL+' SELECT * FROM entries WHERE id=?').bind(...baseBindings(kind),id).first<Row>();}
 async function body(request:Request,keys:string[]){
  if(!/^application\/json(?:\s*;|$)/i.test(request.headers.get('content-type')||''))return fail(415,'Format JSON requis.');
- let value;try{value=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(await boundedBody(request,30000)));}catch(error){if((error as {status?:number})?.status)throw error;return fail(400,'Données JSON invalides.');}
+ let value;try{value=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(await boundedBody(request,400000)));}catch(error){if((error as {status?:number})?.status)throw error;return fail(400,'Données JSON invalides.');}
  if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).length!==keys.length||Object.keys(value).some(k=>!keys.includes(k)))return fail(400,'Champs de requête invalides.');return value;
 }
 function version(request:Request){const value=request.headers.get('if-match');if(value===null)return fail(428,'La version de la fiche est requise.');if(!/^(0|[1-9]\d*)$/.test(value)||!Number.isSafeInteger(Number(value)))return fail(400,'Version de fiche invalide.');return Number(value);}

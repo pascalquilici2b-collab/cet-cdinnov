@@ -1,3 +1,4 @@
+import {invoiceDisplayNumber,importedInvoiceLabel} from './billing-invoice-label';
 import {FileCode2,Pencil,Trash2,Upload,Banknote,Clock3} from 'lucide-react';
 import type {BillingDocument,BillingPage,BillingTransport} from '../billing-contracts';
 import type {Invoice} from './finance-domain';
@@ -43,9 +44,10 @@ export async function listWithImports(transport:BillingTransport,query:Parameter
  return {...first,documents:documents.slice(query.offset,needed),total:first.total+rows.length,offset:query.offset,limit:query.limit,filters:{clients:clients.sort((a,b)=>a.label.localeCompare(b.label,'fr')),projects:projects.sort((a,b)=>a.label.localeCompare(b.label,'fr'))}};
 }
 
-export function ImportedInvoiceRow({invoice:f,act}:{invoice:Invoice;act:ImportedInvoices['act']}){
+export function ImportedInvoiceRow({invoice:f,act,label}:{invoice:Invoice;act:ImportedInvoices['act'];label?:string}){
  return <tr data-imported-invoice={f.id}>
-  <td data-column="document"><button className="bill-document-link" onClick={()=>act('edit',f.id)}><span><strong>Facture {f.number||'importée'}</strong><small>Importée</small></span></button></td>
+  <td data-column="document"><button className="bill-document-link" onClick={()=>act('edit',f.id)}><span><strong>{invoiceDisplayNumber(f.number)}</strong><small>Importée</small></span></button></td>
+  <td data-column="label">{importedInvoiceLabel(f)||label||'—'}</td>
   <td data-column="client"><div className="bill-list-client"><ClientAvatar name={f.client||''}/><span>{f.client||'—'}</span></div></td>
   <td data-column="date">{date(f.dateFacture||'')}</td><td data-column="reference">{f.code||'—'}</td>
   <td data-column="status"><span className="bill-badge" data-status={f.datePaiement?'paid':'unpaid'}>{f.datePaiement?<Banknote size={15}/>:<Clock3 size={15}/>} {f.datePaiement?'Réglée':'À régler'}</span></td>

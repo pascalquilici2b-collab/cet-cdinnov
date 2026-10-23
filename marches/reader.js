@@ -1,4 +1,5 @@
 import {Unzip,UnzipInflate,strFromU8} from 'fflate';
+import {pdfTextRows} from './pdf-text.mjs';
 const MAX_TEXT=500000,MAX_PAGES=150;
 const asset=name=>new URL('marches/vendor/'+name,location.href).href;
 function xml(text){if(/<!DOCTYPE|<!ENTITY/i.test(text))throw new Error('XML externe non accepté.');const d=new DOMParser().parseFromString(text,'application/xml');if(d.querySelector('parsererror'))throw new Error('Document Office illisible.');return d;}
@@ -62,7 +63,7 @@ export async function readDocument(file,progress=()=>{},cancelled=()=>false){
   try{
    if(document.numPages>MAX_PAGES)throw new Error('Maximum 150 pages par pièce ; découpez le PDF en plusieurs pièces.');
    let text='';for(let i=1;i<=document.numPages;i++){
-    check();progress('Page '+i+' / '+document.numPages);const page=await document.getPage(i),data=await page.getTextContent();let content=data.items.map(x=>x.str+(x.hasEOL?'\n':' ')).join('');
+    check();progress('Page '+i+' / '+document.numPages);const page=await document.getPage(i),data=await page.getTextContent();let content=pdfTextRows(data.items);
     if(content.trim().length<80){progress('Reconnaissance du scan · page '+i+' / '+document.numPages);const viewport=page.getViewport({scale:3}),canvas=documentGlobalCanvas();
      const scale=Math.min(1,3000/Math.max(viewport.width,viewport.height)),vp=page.getViewport({scale:3*scale});canvas.width=Math.ceil(vp.width);canvas.height=Math.ceil(vp.height);
      await page.render({canvasContext:canvas.getContext('2d'),viewport:vp}).promise;const result=await ocr(canvas);content=result.text;canvas.width=canvas.height=1;

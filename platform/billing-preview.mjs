@@ -34,7 +34,7 @@ export async function billingPreview(testOptions={}){
     const source=await readFile(join(root,'index.html'),'utf8');
     if(!source.includes('\nbootAuth();'))throw new Error('Portal boot marker missing');
     const html=source.replace('\nbootAuth();','\n'+boot),requests=[];
-    const types={'.html':'text/html; charset=utf-8','.js':'application/javascript','.mjs':'application/javascript','.css':'text/css','.webp':'image/webp','.png':'image/png','.svg':'image/svg+xml','.woff2':'font/woff2'};
+    const types={'.html':'text/html; charset=utf-8','.js':'application/javascript','.mjs':'application/javascript','.css':'text/css','.webp':'image/webp','.png':'image/png','.svg':'image/svg+xml','.woff2':'font/woff2','.gz':'application/gzip','.wasm':'application/wasm'};
     const server=createServer(async(req,res)=>{try{
       const url=new URL(req.url,'http://localhost');
       if(url.pathname.startsWith('/api/')||url.pathname.startsWith('/budgets/')){

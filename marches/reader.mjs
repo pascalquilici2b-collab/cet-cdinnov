@@ -1,4 +1,4 @@
-// ../marches-deployment-20261018/node_modules/fflate/esm/browser.js
+// node_modules/fflate/esm/browser.js
 var u8 = Uint8Array;
 var u16 = Uint16Array;
 var i32 = Int32Array;
@@ -192,6 +192,7 @@ var ec = [
   "stream finished",
   "no stream handler",
   ,
+  // determined by compression function
   "no callback",
   "invalid UTF-8 data",
   "extra field too long",
@@ -436,16 +437,30 @@ function strFromU8(dat, latin1) {
     return s;
   }
 }
-var z64e = function(d, b) {
-  for (; b2(d, b) != 1; b += 4 + b2(d, b + 2))
-    ;
-  return [b8(d, b + 12), b8(d, b + 4), b8(d, b + 20)];
+var z64hs = function(d, b, l, z, sc, su, off) {
+  var nsc = sc == 4294967295, nsu = su == 4294967295, noff = off == 4294967295, e = b + l;
+  var nf = nsc + nsu + noff;
+  if (z && nf) {
+    for (; b + 4 < e; b += 4 + b2(d, b + 2)) {
+      if (b2(d, b) == 1) {
+        return [
+          nsc ? b8(d, b + 4 + 8 * nsu) : sc,
+          nsu ? b8(d, b + 4) : su,
+          noff ? b8(d, b + 4 + 8 * (nsu + nsc)) : off,
+          1
+        ];
+      }
+    }
+    if (z < 2)
+      err(13);
+  }
+  return [sc, su, off, 0];
 };
 var UnzipPassThrough = /* @__PURE__ */ (function() {
   function UnzipPassThrough2() {
   }
-  UnzipPassThrough2.prototype.push = function(data, final) {
-    this.ondata(null, data, final);
+  UnzipPassThrough2.prototype.push = function(chunk, final) {
+    this.ondata(null, chunk, final);
   };
   UnzipPassThrough2.compression = 0;
   return UnzipPassThrough2;
@@ -457,9 +472,9 @@ var UnzipInflate = /* @__PURE__ */ (function() {
       _this.ondata(null, dat, final);
     });
   }
-  UnzipInflate2.prototype.push = function(data, final) {
+  UnzipInflate2.prototype.push = function(chunk, final) {
     try {
-      this.i.push(data, final);
+      this.i.push(chunk, final);
     } catch (e) {
       this.ondata(e, null, final);
     }
@@ -505,7 +520,6 @@ var Unzip = /* @__PURE__ */ (function() {
       }
       var l = buf.length, oc = this.c, add = oc && this.d;
       var _loop_2 = function() {
-        var _a2;
         var sig = b4(buf, i);
         if (sig == 67324752) {
           f = 1, is = i;
@@ -516,12 +530,11 @@ var Unzip = /* @__PURE__ */ (function() {
             var chks_3 = [];
             this_1.k.unshift(chks_3);
             f = 2;
-            var sc_1 = b4(buf, i + 18), su_1 = b4(buf, i + 22);
+            var lsc = b4(buf, i + 18), lsu = b4(buf, i + 22);
             var fn_1 = strFromU8(buf.subarray(i + 30, i += 30 + fnl), !u);
-            if (sc_1 == 4294967295) {
-              _a2 = dd ? [-2] : z64e(buf, i), sc_1 = _a2[0], su_1 = _a2[1];
-            } else if (dd)
-              sc_1 = -1;
+            var _a2 = z64hs(buf, i, es, 2, lsc, lsu, 0), sc_1 = _a2[0], su_1 = _a2[1], z64 = _a2[3];
+            if (dd)
+              sc_1 = -1 - z64;
             i += es;
             this_1.c = sc_1;
             var d_1;
@@ -600,6 +613,26 @@ var Unzip = /* @__PURE__ */ (function() {
   };
   return Unzip2;
 })();
+
+// marches/pdf-text.mjs
+function pdfTextRows(items) {
+  const text = items.filter((x) => typeof x.str === "string" && x.str.trim());
+  if (text.some((x) => !Number.isFinite(x.transform?.[4]) || !Number.isFinite(x.transform?.[5]))) return text.map((x) => x.str + (x.hasEOL ? "\n" : " ")).join("");
+  const rows = [];
+  for (const item of text.sort((a, b) => b.transform[5] - a.transform[5] || a.transform[4] - b.transform[4])) {
+    const y = item.transform[5], h = Math.max(1, Math.abs(item.height || item.transform[3] || 10));
+    let row = rows.at(-1);
+    if (!row || Math.abs(row.y - y) > Math.max(2, Math.min(h, row.h) * 0.35)) {
+      row = { y, h, items: [] };
+      rows.push(row);
+    }
+    row.items.push(item);
+  }
+  return rows.map((row) => row.items.sort((a, b) => a.transform[4] - b.transform[4]).map((item, i, arr) => {
+    const prev = arr[i - 1], gap = prev ? item.transform[4] - (prev.transform[4] + (prev.width || 0)) : 0;
+    return (i ? gap > 18 ? " | " : " " : "") + item.str;
+  }).join("")).join("\n");
+}
 
 // marches/reader.js
 var MAX_TEXT = 5e5;
@@ -754,7 +787,7 @@ async function readDocument(file, progress = () => {
         check();
         progress("Page " + i + " / " + document.numPages);
         const page = await document.getPage(i), data = await page.getTextContent();
-        let content = data.items.map((x) => x.str + (x.hasEOL ? "\n" : " ")).join("");
+        let content = pdfTextRows(data.items);
         if (content.trim().length < 80) {
           progress("Reconnaissance du scan \xB7 page " + i + " / " + document.numPages);
           const viewport = page.getViewport({ scale: 3 }), canvas = documentGlobalCanvas();

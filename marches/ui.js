@@ -1,5 +1,6 @@
 import { mergeProposal } from "./ai-domain.mjs";
 import { emptyMarket, validateMarket, minor } from "./domain.mjs";
+import {expandImportFiles,classifyDocument} from './import-files.js';
 let s = {
   rows: [],
   clients: [],
@@ -326,90 +327,56 @@ function add(list,expense) {
   rule?.scrollIntoView({ block: "center" });
   rule?.querySelector("input")?.focus();
 }
-async function extract(file) {
-  if (/\.pdf$/i.test(file.name)) {
-    const pdf = await import("./marches/vendor/pdf.mjs");
-    pdf.GlobalWorkerOptions.workerSrc = new URL(
-      "marches/vendor/pdf.worker.mjs",
-      location.href,
-    ).href;
-    const document = await pdf.getDocument({
-      data: new Uint8Array(await file.arrayBuffer()),
-      isEvalSupported: false,
-      useSystemFonts: true,
-    }).promise;
-    try {
-      let text = "";
-      for (let i = 1; i <= Math.min(document.numPages, 150); i++) {
-        const page = await document.getPage(i);
-        const data = await page.getTextContent();
-        text +=
-          "[Page " +
-          i +
-          "]\n" +
-          data.items.map((x) => x.str + (x.hasEOL ? "\n" : " ")).join("") +
-          "\n";
-        if (text.length > 150000) break;
-      }
-      return text.replace(/\[Page \d+\]\s*/g, "").trim()
-        ? text.slice(0, 150000)
-        : "";
-    } finally {
-      await document.destroy();
-    }
-  }
-  if (/\.(txt|csv)$/i.test(file.name))
-    return (await file.text()).slice(0, 150000);
-  return "";
-}
 async function upload(files) {
   const epoch = s.epoch;
-  if (!files.length) return;
-  const kind = el("mkDocKind")?.value || "other";
+  if (!files.length || s.busy) return;
+  const kind = el("mkDocKind")?.value || "auto";
   if (!s.current.version) {
     s.current.title = s.current.title.trim() || "Marché à identifier";
     s.current.clientName = s.current.clientName.trim() || "Client à identifier";
     if (!(await save())) return;
   }
+  if (s.dirty && !(await save())) return;
   if (epoch !== s.epoch) return;
+  s.stop=false;
+  s.tab='documents';
+  s.error='';s.notice='';
   setBusy(true);
-  let count = 0,
-    duplicates = 0,
-    scan = 0;
+  let count=0,duplicates=0;const ids=[],warnings=[];
+  const progress=message=>{s.uploadStatus=message;render(true);};
   try {
-    for (const file of files) {
-      if (file.size > 5 * 1024 * 1024)
-        throw new Error(file.name + " dépasse 5 Mo.");
-      s.uploadStatus = "Lecture et import : " + file.name;
-      render(true);
-      let text = "";
-      try {
-        text = await extract(file);
-      } catch {
-        scan++;
-      }
+    const expanded=await expandImportFiles(files,progress);
+    warnings.push(...expanded.warnings);
+    const {readDocument}=await import('./marches/reader.mjs?v=market-import-20261023');
+    for (const file of expanded.files) {
+      if(s.stop||epoch!==s.epoch)break;
+      progress('Lecture : '+file.name);
+      let reading=null;
+      try{reading=await readDocument(file,message=>progress(file.name+' · '+message),()=>s.stop||epoch!==s.epoch);}
+      catch(e){if(s.stop||epoch!==s.epoch)break;warnings.push(file.name+' : '+e.message);}
+      if(epoch!==s.epoch)return;
       const form = new FormData();
       form.append("file", file);
-      form.append("kind", kind);
-      form.append("text", text);
-      const r = await api("/" + s.current.id + "/documents", {
+      form.append("kind", kind==='auto'?classifyDocument(file.name,reading?.text):kind);
+      form.append("text", reading?.text.slice(0,150000)||'');
+      try{
+       const r = await api("/" + s.current.id + "/documents", {
         method: "POST",
         body: form,
-      });
-      if (epoch !== s.epoch) return;
-      if (r.duplicate) duplicates++;
-      else {
-        count++;
-        s.docs.push(r.document);
-      }
+       });
+       if (epoch !== s.epoch) return;
+       if (r.duplicate) duplicates++;else{count++;s.docs.push(r.document);}
+       if(reading){await api('/'+s.current.id+'/reading/'+r.document.id,{method:'PUT',body:JSON.stringify(reading)});ids.push(r.document.id);}
+      }catch(e){warnings.push(file.name+' : '+e.message);}
     }
-    s.notice =
-      count +
-      " pièce(s) importée(s)" +
-      (duplicates ? " · " + duplicates + " doublon(s) déjà présent(s)" : "") +
-      (scan ? " · Certaines pièces demandent une lecture manuelle." : "");
-    s.error = "";
+    const imported=count+' pièce(s) importée(s)'+(duplicates?' · '+duplicates+' déjà présente(s)':'');
+    s.notice=imported;
+    s.uploadStatus='';
     s.busy = false;
+    render();
+    if(ids.length&&!s.stop){await runAnalysis([...new Set(ids)],true);if(epoch!==s.epoch)return;s.notice=imported+(s.notice?' · '+s.notice:'');}
+    else if(s.stop)s.notice+=' · Lecture interrompue.';
+    if(warnings.length)s.error=[s.error,...warnings].filter(Boolean).join('\n');
     render();
   } catch (e) {
     if (epoch === s.epoch) {
@@ -417,23 +384,10 @@ async function upload(files) {
       render();
       error(e.message + " Les pièces déjà importées sont conservées.");
     }
-  }
+  } finally {if(epoch===s.epoch){s.uploadStatus='';s.busy=false;render();}}
 }
 async function analyse(id) {
-  const epoch = s.epoch;
-  try {
-    setBusy(true);
-    const r = await api(
-      "/" + s.current.id + "/documents/" + id + "?analysis=1",
-    );
-    if (epoch !== s.epoch) return;
-    s.suggestions = { documentId: id, items: r.suggestions };
-    render(true);
-  } catch (e) {
-    if (epoch === s.epoch) error(e.message);
-  } finally {
-    if (epoch === s.epoch) setBusy(false);
-  }
+  await runAnalysis([id],true);
 }
 function bind() {
   const root = el("marketRoot");
@@ -443,7 +397,7 @@ function bind() {
     e.preventDefault();
     save();
   });
-  el("mkFiles")?.addEventListener("change", (e) => upload([...e.target.files]));
+  root.addEventListener('change',e=>{if(e.target.matches('[data-market-files]')){const files=[...e.target.files];e.target.value='';void upload(files);}});
   root.addEventListener("input", (e) => {
     if (e.target.dataset.path) {
       try {
@@ -475,6 +429,9 @@ function bind() {
       return;
     }
     if (s.busy) return;
+    if(b.dataset.action==='import'){el('mkImportFiles')?.click();return;}
+    if(b.dataset.action==='analyse-all'){await runAnalysis(s.docs.map(d=>d.id),true);return;}
+    if(b.dataset.action==='resume-analysis'){await runAnalysis(s.analysis?.documentIds||s.docs.map(d=>d.id),true);return;}
     if (b.dataset.addExpense) {add('prices',b.dataset.addExpense);return;}
     if (b.dataset.action === "add-project") {
       s.current.projects ||= [];
@@ -687,8 +644,8 @@ async function resolveIssue(index) {
     render();
   }
 }
-async function runAnalysis() {
-  const selected = [
+async function runAnalysis(documentIds,autoApply=true) {
+  const selected = documentIds || [
     ...document.querySelectorAll("[data-ai-document]:checked"),
   ].map((e) => e.dataset.aiDocument);
   if (s.dirty && !(await save())) return;
@@ -702,6 +659,7 @@ async function runAnalysis() {
   s.stop = false;
   s.progress = "Préparation des documents…";
   s.error = "";
+  s.notice = "";
   s.busy = true;
   render();
   const progress = (message) => {
@@ -714,11 +672,11 @@ async function runAnalysis() {
       throw new Error(
         "Le moteur IA n’est pas encore activé sur le serveur. Vous pouvez continuer le paramétrage manuel.",
       );
-    const { readDocument } = await import("./marches/reader.mjs");
+    const { readDocument } = await import("./marches/reader.mjs?v=market-import-20261023");
     for (const did of selected) {
       if (s.stop) break;
       const d = s.docs.find((d) => d.id === did);
-      if (s.readings.find((r) => r.id === did)?.read) continue;
+      if (s.readings.find((r) => r.id === did)?.read && s.readings.find((r) => r.id === did)?.complete) continue;
       progress("Lecture : " + d.name);
       const blob = await api("/" + id + "/documents/" + did, { binary: true });
       const reading = await readDocument(
@@ -762,6 +720,22 @@ async function runAnalysis() {
       s.analysis.status === "ready"
         ? "Analyse terminée. Vérifiez les propositions ci-dessous."
         : "Analyse mise en pause. Vous pourrez la reprendre.";
+    if(s.analysis.status==='ready'&&autoApply){
+      const run=s.analysis;
+      if(run.baseVersion!==s.current.version)throw new Error('La fiche a changé. Relancez la lecture pour préserver vos modifications.');
+      const candidate=mergeProposal(s.current,run.result);
+      candidate.clientId=s.clients.find(c=>c.name.toLocaleLowerCase('fr')===candidate.clientName.toLocaleLowerCase('fr'))?.id||candidate.clientId;
+      validateMarket(candidate,s.docs);
+      s.current=candidate;s.dirty=true;
+      // Reset controls to the populated values before reportValidity checks the form.
+      s.tab='documents';render();
+      if(await save()){
+       s.busy=true;
+       s.appliedAnalysisId=run.id;
+       const count=['facts','prices','ceilings','periods','conditions','projects'].reduce((n,k)=>n+(run.result[k]?.length||0),0);
+       s.notice=count?count+' élément(s) reconnus · fiche mise à jour.':'Aucune donnée reconnue. Consultez les observations de lecture.';
+      }
+    }
   } catch (e) {
     if (epoch === s.epoch) s.error = e.message;
   } finally {
@@ -843,8 +817,8 @@ function render(preserveFields = false) {
   if (!marketModule) {
     if (marketPromise) return;
     container.innerHTML = loadingMarkup('Chargement des marchés…');
-    if (!document.getElementById("marketStyle")) { const link=document.createElement("link"); link.id="marketStyle"; link.rel="stylesheet"; link.href="platform/markets.css?v=sheets-workflow-20261023c"; document.head.append(link); }
-    marketPromise = import("./platform/markets.js?v=sheets-workflow-20261023c")
+    if (!document.getElementById("marketStyle")) { const link=document.createElement("link"); link.id="marketStyle"; link.rel="stylesheet"; link.href="platform/markets.css?v=market-import-20261023d"; document.head.append(link); }
+    marketPromise = import("./platform/markets.js?v=market-import-20261023d")
       .then((module) => {
         marketModule = module;
         marketPromise = null;
