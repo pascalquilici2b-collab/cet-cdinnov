@@ -7,7 +7,7 @@ window.addEventListener('storage',event=>{
   let email;try{email=JSON.parse(event.newValue)?.email;}catch{}
   if(email===AUTH_USER)return;
   if(portalClean&&JSON.stringify(state)!==portalClean)portalRemember();
-  dashboardForget();financeForget();billingForget();personnelForget();closeModal();nfDraft=null;marchesForget();agendaForget();budgetsForget();facturxForgetAuth();
+  dashboardForget();financeForget();billingForget();stampingForget();personnelForget();closeModal();nfDraft=null;marchesForget();agendaForget();budgetsForget();facturxForgetAuth();
   AUTH_USER=null;movAccess=null;salariesUnlocked=false;portalClear();document.body.classList.remove('authed');renderUserChip();authBack();
 });
 function load(){return freshState();}
@@ -43,7 +43,7 @@ async function cloudLoad(options={}){
     await portalLoadPhotos();if(AUTH_USER!==user||portalEpoch!==epoch)return false;
     setSync('ok','Synchronisé');
     if(document.body.classList.contains('authed')&&wasAdmin!==isAdmin(user)){
-      dashboardForget();financeForget();billingForget();personnelForget();marchesForget();agendaForget();budgetsForget();facturxForgetAuth();closeModal();nfDraft=null;
+      dashboardForget();financeForget();billingForget();stampingForget();personnelForget();marchesForget();agendaForget();budgetsForget();facturxForgetAuth();closeModal();nfDraft=null;
       currentView='dashboard';unlockApp(user);
     }else render();
     return true;

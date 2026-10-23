@@ -15,7 +15,7 @@ await copyFile(path.join(jspdfRoot,'dist/jspdf.umd.min.js'),path.join(root,'plat
 await copyFile(path.join(jspdfRoot,'LICENSE'),path.join(root,'platform/jspdf-LICENSE.txt'));
 await build({absWorkingDir:root,entryPoints:[path.join(root,'platform/worker.ts')],outfile:path.join(output,'entry.mjs'),bundle:true,platform:'node',format:'esm',target:'es2022'});
 await build({absWorkingDir:root,entryPoints:[path.join(root,'platform/client/workspace-client.ts')],outfile:path.join(root,'platform/workspace-client.js'),bundle:true,platform:'browser',format:'iife',globalName:'CDIPlatform',target:'es2022'});
-await build({absWorkingDir:root,entryPoints:['dashboard','finance','billing','personnel','agenda','markets'].map(name=>path.join(root,'platform/client/'+name+'.tsx')),outdir:path.join(root,'platform'),entryNames:'[name]',chunkNames:'chunks/[name]-[hash]',splitting:true,bundle:true,platform:'browser',format:'esm',target:'es2022',minify:true,jsx:'automatic',external:['/platform/pdf-editor-font.ttf'],loader:{'.component.css':'text'},define:{'process.env.NODE_ENV':'"production"'}});
+await build({absWorkingDir:root,entryPoints:['dashboard','finance','billing','personnel','agenda','markets','stamping'].map(name=>path.join(root,'platform/client/'+name+'.tsx')),outdir:path.join(root,'platform'),entryNames:'[name]',chunkNames:'chunks/[name]-[hash]',splitting:true,bundle:true,platform:'browser',format:'esm',target:'es2022',minify:true,jsx:'automatic',external:['/platform/pdf-editor-font.ttf'],loader:{'.component.css':'text'},define:{'process.env.NODE_ENV':'"production"'}});
 await build({absWorkingDir:root,entryPoints:[path.join(root,'platform/client/outlook-callback.ts')],outfile:path.join(root,'platform/outlook-callback.js'),bundle:true,platform:'browser',format:'esm',target:'es2022',minify:true});
 await build({absWorkingDir:root,entryPoints:[path.join(root,'platform/client/icons.ts')],outfile:path.join(root,'platform/icons.js'),bundle:true,platform:'browser',format:'iife',globalName:'CDIIcons',target:'es2022',minify:true});
 await build({absWorkingDir:root,entryPoints:[path.join(root,'platform/client/theme.ts')],outfile:path.join(root,'platform/theme.js'),bundle:true,platform:'browser',format:'iife',globalName:'CDITheme',target:'es2022',minify:true});
@@ -35,7 +35,7 @@ let updated=script;
 for(const node of [...ast.statements].reverse())if(ts.isFunctionDeclaration(node)&&names.has(node.name?.text))updated=updated.slice(0,node.getStart(ast))+updated.slice(node.end);
 if(!updated.includes('\nbootAuth();'))throw new Error('Portal boot marker missing');
 updated=updated.replace('\nbootAuth();','\n/* CDI_PORTAL_START */\n'+bridge+'\n/* CDI_PORTAL_END */\nbootAuth();');
-const billingBridge=(await readFile(path.join(root,'platform/client/billing-bridge.js'),'utf8'))+'\n'+(await readFile(path.join(root,'platform/client/billing-facturx-bridge.js'),'utf8'));
+const billingBridge=(await readFile(path.join(root,'platform/client/billing-bridge.js'),'utf8'))+'\n'+(await readFile(path.join(root,'platform/client/billing-facturx-bridge.js'),'utf8'))+'\n'+(await readFile(path.join(root,'platform/client/stamping-bridge.js'),'utf8'));
 updated=updated.replace('\nbootAuth();','\n/* CDI_BILLING_START */\n'+billingBridge+"\nsetView('dashboard');\n/* CDI_BILLING_END */\nbootAuth();");
 portal=portal.slice(0,scriptStart)+updated+portal.slice(scriptEnd);
 const marker=/\/\* CDI_MARKETS_START \*\/[\s\S]*?\/\* CDI_MARKETS_END \*\//;
