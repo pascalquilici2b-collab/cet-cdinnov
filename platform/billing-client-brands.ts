@@ -1,6 +1,6 @@
 export const clientBrands:[string,string[],string[]?][]=[
  ['adec.svg',['Agence de développement économique de la Corse','Agence développement économique Corse','AGENCE DEVELOPPEMENT ECO DE LA CORSE'],['ADEC']],
- ['epci-corse.png',["Etablissement public du commerce et de l'industrie de Corse",'Établissement public du commerce et de l’industrie de Corse'],['EPCI Corse']],
+ ['epci-corse.png',["Etablissement public du commerce et de l'industrie de Corse",'Établissement public du commerce et de l’industrie de Corse','Etablissement Public du Commerce'],['EPCI Corse']],
  ['cci-corse.webp',['CCI de Corse','Chambre de commerce et d’industrie de Corse','EPCI de Corse'],['CCI Corse']],
  ['cci-var.webp',['CCI du Var','Chambre de commerce et d’industrie du Var'],['CCI Var']],
  ['cress.webp',['CRESS Corsica','Chambre régionale de l’économie sociale et solidaire de Corse'],['CRESS','CRESS Corse']],
