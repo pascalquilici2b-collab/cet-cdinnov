@@ -4,7 +4,7 @@ import type {BillingTransport} from '../billing-contracts';
 import {outlookConfig,outlookScopes} from '../microsoft-outlook-config';
 import {microsoftProfile,microsoftOwnerMatches} from '../billing-microsoft-draft';
 
-const client=new PublicClientApplication({auth:{clientId:outlookConfig.clientId,authority:'https://login.microsoftonline.com/'+outlookConfig.tenantId,redirectUri:outlookConfig.redirectUri},cache:{cacheLocation:'sessionStorage'},system:{loggerOptions:{loggerCallback:()=>{},piiLoggingEnabled:false}}});
+const client=new PublicClientApplication({auth:{clientId:outlookConfig.clientId,authority:'https://login.microsoftonline.com/'+outlookConfig.tenantId,redirectUri:outlookConfig.redirectUri},cache:{cacheLocation:'sessionStorage'},system:{popupBridgeTimeout:600000,loggerOptions:{loggerCallback:()=>{},piiLoggingEnabled:false}}});
 let initializing:Promise<void>|undefined;
 const initialize=()=>initializing||=(client.initialize());
 const normalize=(email:string)=>email.trim().toLowerCase();
