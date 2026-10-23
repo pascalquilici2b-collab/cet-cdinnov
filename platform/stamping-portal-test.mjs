@@ -17,6 +17,13 @@ try{
  await page.getByRole('heading',{name:'Tamponnage des pièces'}).waitFor();
  await page.waitForFunction(()=>!document.querySelector('.stamp-progress'));
  await page.screenshot({path:out+'/portail-tamponnage.png',fullPage:false});
+ await page.locator('[data-theme-toggle]').click();
+ const contrast=await page.locator('.stamp-panel').first().evaluate(el=>{
+  const style=getComputedStyle(el),luminance=color=>color.match(/[\d.]+/g).slice(0,3).map(Number).map(c=>c/255).map(c=>c<=.04045?c/12.92:((c+.055)/1.055)**2.4).reduce((v,c,i)=>v+c*[.2126,.7152,.0722][i],0);
+  const a=luminance(style.color),b=luminance(style.backgroundColor);return (Math.max(a,b)+.05)/(Math.min(a,b)+.05);
+ });
+ assert.ok(contrast>=4.5,'Stamping panel text must remain readable in the portal dark theme');
+ await page.screenshot({path:out+'/portail-tamponnage-dark.png',fullPage:false});
  await page.getByLabel('Nom du lot',{exact:true}).fill('Lot privé de démonstration');await page.getByRole('button',{name:'Créer le lot',exact:true}).click();
  await page.getByRole('heading',{name:'Pièces du lot',exact:true}).waitFor();
  await page.locator('[data-view=facturier]').click();await page.locator('[data-react-billing]').waitFor();assert.equal(await page.locator('#stampingRoot').count(),0);

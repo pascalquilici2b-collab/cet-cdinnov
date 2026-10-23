@@ -1,6 +1,17 @@
 # Activation du module Tamponnage
 
-Ces opérations sont préparées mais n'ont pas été exécutées en production. La section 19 du cahier des charges demande des instructions de déploiement séparées, « sans lancer spontanément des changements de production ».
+Module mis en service le 23 octobre 2026, après l'autorisation explicite de déploiement. L'accès se fait dans **Applications → Tamponnage des pièces**, sur `https://app.cdinnov.eu`, avec un compte administrateur. L'assistance Qwen via Cloudflare a été autorisée explicitement.
+
+## Mise en service vérifiée
+
+- Service documentaire Render : commit `070bee885c1812c3e1dfbbd22f0492cda9c68d44`, déploiement `dep-dbdkpde7bikc73dvjj80`. Construction Linux réussie, contrôles Factur-X existants et nouveau test de scan avec Tesseract réussis.
+- Worker `cet-data` : bindings et secrets préexistants conservés, binding `STAMPING_QUEUE` ajouté. Les 4 tables de tamponnage et leurs index ont été créés par la migration additive `0003-stamping`.
+- Queue `cdinnov-stamping` : une pièce par lot, une invocation simultanée, trois reprises maximum. Purge quotidienne configurée à `03:15 UTC`.
+- Portail publié par GitHub Pages depuis la branche `main`. Les fichiers d'entrée et les 11 chunks référencés ont été comparés avec le build local.
+- Essai réel dans le portail : facture scannée fictive et CSV de six projets, OCR local, réponse Qwen `@cf/qwen/qwen3-30b-a3b-fp8`, aperçu vérifié, approbation puis tamponnage. Base : 7 177,10 €, imputé : 6 459,40 €, reliquat : 717,70 €. Les contrôles de géométrie, de préservation visuelle, de texte source, d'annotations et d'imputations sont tous positifs.
+- Export PDF et ZIP vérifiés : empreinte de sortie conforme à l'aperçu approuvé, original strictement identique, rapport CSV et traçabilité présents. Accès anonyme refusé. Le lot « Vérification technique · facture fictive · 23 octobre » est clairement identifié comme fictif et expirera le 22 novembre 2026.
+
+Les sauvegardes de configuration, les empreintes des tables, les résultats et captures de mise en service sont conservés localement dans `.private/release/`, hors Git. La comparaison des tables a aussi relevé des modifications concurrentes dans les marchés et projets commerciaux, qui ont été conservées. Les tables RH et de facturation comparées sont restées identiques.
 
 ## Avant activation
 
@@ -38,7 +49,7 @@ La queue ne contient que propriétaire, identifiants et version. Un verrou de 5 
 
 La suppression pose un verrou d'expiration avant nettoyage pour empêcher un travail concurrent. En cas de problème de stockage, le lot reste inaccessible et le cron reprend sa purge. Le nettoyage retire les lots expirés depuis plus de dix minutes ; au plus 20 lots par déclenchement. Augmenter la fréquence du cron si ce volume est dépassé.
 
-Les tests n'ont pas encore validé le service Docker/Linux, le budget mémoire réel de l'hébergeur, ni l'appel Qwen de production. Ils doivent être confirmés sur l'environnement de recette avant les premiers justificatifs réels. Un petit service peut devoir être dimensionné selon les scans et leur complexité ; l'interface remonte un refus sans produire un résultat incomplet.
+Le service Docker/Linux, un scan réel et l'appel Qwen de production ont été validés lors de la mise en service. Les essais de charge sur 20 et 40 pièces ont été réalisés localement ; ils ne constituent pas une mesure de capacité de l'instance Render. Cette instance gratuite peut démarrer lentement après une période d'inactivité. Des scans plus complexes peuvent nécessiter un dimensionnement adapté ; l'interface remonte un refus sans produire un résultat incomplet.
 
 ## Retour arrière
 
