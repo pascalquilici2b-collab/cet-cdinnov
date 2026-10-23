@@ -22,7 +22,7 @@ export function blankDraft(kind:BillingKind,today=new Intl.DateTimeFormat('sv-SE
 /** Settings are copied, never linked: later edits cannot rewrite an existing document. */
 export function draftWithSettings(kind:BillingKind,settings:BillingSettingsData):BillingDraft {
   const {schemaVersion,fundingProgrammes,returnEmail,...defaults}=structuredClone(settings);
-  return {...blankDraft(kind),...defaults,paymentMeans:'30',paymentTerms:defaults.paymentTerms||defaultPaymentTerms,details:{...blankDocumentDetails(),returnEmail:kind==='invoice'?(returnEmail??'cdi@cdinnov.com'):''}};
+  return {...blankDraft(kind),...defaults,paymentMeans:'30',paymentTerms:defaults.paymentTerms||defaultPaymentTerms,details:{...blankDocumentDetails(),returnEmail:returnEmail||'cdi@cdinnov.com'}};
 }
 const fail=(message:string):never=>{throw Object.assign(new Error(message),{status:422});};
 function object(value:unknown,allowed:string[],name:string):Record<string,unknown> {

@@ -2,7 +2,8 @@ import {usePDFAnnotations} from './billing-pdf-annotations';
 import {BrandMark} from './loading';
 import {useEffect,useRef,useState} from 'react';
 import type {BillingDocument,BillingDraft,BillingTransport} from '../billing-contracts';
-import {Pencil} from 'lucide-react';
+import {Pencil,Printer} from 'lucide-react';
+import {printPDF} from './billing-print';
 import {blankDocumentDetails,addBillingMonths} from '../billing-domain';
 
 type Viewport={width:number;height:number;convertToViewportRectangle:(r:number[])=>number[]};
@@ -21,6 +22,7 @@ function pdfEngine(){
 }
 
 export function PDFPreview({record,transport,draft,onChange,file}:{record:BillingDocument|null;transport?:BillingTransport;draft?:BillingDraft;onChange?:(p:Partial<BillingDraft>)=>void;file?:Blob}){
+ const [printing,setPrinting]=useState(false),[printError,setPrintError]=useState('');
  const [pdf,setPDF]=useState<PDFDocument|null>(null),[error,setError]=useState(''),[retry,setRetry]=useState(0);
  const [page,setPage]=useState(1),[zoom,setZoom]=useState(1),[rendering,setRendering]=useState(false),[text,setText]=useState(''),[pending,setPending]=useState(false);
  const [areas,setAreas]=useState<{path:string;rect:number[]}[]>([]),[edit,setEdit]=useState<{path:string;value:string}|null>(null),dialog=useRef<HTMLDialogElement>(null);
@@ -76,7 +78,9 @@ export function PDFPreview({record,transport,draft,onChange,file}:{record:Billin
   <div className="bill-pdf-controls" role="group" aria-label="Navigation dans le PDF">
    <div><button type="button" aria-label="Page précédente du PDF" disabled={!pdf||pending||page===1} onClick={()=>turn(-1)}>‹</button><span aria-live="polite">Page {page} / {pdf?.numPages||'…'}</span><button type="button" aria-label="Page suivante du PDF" disabled={!pdf||pending||page===pdf.numPages} onClick={()=>turn(1)}>›</button></div>
    <div><button type="button" aria-label="Réduire le zoom" disabled={!pdf||pending||zoom<=.5} onClick={()=>setZoom(n=>Math.max(.5,n-.25))}>−</button><button type="button" aria-label="Format A4 à 100 %" title="Format A4 à 100 %" disabled={!pdf||pending} onClick={()=>setZoom(1)}>{Math.round(zoom*100)} %</button><button type="button" aria-label="Agrandir le PDF" disabled={!pdf||pending||zoom>=2} onClick={()=>setZoom(n=>Math.min(2,n+.25))}>+</button></div>
+   <button type="button" className="bill-print-button" aria-label="Imprimer le document" disabled={!pdf||pending||rendering||printing||!!error} onClick={()=>{if(!pdf)return;setPrinting(true);setPrintError('');void printPDF(pdf).catch(e=>setPrintError(e.message)).finally(()=>setPrinting(false));}}><Printer size={16}/>{printing?'Préparation…':'Imprimer'}</button>
   </div>
+  {printError&&<p className="bill-pdf-print-error" role="alert">{printError}</p>}
   <div className="bill-pdf-viewport" ref={viewport} tabIndex={0} aria-label="Page PDF, défilement horizontal et vertical" aria-busy={!error&&(!pdf||rendering)}>
    {error?<div className="bill-pdf-feedback" role="alert"><b>Aperçu indisponible</b><p>{error}</p><button type="button" className="bill-button" onClick={()=>setRetry(n=>n+1)}>Réessayer l’aperçu</button></div>:!pdf?<div className="bill-pdf-feedback" role="status"><BrandMark/>Préparation de l’aperçu…</div>:<div className="bill-pdf-sheet"><div className="bill-pdf-page"><canvas ref={canvas} role="img" aria-label={'Page '+page+' du document PDF'} style={{visibility:rendering?'hidden':'visible'}}/>{!rendering&&!pending&&areas.map((a,i)=><button type="button" key={i} className="bill-pdf-edit-field" style={{left:Math.min(a.rect[0],a.rect[2]),top:Math.min(a.rect[1],a.rect[3]),width:Math.abs(a.rect[2]-a.rect[0]),height:Math.abs(a.rect[3]-a.rect[1])}} aria-label={'Modifier '+fieldLabel(a.path)} title={'Modifier '+fieldLabel(a.path)} onClick={()=>startEdit(a.path)}><Pencil size={13}/></button>)}{additions.overlay}{rendering&&<div className="bill-pdf-rendering" role="status"><BrandMark/>Affichage de la page…</div>}<p className="bill-sr-only">{text}</p></div></div>}
   </div>

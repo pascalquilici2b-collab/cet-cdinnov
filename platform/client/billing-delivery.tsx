@@ -1,28 +1,51 @@
+import {OutlookAccount} from './billing-outlook-account';
+import {createMicrosoftDraft} from '../billing-microsoft-draft';
 import {PDFIcon} from './billing-pdf-icon';
 import {useEffect,useRef,useState} from 'react';
-import {Send,ExternalLink,Download} from 'lucide-react';
-import type {BillingDocument,BillingTransport} from '../billing-contracts';
-import type {EmailDelivery,EmailInput} from '../billing-delivery';
+import {Send,ExternalLink,CheckCircle2,Download} from 'lucide-react';
+import type {BillingClientContact,BillingDocument,BillingTransport} from '../billing-contracts';
+import {outlookMessage} from '../billing-outlook-message';
+import {sameClient} from '../billing-client-match';
+import {Field} from './billing-fields';
 
-export function EmailDocument({record,transport,onSent}:{record:BillingDocument;transport:BillingTransport;onSent:()=>void}){
- const [open,setOpen]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[history,setHistory]=useState<EmailDelivery[]>([]),[attempt,setAttempt]=useState<EmailInput|null>(null);
+export function EmailDocument({record,transport}:{record:BillingDocument;transport:BillingTransport}){
+ const [connection,setConnection]=useState<{email:string;connected:boolean}|null>(null),[outlookDraft,setOutlookDraft]=useState<{webLink:string}|null>(null);
+ const [open,setOpen]=useState(false),[busy,setBusy]=useState(false),[loading,setLoading]=useState(false),[error,setError]=useState(''),[contacts,setContacts]=useState<BillingClientContact[]>([]),[selected,setSelected]=useState('');
  const [recipient,setRecipient]=useState(record.data.buyer.email),[subject,setSubject]=useState(`${record.data.kind==='quote'?'Devis':'Facture'} ${record.issuance?.number||''} — ${record.data.title}`),[message,setMessage]=useState('Bonjour,\n\nVeuillez trouver ci-joint notre '+(record.data.kind==='quote'?'devis':'facture')+'.\n\nBien cordialement,\nConseil Développement Innovation');
- const dialog=useRef<HTMLDialogElement>(null);
- useEffect(()=>{if(open){dialog.current?.showModal();void transport.emailHistory(record.id).then(r=>setHistory(r.deliveries)).catch(e=>setError(e.message));}else dialog.current?.close();},[open,record.id,transport]);
- const refresh=async()=>{try{setHistory((await transport.emailHistory(record.id)).deliveries);setError('');}catch(e){setError((e as Error).message);}};
- async function send(){
-  const input=attempt||{id:crypto.randomUUID(),recipient,subject,message};setAttempt(input);setBusy(true);setError('');
-  try{const {delivery}=await transport.email(record.id,record.version,input);setHistory(h=>[delivery,...h.filter(x=>x.id!==delivery.id)]);if(delivery.state==='sent')onSent();}
-  catch(e){setError((e as Error).message);if([400,422].includes((e as {status?:number}).status||0))setAttempt(null);}finally{setBusy(false);}
+ const [ready,setReady]=useState<{url:string;filename:string}|null>(null),dialog=useRef<HTMLDialogElement>(null);
+ useEffect(()=>()=>{if(ready)URL.revokeObjectURL(ready.url);},[ready]);
+ useEffect(()=>{if(!open){dialog.current?.close();return;}dialog.current?.showModal();let active=true;setLoading(true);setError('');
+  void (async()=>{
+   if(record.data.clientId){const client=await transport.directoryGet('clients',record.data.clientId);if(client.kind==='clients')return client.data.contacts||[];}
+   // Older documents may not carry a directory ID. Only use an unambiguous identity match.
+   const found:BillingClientContact[][]=[];let offset=0;
+   for(;;){const page=await transport.directoryList('clients',{q:'',offset,limit:100,archived:false});for(const row of page.records)if(row.kind==='clients'&&sameClient(row.data,record.data.buyer))found.push(row.data.contacts||[]);offset+=page.records.length;if(offset>=page.total||!page.records.length)break;}
+   return found.length===1?found[0]:[];
+  })().then(value=>{if(active)setContacts(value);}).catch(()=>{if(active){setContacts([]);setError('Contacts indisponibles. Vous pouvez saisir le destinataire.');}}).finally(()=>{if(active)setLoading(false);});
+  return()=>{active=false;};
+ },[open,record.id,transport]);
+ const download=(value:{url:string;filename:string})=>{const link=document.createElement('a');link.href=value.url;link.download=value.filename;document.body.append(link);link.click();link.remove();};
+ async function prepare(){
+  if(busy)return;setBusy(true);setError('');setReady(null);
+  try{const filename=(record.data.kind==='quote'?'Devis-':'Facture-')+(record.issuance?.number||record.id).replace(/[^a-zA-Z0-9_-]/g,'_'),pdf=await transport.issuedFile(record.id,'pdf');
+   const chosen=contacts.find(c=>c.id===selected&&c.email===recipient),blob=await outlookMessage({recipient:recipient.trim(),recipientName:chosen?.name,subject,message,filename:filename+'.pdf',pdf});
+   const result={url:URL.createObjectURL(blob),filename:filename+'.eml'};setReady(result);download(result);
+  }catch(e){setError(e instanceof Error?e.message:'Le message n’a pas pu être préparé.');}finally{setBusy(false);}
  }
- const status=(s:EmailDelivery['state'])=>({sending:'En cours',sent:'Accepté par le service d’envoi',failed:'Refusé par le service d’envoi',unknown:'Résultat à vérifier avant tout nouvel envoi'})[s];
- return <><button type="button" className="bill-button" onClick={()=>setOpen(true)}><Send size={16}/> Envoyer par e-mail</button><dialog ref={dialog} className="bill-directory-dialog bill-delivery-dialog" aria-label="Envoyer par e-mail" onCancel={e=>{if(busy)e.preventDefault();else setOpen(false);}}><div className="bill-dialog-top"><strong>Envoyer par e-mail</strong><button type="button" disabled={busy} aria-label="Fermer" onClick={()=>setOpen(false)}>×</button></div><form className="bill-section" onSubmit={e=>{e.preventDefault();void send();}}>
-  <fieldset disabled={busy||!!attempt} className="bill-fields"><label className="bill-field bill-wide">Destinataire<input type="email" required maxLength={254} value={recipient} onChange={e=>setRecipient(e.target.value)}/></label><label className="bill-field bill-wide">Objet<input required maxLength={200} value={subject} onChange={e=>setSubject(e.target.value)}/></label><label className="bill-field bill-wide">Message<textarea required rows={6} maxLength={10000} value={message} onChange={e=>setMessage(e.target.value)}/></label></fieldset>
-  <p className="bill-muted">Pièce jointe : {record.issuance?.number}.pdf</p>{error&&<p role="alert">{error}</p>}
-  <div className="bill-reference-tools"><button type="button" className="bill-button" disabled={busy} onClick={()=>setOpen(false)}>Fermer</button>{attempt&&history.some(h=>h.id===attempt.id&&['sent','failed'].includes(h.state))?<button type="button" className="bill-button" onClick={()=>setAttempt(null)}>Nouveau message</button>:<button type="submit" className="bill-button bill-button-primary" disabled={busy||!!attempt&&history.some(h=>h.id===attempt.id)}>{busy?'Envoi…':attempt?'Vérifier cet envoi':'Envoyer avec le PDF'}</button>}</div>
-  {!!history.length&&<section className="bill-email-history" aria-label="Historique des envois"><h4>Envois</h4>{history.map(h=><p key={h.id}><b>{h.recipient}</b><br/>{new Date(h.created_at).toLocaleString('fr-FR')} · {status(h.state)}</p>)}<button type="button" className="bill-button" onClick={()=>void refresh()}>Actualiser</button></section>}
+ async function prepareOnline(){
+  if(busy)return;setBusy(true);setError('');
+  try{const microsoft=await import('./billing-microsoft'),identity=await microsoft.outlookToken(transport),pdf=await transport.issuedFile(record.id,'pdf'),contact=contacts.find(c=>c.id===selected&&c.email===recipient);
+   const result=await createMicrosoftDraft({token:identity.token,email:identity.email,documentId:record.id,recipient:recipient.trim(),recipientName:contact?.name,subject,message,filename:(record.data.kind==='quote'?'Devis-':'Facture-')+(record.issuance?.number||record.id)+'.pdf',pdf,currentEmail:async()=>(await transport.session()).email,storage:sessionStorage});setOutlookDraft(result);
+  }catch(e){setError(e instanceof Error?e.message:'Le brouillon Outlook n’a pas pu être préparé.');}finally{setBusy(false);}
+ }
+ return <><button type="button" className="bill-button" onClick={()=>setOpen(true)}><Send size={16}/> Envoyer par e-mail</button><dialog ref={dialog} className="bill-directory-dialog bill-delivery-dialog" aria-label="Envoyer par e-mail" onCancel={e=>{if(busy)e.preventDefault();else setOpen(false);}}><div className="bill-dialog-top"><strong>Préparer dans Outlook</strong><button type="button" disabled={busy} aria-label="Fermer" onClick={()=>setOpen(false)}>×</button></div><form className="bill-section" onSubmit={e=>{e.preventDefault();void prepareOnline();}}>
+  {open&&<OutlookAccount transport={transport} disabled={busy} onConnection={setConnection}/>}<fieldset disabled={busy} className="bill-fields" onChange={()=>{setReady(null);setOutlookDraft(null);}}><Field label="Contact du client" wide><select disabled={loading} value={selected} onChange={e=>{setSelected(e.target.value);const contact=contacts.find(c=>c.id===e.target.value);setRecipient(contact?.email||'');}}><option value="">{loading?'Chargement des contacts…':'Saisir un destinataire'}</option>{contacts.map(c=><option key={c.id} value={c.id}>{c.name}{c.role?' · '+c.role:''} — {c.email}</option>)}</select></Field><Field label="Destinataire" wide><input type="email" required maxLength={254} value={recipient} onChange={e=>{setRecipient(e.target.value);setSelected('');}}/></Field><Field label="Objet du message" wide><input required maxLength={200} value={subject} onChange={e=>setSubject(e.target.value)}/></Field><Field label="Message" wide><textarea required rows={6} maxLength={10000} value={message} onChange={e=>setMessage(e.target.value)}/></Field></fieldset>
+  <p className="bill-mail-attachment"><PDFIcon/>{record.issuance?.number}.pdf</p>{error&&<p role="alert">{error}</p>}
+  {outlookDraft?<p className="bill-delivery-ready" role="status"><CheckCircle2 size={18}/> Brouillon créé dans votre Outlook avec le PDF joint</p>:ready?<><p className="bill-delivery-ready" role="status"><CheckCircle2 size={18}/> Message prêt avec le PDF joint</p><p className="bill-outlook-help">Ouvrez le fichier téléchargé avec Outlook pour vérifier le message et l’envoyer.</p></>:<p className="bill-outlook-help">Le message sera préparé dans votre dossier Brouillons. Vous l’enverrez depuis Outlook.</p>}
+  <div className="bill-reference-tools"><button type="button" className="bill-button" disabled={busy} onClick={()=>setOpen(false)}>Fermer</button><button type="button" className="bill-button" disabled={busy||loading||!recipient.trim()||!subject.trim()} onClick={()=>ready?download(ready):void prepare()}><Download size={16}/> Télécharger le message</button>{outlookDraft?<a className="bill-button bill-button-primary" href={outlookDraft.webLink} target="_blank" rel="noopener noreferrer"><ExternalLink size={16}/> Ouvrir Outlook</a>:<button type="submit" className="bill-button bill-button-primary" disabled={busy||loading||!connection?.connected}><ExternalLink size={16}/>{busy?'Préparation…':'Créer le brouillon Outlook'}</button>}</div>
  </form></dialog></>;
 }
+
 export function ElectronicDelivery({ready,onDownload}:{ready:boolean;onDownload:()=>void}){
  const [open,setOpen]=useState(false),dialog=useRef<HTMLDialogElement>(null);
  useEffect(()=>{if(open)dialog.current?.showModal();else dialog.current?.close();},[open]);

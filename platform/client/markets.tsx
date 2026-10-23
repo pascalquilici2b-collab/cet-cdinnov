@@ -280,7 +280,6 @@ function Summary({ s, m }: { s: MarketsSnapshot; m: Market }) {
         <Field path="startBasis" label="Démarrage du marché" value={m.startBasis||''} options={{'':'Choisir',notification:'À notification',first_order:'Au premier bon de commande',date:'Date de démarrage'}}/>
         {m.startBasis==='date'&&<Field path="startDate" label="Date de démarrage" type="date" value={m.startDate} required/>}
         <Field path="initialDurationMonths" label="Durée initiale du marché" value={m.initialDurationMonths} options={{'':'Choisir','12':'12 mois','24':'24 mois','36':'36 mois'}}/>
-        <Field path="maximumMinor" label="Montant maximum contractuel (€ HT)" value={amount(m.maximumMinor??null)}/>
         <Field
           path="notificationDate"
           label="Date portée sur la notification"
@@ -320,17 +319,18 @@ function Summary({ s, m }: { s: MarketsSnapshot; m: Market }) {
           step="1"
         />
         <Field
+          wide
           path="noMinimum"
           label="Marché sans minimum confirmé"
           value={m.noMinimum}
           type="checkbox"
         />
-        <Field
+        <div className="mk-contract-limits"><Field
           path="minimumMinor"
           label="Minimum contractuel (€ HT)"
           value={amount(m.minimumMinor)}
           help="Laisser vide si inconnu. Ne crée aucun droit à facturer."
-        />
+        /><Field path="maximumMinor" label="Montant maximum contractuel (€ HT)" value={amount(m.maximumMinor??null)}/></div>
         <Field
           path="feesIncluded"
           label="Frais de mission et de déplacement inclus"
@@ -724,10 +724,7 @@ function FileIcon({name}:{name:string}){
 function Documents({ s, m }: { s: MarketsSnapshot; m: Market }) {
   return (
     <>
-      <Section title="Pièces du marché">
-        Originaux conservés, empreinte contrôlée et doublons détectés. Maximum 5
-        Mo par pièce.
-      </Section>
+      <div className="mk-pieces-heading"><Section title="Pièces du marché"/><Button className="mk-analyse-all" data-action="analyse-all" disabled={!s.docs.length}><Sparkles size={17}/>Tout analyser</Button></div>
       {m.version ? (
         <Upload />
       ) : (
@@ -765,7 +762,7 @@ function Documents({ s, m }: { s: MarketsSnapshot; m: Market }) {
       ) : (
         <div className="mk-empty">Aucune pièce importée.</div>
       )}
-      {s.docs.length>0&&<div className="mk-document-analysis">{s.analysis&&s.analysis.status!=='ready'&&!s.analysis.stale?<Button className="mk-secondary" data-action="resume-analysis"><Sparkles size={16}/>Reprendre l’analyse</Button>:<Button className="mk-secondary" data-action="analyse-all"><Sparkles size={16}/>Analyser le dossier</Button>}<Help label="Lecture du dossier" text="Qwen remplit les champs disponibles dans les onglets du marché. Les données déjà saisies sont conservées ; les divergences apparaissent dans les points à confirmer."/></div>}
+      {s.docs.length>0&&<div className="mk-document-analysis">{s.analysis&&s.analysis.status!=='ready'&&!s.analysis.stale?<Button className="mk-secondary" data-action="resume-analysis"><Sparkles size={16}/>Reprendre l’analyse</Button>:null}<Help label="Lecture du dossier" text="Qwen remplit les champs disponibles dans les onglets du marché. Les données déjà saisies sont conservées ; les divergences apparaissent dans les points à confirmer."/></div>}
       {s.analysis?.result&&<details className="mk-analysis-details"><summary><ListChecks size={17}/>Résultats de lecture</summary><Proposals result={s.analysis.result} s={s} m={m}/></details>}
     </>
   );

@@ -79,7 +79,8 @@ export interface BillingClientDetails {
  legalForm:string; legalFormCode:string; representatives:string; shareCapital:string;
  vatNumbers:string[]; source:string; retrievedAt:string;
 }
-export interface BillingClientData {schemaVersion:1;party:BillingParty;notes:string;archived:boolean;details?:BillingClientDetails;logoKey?:string;logoData?:string;}
+export interface BillingClientContact {id:string;name:string;email:string;role:string;}
+export interface BillingClientData {contacts?:BillingClientContact[];schemaVersion:1;party:BillingParty;notes:string;archived:boolean;details?:BillingClientDetails;logoKey?:string;logoData?:string;}
 export interface BillingServiceData {schemaVersion:1;reference:string;label:string;description:string;unitCode:string;unitPrice:string;vatRate:string;vatCategory:VatCategory;exemptionReason:string;archived:boolean;}
 export type BillingDirectoryData=BillingClientData|BillingServiceData;
 export type BillingDirectoryRecord={id:string;version:number;updatedAt:string|null;} & ({kind:'clients';data:BillingClientData;}|{kind:'services';data:BillingServiceData;});
@@ -97,6 +98,7 @@ export interface BillingContext {
   settings:BillingSettings;
 }
 export interface BillingTransport {
+  session():Promise<{email:string}>;
   emailHistory(id:string):Promise<{deliveries:import('./billing-delivery').EmailDelivery[]}>;
   email(id:string,version:number,input:import('./billing-delivery').EmailInput):Promise<{delivery:import('./billing-delivery').EmailDelivery}>;
   projects():Promise<{projects:import('./projects').SharedProject[];clients?:{id:string;name:string}[]}>;

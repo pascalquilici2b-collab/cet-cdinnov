@@ -14,6 +14,7 @@ def test_new_fields_quote_and_invoice():
     txt=extract(raw)
     assert 'IBAN' not in txt and d['iban'] not in txt and 'BC-000142' not in txt
     assert 'Relevé d’intervention' not in txt
+    assert 'À retourner à : cdi@cdinnov.com' in txt
     assert 'Semestre 1' in txt and 'SIRET' in txt and 'Taux TVA' in txt
     with fitz.open(stream=raw,filetype='pdf') as pdf:
         links=[x['uri'] for p in pdf for x in p.get_links() if 'uri' in x]

@@ -504,7 +504,7 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
         story.append(KeepTogether(legal_block))
     if _text(document.get("notes")):
         story.extend([heading("Informations complémentaires"), p(document["notes"], "small", 'notes')])
-    if document['kind'] == 'invoice' and details.get('returnEmail'):
+    if details.get('returnEmail'):
         story.append(p('À retourner à : ' + details['returnEmail'], 'small', 'details.returnEmail'))
     for party, label in (("seller", "Informations légales de l'émetteur"), ("buyer", "Informations du destinataire")):
         if party == "seller" and cdi:
