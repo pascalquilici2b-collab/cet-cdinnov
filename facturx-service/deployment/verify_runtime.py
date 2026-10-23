@@ -48,8 +48,18 @@ def main():
         'source_sha256':hashlib.sha256(annotated_pdf).hexdigest()})
     addition_result = generate(annotated_pdf, addition_request)
     assert addition_result['report']['valid'] and all(addition_result['report']['checks'].values())
-    with pymupdf.open(stream=addition_result['pdf'], filetype='pdf') as checked:
-        assert 'Mention spéciale de démonstration.' in checked[0].get_text()
+    # Ghostscript font subsetting can change extracted Unicode between versions;
+    # compare the actual pixels of the mention and its translucent background.
+    with pymupdf.open(stream=annotated_pdf, filetype='pdf') as source, pymupdf.open(stream=addition_result['pdf'], filetype='pdf') as checked:
+        clip = pymupdf.Rect(58, 655, 510, 680)
+        before = source[0].get_pixmap(matrix=pymupdf.Matrix(2,2), clip=clip, colorspace=pymupdf.csRGB, alpha=False)
+        after = checked[0].get_pixmap(matrix=pymupdf.Matrix(2,2), clip=clip, colorspace=pymupdf.csRGB, alpha=False)
+        assert (before.width,before.height) == (after.width,after.height)
+        left,right = before.samples,after.samples
+        blue = [i for i in range(0,len(left),3) if left[i+2]>left[i]+50 and left[i+2]>left[i+1]+20]
+        assert len(blue)>100, 'Reference mention missing'
+        assert sum(abs(left[i+c]-right[i+c]) for i in blue for c in range(3))/(len(blue)*3)<25, 'Mention changed visually'
+        assert sum(abs(a-b) for a,b in zip(left,right))/len(left)<8, 'Highlight changed visually'
     print('PDF ADDITIONS PASSED: embedded text, transparency, PDF/A-3b and Factur-X validation.')
 
     # Also exercise the retained-PDF discount path with an explicit, audited acknowledgment.
