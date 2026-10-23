@@ -237,6 +237,12 @@ class DraftDocument(StrictModel):
             return None
 
 
+class InterventionReportRequest(StrictModel):
+    document: DraftDocument
+    number: str = Field(min_length=1, max_length=80)
+    reportDate: str = Field(pattern=r'^\d{4}-\d{2}-\d{2}$')
+
+
 class PreviewRequest(StrictModel):
     document: DraftDocument
     editable: bool = False

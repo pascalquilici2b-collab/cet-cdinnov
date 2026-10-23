@@ -159,6 +159,7 @@ def _styles() -> dict[str, ParagraphStyle]:
         "muted": ParagraphStyle("muted", parent=base, fontSize=8, leading=11, textColor=_MUTED),
         "heading": ParagraphStyle("heading", parent=base, fontSize=10, leading=14, textColor=_ACCENT, spaceBefore=12, spaceAfter=6, keepWithNext=1),
         "title": ParagraphStyle("title", parent=base, fontSize=17, leading=22, spaceAfter=12),
+        "service": ParagraphStyle("service", parent=base, fontSize=7, leading=10, spaceAfter=0),
         "cell": ParagraphStyle("cell", parent=base, fontSize=8, leading=11, spaceAfter=0),
         "numeric": ParagraphStyle("numeric", parent=base, fontSize=7.5, leading=10.5, alignment=TA_RIGHT, spaceAfter=0),
         "tablehead": ParagraphStyle("tablehead", parent=base, fontSize=7.2, leading=10, textColor=colors.white, spaceAfter=0),
@@ -317,14 +318,10 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
             canvas.drawRightString(_PAGE_W - _MARGIN, _PAGE_H - 54, kind)
         else:
             canvas.drawString(_MARGIN, _PAGE_H - 59, kind)
-        label = "DOCUMENT ÉMIS" if issued else "BROUILLON"
-        canvas.setFillColor(_ACCENT)
-        canvas.setFont(_FONT_NAME, 8)
-        canvas.drawRightString(_PAGE_W - _MARGIN, _PAGE_H - (68 if cdi else 56), label)
-        # The bounded number can wrap to two short lines without entering body.
-        number_p = p(reference, "muted")
-        _, number_h = number_p.wrap(_WIDTH - (190 if cdi else 0), 25)
-        number_p.drawOn(canvas, _MARGIN + (190 if cdi else 0), _PAGE_H - (72 if cdi else 64) - number_h)
+        if not issued:
+            canvas.setFillColor(_ACCENT)
+            canvas.setFont(_FONT_NAME, 8)
+            canvas.drawRightString(_PAGE_W - _MARGIN, _PAGE_H - (68 if cdi else 56), "BROUILLON")
         canvas.setStrokeColor(_RULE)
         canvas.setLineWidth(0.5)
         canvas.line(_MARGIN, bottom - 9, _PAGE_W - _MARGIN, bottom - 9)
@@ -344,7 +341,7 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
 
     if _text(document.get("title")):
         story.append(p(document["title"], "title", 'title'))
-    meta = [("Date du document", _date(document.get("issueDate")))]
+    meta = [("Numéro du document", reference), ("Date du document", _date(document.get("issueDate")))]
     if credit:
         meta.append(("Facture corrigée", _text(credit.get("invoiceNumber"))))
         meta.append(("Date de la facture corrigée", _date(credit.get("invoiceDate"))))
@@ -410,9 +407,9 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
     story.append(heading("Prestations"))
     if _text(document.get('description')):
         story.extend([p(document['description'], 'body', 'description'), Spacer(1, 9)])
-    labels = ("Désignation", "Qté", "Prix unit. HT", "Remise", "Taux TVA", "Montant HT")
+    labels = ("Désignation", "Qté", "Prix unit. HT", "Taux TVA", "Montant HT")
     rows: list[list[Any]] = [[p(label, "tablehead") for label in labels]]
-    numeric_widths = [43.0, 68.0, 45.0, 54.0, 82.0]
+    numeric_widths = [43.0, 68.0, 54.0, 82.0]
     for index, line in enumerate(document["lines"], 1):
         description = f"{index}. " + _text(line.get("description"), "Désignation à compléter")
         if _text(line.get("exemptionReason")):
@@ -433,13 +430,13 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
                 displayed = _decimal(line[field]) + (" €" if field == "unitPrice" else "")
                 numeric_widths[column] = max(numeric_widths[column], pdfmetrics.stringWidth(displayed, _FONT_NAME, 7.5) + 15)
         if line_total:
-            numeric_widths[4] = max(numeric_widths[4], pdfmetrics.stringWidth(_money(line_total["netMinor"]), _FONT_NAME, 7.5) + 15)
+            numeric_widths[3] = max(numeric_widths[3], pdfmetrics.stringWidth(_money(line_total["netMinor"]), _FONT_NAME, 7.5) + 15)
         line_path=f'lines.{index-1}.'
-        rows.append([p(description, "cell", line_path+'description'), p(quantity, "numeric", line_path+'quantity'), p(_decimal(line.get("unitPrice")) + " €", "numeric", line_path+'unitPrice'),
-                     p(_decimal(line.get("discountPercent"), percentage=True), "numeric", line_path+'discountPercent'), p(vat, "numeric", line_path+'vatRate'),
+        rows.append([p(description, "service", line_path+'description'), p(quantity, "numeric", line_path+'quantity'), p(_decimal(line.get("unitPrice")) + " €", "numeric", line_path+'unitPrice'),
+                     p(vat, "numeric", line_path+'vatRate'),
                      p(_money(line_total["netMinor"]) if line_total else "À calculer", "numeric")])
     if not document["lines"]:
-        rows.append([p("Aucune prestation renseignée", "cell"), "", "", "", "", ""])
+        rows.append([p("Aucune prestation renseignée", "cell"), "", "", "", ""])
     lines = LongTable(rows, colWidths=[_WIDTH - sum(numeric_widths), *numeric_widths], repeatRows=1, splitByRow=1, splitInRow=1, hAlign="LEFT")
     lines.setStyle(_table_style([("VALIGN", (0, 0), (-1, -1), "TOP"), ("BACKGROUND", (0, 0), (-1, 0), _ACCENT),
                               ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f7fafa")]),
@@ -467,7 +464,8 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
         total_rows = [[p("Total HT"), p(_money(totals["netMinor"]), "numeric")], [p(tax_label), p(_money(totals["taxMinor"]), "numeric")],
                       [p("MONTANT DE L’AVOIR TTC" if credit else "TOTAL TTC"), p(_money(totals["grossMinor"]), "total")]]
         if _amount(totals["discountMinor"]):
-            total_rows.insert(0, [p("Remises incluses", "muted"), p(_money(totals["discountMinor"]), "numeric")])
+            total_rows[0] = [p("Total HT avant remise"), p(_money(str(_amount(totals["netMinor"]) + _amount(totals["discountMinor"]))), "numeric")]
+            total_rows[1:1] = [[p("Remise", "muted"), p("− " + _money(totals["discountMinor"]), "numeric")], [p("Total HT net"), p(_money(totals["netMinor"]), "numeric")]]
         total_table = Table(total_rows, colWidths=[155, 145], hAlign="RIGHT")
         total_table.setStyle(_table_style([("VALIGN", (0, 0), (-1, -1), "MIDDLE"), ("LEFTPADDING", (0, 0), (-1, -1), 9),
                                         ("RIGHTPADDING", (0, 0), (-1, -1), 9), ("TOPPADDING", (0, 0), (-1, -1), 6),
@@ -493,13 +491,13 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
     for field, label in (("recovery", "Indemnité de recouvrement"), ("penalties", "Pénalités de retard"), ("discount", "Escompte")):
         if _text(legal.get(field)):
             legal_terms.append((label, legal[field]))
-    if terms:
+    if terms and document["kind"] == "invoice":
         story.append(Spacer(1, 12))
         for label, value in terms:
             term_path='paymentTerms' if label == 'Conditions de paiement' else None
             story.append(p(f"{label} : {value}", "small", term_path))
             story.append(Spacer(1, 1 if cdi else 4))
-    if legal_terms:
+    if legal_terms and document["kind"] == "invoice":
         legal_block: list[Any] = [Spacer(1, 4 * style['small'].leading if document['kind'] == 'invoice' and (document.get('iban') or document.get('bic')) else 12)]
         for label, value in legal_terms:
             path={'Indemnité de recouvrement':'legalNotes.recovery','Pénalités de retard':'legalNotes.penalties','Escompte':'legalNotes.discount'}.get(label)
@@ -519,17 +517,6 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
         signature.setStyle(_table_style([("BOX", (0, 0), (-1, -1), 0.6, _RULE), ("LEFTPADDING", (0, 0), (-1, -1), 12),
                                       ("TOPPADDING", (0, 0), (-1, 0), 10), ("BOTTOMPADDING", (0, -1), (-1, -1), 8)]))
         story.append(KeepTogether([Spacer(1, 16), signature]))
-    if document['kind'] == 'invoice' and details.get('interventions'):
-        story.extend([PageBreak(), p('Relevé d’intervention', 'title'), p(reference, 'muted')])
-        if references.get('project'):
-            story.append(p(references['project'], 'body'))
-        report_rows = [[p(v, 'tablehead') for v in ('Prestation BPU', 'Travail effectué', 'Jours')]]
-        for i, row in enumerate(details['interventions']):
-            path=f'details.interventions.{i}.'
-            report_rows.append([p(row['label'], 'cell', path+'label'), p(row['description'], 'cell', path+'description'), p(_decimal(row['days']), 'numeric', path+'days')])
-        report = LongTable(report_rows, colWidths=[145, _WIDTH-195, 50], repeatRows=1, splitByRow=1, splitInRow=1)
-        report.setStyle(_table_style([('BACKGROUND',(0,0),(-1,0),_ACCENT),('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),8),('RIGHTPADDING',(0,0),(-1,-1),8),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8),('LINEBELOW',(0,1),(-1,-1),.35,_RULE)]))
-        story.extend([Spacer(1,12),report])
     # ReportLab's safe default for external resources is not relied upon: all
     # paragraphs contain escaped text; font and logo are packaged local assets.
     try:

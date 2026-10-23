@@ -21,6 +21,8 @@ from . import server_auth
 from .models import GenerationRequest
 from .billing_document import PreviewRequest
 from .document_pdf import render_document, DocumentPDFError
+from .intervention_pdf import render_intervention_report
+from .billing_document import InterventionReportRequest
 from .billing_issuance import IssuedRequest, preflight as billing_preflight, generate_issued
 from .pdf_import import MAX_BYTES, extract_pdf, preview_pdf
 from .service import ROOT, ConversionError, generate, health
@@ -203,6 +205,18 @@ def preview(pdf: Annotated[UploadFile, File()], page: int = 0):
         raise
     except Exception as exc:
         raise HTTPException(422,str(exc)[:1500]) from exc
+    finally:
+        SLOTS.release()
+
+
+@app.post('/api/billing/intervention-report')
+def intervention_report(payload: InterventionReportRequest):
+    if not SLOTS.acquire(blocking=False):
+        raise HTTPException(503, 'Le service traite un autre document. Réessayez dans un instant.')
+    try:
+        return Response(render_intervention_report(payload.document.model_dump(), payload.number, payload.reportDate), media_type='application/pdf')
+    except (DocumentPDFError, ValueError) as exc:
+        raise HTTPException(422, str(exc)[:1500]) from exc
     finally:
         SLOTS.release()
 
