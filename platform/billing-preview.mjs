@@ -40,7 +40,7 @@ export async function billingPreview(testOptions={}){
       if(url.pathname.startsWith('/api/')||url.pathname.startsWith('/budgets/')){
         const chunks=[];for await(const chunk of req)chunks.push(chunk);
         const headers={Origin:'https://app.cdinnov.eu'};
-        for(const key of ['authorization','content-type','if-match','if-none-match'])if(req.headers[key])headers[key]=req.headers[key];
+        for(const key of ['authorization','content-type','if-match','if-none-match','x-filename'])if(req.headers[key])headers[key]=req.headers[key];
         const response=await ctx.worker.dispatchFetch('https://preview.example'+url.pathname+url.search,{method:req.method,headers,...(chunks.length?{body:Buffer.concat(chunks)}:{})});
         requests.push({path:url.pathname,method:req.method,status:response.status});
         res.writeHead(response.status,Object.fromEntries(response.headers));res.end(Buffer.from(await response.arrayBuffer()));return;

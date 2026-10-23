@@ -4,17 +4,17 @@ import {boundedBody} from './portal';
 
 const fail=(status:number,message:string):never=>{throw Object.assign(new Error(message),{status});};
 /** A draft PDF is rendered from a saved, version-checked snapshot and is never numbered or issued. */
-export async function draftPDF(document:Pick<BillingDocument,'id'|'version'|'data'|'reservedNumber'>,env:Environment,reply:Reply,editable=false):Promise<Response>{
+export async function draftPDF(document:Pick<BillingDocument,'id'|'version'|'data'|'reservedNumber'>,env:Environment,reply:Reply,editable=false,reportDate?:string):Promise<Response>{
   const base=env.BILLING_PDF_SERVICE_URL,key=env.BILLING_PDF_SERVICE_KEY;
   if(typeof base!=='string'||typeof key!=='string'||key.length<32)return fail(503,'La génération PDF doit être configurée par l’administrateur. Votre brouillon est conservé.');
   let url:URL;
   try{url=new URL(base);if(url.protocol!=='https:'||url.username||url.password||url.search||url.hash||!['','/'].includes(url.pathname))throw new Error();}
   catch{return fail(503,'L’adresse du service PDF est invalide.');}
-  url.pathname='/api/billing/preview-pdf';
+  url.pathname=reportDate?'/api/billing/intervention-report':'/api/billing/preview-pdf';
   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),75000);
   try{
     // Workers support manual/follow redirect modes. Inspect redirects without forwarding the service key.
-    const response=await fetch(url,{method:'POST',redirect:'manual',signal:controller.signal,headers:{'Content-Type':'application/json','X-API-Key':key},body:JSON.stringify({document:document.data,...(document.reservedNumber?{number:document.reservedNumber.number}:{}),...(editable?{editable:true}:{})})});
+    const response=await fetch(url,{method:'POST',redirect:'manual',signal:controller.signal,headers:{'Content-Type':'application/json','X-API-Key':key},body:JSON.stringify({document:document.data,...(reportDate?{reportDate}:{}),...(document.reservedNumber?{number:document.reservedNumber.number}:{}),...(editable?{editable:true}:{})})});
     if(!response.ok){
       if(response.status===422){
         // Only relay fixed, actionable layout errors, never arbitrary upstream output.

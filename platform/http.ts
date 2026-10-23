@@ -9,7 +9,7 @@ export function responseHeaders(request: Request, env: Environment): Headers {
   if (origin) {
     headers.set('Access-Control-Allow-Origin', origin);
     headers.set('Access-Control-Allow-Methods','GET, PUT, PATCH, POST, DELETE, OPTIONS');
-    headers.set('Access-Control-Allow-Headers','Content-Type, Authorization, If-Match, If-None-Match');
+    headers.set('Access-Control-Allow-Headers','Content-Type, Authorization, If-Match, If-None-Match, X-Filename');
     headers.set('Access-Control-Expose-Headers','ETag');
   }
   return headers;

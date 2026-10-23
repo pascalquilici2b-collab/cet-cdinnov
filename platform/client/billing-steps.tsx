@@ -13,7 +13,8 @@ export function StepFlow({children}:{children:ReactNode}){
  const root=useRef<HTMLDivElement>(null),destination=useRef<string|null>(null);
  const setActive=(id:string)=>{destination.current=null;changeActive(id);};
  const advance=(id:string,title:string)=>{
-  const next=order[order.indexOf(id)+1]||'';
+  const visible=order.filter(section=>root.current?.querySelector('[data-step="'+section+'"]'));
+  const next=visible[visible.indexOf(id)+1]||'';
   destination.current=next||id;setAnnouncement(title+' validé');changeActive(next);
  };
  function navigate(event:KeyboardEvent<HTMLDivElement>){

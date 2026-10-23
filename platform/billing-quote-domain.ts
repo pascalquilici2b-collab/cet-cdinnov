@@ -7,5 +7,5 @@ export function quoteState(action:BillingQuoteAction|null,validUntil:string,toda
  if(validUntil&&validUntil<today)return 'expired';
  return action==='sent'||action==='reopened'?'sent':'prepared';
 }
-export const quoteStateLabels:Record<BillingQuoteState,string>={prepared:'À envoyer',sent:'En attente',accepted:'Accepté',refused:'Refusé',expired:'Expiré'};
+export const quoteStateLabels:Record<BillingQuoteState,string>={prepared:'Finalisé',sent:'Envoyé',accepted:'Accepté',refused:'Refusé',expired:'Expiré'};
 export const quoteActionLabels:Record<BillingQuoteAction,string>={sent:'Envoi déclaré',accepted:'Accord enregistré',refused:'Refus enregistré',reopened:'Réponse corrigée'};

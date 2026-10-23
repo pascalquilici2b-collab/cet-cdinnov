@@ -6,6 +6,9 @@ import type {BillingContext,BillingDocument,BillingDraft,BillingIssue,BillingTot
 import {normalizeDraft,calculateBilling,inspectDraft,blankSettings,normalizeSettings,blankDocumentDetails} from './billing-domain';
 import {sessionIdentity} from './identity';
 import {boundedBody} from './portal';
+import {engagementRoute} from './billing-engagement';
+import {reportRoute} from './billing-report';
+import {blankDraft} from './billing-domain';
 import {draftPDF} from './billing-pdf';
 import {reserveDraftNumber} from './billing-draft-number';
 import {automaticNumberSeries} from './billing-numbering';
@@ -165,6 +168,15 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
  if(!session.admin)return reply(403,{error:'La facturation est réservée à la direction.'});
  const path=new URL(request.url).pathname,db=env.BUDGETS_DB.withSession('first-primary');
  if(/^\/api\/v1\/billing\/(clients|services)(?:\/|$)/.test(path))return billingDirectoryRoute(request,db,session.email,reply);
+ const legacyReport=path.match(/^\/api\/v1\/billing\/imported-invoices\/([^/]+)\/intervention-report(\.pdf)?$/);
+ if(legacyReport){
+  const id=decodeURIComponent(legacyReport[1]);if(!/^[A-Za-z0-9_-]{1,100}$/.test(id))return fail(400,'Identifiant de facture invalide.');
+  const row=await db.prepare("SELECT value FROM app_portal_workspace,json_each(payload,'$.factures') WHERE app_portal_workspace.id='shared' AND json_extract(value,'$.id')=?").bind(id).first<{value:string}>();
+  if(!row)return fail(404,'Facture importée introuvable.');
+  const f=JSON.parse(row.value),settings=await readSettings(db),data=blankDraft('invoice');
+  data.seller=settings.data.seller;data.buyer.name=String(f.client||'');data.issueDate=String(f.dateFacture||'');data.title=String(f.title||f.label||f.libelle||'');data.references.project=String(f.projectName||f.project||'');data.references.businessCode=String(f.code||'');
+  return reportRoute(request,db,env,'imported:'+id,data,String(f.number||id),session.email,reply,!!legacyReport[2]);
+ }
  if(path==='/api/v1/billing/settings')return settingsRoute(request,db,session.email,reply);
  if(path==='/api/v1/billing/number-series'){
   if(request.method==='GET')return reply(200,(await db.prepare('SELECT id,issuer_siren,kind,prefix,width,first_value,next_value,start_date,end_date,last_issue_date,version FROM billing_number_series ORDER BY start_date DESC,kind,id').all()).results);
@@ -198,7 +210,7 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
   }
   return reply(200,document(existing));
  }
- const match=path.match(/^\/api\/v1\/billing\/documents\/([^/]+)(\/rectify|\/restore|\/number|\/email|\/payments|\/quote-versions|\/revise|\/abandon-revision|\/quote-events|\/convert|\/preview\.pdf|\/issue|\/finalize|\/files\/(?:pdf|xml|validation|verapdf))?$/);
+ const match=path.match(/^\/api\/v1\/billing\/documents\/([^/]+)(\/engagement|\/intervention-report(?:\.pdf)?|\/rectify|\/restore|\/number|\/email|\/payments|\/quote-versions|\/revise|\/abandon-revision|\/quote-events|\/convert|\/preview\.pdf|\/issue|\/finalize|\/files\/(?:pdf|xml|validation|verapdf))?$/);
  if(!match)return reply(404,{error:'Accès de facturation introuvable.'});
  if(!uuid(match[1]))return fail(400,'Identifiant de document invalide.');
  const id=match[1].toLowerCase();
@@ -253,6 +265,12 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
  if(match[2]==='/payments'){
   const row=await get(db,id);if(!row)return reply(404,{error:'Facture introuvable.'});
   return billingPaymentRoute(request,db,document(row),session.email,reply,async()=>document((await get(db,id))!));
+ }
+ if(match[2]==='/engagement'||match[2]?.startsWith('/intervention-report')){
+  const row=await get(db,id);if(!row)return fail(404,'Document introuvable.');const current=document(row);
+  if(match[2]==='/engagement')return engagementRoute(request,db,env,current,session.email,reply,async()=>document((await get(db,id))!));
+  if(current.status!=='issued')return fail(409,'Finalisez la facture avant de créer son relevé.');
+  return reportRoute(request,db,env,id,current.data,current.issuance!.number,session.email,reply,match[2].endsWith('.pdf'));
  }
  if(match[2]==='/quote-events'){
   const row=await get(db,id);if(!row)return reply(404,{error:'Devis introuvable.'});
@@ -318,8 +336,10 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
    return conflict();
   }
   if(source.version!==expected)return conflict();
+  const sourceRecord=document(source);
+  if(sourceRecord.status!=='issued'||sourceRecord.quote?.state!=='accepted'||!sourceRecord.quote.engagement)return fail(409,'Acceptez le devis puis liez un bon de commande ou un devis signé avant de créer la facture.');
   const sourceData=normalizeDraft(JSON.parse(source.data_json)),settings=await readSettings(db);
-  const p=prepared({...sourceData,kind:'invoice',dueDate:'',issueDate:new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Paris'}).format(new Date()),paymentMeans:'30',validUntil:'',references:{...sourceData.references,...(document(source).issuance?.number?{quoteNumber:document(source).issuance!.number}:{})},iban:settings.data.iban,bic:settings.data.bic,details:{...blankDocumentDetails(),...sourceData.details,validityMonths:'',returnEmail:settings.data.returnEmail??'cdi@cdinnov.com',interventions:[]}}),stamp=new Date().toISOString();
+  const p=prepared({...sourceData,kind:'invoice',dueDate:'',issueDate:new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Paris'}).format(new Date()),paymentMeans:'30',paymentTerms:settings.data.paymentTerms,legalNotes:settings.data.legalNotes,vatDue:settings.data.vatDue,validUntil:'',references:{...sourceData.references,...(document(source).issuance?.number?{quoteNumber:document(source).issuance!.number}:{})},iban:settings.data.iban,bic:settings.data.bic,details:{...blankDocumentDetails(),...sourceData.details,validityMonths:'',returnEmail:settings.data.returnEmail??'cdi@cdinnov.com',interventions:[]}}),stamp=new Date().toISOString();
   let created:Row|null;
   try {
    created=await db.prepare(`INSERT INTO billing_documents(id,kind,status,version,data_json,totals_json,issues_json,create_hash,source_document_id,source_version,created_at,updated_at,created_by,updated_by)

@@ -2,12 +2,12 @@ import type {BillingTransport,BillingDraft,BillingDocument,BillingContext,Billin
 export function createBillingTransport(options:{baseUrl:string;getToken:()=>Promise<string>;isActive:()=>boolean}):BillingTransport & {dispose:()=>void} {
   let disposed=false;const controllers=new Set<AbortController>();
   const active=()=>{if(disposed||!options.isActive())throw new Error('Votre session ou la page a changé.');};
-  async function request<T>(path:string,method='GET',body?:unknown,version?:number,binary=false):Promise<T>{
+  async function request<T>(path:string,method='GET',body?:unknown,version?:number,binary=false,extraHeaders?:Record<string,string>):Promise<T>{
     active();const token=await options.getToken();active();
     const controller=new AbortController();controllers.add(controller);
-    const timer=setTimeout(()=>controller.abort(),path.endsWith('/finalize')?210000:path.endsWith('/issue')||path.endsWith('/preview.pdf')?90000:30000);
+    const timer=setTimeout(()=>controller.abort(),path.endsWith('/finalize')?210000:path.endsWith('/issue')||path.endsWith('.pdf')?90000:30000);
     try{
-      const response=await fetch(options.baseUrl.replace(/\/$/,'')+(path.startsWith('/api/v1/')?'':'/api/v1/billing')+path,{method,cache:'no-store',signal:controller.signal,headers:{Authorization:'Bearer '+token,...(body===undefined?{}:{'Content-Type':'application/json'}),...(version===undefined?{}:{'If-Match':String(version)})},...(body===undefined?{}:{body:JSON.stringify(body)})});
+      const response=await fetch(options.baseUrl.replace(/\/$/,'')+(path.startsWith('/api/v1/')?'':'/api/v1/billing')+path,{method,cache:'no-store',signal:controller.signal,headers:{Authorization:'Bearer '+token,...(body===undefined||body instanceof Blob?{}:{'Content-Type':'application/json'}),...extraHeaders,...(version===undefined?{}:{'If-Match':String(version)})},...(body===undefined?{}:{body:body instanceof Blob?body:JSON.stringify(body)})});
       const data=response.ok&&binary?await response.blob():await response.json();active();
       if(!response.ok)throw Object.assign(new Error(data.error||'La sauvegarde n’a pas abouti. Vos modifications sont conservées.'),{status:response.status});
       return data as T;
@@ -15,7 +15,13 @@ export function createBillingTransport(options:{baseUrl:string;getToken:()=>Prom
     finally{clearTimeout(timer);controllers.delete(controller);}
   }
   async function numbered(promise:Promise<BillingDocument>){const doc=await promise;const siren=doc.data.seller.siren.replace(/\s/g,'')||doc.data.seller.siret.replace(/\s/g,'').slice(0,9);return !doc.issuance&&!doc.reservedNumber&&!doc.quote?.revision.abandoned&&/^\d{9}$/.test(siren)?request<BillingDocument>('/documents/'+encodeURIComponent(doc.id)+'/number','POST',{},doc.version):doc;}
+  const reportPath=(id:string)=>id.startsWith('imported:')?'/imported-invoices/'+encodeURIComponent(id.slice(9))+'/intervention-report':'/documents/'+encodeURIComponent(id)+'/intervention-report';
   return {
+    report:id=>request(reportPath(id)),
+    saveReport:(id,version,data)=>request(reportPath(id),'PUT',data,version),
+    reportPDF:id=>request(reportPath(id)+'.pdf','GET',undefined,undefined,true),
+    uploadEngagement:(id,version,kind,file)=>request('/documents/'+encodeURIComponent(id)+'/engagement?kind='+kind,'PUT',file,version,false,{'X-Filename':encodeURIComponent(file.name),'Content-Type':file.type||'application/octet-stream'}),
+    engagementFile:id=>request('/documents/'+encodeURIComponent(id)+'/engagement','GET',undefined,undefined,true),
     rectify:(id,version,input)=>numbered(request<BillingDocument>('/documents/'+encodeURIComponent(id)+'/rectify','POST',input,version)),
     session:()=>request('/api/v1/session'),
     emailHistory:id=>request('/documents/'+encodeURIComponent(id)+'/email'),

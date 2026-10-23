@@ -203,7 +203,7 @@ export function inspectDraft(d:BillingDraft):BillingIssue[] {
 }
 /** Electronic routing is completed in the converter, after the ordinary PDF is frozen. */
 export function inspectDocumentReadiness(d:BillingDraft):BillingIssue[]{
-  return inspectDraft(d).filter(issue=>!/^\b(seller|buyer)\.electronic(Address|Scheme)$/.test(issue.path));
+  return inspectDraft(d).filter(issue=>!/^\b(seller|buyer)\.electronic(Address|Scheme)$/.test(issue.path)&&!issue.path.startsWith('details.interventions.'));
 }
 /** Actionable draft guidance shared by the editor and the Factur-X adapter.
  * Passing this check does not replace the native preflight or the numbering gates. */

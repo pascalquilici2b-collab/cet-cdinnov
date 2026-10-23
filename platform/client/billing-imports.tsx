@@ -1,3 +1,4 @@
+import type {ReactNode} from 'react';
 import {invoiceIsLate} from '../billing-display-state';
 import {BillingStateIcon} from './billing-state-icon';
 import {invoiceDisplayNumber,importedInvoiceLabel} from './billing-invoice-label';
@@ -47,7 +48,7 @@ export async function listWithImports(transport:BillingTransport,query:Parameter
  return {...first,documents:documents.slice(query.offset,needed),total:first.total+rows.length,offset:query.offset,limit:query.limit,filters:{clients:clients.sort((a,b)=>a.label.localeCompare(b.label,'fr')),projects:projects.sort((a,b)=>a.label.localeCompare(b.label,'fr'))}};
 }
 
-export function ImportedInvoiceRow({invoice:f,act,label}:{invoice:Invoice;act:ImportedInvoices['act'];label?:string}){
+export function ImportedInvoiceRow({invoice:f,act,label,report}:{report?:ReactNode;invoice:Invoice;act:ImportedInvoices['act'];label?:string}){
  const state=f.datePaiement?'paid':invoiceIsLate(f.dateFacture||'')?'overdue':'finalized';
  return <tr data-imported-invoice={f.id}>
   <td data-column="document"><button className="bill-document-link" onClick={()=>act('edit',f.id)}><span><strong>{invoiceDisplayNumber(f.number)}</strong><small>Importée</small></span></button></td>
@@ -58,7 +59,7 @@ export function ImportedInvoiceRow({invoice:f,act,label}:{invoice:Invoice;act:Im
   <td data-column="amount" className="bill-amount">{formatMinor(minor(f.ttc))}</td>
   <td data-column="action"><div className="bill-import-actions">
    {f.pdfSource?<><button className="bill-button bill-button-pdf" aria-label={'Télécharger le PDF '+f.number} title="Télécharger le PDF" onClick={()=>act('pdf',f.id)}><PDFIcon/></button><button className="bill-button bill-button-primary" aria-label={(f.validFacturx?'Télécharger le Factur-X ':'Créer le Factur-X ')+f.number} title={f.validFacturx?'Télécharger le Factur-X':'Créer le Factur-X'} onClick={()=>act(f.validFacturx?'downloadFacturx':'facturx',f.id)}><FileCode2 size={16}/><span>Factur-X</span></button></>:<button className="bill-button" title="Joindre le PDF original" aria-label={'Joindre le PDF '+f.number} onClick={()=>act('upload',f.id)}><Upload size={16}/>PDF</button>}
-   <button className="bill-icon-button" aria-label={'Modifier la facture '+f.number} title="Modifier" onClick={()=>act('edit',f.id)}><Pencil size={17}/></button>
+   {report}<button className="bill-icon-button" aria-label={'Modifier la facture '+f.number} title="Modifier" onClick={()=>act('edit',f.id)}><Pencil size={17}/></button>
    <button className="bill-icon-button bill-danger" aria-label={'Supprimer la facture '+f.number} title="Supprimer" onClick={()=>act('delete',f.id)}><Trash2 size={17}/></button>
   </div></td>
  </tr>;
