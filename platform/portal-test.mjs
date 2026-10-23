@@ -21,7 +21,7 @@ try{
  });
  await check('Migration keeps exact legacy data; normal reads never expose password verifiers',async()=>{
    const row=await ctx.db.prepare("SELECT * FROM app_portal_workspace WHERE id='shared'").first();assert.equal(row.payload,originalKV);
-   const a=await get(admin),s=await get(staff);assert.deepEqual(a.workspace.extension,source.extension);assert.deepEqual(Object.keys(a.workspace.auth.accounts[users[0]]),['name']);
+   const a=await get(admin),s=await get(staff);assert.deepEqual(a.workspace.extension,source.extension);assert.deepEqual(Object.keys(a.workspace.auth.accounts[users[0]]),['name','role']);
    assert.equal(s.workspace.salaries[0].salaire,undefined);assert.equal(s.workspace.salaries[0].payslip,undefined);assert.equal(s.workspace.salaries[1].salaire,1234);assert.deepEqual(s.workspace.factures,[]);assert.equal(s.workspace.extension,undefined);assert.equal(s.workspace.conges[0].commentaire,undefined);
    assert.doesNotMatch(JSON.stringify(s),/"hash"|"salt"|9999|private.pdf/);
  });

@@ -12,6 +12,10 @@ window.addEventListener('storage',event=>{
 });
 function load(){return freshState();}
 function cloudURL(){return CLOUD_ENDPOINT.replace(/\/+$/,'')+'/api/v1/portal';}
+function isAdmin(email){
+  email=normEmail(email);const account=state.auth?.accounts?.[email];
+  return account?.role!==undefined?account.role==='admin':!cloudEnabled()&&AUTH_ADMINS.includes(email);
+}
 async function portalFetch(url,options={}){
   const session=await budgetsEnsureSession();
   const response=await fetch(url,{...options,cache:'no-store',headers:{...options.headers,Authorization:'Bearer '+session.token}});
@@ -32,11 +36,17 @@ async function cloudLoad(options={}){
   if(portalClean&&JSON.stringify(state)!==portalClean&&!options.discard){setSync('err','Modifications à enregistrer');return false;}
   setSync('busy','Chargement…');
   try{
-    const data=await portalRead();if(AUTH_USER!==user||portalEpoch!==epoch)return false;
+    const wasAdmin=isAdmin(user),data=await portalRead();if(AUTH_USER!==user||portalEpoch!==epoch)return false;
     state={...freshState(),...data.workspace,params:data.workspace.params||structuredClone(PARAMS_DEFAULT)};
+    for(const person of state.salaries)if(person.email)AUTH_USER_MAT[normEmail(person.email)]=person.matricule;
     portalVersion=data.version;portalClean=JSON.stringify(state);currentYear=Number(state.params.anneeSuivi)||currentYear;
     await portalLoadPhotos();if(AUTH_USER!==user||portalEpoch!==epoch)return false;
-    setSync('ok','Synchronisé');render();return true;
+    setSync('ok','Synchronisé');
+    if(document.body.classList.contains('authed')&&wasAdmin!==isAdmin(user)){
+      dashboardForget();financeForget();billingForget();personnelForget();marchesForget();agendaForget();budgetsForget();facturxForgetAuth();closeModal();nfDraft=null;
+      currentView='dashboard';unlockApp(user);
+    }else render();
+    return true;
   }catch(e){if(AUTH_USER===user)setSync('err',e.status===401?'Connexion expirée':'Chargement impossible');return false;}
 }
 function cloudSave(){if(!cloudEnabled()||!AUTH_USER)return;clearTimeout(cloudTimer);cloudTimer=setTimeout(()=>cloudPush(),700);}
@@ -143,6 +153,15 @@ async function authAccountAction(email,action){
       modal('<div class="modal-head"><h3>Lien d’activation du compte</h3></div><div class="modal-body"><p>Transmettez ce lien à la personne concernée. Il est utilisable une seule fois, pendant 24 heures.</p><input class="inp" id="accountInviteLink" readonly value="'+esc(url.href)+'" aria-label="Lien d’activation"><p class="hint">Le lien permet de choisir un mot de passe. Il doit rester confidentiel.</p></div><div class="modal-foot"><button class="btn" onclick="navigator.clipboard.writeText(document.getElementById(\'accountInviteLink\').value).then(()=>toast(\'Lien copié\'))">Copier le lien</button><button class="btn btn-primary" onclick="closeModal()">Fermer</button></div>');
     }else toast('Accès retiré');
   }catch(e){toast(e.message);}
+}
+async function authSetRole(email,role){
+  if(!isAdmin(AUTH_USER))throw new Error('Accès réservé à un administrateur.');
+  if(!await cloudPush())throw new Error('Enregistrez les modifications en attente avant de modifier les droits.');
+  try{
+    await portalFetch(cloudURL()+'/accounts',{method:'POST',headers:{'Content-Type':'application/json','If-Match':String(portalVersion)},body:JSON.stringify({email,action:'role',role})});
+    if(!await cloudLoad({discard:true}))throw new Error('Droits enregistrés. Actualisez la page pour les afficher.');
+    toast('Droits mis à jour');
+  }catch(e){if(e.status===409)await cloudLoad({discard:true});throw e;}
 }
 async function authAddAllowed(){const email=normEmail($('#newAllowedEmail').value);await authAccountAction(email,'invite');}
 async function authRemoveAllowed(email){if(confirm('Retirer l’accès de '+email+' ?'))await authAccountAction(normEmail(email),'remove');}

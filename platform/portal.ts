@@ -1,7 +1,7 @@
 import {createHash,randomBytes} from 'node:crypto';
 import {Buffer} from 'node:buffer';
 import type {Environment,Reply,WorkspaceRow} from './contracts';
-import {admins,sessionIdentity} from './identity.ts';
+import {admins,accountRole,portalAdmin,sessionIdentity} from './identity.ts';
 import {applyRecordChanges,validateChanges,equalRecordValue} from './record-changes';
 import {saveRecordSource} from './record-writes';
 // The compatibility document keeps all unknown fields. Only explicitly granted fields
@@ -44,8 +44,8 @@ export function portalEnvironment(source:Environment):Environment {
 }
 
 export function portalView(p:Document,email:string):Document {
-  const admin=admins.includes(email),mat=employee(p,email);
-  const accounts=Object.fromEntries(Object.entries(p.auth?.accounts||{}).filter(([key])=>admin||key===email).map(([key,a])=>[key,pick(a as Document,['name','created'])]));
+  const admin=portalAdmin(p,email),mat=employee(p,email);
+  const accounts=Object.fromEntries(Object.entries(p.auth?.accounts||{}).filter(([key])=>admin||key===email).map(([key,a])=>[key,{...pick(a as Document,['name','created']),role:accountRole(key,a as Document)}]));
   const auth={accounts,allowed:admin?p.auth?.allowed||[]:[email]};
   if(admin)return {...p,auth};
   return {params:p.params,types:p.types,salaries:(p.salaries||[]).map((s:Document)=>own(s,mat)?s:pick(s,['matricule','nom','prenom','email','statut','photo'])),
@@ -74,7 +74,7 @@ async function writePortal(env:Environment,p:Document,expected:number,email:stri
 function merge(p:Document,next:Document,email:string){
   for(const key of ['salaries','types','mouvements','conges','notesFrais','codesAffaires','factures'])if(!Array.isArray(next[key]))fail(400,'Collection invalide : '+key);
   if(!object(next.params))fail(400,'Paramètres invalides.');
-  const admin=admins.includes(email),mat=employee(p,email),view=portalView(p,email);
+  const admin=portalAdmin(p,email),mat=employee(p,email),view=portalView(p,email);
   let result:Document;
   if(admin){result={...p,...next,auth:p.auth};}
   else {
@@ -118,7 +118,7 @@ export async function portalRoute(request:Request,env:Environment,reply:Reply):P
     const data=await input(request),email=norm(data.email),invite=p.auth?.invitations?.[email];
     if(!invite||invite.expiresAt<Date.now()||typeof data.token!=='string'||digest(data.token)!==invite.hash)fail(403,'Invitation invalide ou expirée. Demandez un nouveau lien à un administrateur.');
     if(!/^[a-f0-9]{32}$/.test(data.salt)||!/^[a-f0-9]{64}$/.test(data.hash)||data.iter!==150000||typeof data.name!=='string'||data.name.length>200)fail(400,'Compte invalide.');
-    p.auth.accounts[email]={salt:data.salt,hash:data.hash,iter:data.iter,name:data.name.trim()||email,created:new Date().toISOString()};delete p.auth.invitations[email];
+    p.auth.accounts[email]={salt:data.salt,hash:data.hash,iter:data.iter,name:data.name.trim()||email,created:new Date().toISOString(),role:invite.role==='admin'?'admin':'collaborator'};delete p.auth.invitations[email];
     if(!p.auth.allowed.includes(email))p.auth.allowed.push(email);
     await writePortal(env,p,row.version,email);return reply(200,{ok:true});
   }
@@ -133,7 +133,7 @@ export async function portalRoute(request:Request,env:Environment,reply:Reply):P
       const current=attempt?await readPortal(env):row,document=JSON.parse(current.payload);
       const next=applyRecordChanges(portalView(document,session.email),changes);
       const result=merge(document,next,session.email);
-      if(!session.admin)await checkNewFiles(env,document,result,session.email);
+      if(!portalAdmin(document,session.email))await checkNewFiles(env,document,result,session.email);
       if(!changes.length)return reply(200,{version:current.version});
       const saved=await saveRecordSource(env.BUDGETS_DB.withSession('first-primary'),'portal',document,result,current.version,session.email);
       if(saved!==null)return reply(200,{version:saved,majAt:result.majAt,majBy:result.majBy});
@@ -147,7 +147,7 @@ export async function portalRoute(request:Request,env:Environment,reply:Reply):P
     const v=await writePortal(env,result,expected,session.email);
     return reply(200,{version:v,majAt:result.majAt,majBy:result.majBy});
   }
-  if(!session.admin)return reply(403,{error:'Accès réservé à un administrateur.'});
+  if(!session.admin||!portalAdmin(p,session.email))return reply(403,{error:'Accès réservé à un administrateur.'});
   if(path==='/api/v1/portal/backup'&&request.method==='GET')return reply(200,p);
   if(path==='/api/v1/portal/restore'&&request.method==='PUT'){
     const data=await input(request),expected=version(request);
@@ -159,16 +159,31 @@ export async function portalRoute(request:Request,env:Environment,reply:Reply):P
   if(path==='/api/v1/portal/accounts'&&request.method==='POST'){
     const data=await input(request),email=norm(data.email);if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254)fail(400,'Adresse invalide.');
     p.auth??={};p.auth.accounts??={};p.auth.allowed??=[];p.auth.invitations??={};
+    const activeAdmins=Object.keys(p.auth.accounts).filter(e=>portalAdmin(p,e));
+    if(data.action==='role'){
+      const expected=version(request);
+      if(expected!==row.version)fail(409,'Les comptes ont changé. Actualisez avant de modifier les droits.');
+      if(!['admin','collaborator'].includes(data.role))fail(400,'Droit invalide.');
+      const target=p.auth.accounts[email];if(!target)fail(404,'Ce compte doit être activé avant de modifier ses droits.');
+      const previous=accountRole(email,target);
+      if(previous===data.role)return reply(200,{ok:true,version:row.version});
+      if(previous==='admin'&&data.role!=='admin'&&activeAdmins.length<=1)fail(409,'Conservez au moins un administrateur actif.');
+      target.role=data.role;
+      // Auth metadata stays private and is committed atomically with the account.
+      p.auth.roleHistory??=[];p.auth.roleHistory.push({email,from:previous,to:data.role,by:session.email,at:new Date().toISOString()});
+      return reply(200,{ok:true,version:await writePortal(env,p,expected,session.email)});
+    }
     if(data.action==='remove'){
-      if(admins.includes(email))fail(403,'Impossible de retirer un administrateur.');
+      if(portalAdmin(p,email))fail(403,'Retirez les droits administrateur avant de supprimer cet accès.');
       delete p.auth.accounts[email];delete p.auth.invitations[email];p.auth.allowed=p.auth.allowed.filter((e:string)=>e!==email);
       await writePortal(env,p,row.version,session.email);return reply(200,{ok:true});
     }
     if(!['invite','reset'].includes(data.action))fail(400,'Action invalide.');
     if(data.action==='invite'&&p.auth.accounts[email])fail(409,'Ce compte existe déjà.');
     if(email===session.email&&data.action==='reset')fail(403,'Demandez à un autre administrateur de réinitialiser votre compte.');
+    if(data.action==='reset'&&portalAdmin(p,email)&&activeAdmins.length<=1)fail(409,'Conservez au moins un administrateur actif.');
     const token=randomBytes(32).toString('base64url'),expiresAt=Date.now()+24*3600000;
-    p.auth.invitations[email]={hash:digest(token),expiresAt};if(data.action==='reset')delete p.auth.accounts[email];
+    p.auth.invitations[email]={hash:digest(token),expiresAt,role:data.action==='reset'?accountRole(email,p.auth.accounts[email]):'collaborator'};if(data.action==='reset')delete p.auth.accounts[email];
     if(!p.auth.allowed.includes(email))p.auth.allowed.push(email);
     await writePortal(env,p,row.version,session.email);return reply(200,{email,token,expiresAt});
   }

@@ -20,7 +20,7 @@ export interface PersonnelSnapshot {
  employees:Employee[];types:MovementType[];movements:EnrichedMovement[];rows:YearRow[];params:Parameters;
  filter:MovementFilter;sort:MovementSort;accounts:AccountSummary[];cloud:boolean;
 }
-export type PersonnelAction = 'summary'|'movements'|'detail'|'newMovement'|'editMovement'|'deleteMovement'|'importCET'|'exportSummary'|'exportMovements'|'print'|'newEmployee'|'editEmployee'|'deleteEmployee'|'payslip'|'previewPayslip'|'removePayslip'|'newType'|'editType'|'deleteType'|'saveParams'|'backup'|'importJSON'|'migrateFiles'|'reset'|'addAccount'|'resetAccount'|'removeAccount';
+export type PersonnelAction = 'summary'|'movements'|'detail'|'newMovement'|'editMovement'|'deleteMovement'|'importCET'|'exportSummary'|'exportMovements'|'print'|'newEmployee'|'editEmployee'|'deleteEmployee'|'payslip'|'previewPayslip'|'removePayslip'|'newType'|'editType'|'deleteType'|'saveParams'|'backup'|'importJSON'|'migrateFiles'|'reset'|'addAccount'|'resetAccount'|'removeAccount'|'grantAdmin'|'revokeAdmin';
 export function filterMovements(source:EnrichedMovement[],year:number,access:string|null,filter:MovementFilter,sort:MovementSort){
  if(!access)return [];
  const query=filter.q.toLowerCase();

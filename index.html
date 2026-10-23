@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <style id="cdi-startup-guard">body:not(.authed)>.app{visibility:hidden}.theme-toggle>svg{width:18px;height:18px;fill:none;stroke:currentColor}.theme-toggle .theme-sun{display:none}[data-theme="dark"] .theme-toggle .theme-moon{display:none}[data-theme="dark"] .theme-toggle .theme-sun{display:block}</style>
-<link rel="stylesheet" href="/platform/loading.css?v=bpu-catalogue-20261023b">
+<link rel="stylesheet" href="/platform/loading.css?v=portal-access-20261023">
 <script src="./platform/theme.js?v=apple-motion-20261020"></script>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -588,7 +588,7 @@ body:has(.agenda-shell) .topbar{flex-wrap:wrap;row-gap:12px}
 
       <span class="cdi-nav-name">Outil budgets</span><span class="cdi-beta">Bêta</span>
     </div>
-    <a id="cdiSheetsLink" class="nav-item cdi-application app-sheets" href="./feuilles/" style="text-decoration:none"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="5"/><path d="M3 9h18M9 9v12M9 15h12"/></svg><span class="cdi-nav-name">CDInnovSheets</span><span class="cdi-beta">Bêta</span></a>
+    <a id="cdiSheetsLink" class="nav-item cdi-application app-sheets" href="./feuilles/" style="text-decoration:none"><img class="sheets-nav-symbol" src="design/brand/assets/logos/cdinnov-sheets-symbol.svg" alt="" width="24" height="24"/><span class="cdi-nav-name">CDInnovSheets</span><span class="cdi-beta">Bêta</span></a>
     <div class="spacer"></div>
     <button class="theme-toggle" type="button" data-theme-toggle aria-label="Activer le mode nuit" aria-pressed="false"><svg class="theme-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 13.1A9 9 0 0 1 10.9 3.2a9 9 0 1 0 9.9 9.9Z"/></svg><svg class="theme-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></svg><span data-theme-label>Mode clair</span><span class="theme-track" aria-hidden="true"></span></button>
     <div id="userChip" class="user-chip"></div>
@@ -605,12 +605,12 @@ body:has(.agenda-shell) .topbar{flex-wrap:wrap;row-gap:12px}
       </div>
       <div class="grow"></div>
       <div class="maj-pill no-print" id="majPill" title="Dernière modification enregistrée dans la base"></div>
-      <div class="sync-pill" id="syncPill" data-state="local" title="État de la synchronisation Cloudflare — cliquer pour recharger" onclick="cloudSyncNow()"><span class="sdot"></span><span id="syncTxt">Local</span></div>
+      <button type="button" class="sync-pill" id="syncPill" data-state="local" title="Actualiser les données" onclick="cloudSyncNow()"><span id="syncIcon" aria-hidden="true"></span><span id="syncTxt" role="status">Local</span></button>
       <div class="year-pick">
         <label>Année</label>
         <select id="yearSelect"></select>
       </div>
-      <div class="portal-top-actions"><button class="btn agenda-top-leave" type="button" id="agendaTopLeave" onclick="agendaNewLeave(ymd(new Date()))"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Nouveau congé</span></button><button class="btn btn-primary" id="topAction">
+      <div class="portal-top-actions"><span id="agendaBalanceAction"></span><button class="btn agenda-top-leave" type="button" id="agendaTopLeave" onclick="agendaNewLeave(ymd(new Date()))"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Nouveau congé</span></button><button class="btn btn-primary" id="topAction">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
         <span id="topActionLabel">Nouveau mouvement</span>
       </button></div>
@@ -693,9 +693,10 @@ body.authed .auth-gate{display:none}
 </style>
 <link rel="stylesheet" href="platform/design-system.css">
 <link rel="stylesheet" href="design/portal.css?v=apple1">
-<link rel="stylesheet" href="design/apple.css?v=bpu-catalogue-20261023b">
-<link rel="stylesheet" href="design/interactions.css?v=bpu-catalogue-20261023b">
-<script src="platform/icons.js?v=bpu-catalogue-20261023b"></script>
+<link rel="stylesheet" href="design/apple.css?v=portal-access-20261023">
+<link rel="stylesheet" href="design/interface-refresh.css?v=portal-access-20261023">
+<link rel="stylesheet" href="design/interactions.css?v=portal-access-20261023">
+<script src="platform/icons.js?v=portal-access-20261023"></script>
 
 <div id="authGate" class="auth-gate" data-loading="true" aria-busy="true">
   <span class="auth-startup-status cdi-loading-sr" role="status">Connexion en cours…</span>
@@ -847,14 +848,15 @@ function renderMajPill(){
   if(!lbl){ p.style.display='none'; return; }
   p.style.display='';
   const who=majAuteur();
-  p.innerHTML=`${ic('clock')}<span>Base mise à jour : <b>${esc(lbl)}</b>${who?' · '+esc(who):''}</span>`;
+  p.title='Dernière modification enregistrée : '+lbl+(who?' · '+who:'');
+  p.innerHTML=`<span class="database-icon">${ic('database')}</span><span class="database-copy"><span>Base mise à jour</span><b>${esc(lbl)}</b></span>`;
 }
 
 /* ===================== SYNCHRO CLOUDFLARE ===================== */
 let cloudTimer=null;
 function cloudEnabled(){ return typeof CLOUD_ENDPOINT==='string' && CLOUD_ENDPOINT.trim()!==''; }
 
-function setSync(kind,txt){ const p=$('#syncPill'); if(!p) return; p.dataset.state=kind; const t=$('#syncTxt'); if(t) t.textContent=txt; }
+function setSync(kind,txt){ const p=$('#syncPill'); if(!p) return; p.dataset.state=kind; const t=$('#syncTxt'); if(t) t.textContent=txt; const icon=$('#syncIcon'); if(icon)icon.innerHTML=ic(kind==='ok'?'cloud-check':kind==='busy'?'refresh':kind==='err'?'alert':'cloud');p.setAttribute('aria-busy',String(kind==='busy'));p.disabled=kind==='busy'; }
 
 
 /* ---- Notifications e-mail (via Worker /notify -> Brevo) ---- */
@@ -1063,8 +1065,8 @@ function renderDashboard(){
   const user=AUTH_USER,epoch=++dashboardEpoch;
   $('#content').innerHTML='<div id="dashboardRoot">'+loadingScreenMarkup('Chargement du tableau de bord…')+'</div>';
   const element=$('#dashboardRoot');
-  if(!document.getElementById('dashboardStyle')){const css=document.createElement('link');css.id='dashboardStyle';css.rel='stylesheet';css.href='platform/dashboard.css?v=bpu-catalogue-20261023b';document.head.append(css);}
-  dashboardModule ||= import('./platform/dashboard.js?v=bpu-catalogue-20261023b').catch(error=>{dashboardModule=null;throw error;});
+  if(!document.getElementById('dashboardStyle')){const css=document.createElement('link');css.id='dashboardStyle';css.rel='stylesheet';css.href='platform/dashboard.css?v=portal-access-20261023';document.head.append(css);}
+  dashboardModule ||= import('./platform/dashboard.js?v=portal-access-20261023').catch(error=>{dashboardModule=null;throw error;});
   dashboardModule.then(module=>{
     if(epoch!==dashboardEpoch||AUTH_USER!==user||currentView!=='dashboard'||!element.isConnected)return;
     dashboardDispose=module.mountDashboard(element,{
@@ -2200,7 +2202,7 @@ async function exportNoteFraisPDF(id,preview=false){
     const filename='Note_de_frais_N'+(n.numero||'')+'_'+(s.nom||'').replace(/\s+/g,'')+'.pdf';
     if(AUTH_USER!==user||!financeExpenseAllowed(n)||preview&&!id&&nfDraft!==initialDraft)return;
     if(preview){
-      const blob=doc.output('blob'),module=await financeModule();if(AUTH_USER!==user||!financeExpenseAllowed(n))return;if(!document.getElementById('billingStyle')){const css=document.createElement('link');css.id='billingStyle';css.rel='stylesheet';css.href='platform/billing.css?v=bpu-catalogue-20261023b';document.head.append(css);}
+      const blob=doc.output('blob'),module=await financeModule();if(AUTH_USER!==user||!financeExpenseAllowed(n))return;if(!document.getElementById('billingStyle')){const css=document.createElement('link');css.id='billingStyle';css.rel='stylesheet';css.href='platform/billing.css?v=portal-access-20261023';document.head.append(css);}
       modal('<div class="modal-head"><h3>Aperçu — Note de frais N°'+esc(n.numero)+'</h3><div class="grow"></div><button type="button" class="btn btn-ghost" id="nfPreviewDownload">Télécharger PDF</button><button type="button" class="btn btn-ghost" id="nfPreviewClose">'+(id?'Fermer':'Retour')+'</button></div><div class="modal-body bill-app"><div id="nfPreviewRoot"></div></div>',true);
       financeEditorDispose=module.mountExpensePreview($('#nfPreviewRoot'),blob);$('#nfPreviewDownload').onclick=()=>doc.save(filename);$('#nfPreviewClose').onclick=()=>id?closeModal():renderNoteEditor();
     }else{doc.save(filename);toast('PDF généré');}
@@ -2425,8 +2427,8 @@ let financeModulePromise=null,financeMounted=null,financeEpoch=0,financeView=nul
 let financeEditorDispose=null,financeEditorEpoch=0,financeClientStatus='',financeClientError=false;
 let nfPage=1,nfPer=20;
 function financeModule(){
-  if(!$('#financeStyle')){const link=document.createElement('link');link.id='financeStyle';link.rel='stylesheet';link.href='platform/finance.css?v=bpu-catalogue-20261023b';document.head.append(link);}
-  return financeModulePromise ||= import('./platform/finance.js?v=bpu-catalogue-20261023b').catch(error=>{financeModulePromise=null;throw error;});
+  if(!$('#financeStyle')){const link=document.createElement('link');link.id='financeStyle';link.rel='stylesheet';link.href='platform/finance.css?v=portal-access-20261023';document.head.append(link);}
+  return financeModulePromise ||= import('./platform/finance.js?v=portal-access-20261023').catch(error=>{financeModulePromise=null;throw error;});
 }
 function financeForget(){financeEpoch++;financeMounted?.dispose();financeMounted=null;financeView=null;$('#financeRoot')?.remove();}
 function financeEditorForget(){financeEditorEpoch++;if(financeEditorDispose){financeEditorDispose();financeEditorDispose=null;}}
@@ -2485,7 +2487,7 @@ async function financeOpenEditor(kind,record,existing){
 
 /* React personnel screens. Existing CET calculations, imports and storage remain authoritative. */
 let personnelPromise=null,personnelMounted=null,personnelEpoch=0,personnelView=null,personnelEditorDispose=null,personnelEditorEpoch=0;
-function personnelModule(){return personnelPromise||=import('./platform/personnel.js?v=bpu-catalogue-20261023b').catch(error=>{personnelPromise=null;throw error;});}
+function personnelModule(){return personnelPromise||=import('./platform/personnel.js?v=portal-access-20261023').catch(error=>{personnelPromise=null;throw error;});}
 function personnelStyle(){if(!$('#personnelStyle')){const css=document.createElement('link');css.id='personnelStyle';css.rel='stylesheet';css.href='platform/personnel.css';document.head.append(css);}}
 function personnelEditorForget(){personnelEditorEpoch++;if(personnelEditorDispose){personnelEditorDispose();personnelEditorDispose=null;}}
 function personnelForget(){personnelEpoch++;if(personnelMounted){personnelMounted.dispose();personnelMounted=null;}personnelView=null;$('#personnelRoot')?.remove();}
@@ -2496,10 +2498,10 @@ function personnelProps(view){
  const a=admin?authState():null;
  const snapshot={view,admin,access,year:currentYear,years:availableYears(),hoursPerDay:HEURES_PAR_JOUR_CET,employees:state.salaries.filter(allowed).map(s=>({...s,photo:photoURL(s.photo)})),types:state.types,movements:allEnriched().filter(allowed),rows:computeYear(currentYear).filter(r=>allowed(r.sal)),params:state.params,filter:{...movFilter},sort:{...movSort},cloud:cloudEnabled(),accounts:a?[...new Set([...a.allowed,...Object.keys(a.accounts)])].sort().map(email=>({email,name:a.accounts[email]?.name||'',admin:isAdmin(email),active:!!a.accounts[email]})):[]};
  const active=()=>AUTH_USER===user&&currentView===view&&!!$('#personnelRoot');
- const adminActions=new Set(['summary','exportSummary','newEmployee','editEmployee','deleteEmployee','payslip','previewPayslip','removePayslip','newType','editType','deleteType','saveParams','backup','importJSON','migrateFiles','reset','addAccount','resetAccount','removeAccount']);
+ const adminActions=new Set(['summary','exportSummary','newEmployee','editEmployee','deleteEmployee','payslip','previewPayslip','removePayslip','newType','editType','deleteType','saveParams','backup','importJSON','migrateFiles','reset','addAccount','resetAccount','removeAccount','grantAdmin','revokeAdmin']);
  return {snapshot,filter:patch=>{if(active()){Object.assign(movFilter,patch);renderReactPersonnel(view);}},sort:value=>{if(active()){movSort=value;renderReactPersonnel(view);}},year:value=>{if(active()){currentYear=Number(value);render();}},act:(name,arg,extra)=>{
   if(!active()||adminActions.has(name)&&!isAdmin(AUTH_USER))return;
-  const actions={summary:()=>setView('cet'),movements:()=>setView('mouvements'),detail:()=>openDetail(arg),newMovement:()=>openMouvement(),editMovement:()=>openMouvement(arg),deleteMovement:()=>delMouvement(arg),importCET:()=>onSuiviCET(arg),exportSummary:exportCSV,exportMovements:exportMouvCSV,print:()=>window.print(),newEmployee:()=>openSalarie(),editEmployee:()=>openSalarie(arg),deleteEmployee:()=>delSalarie(arg),payslip:()=>onPayslip(arg,extra),previewPayslip:()=>previewPayslip(arg),removePayslip:()=>removePayslip(arg),newType:()=>openType(),editType:()=>openType(arg),deleteType:()=>delType(arg),saveParams,backup:backupJSON,importJSON:()=>importJSON(arg),migrateFiles:migrateAttachmentsToR2,reset:resetAll,addAccount:()=>{authAddAllowed();const input=$('#newAllowedEmail');if(input)input.value='';},resetAccount:()=>authResetAccount(arg),removeAccount:()=>authRemoveAllowed(arg)};
+  const actions={summary:()=>setView('cet'),movements:()=>setView('mouvements'),detail:()=>openDetail(arg),newMovement:()=>openMouvement(),editMovement:()=>openMouvement(arg),deleteMovement:()=>delMouvement(arg),importCET:()=>onSuiviCET(arg),exportSummary:exportCSV,exportMovements:exportMouvCSV,print:()=>window.print(),newEmployee:()=>openSalarie(),editEmployee:()=>openSalarie(arg),deleteEmployee:()=>delSalarie(arg),payslip:()=>onPayslip(arg,extra),previewPayslip:()=>previewPayslip(arg),removePayslip:()=>removePayslip(arg),newType:()=>openType(),editType:()=>openType(arg),deleteType:()=>delType(arg),saveParams,backup:backupJSON,importJSON:()=>importJSON(arg),migrateFiles:migrateAttachmentsToR2,reset:resetAll,addAccount:()=>{authAddAllowed();const input=$('#newAllowedEmail');if(input)input.value='';},resetAccount:()=>authResetAccount(arg),removeAccount:()=>authRemoveAllowed(arg),grantAdmin:()=>authSetRole(arg,'admin'),revokeAdmin:()=>authSetRole(arg,'collaborator')};
   return actions[name]?.();
  }};
 }
@@ -2742,7 +2744,7 @@ function ic(name){ return CDIIcons.markup(name); }
 
 /* ===================== AUTHENTIFICATION ===================== */
 const AUTH_ADMINS = ['quilici.pascal@cdinnov.com','pasqualini.david@cdinnov.com','boulanger.albert@cdinnov.com']; // droits admin : voient TOUS les mouvements
-const AUTH_USER_MAT = { 'calendini.matthieu@cdinnov.com':'004', 'vincenti.paulmichel@cdinnov.com':'005' };           // acces restreint : voient uniquement leur dossier
+const AUTH_USER_MAT = { 'quilici.pascal@cdinnov.com':'001', 'pasqualini.david@cdinnov.com':'002', 'boulanger.albert@cdinnov.com':'003', 'calendini.matthieu@cdinnov.com':'004', 'vincenti.paulmichel@cdinnov.com':'005' };           // acces restreint : voient uniquement leur dossier
 const AUTH_SEED_EMAILS = [...AUTH_ADMINS, ...Object.keys(AUTH_USER_MAT)];                                            // adresses pre-autorisees
 const AUTH_SESSION_KEY = 'cet_auth_session';
 const AUTH_SESSION_MAX = 8*3600*1000;                   // session valable 8 h
@@ -2756,7 +2758,7 @@ function authState(){
   return state.auth;
 }
 function ensureAuthSeed(){ const a=authState(); AUTH_SEED_EMAILS.forEach(e=>{ e=normEmail(e); if(!a.allowed.includes(e)) a.allowed.push(e); }); }
-function isAdmin(email){ return AUTH_ADMINS.includes(normEmail(email)); }
+
 function isAllowed(email){ email=normEmail(email); return isAdmin(email) || authState().allowed.includes(email); }
 
 /* hachage PBKDF2 (Web Crypto) */
@@ -3417,7 +3419,7 @@ const agendaState={trips:[],leaves:null,members:[],loaded:false,loading:false,er
 let agendaTimer=null,agendaConfirmationTimer=null,agendaEditing=null,agendaFocus=null;
 let agendaPickers={},agendaSharedProjects=[];
 let agendaModeExplicit=false,agendaPromise=null,agendaMounted=null,agendaRenderEpoch=0,agendaEditorDispose=null,agendaEditorEpoch=0;
-function agendaModule(){return agendaPromise||=import('./platform/agenda.js?v=bpu-catalogue-20261023b').catch(error=>{agendaPromise=null;throw error;});}
+function agendaModule(){return agendaPromise||=import('./platform/agenda.js?v=portal-access-20261023').catch(error=>{agendaPromise=null;throw error;});}
 function agendaStyleSheet(){if(!$('#agendaReactStyle')){const link=document.createElement('link');link.id='agendaReactStyle';link.rel='stylesheet';link.href='platform/agenda.css';document.head.append(link);}}
 function agendaReactForget(){agendaRenderEpoch++;if(agendaMounted){agendaMounted.dispose();agendaMounted=null;}$('#agendaRoot')?.remove();}
 function agendaEditorForget(){agendaEditorEpoch++;if(agendaEditorDispose){agendaEditorDispose();agendaEditorDispose=null;}agendaPickers={};}
@@ -5140,7 +5142,7 @@ function agendaNotificationHTML(t){
     try {
       const expanded = await expandImportFiles(files, progress);
       warnings.push(...expanded.warnings);
-      const { readDocument } = await import("./marches/reader.mjs?v=bpu-catalogue-20261023b");
+      const { readDocument } = await import("./marches/reader.mjs?v=portal-access-20261023");
       for (const file of expanded.files) {
         if (s.stop || epoch !== s.epoch) break;
         progress("Lecture : " + file.name);
@@ -5513,7 +5515,7 @@ function agendaNotificationHTML(t){
         throw new Error(
           "Le moteur IA n\u2019est pas encore activ\xE9 sur le serveur. Vous pouvez continuer le param\xE9trage manuel."
         );
-      const { readDocument } = await import("./marches/reader.mjs?v=bpu-catalogue-20261023b");
+      const { readDocument } = await import("./marches/reader.mjs?v=portal-access-20261023");
       for (const did of selected) {
         if (s.stop) break;
         const d = s.docs.find((d2) => d2.id === did);
@@ -5661,10 +5663,10 @@ function agendaNotificationHTML(t){
         const link = document.createElement("link");
         link.id = "marketStyle";
         link.rel = "stylesheet";
-        link.href = "platform/markets.css?v=bpu-catalogue-20261023b";
+        link.href = "platform/markets.css?v=portal-access-20261023";
         document.head.append(link);
       }
-      marketPromise = import("./platform/markets.js?v=bpu-catalogue-20261023b").then((module) => {
+      marketPromise = import("./platform/markets.js?v=portal-access-20261023").then((module) => {
         marketModule = module;
         marketPromise = null;
         if (currentView === "marches" && allowed()) render();
@@ -5731,6 +5733,10 @@ window.addEventListener('storage',event=>{
 });
 function load(){return freshState();}
 function cloudURL(){return CLOUD_ENDPOINT.replace(/\/+$/,'')+'/api/v1/portal';}
+function isAdmin(email){
+  email=normEmail(email);const account=state.auth?.accounts?.[email];
+  return account?.role!==undefined?account.role==='admin':!cloudEnabled()&&AUTH_ADMINS.includes(email);
+}
 async function portalFetch(url,options={}){
   const session=await budgetsEnsureSession();
   const response=await fetch(url,{...options,cache:'no-store',headers:{...options.headers,Authorization:'Bearer '+session.token}});
@@ -5751,11 +5757,17 @@ async function cloudLoad(options={}){
   if(portalClean&&JSON.stringify(state)!==portalClean&&!options.discard){setSync('err','Modifications à enregistrer');return false;}
   setSync('busy','Chargement…');
   try{
-    const data=await portalRead();if(AUTH_USER!==user||portalEpoch!==epoch)return false;
+    const wasAdmin=isAdmin(user),data=await portalRead();if(AUTH_USER!==user||portalEpoch!==epoch)return false;
     state={...freshState(),...data.workspace,params:data.workspace.params||structuredClone(PARAMS_DEFAULT)};
+    for(const person of state.salaries)if(person.email)AUTH_USER_MAT[normEmail(person.email)]=person.matricule;
     portalVersion=data.version;portalClean=JSON.stringify(state);currentYear=Number(state.params.anneeSuivi)||currentYear;
     await portalLoadPhotos();if(AUTH_USER!==user||portalEpoch!==epoch)return false;
-    setSync('ok','Synchronisé');render();return true;
+    setSync('ok','Synchronisé');
+    if(document.body.classList.contains('authed')&&wasAdmin!==isAdmin(user)){
+      dashboardForget();financeForget();billingForget();personnelForget();marchesForget();agendaForget();budgetsForget();facturxForgetAuth();closeModal();nfDraft=null;
+      currentView='dashboard';unlockApp(user);
+    }else render();
+    return true;
   }catch(e){if(AUTH_USER===user)setSync('err',e.status===401?'Connexion expirée':'Chargement impossible');return false;}
 }
 function cloudSave(){if(!cloudEnabled()||!AUTH_USER)return;clearTimeout(cloudTimer);cloudTimer=setTimeout(()=>cloudPush(),700);}
@@ -5863,6 +5875,15 @@ async function authAccountAction(email,action){
     }else toast('Accès retiré');
   }catch(e){toast(e.message);}
 }
+async function authSetRole(email,role){
+  if(!isAdmin(AUTH_USER))throw new Error('Accès réservé à un administrateur.');
+  if(!await cloudPush())throw new Error('Enregistrez les modifications en attente avant de modifier les droits.');
+  try{
+    await portalFetch(cloudURL()+'/accounts',{method:'POST',headers:{'Content-Type':'application/json','If-Match':String(portalVersion)},body:JSON.stringify({email,action:'role',role})});
+    if(!await cloudLoad({discard:true}))throw new Error('Droits enregistrés. Actualisez la page pour les afficher.');
+    toast('Droits mis à jour');
+  }catch(e){if(e.status===409)await cloudLoad({discard:true});throw e;}
+}
 async function authAddAllowed(){const email=normEmail($('#newAllowedEmail').value);await authAccountAction(email,'invite');}
 async function authRemoveAllowed(email){if(confirm('Retirer l’accès de '+email+' ?'))await authAccountAction(normEmail(email),'remove');}
 async function authResetAccount(email){if(confirm('Révoquer le mot de passe actuel et créer un lien de réinitialisation pour '+email+' ?'))await authAccountAction(normEmail(email),'reset');}
@@ -5906,8 +5927,8 @@ let billingMode='modern',billingModulePromise=null,billingMounted=null,billingTr
 function billingLockForLogout(){billingLogoutPending=true;$('#content').inert=true;}
 function billingUnlockLogout(){billingLogoutPending=false;$('#content').inert=false;}
 function billingModule(){
-  if(!$('#billingStyle')){const link=document.createElement('link');link.id='billingStyle';link.rel='stylesheet';link.href='platform/billing.css?v=bpu-catalogue-20261023b';document.head.append(link);}
-  return billingModulePromise ||= import('./platform/billing.js?v=bpu-catalogue-20261023b').catch(error=>{billingModulePromise=null;throw error;});
+  if(!$('#billingStyle')){const link=document.createElement('link');link.id='billingStyle';link.rel='stylesheet';link.href='platform/billing.css?v=portal-access-20261023';document.head.append(link);}
+  return billingModulePromise ||= import('./platform/billing.js?v=portal-access-20261023').catch(error=>{billingModulePromise=null;throw error;});
 }
 function billingLeave(){return billingMounted?.canLeave?.()!==false;}
 function billingForget(){

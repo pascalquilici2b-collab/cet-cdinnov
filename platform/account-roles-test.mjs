@@ -1,0 +1,52 @@
+import assert from 'node:assert/strict';
+import {fileURLToPath} from 'node:url';
+import {testEnvironment,users} from '../marches/test.mjs';
+import {dashboardFixture} from './dashboard-fixture.mjs';
+process.env.MARCHES_TEST_WORKER=fileURLToPath(new URL('../.build/entry.mjs',import.meta.url));
+process.env.MARCHES_TEST_COMPATIBILITY_DATE='2026-06-09';
+const ctx=await testEnvironment();
+const call=(session,path,body,version)=>ctx.worker.dispatchFetch('https://test'+path,{method:body?'POST':'GET',headers:{Origin:'https://app.cdinnov.eu',Authorization:'Bearer '+session.token,'Content-Type':'application/json',...(version!==undefined?{'If-Match':String(version)}:{})},...(body?{body:JSON.stringify(body)}:{})});
+const portal=session=>call(session,'/api/v1/portal').then(r=>r.json());
+const role=(session,email,role,version)=>call(session,'/api/v1/portal/accounts',{action:'role',email,role},version);
+try{
+ const fixture={params:{},types:[],mouvements:[],codesAffaires:[],...dashboardFixture(ctx.accounts,'2026-10-23')};await ctx.setPortal(JSON.stringify(fixture));
+ const admin=await ctx.login(users[0]),staff=await ctx.login(users[1]);
+ const initial=await portal(admin),original=JSON.parse((await ctx.db.prepare("SELECT payload FROM app_portal_workspace WHERE id='shared'").first()).payload);
+ assert.equal(initial.workspace.auth.accounts[users[0]].role,'admin');
+ assert.equal((await role(staff,users[1],'admin',initial.version)).status,403);
+ assert.equal((await role(admin,users[1],'admin')).status,428);
+ assert.equal((await role(admin,users[1],'owner',initial.version)).status,400);
+ assert.equal((await role(admin,'missing@example.invalid','admin',initial.version)).status,404);
+ assert.equal((await role(admin,users[0],'collaborator',initial.version)).status,409,'last administrator protected');
+ const forged=await portal(staff);forged.workspace.auth.accounts[users[1]].role='admin';
+ const escalation=await ctx.worker.dispatchFetch('https://test/api/v1/portal',{method:'PUT',headers:{Authorization:'Bearer '+staff.token,'Content-Type':'application/json','If-Match':String(forged.version)},body:JSON.stringify(forged.workspace)});
+ assert.equal(escalation.status,403);
+ console.log('OK collaborators cannot grant roles, invalid/stale writes are guarded, final administrator protected');
+ assert.equal((await role(admin,users[1],'admin',initial.version)).status,200);
+ assert.equal((await call(staff,'/api/v1/session').then(r=>r.json())).admin,true,'existing staff session gets new role');
+ assert.equal((await portal(staff)).workspace.factures.length,fixture.factures.length);
+ assert.equal((await call(staff,'/api/v1/dashboard').then(r=>r.json())).admin,true);
+ assert.equal((await role(admin,users[1],'collaborator',initial.version)).status,409,'stale form cannot overwrite role');
+ // A promoted employee can administer markets and approve other employees’ trips.
+ const market=await call(staff,'/budgets/markets',{title:'Marché fictif',clientName:'Client fictif',reference:'QA-ROLES'});
+ assert.notEqual(market.status,403);
+ console.log('OK grants apply to existing sessions, portal, dashboard and markets');
+ const both=await portal(admin);
+ const demotions=await Promise.all([role(admin,users[0],'collaborator',both.version),role(staff,users[1],'collaborator',both.version)]);
+ assert.deepEqual(demotions.map(r=>r.status).sort(),[200,409]);
+ const sessions=await Promise.all([admin,staff].map(s=>call(s,'/api/v1/session').then(r=>r.json())));
+ assert.equal(sessions.filter(s=>s.admin).length,1);
+ const remaining=sessions[0].admin?admin:staff,demoted=sessions[0].admin?staff:admin,demotedEmail=sessions.find(s=>!s.admin).email;
+ assert.equal((await call(demoted,'/api/v1/billing/context')).status,403);
+ assert.equal((await call(demoted,'/api/v1/portal/backup')).status,403);
+ assert.equal((await role(demoted,demotedEmail,'admin',(await portal(remaining)).version)).status,403);
+ assert.equal((await call(demoted,'/api/v1/dashboard').then(r=>r.json())).admin,false);
+ const limited=await portal(demoted);assert.equal(limited.workspace.factures.length,0);assert.equal(limited.workspace.auth.roleHistory,undefined);
+ assert.equal((await call(demoted,'/budgets/markets',{title:'Forbidden'})).status,403);
+ console.log('OK concurrent demotions preserve an admin; all old sessions lose protected access immediately');
+ const saved=JSON.parse((await ctx.db.prepare("SELECT payload FROM app_portal_workspace WHERE id='shared'").first()).payload);
+ assert.equal(saved.auth.roleHistory.length,2);assert.equal(saved.auth.roleHistory[0].by,users[0]);assert.equal(saved.auth.roleHistory[0].to,'admin');
+ for(const email of users){assert.equal(saved.auth.accounts[email].hash,original.auth.accounts[email].hash);assert.equal(saved.auth.accounts[email].salt,original.auth.accounts[email].salt);}
+ assert.deepEqual(saved.factures,original.factures);assert.deepEqual(saved.salaries,original.salaries);
+ console.log('OK role audit stored atomically; credentials, salaries and invoices unchanged');
+}finally{await ctx.worker.dispose();}

@@ -59,7 +59,7 @@ function Dashboard({load,open,portrait}:Props){
   if(!data&&!error)return <LoadingScreen label="Chargement de l’activité…"/>;
   return <div className="cdi-dashboard" aria-busy={busy}>
     <ExpensePresentationStyle/>
-    <div className="db-heading"><div><p>{date(data?.today||parisDay(),{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</p></div>
+    <div className="db-heading"><div><time className="db-today" dateTime={data?.today||parisDay()}><span>{date(data?.today||parisDay(),{weekday:'long'})}</span><strong>{date(data?.today||parisDay(),{day:'numeric',month:'long'})}<small>{date(data?.today||parisDay(),{year:'numeric'})}</small></strong></time></div>
       <div className="db-update"><button className="db-button" disabled={busy} onClick={()=>refresh(r=>r+1)}><RefreshCw size={15} className={busy?'db-is-refreshing':''}/> {busy?'Actualisation…':'Actualiser'}</button>{data&&<small>Mis à jour à {date(data.generatedAt,{hour:'2-digit',minute:'2-digit'})}</small>}</div>
     </div>
     {error&&<div className="db-error" role="alert"><strong>Actualisation indisponible.</strong> {error} {data&&'Les informations ci-dessous proviennent de la dernière lecture.'}<button onClick={()=>refresh(r=>r+1)}>Réessayer</button></div>}

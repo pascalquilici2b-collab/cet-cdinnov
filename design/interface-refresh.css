@@ -1,0 +1,38 @@
+@font-face{font-family:Poppins;src:url('./brand/fonts/Poppins-SemiBold.ttf') format('truetype');font-weight:600;font-style:normal;font-display:swap}
+/* Compact toolbar controls, following shadcn button-group and outline variants. */
+.topbar #syncPill{height:38px;padding:0 13px;gap:8px;border:1px solid var(--line);border-radius:11px;background:var(--surface);color:var(--muted);font:500 12px var(--font);box-shadow:0 1px 2px #00000005;transition:background .18s,border-color .18s}
+.topbar #syncPill:hover:not(:disabled){background:var(--paper-tint);border-color:var(--line-strong)}
+.topbar #syncPill:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+.topbar #syncPill[data-state=ok]{color:#24734f;background:#f1f8f4;border-color:#dceae2}
+.topbar #syncPill[data-state=busy]{color:#2465a8;background:#f0f5fb}
+.topbar #syncPill[data-state=err]{color:#b13844;background:#fff2f2;border-color:#f1d5d8}
+.topbar #syncPill:disabled{cursor:wait;opacity:1}
+#syncIcon{display:flex;align-items:center;flex:none}#syncIcon svg{width:18px;height:18px}
+#syncPill[data-state=busy] #syncIcon{animation:toolbar-spin 1.3s linear infinite}
+.topbar #majPill{gap:9px;min-height:38px;border:0;border-radius:11px;background:transparent;padding:0 12px 0 0;white-space:normal}
+.database-icon{display:grid;place-items:center;width:31px;height:31px;flex:none;border:1px solid var(--line);border-radius:9px;background:var(--paper-tint);color:var(--muted)}
+.database-icon svg{width:16px;height:16px}.database-copy{display:grid;gap:2px;font-size:10px;line-height:1.3}.database-copy b{font-size:11px;font-weight:500}
+[data-theme=dark] .topbar #syncPill[data-state=ok]{background:#1c2d26;color:#9bd8b6;border-color:#30443a}
+[data-theme=dark] .topbar #syncPill[data-state=busy]{background:#202c3b;color:#a8ceff;border-color:#34435b}
+[data-theme=dark] .topbar #syncPill[data-state=err]{background:#352327;color:#ffafb8;border-color:#56323b}
+.sidebar .nav-item.cdi-application>svg{width:23px;height:23px;background:none!important;padding:1px;border-radius:0}
+.sidebar .nav-item.cdi-application.app-billing>svg{color:#ab6319!important;stroke:currentColor!important}
+.sidebar .nav-item.cdi-application.app-budgets>svg{color:#7555b3!important;stroke:currentColor!important}
+.sidebar .nav-item.cdi-application>.sheets-nav-symbol{width:23px;height:23px;object-fit:contain;background:none;padding:0}
+[data-theme=dark] .sidebar .nav-item.cdi-application.app-billing>svg{color:#edbb76!important}
+[data-theme=dark] .sidebar .nav-item.cdi-application.app-budgets>svg{color:#c7b0ef!important}
+[data-theme=dark] .sidebar .nav-item.cdi-application.active{background:#ffffff0a;color:var(--ink);box-shadow:inset 0 0 0 1px #ffffff0b}
+#agendaBalanceAction:empty{display:none}
+.portal-top-actions{gap:8px}
+.portal-top-actions #agendaBalances{display:inline-flex;align-items:center;gap:8px;min-height:38px;max-width:none;padding:5px 11px 5px 6px;border-radius:11px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font:500 12px var(--font);white-space:nowrap}
+.portal-top-actions #agendaBalances:hover,.portal-top-actions #agendaBalances[aria-pressed=true]{background:var(--paper-tint);border-color:var(--line-strong)}
+.portal-top-actions .agenda-avatar{width:27px;height:27px;flex-basis:27px;border:0;background:var(--paper-tint);color:var(--muted)}
+.portal-top-actions #agendaBalances>svg{color:var(--muted)}
+body:has(.agenda-shell) .portal-top-actions #agendaTopLeave{background:var(--surface);border:1px solid var(--line);color:var(--ink);border-radius:11px;min-height:38px;font:500 12px var(--font)}
+body:has(.agenda-shell) .portal-top-actions #agendaTopLeave:hover{background:var(--paper-tint)}
+@keyframes toolbar-spin{to{transform:rotate(360deg)}}
+@media(max-width:1250px){.topbar #majPill .database-copy{display:none}.topbar #majPill{padding:0}.topbar{gap:10px}body:has(.agenda-shell) .topbar{flex-wrap:wrap}body:has(.agenda-shell) .portal-top-actions{margin-left:auto}}
+@media(max-width:800px){.topbar #majPill{display:none!important}.portal-top-actions #agendaBalances{white-space:normal;text-align:left;line-height:1.4;max-width:235px}.portal-top-actions #agendaBalances>svg{display:none}.portal-top-actions{flex-wrap:wrap}body:has(.agenda-shell) .portal-top-actions{width:100%;justify-content:flex-end}.portal-top-actions #agendaBalanceAction{margin-right:auto}.portal-top-actions #agendaBalances{font-size:11px;max-width:none}}
+@media(max-width:480px){body:has(.agenda-shell) .portal-top-actions{display:grid;grid-template-columns:1fr 1fr}.portal-top-actions #agendaBalanceAction{grid-column:1/-1;margin:0}.portal-top-actions #agendaBalances{width:100%;justify-content:flex-start}.topbar #syncPill{padding:0 9px;font-size:11px}.topbar .year-pick{margin-left:0}}
+@media(prefers-reduced-motion:reduce){#syncPill *{animation:none!important;transition:none!important}}
+body .toast{background:var(--ink);color:var(--surface);border:1px solid var(--line);font-weight:500}

@@ -1,4 +1,4 @@
-import {admins} from './identity.ts';
+import {portalAdmin} from './identity.ts';
 import {leavePeriods} from '../agenda/leave-periods.mjs';
 import type {Database, Environment} from './contracts';
 import type {DashboardData, DocumentSummary, Leave, Member, Trip} from './dashboard-contracts';
@@ -40,7 +40,7 @@ export async function readDashboard(request:Request,env:Environment,db:Database,
       ORDER BY json_extract(payload,'$.start'),id`).bind(end,start,today,today).all<{id:string;owner:string;payload:string}>()
   ]);
   if(!portal) throw new Error('Portail indisponible');
-  const admin=admins.includes(user);
+  const admin=portalAdmin(portal,user);
   const members:Member[]=rows(portal.salaries).map(s=>({id:String(s.matricule),name:[s.prenom,s.nom].filter(Boolean).join(' '),email:email(s.email)||legacyEmails[String(s.matricule)]||''}));
   const byId=new Map(members.map(m=>[m.id,m]));
   const byEmail=new Map(members.filter(m=>m.email).map(m=>[m.email,m]));

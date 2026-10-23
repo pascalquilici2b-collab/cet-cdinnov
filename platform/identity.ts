@@ -2,14 +2,21 @@ import {createHash, createHmac, randomBytes, timingSafeEqual} from 'node:crypto'
 import {Buffer} from 'node:buffer';
 import type {Database, Environment, Reply} from './contracts';
 
-// Preserve existing entitlements until accounts have an explicit, migrated role model.
+// Existing accounts retain their rights until an administrator explicitly changes them.
 export const admins = ['quilici.pascal@cdinnov.com','pasqualini.david@cdinnov.com','boulanger.albert@cdinnov.com'];
+export function accountRole(email:string,account?:{role?:unknown}):'admin'|'collaborator' {
+  return account?.role===undefined ? (admins.includes(email)?'admin':'collaborator') : account.role==='admin'?'admin':'collaborator';
+}
+export function portalAdmin(portal:Record<string,any>,email:string):boolean {
+  const allowed=seededAccounts.includes(email)||(portal.auth?.allowed||[]).some((value:unknown)=>String(value).trim().toLowerCase()===email);
+  return allowed && !!portal.auth?.accounts?.[email] && accountRole(email,portal.auth.accounts[email])==='admin';
+}
 const seededAccounts = [...admins,'calendini.matthieu@cdinnov.com','vincenti.paulmichel@cdinnov.com'];
 const sessionAudience = 'cdinnov-budgets'; // Also accepts sessions issued before this migration.
 const challengeAudience = 'cdinnov-budget-login';
 const sessionDuration = 8 * 60 * 60 * 1000;
 type ObjectValue = Record<string, unknown>;
-interface Account {salt:string; iter:number; hash:string; name?:string;}
+interface Account {salt:string; iter:number; hash:string; name?:string;role:'admin'|'collaborator';}
 interface Claims {aud:string; email:string; exp:number; fingerprint:string; nonce:string;}
 export interface SessionIdentity {email:string; name:string; expiresAt:number; admin:boolean;}
 const object = (value:unknown):ObjectValue|null => value !== null && typeof value==='object' && !Array.isArray(value) ? value as ObjectValue : null;
@@ -62,7 +69,7 @@ async function account(env:Environment,email:string):Promise<Account|null> {
   if(!candidate || typeof candidate.salt!=='string' || !/^[a-f0-9]{32}$/i.test(candidate.salt) ||
     typeof candidate.hash!=='string' || !/^[a-f0-9]{64}$/i.test(candidate.hash) ||
     !Number.isInteger(candidate.iter) || (candidate.iter as number)<100000 || (candidate.iter as number)>1000000) return null;
-  return {salt:candidate.salt,hash:candidate.hash,iter:candidate.iter as number,...(typeof candidate.name==='string'?{name:candidate.name}:{})};
+  return {salt:candidate.salt,hash:candidate.hash,iter:candidate.iter as number,role:accountRole(email,candidate),...(typeof candidate.name==='string'?{name:candidate.name}:{})};
 }
 
 /** Read the account on every request: no identity or permission cache across users. */
@@ -75,7 +82,7 @@ export async function sessionIdentity(request:Request,env:Environment,now=Date.n
   if(revoked)return null;
   const current=await account(env,claims.email);
   if(!current || !equal(claims.fingerprint,fingerprint(current))) return null;
-  return {email:claims.email,name:current.name || claims.email,expiresAt:claims.exp,admin:admins.includes(claims.email)};
+  return {email:claims.email,name:current.name || claims.email,expiresAt:claims.exp,admin:current.role==='admin'};
 }
 
 /** Compatibility contract used by Budgets, Agenda, Marchés, Smartsheet and Dashboard. */
