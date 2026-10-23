@@ -1,3 +1,4 @@
+import {usePDFAnnotations} from './billing-pdf-annotations';
 import {BrandMark} from './loading';
 import {useEffect,useRef,useState} from 'react';
 import type {BillingDocument,BillingDraft,BillingTransport} from '../billing-contracts';
@@ -24,10 +25,16 @@ export function PDFPreview({record,transport,draft,onChange,file}:{record:Billin
  const [page,setPage]=useState(1),[zoom,setZoom]=useState(1),[rendering,setRendering]=useState(false),[text,setText]=useState(''),[pending,setPending]=useState(false);
  const [areas,setAreas]=useState<{path:string;rect:number[]}[]>([]),[edit,setEdit]=useState<{path:string;value:string}|null>(null),dialog=useRef<HTMLDialogElement>(null);
  const snapshot=draft?JSON.stringify(draft):'';
+ const baseSnapshot=draft?JSON.stringify({...draft,annotations:undefined}):'',lastBase=useRef(''),lastDocument=useRef(record?.id);
  const canvas=useRef<HTMLCanvasElement>(null),viewport=useRef<HTMLDivElement>(null);
+ const editingAllowed=!!draft&&!!onChange&&!file&&(!record||record.status==='draft');
+ const additions=usePDFAnnotations({enabled:editingAllowed,documentId:record?.id||'new',items:draft?.annotations||[],onChange:annotations=>onChange?.({annotations}),page,onPage:n=>{setPage(n);viewport.current?.scrollTo({top:0,left:0});},pages:pdf?.numPages||0,ready:!!pdf&&!pending&&!rendering&&!error});
+
  useEffect(()=>{if(edit)dialog.current?.showModal();else dialog.current?.close();},[!!edit]);
  useEffect(()=>{
-  let active=true,task:PDFTask|undefined;setPDF(null);setError('');setPending(true);setAreas([]);
+  let active=true,task:PDFTask|undefined;const delay=baseSnapshot===lastBase.current?150:800;lastBase.current=baseSnapshot;
+  if(lastDocument.current!==record?.id){setPDF(null);lastDocument.current=record?.id;}
+  setError('');setPending(true);setAreas([]);
   const timer=setTimeout(()=>{void (async()=>{
    const blob=file||(draft?await transport!.previewDraft(JSON.parse(snapshot),record?.id):record?.status==='issued'?await transport!.issuedFile(record.id,'pdf'):record?await transport!.previewPDF(record.id,record.version):null);
    if(!blob)throw new Error('Document indisponible.');
@@ -39,11 +46,11 @@ export function PDFPreview({record,transport,draft,onChange,file}:{record:Billin
    const document=await task.promise;if(!active)return;
    if(document.numPages<1||document.numPages>100)throw new Error('Le document dépasse la capacité de l’aperçu. Téléchargez le PDF pour le consulter.');
    setPDF(document);setPage(p=>Math.min(p,document.numPages));setPending(false);
-  })().catch(e=>{if(active){setPending(false);setError(e instanceof Error?e.message:'L’aperçu PDF est indisponible.');}});},draft?800:0);
+  })().catch(e=>{if(active){setPending(false);setError(e instanceof Error?e.message:'L’aperçu PDF est indisponible.');}});},draft?delay:0);
   return()=>{active=false;clearTimeout(timer);if(task)void task.destroy().catch(()=>{});};
  },[record?.id,record?.version,record?.status,record?.reservedNumber?.number,transport,retry,snapshot,file]);
  useEffect(()=>{
-  if(!pdf)return;let active=true,task:RenderTask|undefined;setRendering(true);setText('');
+  if(!pdf||pending||error)return;let active=true,task:RenderTask|undefined;setRendering(true);setText('');
   (async()=>{
    const source=await pdf.getPage(page);if(!active||!canvas.current)return;
    const scale=96/72*zoom;
@@ -55,8 +62,8 @@ export function PDFPreview({record,transport,draft,onChange,file}:{record:Billin
    if(active){setText(content.items.map(item=>item.str||'').join(' '));setRendering(false);setAreas(annotations.filter(a=>a.url?.startsWith('https://editor.cdinnov.invalid/field/')).map(a=>({path:a.url!.slice('https://editor.cdinnov.invalid/field/'.length),rect:view.convertToViewportRectangle(a.rect)})).filter(a=>editablePath(a.path)));}
   })().catch(e=>{if(active){setRendering(false);setError(e instanceof Error?e.message:'Cette page ne peut pas être affichée.');}});
   return()=>{active=false;task?.cancel();};
- },[pdf,page,zoom]);
- function startEdit(path:string){if(!draft||!onChange||pending||!editablePath(path))return;let value:unknown=draft;for(const k of path.split('.'))value=(value as Record<string,unknown>)?.[k];if(typeof value==='string')setEdit({path,value});}
+ },[pdf,page,zoom,pending,error]);
+ function startEdit(path:string){if(!editingAllowed||!draft||!onChange||pending||!editablePath(path))return;let value:unknown=draft;for(const k of path.split('.'))value=(value as Record<string,unknown>)?.[k];if(typeof value==='string')setEdit({path,value});}
  function applyEdit(){if(!draft||!edit||!onChange)return;const copy=structuredClone(draft),keys=edit.path.split('.');let target:Record<string,unknown>=copy as unknown as Record<string,unknown>;for(const key of keys.slice(0,-1))target=target[key] as Record<string,unknown>;target[keys.at(-1)!]=edit.value;
   if(edit.path==='validUntil')copy.details={...copy.details||blankDocumentDetails(),validityMonths:''};
   if(edit.path==='issueDate'&&copy.kind==='quote'&&copy.details?.validityMonths)copy.validUntil=addBillingMonths(copy.issueDate,copy.details.validityMonths);
@@ -65,12 +72,13 @@ export function PDFPreview({record,transport,draft,onChange,file}:{record:Billin
  const turn=(delta:number)=>{setPage(value=>value+delta);viewport.current?.scrollTo({top:0,left:0});};
  return <section className="bill-pdf-viewer" aria-label="Aperçu PDF paginé">
   <div className="bill-pdf-heading"><strong>{file?'Aperçu A4':record?.status==='issued'?'Document définitif':draft?'Aperçu A4':'PDF du brouillon enregistré'}</strong><span>{file?'':record?.status==='issued'?'Fichier archivé':pending?'Actualisation…':'Non émis'}</span></div>
+  {additions.toolbar}
   <div className="bill-pdf-controls" role="group" aria-label="Navigation dans le PDF">
-   <div><button type="button" aria-label="Page précédente du PDF" disabled={!pdf||page===1} onClick={()=>turn(-1)}>‹</button><span aria-live="polite">Page {page} / {pdf?.numPages||'…'}</span><button type="button" aria-label="Page suivante du PDF" disabled={!pdf||page===pdf.numPages} onClick={()=>turn(1)}>›</button></div>
-   <div><button type="button" aria-label="Réduire le zoom" disabled={!pdf||zoom<=.5} onClick={()=>setZoom(n=>Math.max(.5,n-.25))}>−</button><button type="button" aria-label="Format A4 à 100 %" title="Format A4 à 100 %" disabled={!pdf} onClick={()=>setZoom(1)}>{Math.round(zoom*100)} %</button><button type="button" aria-label="Agrandir le PDF" disabled={!pdf||zoom>=2} onClick={()=>setZoom(n=>Math.min(2,n+.25))}>+</button></div>
+   <div><button type="button" aria-label="Page précédente du PDF" disabled={!pdf||pending||page===1} onClick={()=>turn(-1)}>‹</button><span aria-live="polite">Page {page} / {pdf?.numPages||'…'}</span><button type="button" aria-label="Page suivante du PDF" disabled={!pdf||pending||page===pdf.numPages} onClick={()=>turn(1)}>›</button></div>
+   <div><button type="button" aria-label="Réduire le zoom" disabled={!pdf||pending||zoom<=.5} onClick={()=>setZoom(n=>Math.max(.5,n-.25))}>−</button><button type="button" aria-label="Format A4 à 100 %" title="Format A4 à 100 %" disabled={!pdf||pending} onClick={()=>setZoom(1)}>{Math.round(zoom*100)} %</button><button type="button" aria-label="Agrandir le PDF" disabled={!pdf||pending||zoom>=2} onClick={()=>setZoom(n=>Math.min(2,n+.25))}>+</button></div>
   </div>
   <div className="bill-pdf-viewport" ref={viewport} tabIndex={0} aria-label="Page PDF, défilement horizontal et vertical" aria-busy={!error&&(!pdf||rendering)}>
-   {error?<div className="bill-pdf-feedback" role="alert"><b>Aperçu indisponible</b><p>{error}</p><button type="button" className="bill-button" onClick={()=>setRetry(n=>n+1)}>Réessayer l’aperçu</button></div>:!pdf?<div className="bill-pdf-feedback" role="status"><BrandMark/>Préparation de l’aperçu…</div>:<div className="bill-pdf-sheet"><div className="bill-pdf-page"><canvas ref={canvas} role="img" aria-label={'Page '+page+' du document PDF'} style={{visibility:rendering?'hidden':'visible'}}/>{!rendering&&!pending&&areas.map((a,i)=><button type="button" key={i} className="bill-pdf-edit-field" style={{left:Math.min(a.rect[0],a.rect[2]),top:Math.min(a.rect[1],a.rect[3]),width:Math.abs(a.rect[2]-a.rect[0]),height:Math.abs(a.rect[3]-a.rect[1])}} aria-label={'Modifier '+fieldLabel(a.path)} title={'Modifier '+fieldLabel(a.path)} onClick={()=>startEdit(a.path)}><Pencil size={13}/></button>)}{rendering&&<div className="bill-pdf-rendering" role="status"><BrandMark/>Affichage de la page…</div>}<p className="bill-sr-only">{text}</p></div></div>}
+   {error?<div className="bill-pdf-feedback" role="alert"><b>Aperçu indisponible</b><p>{error}</p><button type="button" className="bill-button" onClick={()=>setRetry(n=>n+1)}>Réessayer l’aperçu</button></div>:!pdf?<div className="bill-pdf-feedback" role="status"><BrandMark/>Préparation de l’aperçu…</div>:<div className="bill-pdf-sheet"><div className="bill-pdf-page"><canvas ref={canvas} role="img" aria-label={'Page '+page+' du document PDF'} style={{visibility:rendering?'hidden':'visible'}}/>{!rendering&&!pending&&areas.map((a,i)=><button type="button" key={i} className="bill-pdf-edit-field" style={{left:Math.min(a.rect[0],a.rect[2]),top:Math.min(a.rect[1],a.rect[3]),width:Math.abs(a.rect[2]-a.rect[0]),height:Math.abs(a.rect[3]-a.rect[1])}} aria-label={'Modifier '+fieldLabel(a.path)} title={'Modifier '+fieldLabel(a.path)} onClick={()=>startEdit(a.path)}><Pencil size={13}/></button>)}{additions.overlay}{rendering&&<div className="bill-pdf-rendering" role="status"><BrandMark/>Affichage de la page…</div>}<p className="bill-sr-only">{text}</p></div></div>}
   </div>
   <dialog ref={dialog} className="bill-preview-edit-dialog" aria-label="Modifier dans l’aperçu" onCancel={()=>setEdit(null)}>{edit&&<form onSubmit={e=>{e.preventDefault();applyEdit();}}><label>{fieldLabel(edit.path)}{['issueDate','dueDate','validUntil'].includes(edit.path)?<input type="date" aria-label="Valeur du champ" value={edit.value} onChange={e=>setEdit({...edit,value:e.target.value})}/>:<textarea aria-label="Valeur du champ" autoFocus rows={3} maxLength={edit.path==='notes'?10000:4000} value={edit.value} onChange={e=>setEdit({...edit,value:e.target.value})}/>}</label><div><button type="button" className="bill-button" onClick={()=>setEdit(null)}>Annuler</button><button type="submit" className="bill-button bill-button-primary">Appliquer</button></div></form>}</dialog>
  </section>;

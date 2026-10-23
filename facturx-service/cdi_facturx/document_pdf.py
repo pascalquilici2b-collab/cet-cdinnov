@@ -16,6 +16,7 @@ from typing import Any
 import unicodedata
 from xml.sax.saxutils import escape
 
+from .document_annotations import validate_annotations, paint_annotations
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_RIGHT, TA_CENTER
 from reportlab.lib.pagesizes import A4
@@ -171,6 +172,7 @@ class _DocumentCanvas(Canvas):
     """Write total page counts without a second document layout pass."""
 
     def __init__(self, *args: Any, **kwargs: Any):
+        self._document_additions = kwargs.pop('document_additions', [])
         kwargs.update(invariant=1, pageCompression=1, initialFontName=_FONT_NAME)
         super().__init__(*args, **kwargs)
         self._saved_pages: list[dict[str, Any]] = []
@@ -183,6 +185,10 @@ class _DocumentCanvas(Canvas):
         count = len(self._saved_pages)
         for state in self._saved_pages:
             self.__dict__.update(state)
+            try:
+                paint_annotations(self, self._document_additions, count, _FONT_NAME)
+            except ValueError as exc:
+                raise DocumentPDFError(str(exc)) from exc
             self.saveState()
             self.setFont(_FONT_NAME, 8)
             self.setFillColor(_MUTED)
@@ -523,5 +529,9 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
         story.extend([Spacer(1,12),report])
     # ReportLab's safe default for external resources is not relied upon: all
     # paragraphs contain escaped text; font and logo are packaged local assets.
-    pdf.build(story, canvasmaker=_DocumentCanvas)
+    try:
+        additions = validate_annotations(document.get('annotations', []))
+    except ValueError as exc:
+        raise DocumentPDFError('Ajouts PDF invalides.') from exc
+    pdf.build(story, canvasmaker=lambda *args, **kwargs: _DocumentCanvas(*args, document_additions=additions, **kwargs))
     return stream.getvalue()

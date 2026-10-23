@@ -16,7 +16,12 @@ export async function draftPDF(document:Pick<BillingDocument,'id'|'version'|'dat
     // Workers support manual/follow redirect modes. Inspect redirects without forwarding the service key.
     const response=await fetch(url,{method:'POST',redirect:'manual',signal:controller.signal,headers:{'Content-Type':'application/json','X-API-Key':key},body:JSON.stringify({document:document.data,...(document.reservedNumber?{number:document.reservedNumber.number}:{}),...(editable?{editable:true}:{})})});
     if(!response.ok){
-      if(response.status===422)return fail(422,'Le PDF ne peut pas être généré avec ce contenu. Vérifiez les champs et les caractères du brouillon.');
+      if(response.status===422){
+        // Only relay fixed, actionable layout errors, never arbitrary upstream output.
+        const additionErrors=['Un ajout est rattaché à une page supprimée. Déplacez-le ou supprimez-le dans la barre d’édition.','Le texte dépasse son encart. Agrandissez l’encart ou réduisez la taille du texte.'];
+        try{const payload=JSON.parse(new TextDecoder().decode(await boundedBody(response,4096)));if(additionErrors.includes(payload.detail))return fail(422,payload.detail);}catch(error){if(error&&typeof error==='object'&&'status' in error&&error.status===422)throw error;}
+        return fail(422,'Le PDF ne peut pas être généré avec ce contenu. Vérifiez les champs et les caractères du brouillon.');
+      }
       return fail(503,'Le service PDF est momentanément indisponible. Votre brouillon est conservé.');
     }
     if(!/^application\/pdf(?:\s*;|$)/i.test(response.headers.get('content-type')||''))return fail(502,'Le service n’a pas retourné un PDF valide.');

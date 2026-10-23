@@ -16,6 +16,7 @@ export interface BillingReferences {
   projectId?:string; orderId?:string; quoteNumber?:string;
 }
 export interface BillingDraft {
+  annotations?:BillingAnnotation[];
   description?:string;
   details?:BillingDocumentDetails;
   schemaVersion:2|3; kind:BillingKind; title:string; currency:'EUR'; issueDate:string;
@@ -24,6 +25,8 @@ export interface BillingDraft {
   lines:BillingLine[]; references:BillingReferences; paymentTerms:string; iban:string; bic:string; notes:string;
   paymentMeans:BillingPaymentMeans; vatDue:BillingVatDue; legalNotes:BillingLegalNotes; businessProcess:BillingBusinessProcess;
 }
+interface BillingAnnotationBox {id:string;page:number;x:number;y:number;width:number;height:number;}
+export type BillingAnnotation=(BillingAnnotationBox&{kind:'text';text:string;fontSize:number;color:'ink'|'blue'|'red'})|(BillingAnnotationBox&{kind:'highlight';color:'yellow'|'blue'|'green'});
 export interface BillingIntervention {id:string;priceId:string;label:string;description:string;days:string;}
 export interface BillingDocumentDetails {marketObject:string;period:''|'S1'|'S2'|'S3'|'S4'|'S5'|'S6'|'S7'|'S8';personInCharge:string;fundingProgramme:string;validityMonths:string;returnEmail:string;interventions:BillingIntervention[];}
 /** Only schema v3 carries a credit reference; old v2 snapshots keep their exact wire shape. */

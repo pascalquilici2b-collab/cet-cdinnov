@@ -12,6 +12,7 @@ test('PDF brouillon : identité, version figée, clé privée et erreurs sans mu
   if(mode==='error')return Response.json({secret:'upstream-private',detail:'secret'}, {status:500});
   if(mode==='invalid')return new Response('wrong',{headers:{'Content-Type':'application/pdf'}});
   if(mode==='validation')return Response.json({detail:'private-input'}, {status:422});
+  if(mode==='missing-page')return Response.json({detail:'Un ajout est rattaché à une page supprimée. Déplacez-le ou supprimez-le dans la barre d’édition.'}, {status:422});
   if(mode==='redirect')return new Response(null,{status:302,headers:{Location:'https://other.test'}});
   if(mode==='html')return new Response('<html>',{headers:{'Content-Type':'text/html'}});
   return new Response('%PDF-1.7\nsynthetic upstream fixture\n%%EOF',{headers:{'Content-Type':'application/pdf'}});
@@ -31,6 +32,7 @@ test('PDF brouillon : identité, version figée, clé privée et erreurs sans mu
   for(const [value,status] of [['error',503],['validation',422],['invalid',502],['html',502],['redirect',503]]){
    mode=value;const result=await pdf();assert.equal(result.status,status,await result.clone().text());assert.doesNotMatch(await result.text(),/upstream-private|private-input|synthetic-service-key/);
   }
+  mode='missing-page';const missing=await pdf();assert.equal(missing.status,422);assert.match((await missing.json()).error,/page supprimée/);
   assert.equal((await ctx.db.prepare('SELECT count(*) AS n FROM billing_document_versions WHERE document_id=?').bind(id).first()).n,1);
   assert.equal((await ctx.db.prepare('SELECT status FROM billing_documents WHERE id=?').bind(id).first()).status,'draft');
  }finally{await ctx.worker.dispose();}

@@ -8,6 +8,7 @@ import unicodedata
 from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator, model_validator, model_serializer
 from datetime import date
+from .document_annotations import DocumentAnnotation, validate_annotations
 
 
 def text(maximum):
@@ -137,6 +138,7 @@ class DraftDetails(StrictModel):
 
 
 class DraftDocument(StrictModel):
+    annotations: Annotated[list[DocumentAnnotation], Field(max_length=80)] = Field(default_factory=list)
     description: text(4000) = ''
     details: DraftDetails | None = None
     schemaVersion: Literal[2, 3]
@@ -163,6 +165,7 @@ class DraftDocument(StrictModel):
 
     @model_validator(mode='after')
     def unique_lines(self):
+        validate_annotations([a.model_dump() for a in self.annotations])
         if self.schemaVersion == 2 and 'creditNote' in self.model_fields_set:
             raise ValueError('Les documents v2 ne comportent pas de référence d’avoir.')
         if self.schemaVersion == 3 and (self.kind != 'invoice' or self.creditNote is None):
@@ -178,6 +181,8 @@ class DraftDocument(StrictModel):
             result.pop('creditNote', None)
         if 'details' not in self.model_fields_set:
             result.pop('details', None)
+        if 'annotations' not in self.model_fields_set:
+            result.pop('annotations', None)
         if 'description' not in self.model_fields_set:
             result.pop('description', None)
         return result
