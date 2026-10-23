@@ -1,12 +1,12 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {randomUUID} from 'node:crypto';
+import {randomUUID,createHash} from 'node:crypto';
 import {testEnvironment,users} from '../marches/test.mjs';
 import {migrateBilling} from './billing-schema.mjs';
-import {quoteFixtureTools,quoteFixture} from './billing-quote-fixture.mjs';
+import {quoteFixtureTools,quoteFixture,samplePDF} from './billing-quote-fixture.mjs';
 import {emptyMarket,validateMarket} from '../marches/domain.mjs';
 import {paymentFixtureTools,invoiceFixture} from './billing-payments-fixture.mjs';
-import {reserveIssuance} from './billing-issuance.ts';
+import {reserveIssuance,claimIssuanceJob,completeIssuanceJob} from './billing-issuance.ts';
 
 test('order ceiling is atomic across drafts, edits, imports, trash and restoration',async()=>{
  const ctx=await testEnvironment();try{
@@ -41,11 +41,26 @@ test('rectification replaces its original allocation; finalization rechecks a ch
  let r=await f.call('/documents/'+original.id+'/rectify','POST',{id:randomUUID(),notTransmitted:true},{'If-Match':String(original.version)});assert.equal(r.status,201,await r.clone().text());const replacement=await r.json();
  assert.equal((await(await f.call('/order-budget','POST',{id:replacement.id,data:replacement.data})).json()).availableMinor,50000);
  r=await f.call('/documents/'+replacement.id,'PUT',{data:{...replacement.data,lines:data('600').lines}},{'If-Match':String(replacement.version)});assert.equal(r.status,422);
+ // Cancelling a cheaper replacement restores its original amount and must not overflow.
+ r=await f.call('/documents/'+replacement.id,'PUT',{data:{...replacement.data,lines:data('300').lines}},{'If-Match':'1'});assert.equal(r.status,200);
+ r=await f.call('/documents/'+other.id,'PUT',{data:data('700')},{'If-Match':'1'});assert.equal(r.status,200);
+ r=await f.call('/documents/'+replacement.id,'DELETE',undefined,{'If-Match':'2'});assert.equal(r.status,422);assert.equal((await f.call('/documents/'+replacement.id)).status,200);
+ r=await f.call('/documents/'+other.id,'PUT',{data:data('500')},{'If-Match':'2'});assert.equal(r.status,200);other.version=3;
+ r=await f.call('/documents/'+replacement.id,'PUT',{data:replacement.data},{'If-Match':'2'});assert.equal(r.status,200);
  // Use the existing fixture series; lowering a ceiling must also guard the final issuance write.
  const existing=await ctx.db.prepare("SELECT id,next_value FROM billing_number_series WHERE kind='invoice'").first();
  m.orders[0].amountMinor=80000;await ctx.db.prepare('UPDATE markets SET payload=?,version=version+1 WHERE id=?').bind(JSON.stringify(m),marketId).run();
  await assert.rejects(()=>reserveIssuance(ctx.db,{id:randomUUID(),documentId:other.id,documentVersion:other.version,seriesId:existing.id},users[0]),/BILLING_ORDER_LIMIT/);
  assert.equal((await ctx.db.prepare('SELECT next_value FROM billing_number_series WHERE id=?').bind(existing.id).first()).next_value,existing.next_value);
  assert.equal(await ctx.db.prepare('SELECT id FROM billing_issuances WHERE document_id=?').bind(other.id).first(),null);
+ m.orders[0].amountMinor=100000;await ctx.db.prepare('UPDATE markets SET payload=?,version=version+1 WHERE id=?').bind(JSON.stringify(m),marketId).run();
+ const issue=await reserveIssuance(ctx.db,{id:randomUUID(),documentId:replacement.id,documentVersion:3,seriesId:existing.id},users[0]),lease=randomUUID();assert.ok(await claimIssuanceJob(ctx.db,issue.id,lease,users[0]));
+ const bytes=samplePDF(),sha256=createHash('sha256').update(bytes).digest('hex'),artifact={kind:'pdf',key:'billing/'+issue.id+'/pdf/'+sha256,sha256,size:bytes.length,contentType:'application/pdf'};
+ await(await ctx.worker.getR2Bucket('CET_FILES')).put(artifact.key,bytes);await completeIssuanceJob(ctx.db,issue.id,lease,{schemaVersion:1,envelopeSha256:issue.envelopeSha256,generatorVersion:'synthetic-budget-test',profile:'invoice-pdf',artifacts:[artifact]},users[0]);
+ r=await f.call('/documents/'+replacement.id,'DELETE',undefined,{'If-Match':'3'});assert.equal(r.status,200);
+ // Trashing an issued replacement retains its consumption without reviving its original.
+ await migrateBilling(ctx.db);
+ assert.equal((await ctx.db.prepare('SELECT sum(amount_minor) AS n FROM billing_order_allocations WHERE order_id=?').bind(orderId).first()).n,90000);
+ assert.equal(await ctx.db.prepare('SELECT document_id FROM billing_order_allocations WHERE document_id=?').bind(original.id).first(),null);
  }finally{await ctx.worker.dispose();}
 });
