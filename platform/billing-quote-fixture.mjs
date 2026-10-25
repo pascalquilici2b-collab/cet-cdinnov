@@ -24,7 +24,7 @@ export async function quoteFixtureTools(ctx,token,seriesPeriod={}){
   const lease=randomUUID();assert.ok(await claimIssuanceJob(ctx.db,issue.id,lease,email));
   const bytes=samplePDF(),sha256=createHash('sha256').update(bytes).digest('hex'),artifact={kind:'pdf',key:`billing/${issue.id}/pdf/${sha256}`,sha256,size:bytes.length,contentType:'application/pdf'};
   const bucket=await ctx.worker.getR2Bucket('CET_FILES');await bucket.put(artifact.key,bytes,{httpMetadata:{contentType:artifact.contentType}});
-  assert.ok(await completeIssuanceJob(ctx.db,issue.id,lease,{schemaVersion:1,envelopeSha256:issue.envelopeSha256,generatorVersion:'synthetic-quote-test',profile:'quote-pdf',artifacts:[artifact]},email));
+  assert.ok(await completeIssuanceJob(ctx.db,issue.id,lease,{schemaVersion:1,envelopeSha256:issue.envelopeSha256,generatorVersion:'synthetic-quote-test',profile:doc.data.kind==='quote'?'quote-pdf':'invoice-pdf',artifacts:[artifact]},email));
   return (await call('/documents/'+doc.id)).json();
  };
  const create=async(data=quoteFixture(),ready=true)=>{const res=await call('/documents','POST',{id:randomUUID(),data});assert.equal(res.status,201,await res.clone().text());const doc=await res.json();return ready?finalize(doc):doc;};

@@ -232,8 +232,12 @@ def extract_fields(text):
     p = re.sub(r'\.{2,}', ' ', plain(text).replace('…','...'))
     inv={'currency':'EUR','type_code':'381' if re.search(r'^\s*avoir\s+(?:n|numero|\d)',p,re.M) else '380'}
     warnings=[]
-    found=re.search(r'\b(?:facture|avoir)\s*(?:num[eé]ro|n[°ºo]?|#)\s*[:.\-]?\s*([^\r\n]+)',text,re.I)
-    if found: inv['number']=clean(re.split(r'\s{3,}|\s+Date\s*:',found.group(1),flags=re.I)[0])
+    # "FACTURE" followed by "Numéro du document" is a title, not a number.
+    found=re.search(r'\b(?:facture|avoir)[ \t]*(?:num[eé]ro\b|n[°º]|n[o]?\b|#)[ \t]*[:.\-]?[ \t]*([^\r\n]+)',text,re.I)
+    if found:
+        inv['number']=clean(re.split(r'\s{3,}|\s+date\s*:',found.group(1),flags=re.I)[0])
+    document_number=re.search(r'(?m)^[ \t]*num[eé]ro[ \t]+du(?:[ \t]+document)?[ \t]*:?[ \t]+([A-Z0-9][A-Z0-9./_-]*\d[A-Z0-9./_-]*|\d+)[ \t]*(?:$|[ \t]{2,})',text,re.I)
+    if document_number: inv['number']=document_number.group(1)
     dated=[]
     for line in lines:
         l=plain(line)
@@ -244,19 +248,49 @@ def extract_fields(text):
     if dated and read_date(dated[0]): inv['issue_date']=read_date(dated[0])
     inv.update(company_blocks(text))
     totals={}
-    labels={'net':r'(?:montant\s+(?:(?:total|global)\s+)?|total\s*)(?:h\.?\s*t\.?|hors\s*taxes)(?:\s+de\s+la\s+situation)?', 'gross':r'(?:montant\s+(?:total\s+)?|total\s*)(?:t\.?\s*t\.?\s*c\.?|toutes\s*taxes)', 'due':r'(?:net\s*[aà]\s*payer|reste\s*[aà]\s*payer|solde\s*(?:[aà]\s*payer)?)'}
-    for key,label in labels.items():
-        found=re.search(label+r'\s*:?\s*'+AMOUNT,p)
-        if found: totals[key]=money(found.group(1))
+    # Labels must start a line and lead to an amount on that same line (or
+    # an amount-only following line). A table heading followed by "1. ..."
+    # is not a total. Prefer the net total after a printed discount.
+    amount_end = AMOUNT + r'[ \t]*(?:€|eur)?[ \t]*$'
+    def labelled_amount(label):
+        rows = p.splitlines()
+        values = []
+        for i, row in enumerate(rows):
+            found = re.fullmatch(r'[ \t]*' + label + r'[ \t]*:?[ \t]*' + amount_end, row)
+            if not found and re.fullmatch(r'[ \t]*' + label + r'[ \t]*:?[ \t]*', row):
+                following = next((line for line in rows[i+1:] if line.strip()), '')
+                found = re.fullmatch(r'[ \t]*' + amount_end, following)
+            if found:
+                values.append(money(found.group(1)))
+        return values[-1] if values else None
+    labels={
+        'net': [r'total[ \t]+h\.?[ \t]*t\.?[ \t]+net', r'(?:total|montant(?:[ \t]+(?:total|global))?)[ \t]+(?:h\.?[ \t]*t\.?|hors[ \t]*taxes)(?:[ \t]+de[ \t]+la[ \t]+situation)?'],
+        'gross': [r'(?:total|montant(?:[ \t]+total)?)[ \t]+(?:t\.?[ \t]*t\.?[ \t]*c\.?|toutes[ \t]*taxes)'],
+        'due': [r'(?:net[ \t]*a[ \t]*payer|reste[ \t]*a[ \t]*payer|solde(?:[ \t]*a[ \t]*payer)?)'],
+        'vat': [r'(?:total[ \t]+)?t\.?[ \t]*v\.?[ \t]*a\.?']}
+    for key, patterns in labels.items():
+        for label in patterns:
+            value = labelled_amount(label)
+            if value is not None:
+                totals[key] = value
+                break
     rates=[]
     taxes=[]
-    for found in re.finditer(r't\.?\s*v\.?\s*a\.?\s*\(?\s*('+r'\d+(?:[,.]\d+)?'+r')\s*%\s*\)?\s*:?\s*'+AMOUNT,p):
-        rates.append(str(number(found.group(1))));taxes.append(number(found.group(2)))
-    if taxes: totals['vat']=str(sum(taxes).quantize(Decimal('.01')))
-    else:
-        found=re.search(r'(?:total\s+)?t\.?v\.?a\.?\s*:\s*'+AMOUNT,p)
-        if found: totals['vat']=money(found.group(1))
+    # A VAT breakdown can contain both the taxable base and the tax amount.
+    # Never add its rows again when an explicit Total TVA is printed.
+    for row in p.splitlines():
+        found = re.fullmatch(r'[ \t]*t\.?[ \t]*v\.?[ \t]*a\.?[ \t]*[-–]?[ \t]*\(?[ \t]*(\d+(?:[,.]\d+)?)[ \t]*%[ \t]*\)?[ \t]*:?[ \t]*' + AMOUNT + r'[ \t]*(?:€|eur)?(?:[ \t]+' + AMOUNT + r'[ \t]*(?:€|eur)?)?[ \t]*$', row)
+        if found:
+            rate, first, last = found.groups()
+            rates.append(str(number(rate)))
+            taxes.append(number(last if last is not None else first))
+    if taxes and 'vat' not in totals:
+        totals['vat']=str(sum(taxes).quantize(Decimal('.01')))
     vat_rate=rates[0] if len(set(rates))==1 else None
+    # A single positive rate beside an exempt/zero-rated base is not the
+    # rate of the complete invoice. Exact amount validation remains downstream.
+    if re.search(r'(?m)^\s*(?:exonere|hors champ|autoliquidation|tva - 0 %)', p):
+        vat_rate = None
     if vat_rate is not None and 'net' in totals and 'vat' in totals:
         expected=(Decimal(totals['net'])*Decimal(vat_rate)/100).quantize(Decimal('.01'),rounding=ROUND_HALF_UP)
         if expected!=Decimal(totals['vat']):

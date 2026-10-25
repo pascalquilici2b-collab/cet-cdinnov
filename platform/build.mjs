@@ -40,7 +40,15 @@ updated=updated.replace('\nbootAuth();','\n/* CDI_BILLING_START */\n'+billingBri
 portal=portal.slice(0,scriptStart)+updated+portal.slice(scriptEnd);
 const marker=/\/\* CDI_MARKETS_START \*\/[\s\S]*?\/\* CDI_MARKETS_END \*\//;
 if(!marker.test(portal))throw new Error('Market controller integration marker missing.');
-const controller=await build({absWorkingDir:root,entryPoints:[path.join(root,'marches/ui.js')],bundle:true,format:'iife',platform:'browser',write:false,external:['./marches/vendor/pdf.mjs','./marches/reader.mjs?v=document-actions-20261025','./platform/markets.js?v=document-actions-20261025']});
+const controller=await build({absWorkingDir:root,entryPoints:[path.join(root,'marches/ui.js')],bundle:true,format:'iife',platform:'browser',write:false,external:['./marches/vendor/pdf.mjs','./marches/reader.mjs?v=billing-polish-20261025','./platform/markets.js?v=billing-polish-20261025']});
 portal=portal.replace(marker,()=> '/* CDI_MARKETS_START */\n'+controller.outputFiles[0].text.replace(/<\/script/gi,'<\\/script')+'\n/* CDI_MARKETS_END */');
+// One visual theme for the standalone converter and the embedded mini-software.
+const converterStyle=await readFile(path.join(root,'facturx-service/cdi_facturx/static/apple.css'),'utf8');
+const converterTheme=await readFile(path.join(root,'facturx-service/cdi_facturx/static/theme.js'),'utf8');
+portal=portal.replace(/const CDI_FACTURX_DOCUMENT = ("(?:[^"\\]|\\.)*");/,(_match,encoded)=>{
+ let doc=JSON.parse(encoded).replace(/<style id="cdi-converter-apple">[\s\S]*?<\/style>/g,'').replace(/<script id="cdi-converter-theme">[\s\S]*?<\/script>/g,'');
+ doc=doc.replace('</head>','<style id="cdi-converter-apple">'+converterStyle+'</style><script id="cdi-converter-theme">'+converterTheme+'</script></head>');
+ return 'const CDI_FACTURX_DOCUMENT = '+JSON.stringify(doc).replaceAll('<','\\u003c')+';';
+});
 await writeFile(portalPath,portal);
 console.log('Application Worker, typed transport, shared React modules and market controller built.');

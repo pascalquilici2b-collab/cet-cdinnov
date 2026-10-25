@@ -350,7 +350,7 @@ async function upload(files) {
   try {
     const expanded=await expandImportFiles(files,progress);
     warnings.push(...expanded.warnings);
-    const {readDocument}=await import('./marches/reader.mjs?v=document-actions-20261025');
+    const {readDocument}=await import('./marches/reader.mjs?v=billing-polish-20261025');
     for (const file of expanded.files) {
       if(s.stop||epoch!==s.epoch)break;
       progress('Lecture : '+file.name);
@@ -676,7 +676,7 @@ async function runAnalysis(documentIds,autoApply=true) {
       throw new Error(
         "Le moteur IA n’est pas encore activé sur le serveur. Vous pouvez continuer le paramétrage manuel.",
       );
-    const { readDocument } = await import("./marches/reader.mjs?v=document-actions-20261025");
+    const { readDocument } = await import("./marches/reader.mjs?v=billing-polish-20261025");
     for (const did of selected) {
       if (s.stop) break;
       const d = s.docs.find((d) => d.id === did);
@@ -830,8 +830,8 @@ function render(preserveFields = false) {
   if (!marketModule) {
     if (marketPromise) return;
     container.innerHTML = loadingMarkup('Chargement des marchés…');
-    if (!document.getElementById("marketStyle")) { const link=document.createElement("link"); link.id="marketStyle"; link.rel="stylesheet"; link.href="platform/markets.css?v=document-actions-20261025"; document.head.append(link); }
-    marketPromise = import("./platform/markets.js?v=document-actions-20261025")
+    if (!document.getElementById("marketStyle")) { const link=document.createElement("link"); link.id="marketStyle"; link.rel="stylesheet"; link.href="platform/markets.css?v=billing-polish-20261025"; document.head.append(link); }
+    marketPromise = import("./platform/markets.js?v=billing-polish-20261025")
       .then((module) => {
         marketModule = module;
         marketPromise = null;
