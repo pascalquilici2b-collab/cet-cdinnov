@@ -10,7 +10,8 @@ motion, visible validation and strict single-document payment imports.
 Dense scanned payment tables formerly produced a single RGB OCR contact sheet
 (96.4 MiB for one supplied example), besides the source render and Tesseract's
 working memory. Reading now uses grayscale, frees the source pixmap immediately
-and OCRs at most 48 cells per contact sheet (4.95 MiB). OCR timeouts have an
+and OCRs at most 48 cells per contact sheet (4.95 MiB). This supports up to
+1,200 cells per scanned page instead of rejecting payment tables above 400 cells. OCR timeouts have an
 actionable error. PDF imports still inspect every page, preserve source cells
 and require confirmation. Empty PDFs cannot leave a broken empty import.
 

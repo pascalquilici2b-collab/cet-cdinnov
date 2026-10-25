@@ -59,7 +59,7 @@ def scan_grid(page):
             if identity not in slots:slots[identity]=len(slots)
             row.append(slots[identity])
         links.append(row)
-    if len(slots)>400:raise ValueError('Tableau scanné trop dense. Utilisez sa version Excel.')
+    if len(slots)>1200:raise ValueError('Tableau scanné trop dense. Utilisez sa version Excel.')
     tile_w,tile_h,cols=600,180,4
     texts={}
     # Bounded grayscale tiles avoid a 100+ MB canvas and Tesseract's much

@@ -130,7 +130,7 @@ def column(n):
 def identify_header(value):
     label = key(value).replace('-', ' ').replace('’', "'")
     label = re.sub(r'\s+', ' ', label)
-    label = label.replace('satalre','salaire').replace('salaire.','salaire')
+    label = label.replace('satalre','salaire').replace('sataire','salaire').replace('salaire.','salaire')
     if 'eligible' in label and 'projet' in label and re.search(r'montant|total|depense|cout',label):
         return 'allocation_amount', 120
     if re.search(r'(rendu(?:[ -]?compte)?|declare|impute|rapporte|retenu|eligible)', label) and re.search(r'montant|total|depense|cout',label):
@@ -158,6 +158,15 @@ def detect(rows):
     return best,mapping
 
 
+def complete_layout(mapping, hint, columns):
+    """Carry forward headers only when at least three shared columns agree."""
+    shared=set(mapping)&set(hint)
+    merged={**hint,**mapping}
+    if len(shared)>=3 and all(mapping[k]==hint[k] for k in shared) and len(set(merged.values()))==len(merged) and max(merged.values(),default=-1)<columns:
+        return merged
+    return mapping
+
+
 def inspect(raw, filename, options=None):
     from collections import Counter
     options=options or {}
@@ -171,8 +180,9 @@ def inspect(raw, filename, options=None):
     common=dict(layouts.most_common(1)[0][0]) if layouts else options.get('mappingHint',{})
     for name,rows in book.items():
         best,mapping = detect(rows)
-        if filename.lower().endswith('.pdf') and common and len(mapping)>=3 and all(common.get(k)==v for k,v in mapping.items()) and max(common.values())<len(rows[best]):
-            mapping={**common,**mapping}
+        if filename.lower().endswith('.pdf') and rows:
+            mapping=complete_layout(mapping,common,len(rows[best]))
+            mapping=complete_layout(mapping,options.get('mappingHint',{}),len(rows[best]))
         sheets.append({'name':name,'rows':len(rows),'header':best,'mapping':mapping,
                        'preview':[[str(c['value'] if c['value'] is not None else '')[:220] for c in r] for r in rows[:max(30,best+8)]]})
         if all(f in mapping for f in required) and 'document_type' not in mapping:

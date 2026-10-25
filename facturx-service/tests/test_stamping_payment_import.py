@@ -50,6 +50,16 @@ def test_empty_pdf_import_returns_actionable_error():
         combine_inspections([{'sheets':[],'sha256':'x'}])
 
 
+def test_partial_page_headers_preserve_previous_layout_without_swapping_columns():
+    from cdi_facturx.stamping_import import complete_layout
+    full={'employee_ref':0,'period':1,'base_amount':2,'project_name':3,'allocation_amount':5}
+    partial={k:v for k,v in full.items() if k!='base_amount'}
+    assert complete_layout(partial,full,12)==full
+    assert complete_layout({k:v for k,v in full.items() if k!='period'},partial,12)==full
+    changed={**partial,'allocation_amount':6}
+    assert complete_layout(changed,full,12)==changed
+
+
 def test_dense_scan_uses_small_ocr_batches(monkeypatch):
     import pymupdf
     from PIL import Image
@@ -58,9 +68,9 @@ def test_dense_scan_uses_small_ocr_batches(monkeypatch):
     from reportlab.pdfgen import canvas
     output=io.BytesIO();c=canvas.Canvas(output,pagesize=(800,600))
     for x in range(25,776,75):c.line(x,30,x,570)
-    for y in range(30,571,20):c.line(25,y,775,y)
-    for row in range(26):
-        for col in range(10):c.drawString(30+col*75,38+row*20,'Test 1,23')
+    for y in range(30,571,12):c.line(25,y,775,y)
+    for row in range(44):
+        for col in range(10):c.drawString(30+col*75,36+row*12,'Test 1,23')
     c.save();doc=pymupdf.open(stream=output.getvalue(),filetype='pdf');sizes=[]
     monkeypatch.setattr('shutil.which',lambda _: 'tesseract')
     def run(args,**kwargs):
