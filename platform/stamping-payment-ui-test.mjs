@@ -16,7 +16,7 @@ try{
  const context=await browser.newContext({viewport:{width:1500,height:1000},locale:'fr-FR'});
  await context.route('**/*',route=>route.request().url().startsWith(preview.base+'/')||/^(data:|blob:)/.test(route.request().url())?route.continue():route.abort());
  const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));page.setDefaultTimeout(20000);await page.goto(preview.base);await page.locator('[data-react-billing]').waitFor();
- await page.locator('[data-view=tamponnage]').click();await page.getByLabel('Nom du lot',{exact:true}).fill('Document de paiement · test');await page.getByRole('button',{name:'Créer le lot',exact:true}).click();await page.getByRole('heading',{name:'Pièces du lot',exact:true}).waitFor();
+ await page.locator('[data-view=tamponnage]').click();await page.getByRole('button',{name:/Ressources humaines/}).click();await page.getByLabel('Nom du lot',{exact:true}).fill('Document de paiement · test');await page.getByRole('button',{name:'Créer le lot',exact:true}).click();await page.getByRole('heading',{name:'Pièces du lot',exact:true}).waitFor();
  const row=await preview.ctx.db.prepare('SELECT * FROM stamp_batches WHERE owner=?').bind(users[0]).first();
  const sha=b=>createHash('sha256').update(b).digest('hex'),prefix='stamping/'+sha(users[0]).slice(0,24)+'/'+row.id+'/';
  const group={id:'one',employee_ref:'Camille TEST',period:'2024-09',document_type:'PAYSLIP',base_amount_cents:200000,base_type:'EMPLOYER_COST',total_cents:103943,remainder_cents:96057,errors:[],allocations:[{id:'one-a',project:'Projet test',amount_cents:103943,base_cents:200000,source:{sheet:'Paiement',cell:'D105',row:105}}]};

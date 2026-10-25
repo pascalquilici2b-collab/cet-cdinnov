@@ -133,7 +133,7 @@ def identify_header(value):
     label = label.replace('satalre','salaire').replace('salaire.','salaire')
     if re.search(r'(rendu(?:[ -]?compte)?|declare|impute|rapporte|retenu|eligible)', label) and re.search(r'montant|total|depense|cout',label):
         return 'allocation_amount', 100 if 'projet' in label else 80
-    if ('employeur' in label and ('verse' in label or 'cout' in label)):
+    if ('employeur' in label and ('verse' in label or 'cout' in label)) or re.search(r'(?:salaire\s+)?brut\s+charge',label):
         return 'base_amount', 90
     if 'temps' in label and ('%' in label or 'pourcentage' in label):
         return 'allocation_percent', 90

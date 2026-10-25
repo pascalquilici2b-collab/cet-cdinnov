@@ -18,7 +18,7 @@ try{
  await page.evaluate(()=>{state.salaries[0].photo='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO/aXuoAAAAASUVORK5CYII=';});
  await page.locator('[data-view=tamponnage]').click();await page.getByRole('heading',{name:'Tamponnage de pièces',exact:true}).waitFor();
  assert.equal(await page.getByText('Bulletins de paie et factures, avec leur tableau de répartition.',{exact:true}).count(),0);
- await page.getByLabel('Nom du lot',{exact:true}).fill('Répartition test');await page.getByRole('button',{name:'Créer le lot',exact:true}).click();await page.getByRole('heading',{name:'Pièces du lot',exact:true}).waitFor();
+ await page.getByRole('button',{name:/Ressources humaines/}).click();await page.getByLabel('Nom du lot',{exact:true}).fill('Répartition test');await page.getByRole('button',{name:'Créer le lot',exact:true}).click();await page.getByRole('heading',{name:'Pièces du lot',exact:true}).waitFor();
  const row=await preview.ctx.db.prepare('SELECT * FROM stamp_batches WHERE owner=?').bind(users[0]).first();
  const group=(id,employee,period,amount)=>({id,employee_ref:employee,period,document_type:'PAYSLIP',base_amount_cents:100000,base_type:'EMPLOYER_COST',total_cents:amount,remainder_cents:100000-amount,errors:[],allocations:[{id:id+'a',project:'Projet test',amount_cents:amount,base_cents:100000,source:{sheet:'Tableau',cell:'H2',row:2}}]});
  const reading={mapping:{automatic:true},groups:[group('one','Camille TEST','2024-09',12000),group('two','Camille TEST','2024-10',24000),group('three','Alex TEST','2025-01',30000)],errors:[],warnings:[]};

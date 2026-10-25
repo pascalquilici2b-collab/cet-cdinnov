@@ -30,7 +30,7 @@ try{
  await page.goto(base);await page.getByRole('heading',{name:'Tamponnage de pièces',exact:true}).waitFor();
  assert.equal(await page.getByLabel('Assistance Qwen via Cloudflare',{exact:true}).count(),0);
  await page.getByRole('button',{name:'À propos de l’assistance Qwen'}).hover();await page.getByRole('tooltip').waitFor();
- await page.getByLabel('Nom du lot',{exact:true}).fill('Répartition · démonstration');await page.getByRole('button',{name:'Créer le lot',exact:true}).click();
+ await page.getByRole('button',{name:/Ressources humaines/}).click();await page.getByLabel('Nom du lot',{exact:true}).fill('Répartition · démonstration');await page.getByRole('button',{name:'Créer le lot',exact:true}).click();
  await page.getByLabel('Importer le document de paiement').setInputFiles({name:'repartition.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:workbook});
  await page.getByRole('heading',{name:'Répartition reconnue',exact:true}).waitFor();
  assert.equal(await page.getByLabel('Salarié reconnu',{exact:true}).inputValue(),'Camille TEST');

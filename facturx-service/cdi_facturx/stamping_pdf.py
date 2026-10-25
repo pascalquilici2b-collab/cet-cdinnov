@@ -25,8 +25,9 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
 from .stamping_import import cents, key, month
+from .stamping_payroll import employer_cost
 
-VERSION = 'stamping-2.0-20261025'
+VERSION = 'stamping-2.1-20261025'
 FONT = 'CDIStamp'
 pdfmetrics.registerFont(TTFont(FONT, str(Path(__file__).parent/'assets/fonts/DejaVuSans.ttf')))
 
@@ -132,10 +133,13 @@ def extract_fields(text):
     invoice=bool(re.search(r'\bfacture\b',text,re.I)) and not re.search(r'pro\s*forma|\bdevis\b|\bavoir\b|\brectificatif\b',text,re.I)
     if payroll!=invoice: fields['document_type']='PAYSLIP' if payroll else 'INVOICE'
     bases={}
-    for kind,label in [('EMPLOYER_COST',r'(?:total versé par l.employeur|total verse par l.employeur|coût employeur|cout employeur)'),('HT',r'(?:total\s+HT|total hors taxes)'),('TTC',r'(?:total\s+TTC|total toutes taxes comprises)')]:
+    for kind,label in [('HT',r'(?:total\s+HT|total hors taxes)'),('TTC',r'(?:total\s+TTC|total toutes taxes comprises)')]:
         found=list(re.finditer(label+r'\s*[:]?\s*(\d[\d \u00a0\u202f]*[,.]\d{2})(?:\s*(?:€|EUR))?',text,re.I))
         vals={cents(m[1]) for m in found}
         if len(vals)==1: bases[kind]={'amount_cents':next(iter(vals)),'evidence':found[0][0]}
+    if payroll:
+        cost=employer_cost(text)
+        if cost:bases['EMPLOYER_COST']=cost
     return {'fields':fields,'proofs':proofs,'bases':bases}
 
 def extract(raw):
@@ -152,7 +156,11 @@ def extract(raw):
             pages.append({'width':page.get_width(),'height':page.get_height(),'method':method})
             texts.append(text);page.close()
     text='\n'.join(texts)
-    return {**extract_fields(text),'pages':pages,'warnings':warnings,'evidence':evidence_lines(text),'source_sha256':digest(raw),'algorithm':VERSION,'ocr':any(p['method']=='ocr' for p in pages)}
+    fields=extract_fields(text)
+    if fields['fields'].get('document_type')=='PAYSLIP' and 'EMPLOYER_COST' not in fields['bases']:
+        cost=employer_cost(text,normal)
+        if cost:fields['bases']['EMPLOYER_COST']=cost
+    return {**fields,'pages':pages,'warnings':warnings,'evidence':evidence_lines(text),'source_sha256':digest(raw),'algorithm':VERSION,'ocr':any(p['method']=='ocr' for p in pages)}
 
 def sourced_ai(reading,suggestions):
     fields=dict(reading['fields']);proofs=dict(reading['proofs'])
@@ -202,7 +210,7 @@ def select_group(reading,groups,choice=None):
         verified=cents(choice.get('baseAmount',''))
         if base is not None and base!=verified: raise StampError('BASE_MISMATCH','La base saisie contredit le montant extrait du PDF.')
         base=verified
-    if base is None: raise StampError('BASE_REQUIRED','Assiette du document à vérifier et confirmer manuellement.')
+    if base is None: raise StampError('BASE_REQUIRED','Salaire brut chargé à vérifier : total versé par l’employeur ou salaire brut + charges patronales du mois.' if selected['base_type']=='EMPLOYER_COST' else 'Assiette du document à vérifier et confirmer manuellement.')
     if selected['base_amount_cents'] is not None and selected['base_amount_cents']!=base:
         raise StampError('BASE_MISMATCH','L’assiette du tableau diffère du PDF.')
     if total>base: raise StampError('OVER_ALLOCATION','Les imputations dépassent l’assiette vérifiée.')
