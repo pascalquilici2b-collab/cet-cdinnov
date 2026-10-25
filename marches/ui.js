@@ -263,7 +263,8 @@ async function save() {
     s.dirty = false;
     s.history = null;
     s.error = "";
-    s.notice = "Fiche enregistrée · version " + s.current.version;
+    s.notice = "";
+    window.CDIActionFeedback?.success("Marché enregistré");
     const i = s.rows.findIndex((x) => x.id === s.current.id);
     if (i >= 0) s.rows[i] = s.current;
     else s.rows.unshift(s.current);
@@ -349,7 +350,7 @@ async function upload(files) {
   try {
     const expanded=await expandImportFiles(files,progress);
     warnings.push(...expanded.warnings);
-    const {readDocument}=await import('./marches/reader.mjs?v=engagement-control-20261024');
+    const {readDocument}=await import('./marches/reader.mjs?v=document-actions-20261025');
     for (const file of expanded.files) {
       if(s.stop||epoch!==s.epoch)break;
       progress('Lecture : '+file.name);
@@ -642,10 +643,8 @@ async function resolveIssue(index) {
     s.current.status = "draft";
   dirty();
   if (await save()) {
-    s.notice =
-      item.status === "resolved"
-        ? "Point validé et décision enregistrée. Ajustez les paramètres concernés si nécessaire."
-        : "Point rouvert et enregistré.";
+    s.notice = "";
+    window.CDIActionFeedback?.success(item.status === "resolved" ? "Point validé" : "Point rouvert");
     render();
   }
 }
@@ -677,7 +676,7 @@ async function runAnalysis(documentIds,autoApply=true) {
       throw new Error(
         "Le moteur IA n’est pas encore activé sur le serveur. Vous pouvez continuer le paramétrage manuel.",
       );
-    const { readDocument } = await import("./marches/reader.mjs?v=engagement-control-20261024");
+    const { readDocument } = await import("./marches/reader.mjs?v=document-actions-20261025");
     for (const did of selected) {
       if (s.stop) break;
       const d = s.docs.find((d) => d.id === did);
@@ -831,8 +830,8 @@ function render(preserveFields = false) {
   if (!marketModule) {
     if (marketPromise) return;
     container.innerHTML = loadingMarkup('Chargement des marchés…');
-    if (!document.getElementById("marketStyle")) { const link=document.createElement("link"); link.id="marketStyle"; link.rel="stylesheet"; link.href="platform/markets.css?v=engagement-control-20261024"; document.head.append(link); }
-    marketPromise = import("./platform/markets.js?v=engagement-control-20261024")
+    if (!document.getElementById("marketStyle")) { const link=document.createElement("link"); link.id="marketStyle"; link.rel="stylesheet"; link.href="platform/markets.css?v=document-actions-20261025"; document.head.append(link); }
+    marketPromise = import("./platform/markets.js?v=document-actions-20261025")
       .then((module) => {
         marketModule = module;
         marketPromise = null;

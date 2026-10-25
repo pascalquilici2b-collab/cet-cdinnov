@@ -65,3 +65,5 @@
 .bill-list-table td[data-column="action"]{text-align:right}.bill-list-table .bill-row-actions{display:flex;justify-content:flex-end;align-items:center;width:100%;gap:6px}
 
 @media(max-width:720px){.bill-app .bill-list-filters .bill-project-filter{min-width:0;max-width:100%}.bill-app .bill-list-table .bill-row-actions{flex-wrap:wrap;justify-content:flex-end}}
+
+.bill-app .bill-clickable-row{cursor:pointer}.bill-app .bill-clickable-row:focus-visible{outline:2px solid var(--bill-blue,#007aff);outline-offset:-2px}.bill-app .bill-clickable-row:focus-visible td{background:var(--bill-raised)}

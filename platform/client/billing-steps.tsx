@@ -4,6 +4,7 @@ import {FileText,UserRound,Layers3,CreditCard,FolderKanban,Pencil,ChevronDown,Ar
 import {BillingValidationContext,sectionForPath,revealBillingField} from './billing-validation-ui';
 import type {BillingSection} from './billing-validation-ui';
 import type {BillingIssue} from '../billing-contracts';
+import {showSuccess} from './action-feedback';
 const Flow=createContext<{active:string;setActive:(id:string)=>void;advance:(id:string,title:string)=>void}>({active:'document',setActive:()=>{},advance:()=>{}});
 const order=['document','buyer','lines','conditions','references'];
 const icons={document:FileText,buyer:UserRound,lines:Layers3,conditions:CreditCard,references:FolderKanban,seller:UserRound};
@@ -52,7 +53,7 @@ export function DocumentStep({section,title,summary,signature,issues,filled=true
    const target=Array.from(root.current?.querySelectorAll<HTMLElement>('[data-billing-path]')||[]).find(el=>el.dataset.billingPath===problems[0]?.path)||root.current?.querySelector<HTMLElement>('[aria-invalid=true],input,textarea,select');
    cancelReveal.current?.();if(target&&root.current)cancelReveal.current=revealBillingField(target,root.current);return;
   }
-  setValidated(key);setAttempted(false);advance(section,title);
+  setValidated(key);setAttempted(false);advance(section,title);showSuccess(title+' validé');
  }
  return <details ref={root} className="bill-section bill-step" data-step={section} data-complete={complete} open={open} onToggle={e=>{if(e.currentTarget.open&&!open)setActive(section);}}>
   <summary aria-label={(open?'Réduire ':'Modifier ')+title} aria-expanded={open} aria-controls={bodyId} onClick={e=>{e.preventDefault();setActive(open?'':section);}}>

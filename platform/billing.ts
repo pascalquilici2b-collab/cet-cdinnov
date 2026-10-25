@@ -233,7 +233,7 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
  if(!match[2]&&request.method==='DELETE'){
   const expected=expectedVersion(request),row=await get(db,id);
   if(!row)return reply(404,{error:'Document introuvable.'});if(row.version!==expected)return conflict();
-  if(row.issuance_json&&(row.kind!=='invoice'||document(row).status!=='issued'))return fail(409,'Ce document ne peut pas être déplacé dans la corbeille pendant sa finalisation.');
+  if(row.issuance_json&&document(row).status!=='issued')return fail(409,'Ce document ne peut pas être déplacé dans la corbeille pendant sa finalisation.');
   try{await db.prepare('INSERT INTO billing_document_trash(document_id,document_version,deleted_at,deleted_by) VALUES(?,?,?,?) ON CONFLICT(document_id) DO NOTHING').bind(id,expected,new Date().toISOString(),session.email).run();}
   catch(e){if(String(e).includes('BILLING_TRASH_CONFLICT'))return conflict();throw e;}
   return reply(200,{deleted:true});

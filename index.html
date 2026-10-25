@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <style id="cdi-startup-guard">body:not(.authed)>.app{visibility:hidden}.theme-toggle>svg{width:18px;height:18px;fill:none;stroke:currentColor}.theme-toggle .theme-sun{display:none}[data-theme="dark"] .theme-toggle .theme-moon{display:none}[data-theme="dark"] .theme-toggle .theme-sun{display:block}</style>
-<link rel="stylesheet" href="/platform/loading.css?v=engagement-control-20261024">
+<link rel="stylesheet" href="/platform/loading.css?v=document-actions-20261025">
 <script src="./platform/theme.js?v=apple-motion-20261020"></script>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -545,7 +545,7 @@ body:has(.agenda-shell) .topbar{flex-wrap:wrap;row-gap:12px}
 
 .mk-ai-proposals>div{min-width:0;overflow-wrap:anywhere}.mk-ai-proposals span{white-space:pre-wrap}.mk-panel,.mk-ai-result{min-width:0;max-width:100%;box-sizing:border-box}
 </style>
-<script src="./platform/workspace-client.js?v=records1"></script>
+<script src="./platform/workspace-client.js?v=document-actions-20261025"></script>
 </head>
 <body>
 <div class="app">
@@ -697,10 +697,10 @@ body.authed .auth-gate{display:none}
 </style>
 <link rel="stylesheet" href="platform/design-system.css">
 <link rel="stylesheet" href="design/portal.css?v=apple1">
-<link rel="stylesheet" href="design/apple.css?v=engagement-control-20261024">
-<link rel="stylesheet" href="design/interface-refresh.css?v=engagement-control-20261024">
-<link rel="stylesheet" href="design/interactions.css?v=engagement-control-20261024">
-<script src="platform/icons.js?v=engagement-control-20261024"></script>
+<link rel="stylesheet" href="design/apple.css?v=document-actions-20261025">
+<link rel="stylesheet" href="design/interface-refresh.css?v=document-actions-20261025">
+<link rel="stylesheet" href="design/interactions.css?v=document-actions-20261025">
+<script src="platform/icons.js?v=document-actions-20261025"></script>
 
 <div id="authGate" class="auth-gate" data-loading="true" aria-busy="true">
   <span class="auth-startup-status cdi-loading-sr" role="status">Connexion en cours…</span>
@@ -1072,8 +1072,8 @@ function renderDashboard(){
   const user=AUTH_USER,epoch=++dashboardEpoch;
   $('#content').innerHTML='<div id="dashboardRoot">'+loadingScreenMarkup('Chargement du tableau de bord…')+'</div>';
   const element=$('#dashboardRoot');
-  if(!document.getElementById('dashboardStyle')){const css=document.createElement('link');css.id='dashboardStyle';css.rel='stylesheet';css.href='platform/dashboard.css?v=engagement-control-20261024';document.head.append(css);}
-  dashboardModule ||= import('./platform/dashboard.js?v=engagement-control-20261024').catch(error=>{dashboardModule=null;throw error;});
+  if(!document.getElementById('dashboardStyle')){const css=document.createElement('link');css.id='dashboardStyle';css.rel='stylesheet';css.href='platform/dashboard.css?v=document-actions-20261025';document.head.append(css);}
+  dashboardModule ||= import('./platform/dashboard.js?v=document-actions-20261025').catch(error=>{dashboardModule=null;throw error;});
   dashboardModule.then(module=>{
     if(epoch!==dashboardEpoch||AUTH_USER!==user||currentView!=='dashboard'||!element.isConnected)return;
     dashboardDispose=module.mountDashboard(element,{
@@ -1140,7 +1140,7 @@ function saveParams(){
   state.params.anneeSuivi=Number($('#pAn').value)||new Date().getFullYear();
   state.params.unite=$('#pUnite').value.trim();
   state.params.dispositifs=$('#pDisp').value.trim();
-  save(); toast('Paramètres enregistrés'); render();
+  save(); toastSaved('Paramètres enregistrés'); render();
 }
 
 /* ===================== CONGÉS PAYÉS ===================== */
@@ -1414,24 +1414,24 @@ function congePostDay(date, period){
   halves.forEach(hf=>{ if(!congeAt(mat,date,hf)){ conges().push({id:uid(),matricule:mat,date,half:hf,type,statut:st}); added++; } });
   if(!added){ toast('Déjà posé sur cette période'); return; }
   save(); if(st!=='Validé') scheduleCongesNotify(mat);
-  toast(nbJours(added*0.5)+' j posé(s)');
+  toastSaved(nbJours(added*0.5)+' j posé(s)');
   renderConges(); congeDayMenu(date);
 }
 function congeToggleHalfDay(mat,date,half){
   if(!(congesAdmin() || myMat()===mat)){ toast('Action non autorisée'); return; }
   const ex=congeAt(mat,date,half);
-  if(ex){ state.conges=conges().filter(c=>c!==ex); toast((half==='AM'?'Matin':'Après-midi')+' retiré'); }
+  if(ex){ state.conges=conges().filter(c=>c!==ex); toastSaved((half==='AM'?'Matin':'Après-midi')+' retiré'); }
   else {
     const st=congesEffStatut();
     const ref=conges().find(c=>c.matricule===mat && c.date===date);
     conges().push({id:uid(),matricule:mat,date,half,type:(ref&&ref.type)||'Congés payés',statut:st});
     if(st!=='Validé') scheduleCongesNotify(mat);
-    toast((half==='AM'?'Matin':'Après-midi')+' posé');
+    toastSaved((half==='AM'?'Matin':'Après-midi')+' posé');
   }
   save(); renderConges(); congeDayMenu(date);
 }
 function validerCongeDay(mat,date){ let n=0; conges().forEach(c=>{ if(c.matricule===mat && c.date===date && c.statut!=='Validé'){ c.statut='Validé'; n++; } }); save(); if(n>0){ const em=salEmail(mat); const s=salByMat(mat)||{}; if(em) notify('Congé validé','<p>Bonjour '+esc(s.prenom)+', votre congé du <b>'+dateFR(date)+'</b> a été <b>validé</b>.</p>',em); } closeModal(); renderConges(); }
-function rejeterCongeDay(mat,date){ state.conges=conges().filter(c=>!(c.matricule===mat && c.date===date)); save(); const em=salEmail(mat); const s=salByMat(mat)||{}; if(em && myMat()!==mat) notify('Congé annulé','<p>Bonjour '+esc(s.prenom)+', votre congé du <b>'+dateFR(date)+'</b> a été <b>annulé</b>.</p>',em); toast('Congé retiré'); closeModal(); renderConges(); }
+function rejeterCongeDay(mat,date){ state.conges=conges().filter(c=>!(c.matricule===mat && c.date===date)); save(); const em=salEmail(mat); const s=salByMat(mat)||{}; if(em && myMat()!==mat) notify('Congé annulé','<p>Bonjour '+esc(s.prenom)+', votre congé du <b>'+dateFR(date)+'</b> a été <b>annulé</b>.</p>',em); toastSaved('Congé retiré'); closeModal(); renderConges(); }
 /* ---- Regroupement des demi-journées en PÉRIODES (demandes) ---- */
 function jourOuvreSuivant(ds){ const d=new Date(ds+'T00:00:00'); do{ d.setDate(d.getDate()+1); }while(d.getDay()===0||d.getDay()===6); return ymd(d); }
 function congesPeriodes(Y, mode){
@@ -1466,7 +1466,7 @@ function validerPeriode(mat,from,to){
   save();
   const em=salEmail(mat), s=salByMat(mat)||{};
   if(em) notify('Vos congés ont été validés','<p>Bonjour '+esc(s.prenom)+',</p><p>Vos congés '+esc(periodeLabel({from,to}))+' (<b>'+nbJours(n*0.5)+' jour(s)</b>) ont été <b>validés</b>.</p>',em);
-  toast(nbJours(n*0.5)+' j validés'); closeModal(); render();
+  toastSaved(nbJours(n*0.5)+' j validés'); closeModal(); render();
 }
 function rejeterPeriode(mat,from,to){
   const s=salByMat(mat)||{};
@@ -1478,7 +1478,7 @@ function rejeterPeriode(mat,from,to){
     save();
     const em=salEmail(mat);
     if(em && myMat()!==mat) notify('Congés annulés','<p>Bonjour '+esc(s.prenom)+',</p><p>Vos congés '+esc(periodeLabel({from,to}))+' ont été <b>annulés</b>.</p>',em);
-    toast('Période supprimée'); closeModal(); render();
+    toastSaved('Période supprimée'); closeModal(); render();
   });
 }
 function congesPendingSide(Y){
@@ -1751,7 +1751,7 @@ function removePayslip(mat){
   if(!isAdmin(AUTH_USER))return;
   const s=salByMat(mat); if(!s) return;
   deleteFileFromR2(s.payslip);
-  delete s.payslip; delete s.payslipName; s.coutJour=null; save(); closeModal(); toast('Fiche de paie et coût/jour retirés'); render();
+  delete s.payslip; delete s.payslipName; s.coutJour=null; save(); closeModal(); toastSaved('Fiche de paie et coût/jour retirés'); render();
 }
 async function recalcPayslip(mat){
   if(!isAdmin(AUTH_USER))return;
@@ -1855,7 +1855,7 @@ function applySuiviCET(mat, delta, total){
   const today=ymd(new Date());
   state.mouvements.push({id:uid(),date:today,matricule:mat,type:'ALIM_CP',qte:delta,statut:'Validé',commentaire:'Heures supp. importées : '+total+' h cumulées → +'+delta+' j',src:'hsupp'});
   movSort={key:'date',dir:'desc'};
-  save(); closeModal(); toast('+'+delta+' jour(s) CET crédité(s)'); render();
+  save(); closeModal(); toastSaved('+'+delta+' jour(s) CET crédité(s)'); render();
 }
 function openCoutCalc(mat, brut, via){
   if(!isAdmin(AUTH_USER))return;
@@ -1897,7 +1897,7 @@ function applyCoutCalc(mat){
   if(!window._ccCout){ toast('Renseignez un brut annuel valide'); return; }
   const s=salByMat(mat); if(!s) return;
   s.coutJour=window._ccCout; s.brutAnnuel=Number($('#ccBrut').value)||null; s.brutRefYear=Number($('#ccY').value)||null;
-  save(); closeModal(); toast('Coût/jour mis à jour : '+eur(s.coutJour)); render();
+  save(); closeModal(); toastSaved('Coût/jour mis à jour : '+eur(s.coutJour)); render();
 }
 
 /* ===================== NOTES DE FRAIS ===================== */
@@ -2117,7 +2117,7 @@ function saveNoteFrais(thenPdf){
   const copy=JSON.parse(JSON.stringify(n));
   if(idx<0)copy.createdAt=new Date().toISOString();
   if(idx>=0) arr[idx]=copy; else arr.push(copy);
-  save(); toast('Note de frais enregistrée');
+  save(); toastSaved('Note de frais enregistrée');
   if(n.statut && n.statut!=='Brouillon'){ const _s=salByMat(n.matricule)||{}; notify('Note de frais N°'+n.numero+' — '+(_s.nom||'')+' '+(_s.prenom||''), '<p><b>'+esc(_s.nom)+' '+esc(_s.prenom)+'</b> a déposé la note de frais <b>N°'+n.numero+'</b> (statut : '+esc(n.statut)+').</p><p>Objet : '+esc(n.objet||'—')+'<br>Montant : <b>'+eur2(nfTotal(n))+'</b></p>'); }
   if(n.statut==='Payée' && !prevPaid){ const em=salEmail(n.matricule); const _s2=salByMat(n.matricule)||{}; if(em) notify('Votre note de frais N°'+n.numero+' a été payée', '<p>Bonjour '+esc(_s2.prenom)+',</p><p>Votre note de frais <b>N°'+n.numero+'</b> ('+eur2(nfTotal(n))+') a été <b>payée</b>.</p>', em); }
   closeModal(); render();
@@ -2129,7 +2129,7 @@ function delNoteFrais(id){
     const n=notesFrais().find(x=>x.id===id);
     state.notesFrais=notesFrais().filter(n=>n.id!==id);
     if(n)(n.lignes||[]).forEach(l=>{if(l.justificatif&&!state.notesFrais.some(other=>(other.lignes||[]).some(line=>line.justificatif===l.justificatif)))deleteFileFromR2(l.justificatif);});
-    save(); closeModal(); toast('Note supprimée'); render();
+    save(); closeModal(); toastSaved('Note supprimée'); render();
   });
 }
 function dupNoteFrais(id){
@@ -2137,7 +2137,7 @@ function dupNoteFrais(id){
   const c=JSON.parse(JSON.stringify(o));
   c.id=uid(); c.createdAt=new Date().toISOString(); c.numero=nextNumNF(); c.statut='Brouillon'; c.dateNote=ymd(new Date()); c.signature=null;
   if(typeof movAccess!=='undefined' && movAccess && movAccess!=='admin') c.matricule=movAccess; // compte restreint : la copie lui est attribuée
-  notesFrais().push(c); save(); toast('Note dupliquée — N°'+c.numero);renderNotesFrais();openNoteFrais(c.id);
+  notesFrais().push(c); save(); toastSaved('Note dupliquée — N°'+c.numero);renderNotesFrais();openNoteFrais(c.id);
 }
 function loadJsPDF(){
   if(window.jspdf && window.jspdf.jsPDF) return Promise.resolve(window.jspdf);
@@ -2209,7 +2209,7 @@ async function exportNoteFraisPDF(id,preview=false){
     const filename='Note_de_frais_N'+(n.numero||'')+'_'+(s.nom||'').replace(/\s+/g,'')+'.pdf';
     if(AUTH_USER!==user||!financeExpenseAllowed(n)||preview&&!id&&nfDraft!==initialDraft)return;
     if(preview){
-      const blob=doc.output('blob'),module=await financeModule();if(AUTH_USER!==user||!financeExpenseAllowed(n))return;if(!document.getElementById('billingStyle')){const css=document.createElement('link');css.id='billingStyle';css.rel='stylesheet';css.href='platform/billing.css?v=engagement-control-20261024';document.head.append(css);}
+      const blob=doc.output('blob'),module=await financeModule();if(AUTH_USER!==user||!financeExpenseAllowed(n))return;if(!document.getElementById('billingStyle')){const css=document.createElement('link');css.id='billingStyle';css.rel='stylesheet';css.href='platform/billing.css?v=document-actions-20261025';document.head.append(css);}
       modal('<div class="modal-head"><h3>Aperçu — Note de frais N°'+esc(n.numero)+'</h3><div class="grow"></div><button type="button" class="btn btn-ghost" id="nfPreviewDownload">Télécharger PDF</button><button type="button" class="btn btn-ghost" id="nfPreviewClose">'+(id?'Fermer':'Retour')+'</button></div><div class="modal-body bill-app"><div id="nfPreviewRoot"></div></div>',true);
       financeEditorDispose=module.mountExpensePreview($('#nfPreviewRoot'),blob);$('#nfPreviewDownload').onclick=()=>doc.save(filename);$('#nfPreviewClose').onclick=()=>id?closeModal():renderNoteEditor();
     }else{doc.save(filename);toast('PDF généré');}
@@ -2297,13 +2297,13 @@ function saveCodeAffaire(id,d){
   if(d.code1==null && d.code2==null && !d.label){ toast('Renseignez au moins un code ou un nom'); return; }
   if(id){ const c=codesAff().find(x=>x.id===id); if(c) Object.assign(c,d); }
   else codesAff().push(Object.assign({id:uid()},d));
-  save(); closeModal(); toast('Code affaire enregistré'); renderFacturier();
+  save(); closeModal(); toastSaved('Code affaire enregistré'); renderFacturier();
 }
 function delCodeAffaire(id){
   if(!facturierAdmin())return;
   const c=codesAff().find(x=>x.id===id); if(!c) return;
   confirmModal('Supprimer ce code affaire ?', caCode(c)+' — '+(c.label||''), ()=>{
-    state.codesAffaires=codesAff().filter(x=>x.id!==id); save(); closeModal(); toast('Code affaire supprimé'); renderFacturier();
+    state.codesAffaires=codesAff().filter(x=>x.id!==id); save(); closeModal(); toastSaved('Code affaire supprimé'); renderFacturier();
   });
 }
 /* ---- CRUD factures ---- */
@@ -2342,14 +2342,14 @@ async function saveFacture(id,d){
     if(before!==facturxSignature(f)){delete f.facturx;delete f.facturxDraft;delete f.facturxDraftProfile;delete f.facturxDraftSourceSha;}
     save();
     if(!await cloudPush())throw new Error('La facture n’a pas été enregistrée sur le serveur. Vérifiez le solde du bon et la synchronisation. Votre saisie reste dans ce formulaire.');
-    closeModal();toast('Facture enregistrée'+(pdfSource?' avec son PDF':''));renderFacturier();
+    closeModal();toastSaved('Facture enregistrée'+(pdfSource?' avec son PDF':''));renderFacturier();
   } catch(e){buttons.forEach(b=>b.disabled=false);throw e;}
 }
 function delFacture(id){
   if(!facturierAdmin())return;
   const f=factures().find(x=>x.id===id); if(!f) return;
   confirmModal('Supprimer cette facture ?', (f.number||'')+' — '+(f.client||''), ()=>{
-    state.factures=factures().filter(x=>x.id!==id); save(); closeModal(); toast('Facture supprimée'); renderFacturier();
+    state.factures=factures().filter(x=>x.id!==id); save(); closeModal(); toastSaved('Facture supprimée'); renderFacturier();
   });
 }
 /* ---- Import de l'ancienne base MySQL (.sql) ---- */
@@ -2416,7 +2416,7 @@ function importSqlBiller(input){
         state.codesAffaires=codes; state.factures=invs;
         codePage=1; factPage=1; codeQ=''; factQ='';
         save(); try{ cloudPush(); }catch(e){}
-        closeModal(); toast('Import terminé : '+codes.length+' codes, '+invs.length+' factures');
+        closeModal(); toastSaved('Import terminé : '+codes.length+' codes, '+invs.length+' factures');
         renderFacturier();
       });
     }catch(e){ toast('Fichier illisible : '+(e.message||'')); }
@@ -2444,8 +2444,8 @@ let financeModulePromise=null,financeMounted=null,financeEpoch=0,financeView=nul
 let financeEditorDispose=null,financeEditorEpoch=0,financeClientStatus='',financeClientError=false;
 let nfPage=1,nfPer=20;
 function financeModule(){
-  if(!$('#financeStyle')){const link=document.createElement('link');link.id='financeStyle';link.rel='stylesheet';link.href='platform/finance.css?v=engagement-control-20261024';document.head.append(link);}
-  return financeModulePromise ||= import('./platform/finance.js?v=engagement-control-20261024').catch(error=>{financeModulePromise=null;throw error;});
+  if(!$('#financeStyle')){const link=document.createElement('link');link.id='financeStyle';link.rel='stylesheet';link.href='platform/finance.css?v=document-actions-20261025';document.head.append(link);}
+  return financeModulePromise ||= import('./platform/finance.js?v=document-actions-20261025').catch(error=>{financeModulePromise=null;throw error;});
 }
 function financeForget(){financeEpoch++;financeMounted?.dispose();financeMounted=null;financeView=null;$('#financeRoot')?.remove();}
 function financeEditorForget(){financeEditorEpoch++;if(financeEditorDispose){financeEditorDispose();financeEditorDispose=null;}}
@@ -2504,7 +2504,7 @@ async function financeOpenEditor(kind,record,existing){
 
 /* React personnel screens. Existing CET calculations, imports and storage remain authoritative. */
 let personnelPromise=null,personnelMounted=null,personnelEpoch=0,personnelView=null,personnelEditorDispose=null,personnelEditorEpoch=0;
-function personnelModule(){return personnelPromise||=import('./platform/personnel.js?v=engagement-control-20261024').catch(error=>{personnelPromise=null;throw error;});}
+function personnelModule(){return personnelPromise||=import('./platform/personnel.js?v=document-actions-20261025').catch(error=>{personnelPromise=null;throw error;});}
 function personnelStyle(){if(!$('#personnelStyle')){const css=document.createElement('link');css.id='personnelStyle';css.rel='stylesheet';css.href='platform/personnel.css';document.head.append(css);}}
 function personnelEditorForget(){personnelEditorEpoch++;if(personnelEditorDispose){personnelEditorDispose();personnelEditorDispose=null;}}
 function personnelForget(){personnelEpoch++;if(personnelMounted){personnelMounted.dispose();personnelMounted=null;}personnelView=null;$('#personnelRoot')?.remove();}
@@ -2576,7 +2576,7 @@ function saveMouvement(id){
   if(!(qte>0)){ toast('Saisissez une quantité positive'); return; }
   if(id){ const m=state.mouvements.find(x=>x.id===id); if(m.type==='ALIM_TRANSFO_CP') transfoRestore(m); Object.assign(m,{date,matricule:mat,type,qte,statut,commentaire:comm}); if(type==='ALIM_TRANSFO_CP') transfoDeduct(m); }
   else { const _nm={id:uid(),date,matricule:mat,type,qte,statut,commentaire:comm}; state.mouvements.push(_nm); movSort={key:'date',dir:'desc'}; if(type==='ALIM_TRANSFO_CP') transfoDeduct(_nm); const _t=typeByCode(type); if(_t && _t.categorie==='Utilisation'){ const _s=salByMat(mat)||{}; notify('Utilisation CET — '+(_s.nom||'')+' '+(_s.prenom||''), '<p><b>'+esc(_s.nom)+' '+esc(_s.prenom)+'</b> a saisi une utilisation CET :</p><p>'+esc(_t.libelle)+' : <b>'+qte+' j</b> le '+dateFR(date)+(comm?'<br>Commentaire : '+esc(comm):'')+'</p>'); } }
-  save(); closeModal(); toast(id?'Mouvement modifié':'Mouvement ajouté'); render();
+  save(); closeModal(); toastSaved(id?'Mouvement modifié':'Mouvement ajouté'); render();
 }
 function delMouvement(id){
   if(!personnelMovementAllowed(state.mouvements.find(x=>x.id===id)))return;
@@ -2587,7 +2587,7 @@ function delMouvement(id){
   confirmModal('Supprimer ce mouvement ?', msg, ()=>{
     if(isCet && m.srcConge){ state.conges=conges().filter(c=>c.id!==m.srcConge); }
     if(isTransfo) transfoRestore(m);
-    state.mouvements=state.mouvements.filter(x=>x.id!==id); save(); closeModal(); toast('Mouvement supprimé'); render();
+    state.mouvements=state.mouvements.filter(x=>x.id!==id); save(); closeModal(); toastSaved('Mouvement supprimé'); render();
   });
 }
 
@@ -2652,7 +2652,7 @@ function saveSalarie(mat){
     cpEnCours: $('#sCpEnc').value===''?(cur?cur.cpEnCours:0):Number($('#sCpEnc').value)};
   if(isNew) state.salaries.push(data);
   else Object.assign(salByMat(mat), data);
-  save(); closeModal(); toast(isNew?'Salarié ajouté':'Salarié modifié'); render();
+  save(); closeModal(); toastSaved(isNew?'Salarié ajouté':'Salarié modifié'); render();
 }
 function delSalarie(mat){
   if(!isAdmin(AUTH_USER))return;
@@ -2660,7 +2660,7 @@ function delSalarie(mat){
   confirmModal('Supprimer ce salarié ?', n?`Attention : ${n} mouvement(s) lui sont rattachés et seront aussi supprimés.`:'Aucun mouvement rattaché.',()=>{
     state.salaries=state.salaries.filter(s=>s.matricule!==mat);
     state.mouvements=state.mouvements.filter(m=>m.matricule!==mat);
-    save(); closeModal(); toast('Salarié supprimé'); render();
+    save(); closeModal(); toastSaved('Salarié supprimé'); render();
   });
 }
 
@@ -2675,13 +2675,13 @@ function saveType(code){
   const data={code:c, libelle:$('#tLib').value.trim()||c, categorie:$('#tCat').value,
     signe:Number($('#tSigne').value), compteCP:$('#tCp').value, epargne:$('#tEp').value, monetisation:$('#tMon').value};
   if(isNew) state.types.push(data); else Object.assign(typeByCode(code),data);
-  save(); closeModal(); toast(isNew?'Type ajouté':'Type modifié'); render();
+  save(); closeModal(); toastSaved(isNew?'Type ajouté':'Type modifié'); render();
 }
 function delType(code){
   if(!isAdmin(AUTH_USER))return;
   const n=state.mouvements.filter(m=>m.type===code).length;
   if(n){ toast(`Impossible : ${n} mouvement(s) utilisent ce type`); return; }
-  confirmModal('Supprimer ce type ?','',()=>{ state.types=state.types.filter(t=>t.code!==code); save(); closeModal(); toast('Type supprimé'); render(); });
+  confirmModal('Supprimer ce type ?','',()=>{ state.types=state.types.filter(t=>t.code!==code); save(); closeModal(); toastSaved('Type supprimé'); render(); });
 }
 
 /* --- Detail employee --- */
@@ -2739,22 +2739,23 @@ function importJSON(ev){
       if(AUTH_USER!==user||personnelEpoch!==epoch||!isAdmin(user))return;
       confirmModal('Importer cette sauvegarde ?', 'Les données présentes dans le fichier remplaceront les données correspondantes. Les rubriques absentes et les accès actuels seront conservés.',async()=>{
         if(AUTH_USER!==user||!isAdmin(user))return;
-        if(cloudEnabled()){try{if(!await cloudPush())return;await portalFetch(cloudURL()+'/restore',{method:'PUT',headers:{'Content-Type':'application/json','If-Match':String(portalVersion)},body:JSON.stringify(d)});await cloudLoad({discard:true});closeModal();personnelForget();toast('Données importées, accès actuels conservés');render();}catch(e){toast(e.message);}return;}
+        if(cloudEnabled()){try{if(!await cloudPush())return;await portalFetch(cloudURL()+'/restore',{method:'PUT',headers:{'Content-Type':'application/json','If-Match':String(portalVersion)},body:JSON.stringify(d)});await cloudLoad({discard:true});closeModal();personnelForget();toastSaved('Données importées, accès actuels conservés');render();}catch(e){toast(e.message);}return;}
         state={...state,...d,params:{...structuredClone(PARAMS_DEFAULT),...state.params,...d.params}};
-        currentYear=Number(state.params.anneeSuivi);save();closeModal();personnelForget();toast('Données importées');render();
+        currentYear=Number(state.params.anneeSuivi);save();closeModal();personnelForget();toastSaved('Données importées');render();
       });
     }catch(e){ toast('Fichier invalide'); } };
   rd.readAsText(f); ev.target.value='';
 }
 function resetAll(){
   confirmModal('Réinitialiser toutes les données ?','Le contenu actuel sera remplacé par le jeu de données d\'origine (5 salariés). Pensez à sauvegarder avant.',()=>{
-    state=freshState(); currentYear=Number(state.params.anneeSuivi); save(); closeModal(); toast('Données réinitialisées'); setView('dashboard');
+    state=freshState(); currentYear=Number(state.params.anneeSuivi); save(); closeModal(); toastSaved('Données réinitialisées'); setView('dashboard');
   });
 }
 
 /* ===================== UI atoms ===================== */
 function optAll(label){ return `<option value="">${label}</option>`; }
 function emptyState(t,d){ return `<div class="empty">${ic('inbox')}<div style="font-weight:600;color:var(--ink)">${esc(t)}</div><div>${esc(d)}</div></div>`; }
+function toastSaved(msg){ window.CDIActionFeedback?.success(msg); }
 function toast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),2200); }
 
 function ic(name){ return CDIIcons.markup(name); }
@@ -3133,19 +3134,19 @@ function facturxRemoveFinal(id){
   if(!facturierAdmin())return;
   const f=factures().find(x=>x.id===id);if(!f?.facturx)return;
   delete f.facturx;
-  save();renderFacturier();toast('Factur-X retiré. Le PDF original est conservé.');
+  save();renderFacturier();toastSaved('Factur-X retiré. Le PDF original est conservé.');
 }
 function facturxRemovePdf(id){
   if(!facturierAdmin())return;
   const f=factures().find(x=>x.id===id);if(!f?.pdfSource)return;
   f.pdfRemoved={pdfSource:f.pdfSource};
   delete f.pdfSource;delete f.facturx;delete f.facturxDraft;delete f.facturxDraftProfile;delete f.facturxDraftSourceSha;
-  save();renderFacturier();toast('PDF retiré. La facture est conservée.');
+  save();renderFacturier();toastSaved('PDF retiré. La facture est conservée.');
 }
 function facturxRestorePdf(id){
   if(!facturierAdmin())return;
   const f=factures().find(x=>x.id===id);if(f?.pdfSource||!f?.pdfRemoved?.pdfSource)return;
-  f.pdfSource=f.pdfRemoved.pdfSource;delete f.pdfRemoved;save();renderFacturier();toast('PDF restauré');
+  f.pdfSource=f.pdfRemoved.pdfSource;delete f.pdfRemoved;save();renderFacturier();toastSaved('PDF restauré');
 }
 function facturxCloseViewer(){
   if(_facturxViewer){for(const u of [_facturxViewer.url,_facturxViewer.imageUrl])if(u)URL.revokeObjectURL(u);_facturxViewer=null;}
@@ -3265,7 +3266,7 @@ window.addEventListener('message',async event=>{
     if(!current||facturxSignature(current)!==s.snapshot)throw new Error('La facture a changé pendant l’enregistrement. Rouvrez la conversion.');
     current.facturxDraft=m.invoice;current.facturxDraftProfile=r.profile;current.facturxDraftSourceSha=s.sha;
     current.facturx={pdfUrl,xmlUrl,reportUrl,veraUrl,filename:r.filename,profile:r.profile,checkedAt:r.checked_at,sourceSha256:s.sha,pdfSha256:r.pdf_sha256,snapshot:s.snapshot,invoiceNumber:m.invoice.number,invoiceTotals:m.invoice.totals};
-    save();const synced=await cloudPush();if(!f.nativeDocumentId)renderFacturier();reply(synced,synced?'Factur-X enregistré dans cette facture. Vous pouvez le télécharger ici.':'Factur-X conservé localement ; la synchronisation doit être reprise.');if(synced)toast('Factur-X enregistré');
+    save();const synced=await cloudPush();if(!f.nativeDocumentId)renderFacturier();reply(synced,synced?'Factur-X enregistré dans cette facture. Vous pouvez le télécharger ici.':'Factur-X conservé localement ; la synchronisation doit être reprise.');if(synced)toastSaved('Factur-X enregistré');
   }catch(e){reply(false,'Enregistrement impossible : '+e.message);}
   finally{s.saving=false;}
 });
@@ -3437,7 +3438,7 @@ const agendaState={trips:[],leaves:null,members:[],loaded:false,loading:false,er
 let agendaTimer=null,agendaConfirmationTimer=null,agendaEditing=null,agendaFocus=null;
 let agendaPickers={},agendaSharedProjects=[];
 let agendaModeExplicit=false,agendaPromise=null,agendaMounted=null,agendaRenderEpoch=0,agendaEditorDispose=null,agendaEditorEpoch=0;
-function agendaModule(){return agendaPromise||=import('./platform/agenda.js?v=engagement-control-20261024').catch(error=>{agendaPromise=null;throw error;});}
+function agendaModule(){return agendaPromise||=import('./platform/agenda.js?v=document-actions-20261025').catch(error=>{agendaPromise=null;throw error;});}
 function agendaStyleSheet(){if(!$('#agendaReactStyle')){const link=document.createElement('link');link.id='agendaReactStyle';link.rel='stylesheet';link.href='platform/agenda.css';document.head.append(link);}}
 function agendaReactForget(){agendaRenderEpoch++;if(agendaMounted){agendaMounted.dispose();agendaMounted=null;}$('#agendaRoot')?.remove();}
 function agendaEditorForget(){agendaEditorEpoch++;if(agendaEditorDispose){agendaEditorDispose();agendaEditorDispose=null;}agendaPickers={};}
@@ -3669,7 +3670,7 @@ function agendaShowTrip(id){
     $('#agendaEdit').onclick=()=>openAgendaTrip(id);$('#agendaDelete').onclick=()=>{$('#agendaDeleteConfirm').hidden=false;$('#agendaDeleteYes').focus();};
     $('#agendaDeleteYes').onclick=async()=>{
       const button=$('#agendaDeleteYes'),panel=$('#overlay .agenda-modal'),user=AUTH_USER;button.disabled=true;
-      try{await agendaRequest('/agenda/'+encodeURIComponent(id),{method:'DELETE',headers:{'If-Match':String(t.version)}});if(user!==AUTH_USER)return;agendaState.epoch++;agendaState.loading=false;agendaState.trips=agendaState.trips.filter(x=>x.id!==id);if(panel.isConnected)agendaClose();if(currentView==='agenda')renderAgenda();toast('Déplacement supprimé');agendaRefresh(false);}
+      try{await agendaRequest('/agenda/'+encodeURIComponent(id),{method:'DELETE',headers:{'If-Match':String(t.version)}});if(user!==AUTH_USER)return;agendaState.epoch++;agendaState.loading=false;agendaState.trips=agendaState.trips.filter(x=>x.id!==id);if(panel.isConnected)agendaClose();if(currentView==='agenda')renderAgenda();toastSaved('Déplacement supprimé');agendaRefresh(false);}
       catch(error){if(panel.isConnected){$('#agendaDeleteError').hidden=false;$('#agendaDeleteError').textContent=error.message;}}finally{button.disabled=false;}
     };
   }
@@ -5092,7 +5093,8 @@ function agendaNotificationHTML(t){
       s.dirty = false;
       s.history = null;
       s.error = "";
-      s.notice = "Fiche enregistr\xE9e \xB7 version " + s.current.version;
+      s.notice = "";
+      window.CDIActionFeedback?.success("March\xE9 enregistr\xE9");
       const i = s.rows.findIndex((x) => x.id === s.current.id);
       if (i >= 0) s.rows[i] = s.current;
       else s.rows.unshift(s.current);
@@ -5174,7 +5176,7 @@ function agendaNotificationHTML(t){
     try {
       const expanded = await expandImportFiles(files, progress);
       warnings.push(...expanded.warnings);
-      const { readDocument } = await import("./marches/reader.mjs?v=engagement-control-20261024");
+      const { readDocument } = await import("./marches/reader.mjs?v=document-actions-20261025");
       for (const file of expanded.files) {
         if (s.stop || epoch !== s.epoch) break;
         progress("Lecture : " + file.name);
@@ -5534,7 +5536,8 @@ function agendaNotificationHTML(t){
       s.current.status = "draft";
     dirty();
     if (await save()) {
-      s.notice = item.status === "resolved" ? "Point valid\xE9 et d\xE9cision enregistr\xE9e. Ajustez les param\xE8tres concern\xE9s si n\xE9cessaire." : "Point rouvert et enregistr\xE9.";
+      s.notice = "";
+      window.CDIActionFeedback?.success(item.status === "resolved" ? "Point valid\xE9" : "Point rouvert");
       render();
     }
   }
@@ -5565,7 +5568,7 @@ function agendaNotificationHTML(t){
         throw new Error(
           "Le moteur IA n\u2019est pas encore activ\xE9 sur le serveur. Vous pouvez continuer le param\xE9trage manuel."
         );
-      const { readDocument } = await import("./marches/reader.mjs?v=engagement-control-20261024");
+      const { readDocument } = await import("./marches/reader.mjs?v=document-actions-20261025");
       for (const did of selected) {
         if (s.stop) break;
         const d = s.docs.find((d2) => d2.id === did);
@@ -5713,10 +5716,10 @@ function agendaNotificationHTML(t){
         const link = document.createElement("link");
         link.id = "marketStyle";
         link.rel = "stylesheet";
-        link.href = "platform/markets.css?v=engagement-control-20261024";
+        link.href = "platform/markets.css?v=document-actions-20261025";
         document.head.append(link);
       }
-      marketPromise = import("./platform/markets.js?v=engagement-control-20261024").then((module) => {
+      marketPromise = import("./platform/markets.js?v=document-actions-20261025").then((module) => {
         marketModule = module;
         marketPromise = null;
         if (currentView === "marches" && allowed()) render();
@@ -5922,7 +5925,7 @@ async function authAccountAction(email,action){
     if(result.token){
       const url=new URL(location.href);url.search='';url.hash=new URLSearchParams({invitation:result.token,email:result.email}).toString();
       modal('<div class="modal-head"><h3>Lien d’activation du compte</h3></div><div class="modal-body"><p>Transmettez ce lien à la personne concernée. Il est utilisable une seule fois, pendant 24 heures.</p><input class="inp" id="accountInviteLink" readonly value="'+esc(url.href)+'" aria-label="Lien d’activation"><p class="hint">Le lien permet de choisir un mot de passe. Il doit rester confidentiel.</p></div><div class="modal-foot"><button class="btn" onclick="navigator.clipboard.writeText(document.getElementById(\'accountInviteLink\').value).then(()=>toast(\'Lien copié\'))">Copier le lien</button><button class="btn btn-primary" onclick="closeModal()">Fermer</button></div>');
-    }else toast('Accès retiré');
+    }else toastSaved('Accès retiré');
   }catch(e){toast(e.message);}
 }
 async function authSetRole(email,role){
@@ -5931,7 +5934,7 @@ async function authSetRole(email,role){
   try{
     await portalFetch(cloudURL()+'/accounts',{method:'POST',headers:{'Content-Type':'application/json','If-Match':String(portalVersion)},body:JSON.stringify({email,action:'role',role})});
     if(!await cloudLoad({discard:true}))throw new Error('Droits enregistrés. Actualisez la page pour les afficher.');
-    toast('Droits mis à jour');
+    toastSaved('Droits mis à jour');
   }catch(e){if(e.status===409)await cloudLoad({discard:true});throw e;}
 }
 async function authAddAllowed(){const email=normEmail($('#newAllowedEmail').value);await authAccountAction(email,'invite');}
@@ -5977,8 +5980,8 @@ let billingMode='modern',billingModulePromise=null,billingMounted=null,billingTr
 function billingLockForLogout(){billingLogoutPending=true;$('#content').inert=true;}
 function billingUnlockLogout(){billingLogoutPending=false;$('#content').inert=false;}
 function billingModule(){
-  if(!$('#billingStyle')){const link=document.createElement('link');link.id='billingStyle';link.rel='stylesheet';link.href='platform/billing.css?v=engagement-control-20261024';document.head.append(link);}
-  return billingModulePromise ||= import('./platform/billing.js?v=engagement-control-20261024').catch(error=>{billingModulePromise=null;throw error;});
+  if(!$('#billingStyle')){const link=document.createElement('link');link.id='billingStyle';link.rel='stylesheet';link.href='platform/billing.css?v=document-actions-20261025';document.head.append(link);}
+  return billingModulePromise ||= import('./platform/billing.js?v=document-actions-20261025').catch(error=>{billingModulePromise=null;throw error;});
 }
 function billingLeave(){return billingMounted?.canLeave?.()!==false;}
 function billingForget(){

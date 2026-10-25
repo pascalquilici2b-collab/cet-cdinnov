@@ -79,7 +79,14 @@ test('received order links market and project; consumption survives invoice tras
   tracking=await(await call('/engagements')).json();assert.equal(tracking.orders[0].invoicedMinor,225000);
   r=await call('/documents/'+f.id+'/restore','POST',{}, {'If-Match':String(f.version)});assert.equal(r.status,200,await r.clone().text());assert.deepEqual(await ctx.db.prepare('SELECT * FROM billing_issuances WHERE document_id=?').bind(f.id).first(),original);
   const file=await call('/documents/'+f.id+'/files/pdf');assert.equal(file.status,200,await file.clone().text());assert.ok(Buffer.from(await file.arrayBuffer()).equals(bytes));
-  assert.equal((await call('/documents/'+q.id,'DELETE',undefined,{'If-Match':String(q.version)})).status,409);
+  const quoteArchive=await ctx.db.prepare('SELECT * FROM billing_issuances WHERE document_id=?').bind(q.id).first();
+  assert.equal((await call('/documents/'+q.id,'DELETE',undefined,{'If-Match':String(q.version)})).status,200);
+  assert.equal((await call('/documents/'+q.id)).status,410);
+  tracking=await(await call('/engagements')).json();assert.equal(tracking.orders[0].invoicedMinor,225000);assert.equal(tracking.markets[0].quotedMinor,225000);
+  assert.equal((await call('/documents/'+f.id)).status,200);
+  const restoredQuote=await(await call('/documents/'+q.id+'/restore','POST',{}, {'If-Match':String(q.version)})).json();assert.equal(restoredQuote.quote.invoice.id,f.id);
+  assert.deepEqual(await ctx.db.prepare('SELECT * FROM billing_issuances WHERE document_id=?').bind(q.id).first(),quoteArchive);
+  assert.deepEqual(await ctx.db.prepare('SELECT * FROM billing_issuances WHERE document_id=?').bind(f.id).first(),original);
  }finally{await ctx.worker.dispose();}
 });
 

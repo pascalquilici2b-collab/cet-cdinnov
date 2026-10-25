@@ -5,7 +5,7 @@ import {testEnvironment,users} from '../marches/test.mjs';
 import {migrateBilling} from './billing-schema.mjs';
 import {billingToday} from './billing-quote-domain.ts';
 import {reserveIssuance} from './billing-issuance.ts';
-import {quoteFixture,quoteFixtureTools} from './billing-quote-fixture.mjs';
+import {quoteFixture,quoteFixtureTools,samplePDF} from './billing-quote-fixture.mjs';
 
 await test('révisions liées : intégrité des versions, abandon, concurrence et facturation unique',async t=>{
  const ctx=await testEnvironment();try{
@@ -18,6 +18,7 @@ await test('révisions liées : intégrité des versions, abandon, concurrence e
   const abandon=(d,v=data(d,'Proposition maintenue dans sa version précédente'),version=d.version)=>call('/documents/'+d.id+'/abandon-revision','POST',v,{'If-Match':String(version)});
   const accept=d=>send(d,input(d,'accepted','Accord reçu par e-mail',billingToday())).then(r=>read(r,201));
   const save=d=>call('/documents/'+d.id,'PUT',{data:{...d.data,validUntil:'2099-12-31'}},{'If-Match':String(d.version)}).then(r=>read(r));
+  const engage=async d=>{const r=await ctx.worker.dispatchFetch('https://preview.test/api/v1/billing/documents/'+d.id+'/engagement?'+new URLSearchParams({kind:'signed_quote',reference:d.issuance.number,date:billingToday()}),{method:'PUT',headers:{Origin:'https://app.cdinnov.eu',Authorization:'Bearer '+admin.token,'If-Match':String(d.version),'X-Filename':'Devis-signe.pdf','Content-Type':'application/pdf'},body:samplePDF()});return read(r,201);};
   const convert=d=>call('/documents/'+d.id+'/convert','POST',{id:randomUUID()},{'If-Match':String(d.version)});
   let source=await fresh(),child;
   const original=await ctx.db.prepare('SELECT * FROM billing_issuances WHERE document_id=?').bind(source.id).first();
@@ -58,7 +59,7 @@ await test('révisions liées : intégrité des versions, abandon, concurrence e
   });
   await t.test('révision émise : nouveau numéro, nouvel accord, une facture pour toute la proposition',async()=>{
    child=await finalize(await save(child));assert.notEqual(child.issuance.number,source.issuance.number);assert.equal(child.quote.version,0);
-   await read(await convert(child),409);child=await accept(child);const invoice=await read(await convert(child),201);
+   await read(await convert(child),409);child=await engage(await accept(child));const invoice=await read(await convert(child),201);
    assert.equal(invoice.sourceDocumentId,child.id);assert.equal((await get(source.id)).quote.invoice.id,invoice.id);assert.equal((await get(child.id)).quote.invoice.id,invoice.id);
    await read(await revise(child),409);await read(await convert(source),409);
    assert.deepEqual(await ctx.db.prepare('SELECT * FROM billing_issuances WHERE document_id=?').bind(source.id).first(),original);
@@ -70,7 +71,7 @@ await test('révisions liées : intégrité des versions, abandon, concurrence e
    const current=await get(d.id);assert.equal(current.quote.revision.count,2);const losing=ids[race.findIndex(r=>r.status===409)].id;assert.equal(await ctx.db.prepare('SELECT id FROM billing_documents WHERE id=?').bind(losing).first(),null);
   });
   await t.test('course révision/facture : une seule branche commerciale',async()=>{
-   const d=await accept(await fresh('Révision contre facturation'));const race=await Promise.all([revise(d),convert(d)]);assert.deepEqual(race.map(r=>r.status).sort(),[201,409]);
+   const d=await engage(await accept(await fresh('Révision contre facturation')));const race=await Promise.all([revise(d),convert(d)]);assert.deepEqual(race.map(r=>r.status).sort(),[201,409]);
    const latest=await get(d.id);if(latest.quote.invoice)assert.equal(latest.quote.revision.currentId,d.id);else assert.notEqual(latest.quote.revision.currentId,d.id);
   });
   await t.test('course abandon/numéro : pas d’abandon d’un document figé ni de numéro pour une version abandonnée',async()=>{

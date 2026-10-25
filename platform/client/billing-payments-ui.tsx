@@ -1,3 +1,4 @@
+import {showSuccess} from './action-feedback';
 import {Banknote} from 'lucide-react';
 import {billingDisplayState,billingStateLabel,invoiceDueDate} from '../billing-display-state';
 import {BillingStateIcon} from './billing-state-icon';
@@ -23,7 +24,7 @@ export function PaymentFollowUp({record,transport,busy,onBusy,onDocument,onDirty
  const begin=(kind:Form['kind'],target:BillingPaymentEntry|null=null)=>{setForm({kind,target,amount:target?paymentEuros(target.amountMinor):kind==='receipt'&&summary?.dueMinor!=='0'?paymentEuros(summary!.dueMinor):kind==='refund'&&summary?.overpaidMinor!=='0'?paymentEuros(summary!.overpaidMinor):'',occurredOn:target?.occurredOn||billingToday(),method:target?.method||'transfer',reference:target?.reference||'',note:target?.note||'',reason:''});attempt.current=null;setError('');setNotice('');setConflict(false);setUncertain(false);};
  const cancel=()=>{if(busy)return;if(form&&!window.confirm('Quitter sans enregistrer cette saisie de règlement ?'))return;setForm(null);onDirty(false);setError('');setConflict(false);setUncertain(false);actions.current?.focus();};
  const changed=(patch:Partial<Form>)=>{setForm(f=>f?{...f,...patch}:f);if(!conflict)setError('');};
- const completed=(doc:BillingDocument)=>{setForm(null);onDirty(false);setConflict(false);setUncertain(false);setError('');attempt.current=null;onDocument(doc);setNotice('Règlements mis à jour.');actions.current?.focus();};
+ const completed=(doc:BillingDocument)=>{setForm(null);onDirty(false);setConflict(false);setUncertain(false);setError('');attempt.current=null;onDocument(doc);showSuccess('Règlement enregistré');actions.current?.focus();};
  async function submit(){
   if(!form||busy||!summary)return;onBusy('payment');setError('');setNotice('');
   const key=JSON.stringify([record.id,record.version,summary.version,form]);

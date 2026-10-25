@@ -1,3 +1,4 @@
+import {showSuccess} from './action-feedback';
 import {useEffect,useRef,useState} from 'react';
 import {ClipboardList,Download,Eye,RefreshCw,X} from 'lucide-react';
 import type {BillingContext,BillingDraft,BillingInterventionReport,BillingTransport} from '../billing-contracts';
@@ -17,7 +18,7 @@ export function InterventionReport({id,number,draft,context,transport,compact=fa
  useEffect(()=>{if(!open||!content)return;let active=true;setPreviewing(true);setPreviewError('');const timer=setTimeout(()=>{transport.previewReport(id,JSON.parse(content)).then(blob=>{if(active)setPDF(blob);}).catch(e=>{if(active)setPreviewError(e.message);}).finally(()=>{if(active)setPreviewing(false);});},650);return()=>{active=false;clearTimeout(timer);};},[open,id,content,transport,retry]);
  const close=()=>{if(busy||dirty&&!window.confirm('Fermer sans enregistrer les modifications du relevé ?'))return;setOpen(false);setPDF(null);};
  const change=(patch:Partial<BillingInterventionReport>)=>{if(report){setReport({...report,...patch});setDirty(true);}};
- async function save(download:boolean){if(!report||busy)return;setBusy(true);setError('');try{const {version,...data}=report,updated=dirty||!version?await transport.saveReport(id,version,data):report;setReport(updated);setDirty(false);if(download){const blob=await transport.reportPDF(id);setPDF(blob);const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='Releve-'+number.replace(/[^A-Za-z0-9_-]/g,'-')+'.pdf';a.click();setTimeout(()=>URL.revokeObjectURL(url),10000);}}catch(e){setError((e as Error).message);}finally{setBusy(false);}}
+ async function save(download:boolean){if(!report||busy)return;setBusy(true);setError('');try{const {version,...data}=report,updated=dirty||!version?await transport.saveReport(id,version,data):report;setReport(updated);setDirty(false);showSuccess('Relevé enregistré');if(download){const blob=await transport.reportPDF(id);setPDF(blob);const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='Releve-'+number.replace(/[^A-Za-z0-9_-]/g,'-')+'.pdf';a.click();setTimeout(()=>URL.revokeObjectURL(url),10000);}}catch(e){setError((e as Error).message);}finally{setBusy(false);}}
  const details={...draft.details||blankDocumentDetails(),periods:report?.periods||[],period:report?.periods[0]||'' as const,interventions:report?.rows||[]};
  const complete=!!report?.rows.length&&report.rows.every(r=>r.label.trim()&&r.description.trim()&&Number(r.days.replace(',','.'))>0);
  return <><button type="button" className="bill-button bill-report-button" title="Générer le relevé d’intervention" aria-label={'Générer le relevé '+number} onClick={()=>setOpen(true)}><ClipboardList size={17}/>{compact?'Relevé':'Générer le relevé'}</button>

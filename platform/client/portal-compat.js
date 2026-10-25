@@ -151,7 +151,7 @@ async function authAccountAction(email,action){
     if(result.token){
       const url=new URL(location.href);url.search='';url.hash=new URLSearchParams({invitation:result.token,email:result.email}).toString();
       modal('<div class="modal-head"><h3>Lien d’activation du compte</h3></div><div class="modal-body"><p>Transmettez ce lien à la personne concernée. Il est utilisable une seule fois, pendant 24 heures.</p><input class="inp" id="accountInviteLink" readonly value="'+esc(url.href)+'" aria-label="Lien d’activation"><p class="hint">Le lien permet de choisir un mot de passe. Il doit rester confidentiel.</p></div><div class="modal-foot"><button class="btn" onclick="navigator.clipboard.writeText(document.getElementById(\'accountInviteLink\').value).then(()=>toast(\'Lien copié\'))">Copier le lien</button><button class="btn btn-primary" onclick="closeModal()">Fermer</button></div>');
-    }else toast('Accès retiré');
+    }else toastSaved('Accès retiré');
   }catch(e){toast(e.message);}
 }
 async function authSetRole(email,role){
@@ -160,7 +160,7 @@ async function authSetRole(email,role){
   try{
     await portalFetch(cloudURL()+'/accounts',{method:'POST',headers:{'Content-Type':'application/json','If-Match':String(portalVersion)},body:JSON.stringify({email,action:'role',role})});
     if(!await cloudLoad({discard:true}))throw new Error('Droits enregistrés. Actualisez la page pour les afficher.');
-    toast('Droits mis à jour');
+    toastSaved('Droits mis à jour');
   }catch(e){if(e.status===409)await cloudLoad({discard:true});throw e;}
 }
 async function authAddAllowed(){const email=normEmail($('#newAllowedEmail').value);await authAccountAction(email,'invite');}

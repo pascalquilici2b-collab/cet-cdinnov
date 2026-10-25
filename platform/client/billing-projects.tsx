@@ -1,3 +1,4 @@
+import {showSuccess} from './action-feedback';
 import {ActivitySelect,ActivityBadge} from './activity-select';
 import {projectActivity} from '../project-activity';
 import {useEffect,useState} from 'react';
@@ -17,7 +18,7 @@ export function ProjectDirectory({transport,context,onDirty,onChanged}:{transpor
  useEffect(()=>{let active=true;setBusy(true);transport.projects().then(v=>{if(active){setRows(v.projects);setClients(v.clients||[]);}},e=>{if(active)setError(e.message);}).finally(()=>{if(active)setBusy(false);});return()=>{active=false;};},[transport,revision]);
  const patch=(p:Partial<ProjectInput>)=>setEdit(v=>v?{...v,...p}:v);
  function open(p?:SharedProject){if(dirty&&!confirm('Quitter sans enregistrer le projet ?'))return;const value=p?{id:p.id,marketId:p.marketId,marketVersion:p.marketVersion,marketIds:p.marketIds||[p.marketId],clientIds:p.clientIds||[],logoData:p.logoData||'',name:p.name,code:p.code,programme:p.programme||'',startDate:p.startDate||'',endDate:p.endDate||'',notes:p.notes,archived:p.archived}:{id:crypto.randomUUID(),marketId:'',marketVersion:0,marketIds:[],clientIds:[],logoData:'',name:'',code:'',programme:'',startDate:'',endDate:'',notes:'',archived:false};setEdit(value);setOriginal(p?JSON.stringify(value):'');setError('');setNotice('');}
- async function save(){if(!edit||busy)return;setBusy(true);setError('');try{await transport.saveProject(edit);setEdit(null);setNotice('Projet enregistré.');setRevision(n=>n+1);onChanged();}catch(e){setError(e instanceof Error?e.message:'Enregistrement impossible.');}finally{setBusy(false);}}
+ async function save(){if(!edit||busy)return;setBusy(true);setError('');try{await transport.saveProject(edit);setEdit(null);showSuccess('Projet enregistré');setRevision(n=>n+1);onChanged();}catch(e){setError(e instanceof Error?e.message:'Enregistrement impossible.');}finally{setBusy(false);}}
  return <section className="bill-directory" aria-label="Projets"><header className="bill-directory-heading"><h2><FolderKanban size={22}/> Projets</h2><button className="bill-button bill-button-primary" disabled={busy} onClick={()=>open()}><Plus size={17}/> Nouveau projet</button></header>
   {error&&<div className="bill-message bill-message-error" role="alert">{error}<button className="bill-button" disabled={busy} onClick={()=>{if(dirty&&!confirm('Recharger et abandonner la saisie du projet ?'))return;setEdit(null);setError('');setRevision(n=>n+1);onChanged();}}>Actualiser</button></div>}
   {notice&&<div className="bill-message bill-message-success" role="status"><BlueCheck label="Projet enregistré"/>{notice}</div>}

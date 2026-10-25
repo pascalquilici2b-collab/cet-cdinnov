@@ -63,7 +63,7 @@ export async function quoteVersions(db:Database,record:BillingDocument,before:nu
  if(!record.quote)return fail(400,'Les versions concernent uniquement les devis.');
  const root=record.quote.revision.rootId;
  const result=(await db.prepare(`SELECT d.id,coalesce(r.ordinal,1) AS ordinal,i.number,CASE WHEN j.state='ready' THEN 'issued' WHEN j.state='failed' THEN 'issue_failed' WHEN i.id IS NOT NULL THEN 'finalizing' ELSE 'draft' END AS status,
- d.created_at AS createdAt,coalesce(r.reason,'Version initiale') AS reason,r.abandoned_at AS abandonedAt,r.abandon_reason AS abandonReason,json_extract(d.totals_json,'$.grossMinor') AS grossMinor
+ EXISTS(SELECT 1 FROM billing_document_trash t WHERE t.document_id=d.id) AS trashed,d.created_at AS createdAt,coalesce(r.reason,'Version initiale') AS reason,r.abandoned_at AS abandonedAt,r.abandon_reason AS abandonReason,json_extract(d.totals_json,'$.grossMinor') AS grossMinor
  FROM billing_documents d LEFT JOIN billing_quote_revisions r ON r.document_id=d.id LEFT JOIN billing_issuances i ON i.document_id=d.id LEFT JOIN billing_issue_jobs j ON j.issuance_id=i.id
  WHERE (d.id=? OR r.root_document_id=?) AND coalesce(r.ordinal,1)<? ORDER BY ordinal DESC LIMIT 51`).bind(root,root,before).all<BillingQuoteRevisionItem>()).results;
  return {versions:result.slice(0,50),nextBefore:result.length>50?result[49].ordinal:null};

@@ -1,3 +1,5 @@
+import {AgreementOrigin} from './billing-agreement-origin';
+import {showSuccess} from './action-feedback';
 import {Loading} from './loading';
 import {useEffect,useRef,useState} from 'react';
 import type {BillingDocument,BillingQuoteAction,BillingQuoteEvent,BillingTransport} from '../billing-contracts';
@@ -19,7 +21,7 @@ export function QuoteFollowUp({record,transport,busy,onBusy,onDocument,onDirty,o
  async function submit(){
   if(!form||busy||!summary)return;onBusy('quote-event');setError('');setNotice('');
   const key=JSON.stringify([record.id,record.version,summary.version,form]);if(attempt.current?.key!==key)attempt.current={key,id:crypto.randomUUID()};
-  try{const doc=await transport.quoteEvent(record.id,summary.version,{id:attempt.current.id,documentVersion:record.version,...form});if(live.current){setForm(null);onDirty(false);setConflict(false);onDocument(doc);setNotice('Suivi enregistré.');actionArea.current?.focus();}}
+  try{const doc=await transport.quoteEvent(record.id,summary.version,{id:attempt.current.id,documentVersion:record.version,...form});if(live.current){setForm(null);onDirty(false);setConflict(false);onDocument(doc);showSuccess('Suivi enregistré');actionArea.current?.focus();}}
   catch(e){if(live.current){setError(e instanceof Error?e.message:'Le suivi n’a pas pu être enregistré.');setConflict(!!e&&typeof e==='object'&&'status' in e&&e.status===409);}}
   finally{if(live.current)onBusy('');}
  }
@@ -42,7 +44,7 @@ export function QuoteFollowUp({record,transport,busy,onBusy,onDocument,onDirty,o
   </div>
   {form&&<form className="bill-quote-form" onSubmit={e=>{e.preventDefault();submit();}}><h4 className="bill-title-help">{actionLabels[form.action]}<Help label="Suivi du devis" text={form.action==='sent'?'Déclarez un envoi déjà effectué. Cette action n’envoie aucun e-mail.':form.action==='reopened'?'Le devis revient en attente (ou expiré). La réponse précédente reste dans l’historique.':'Indiquez la date et l’origine de la réponse. Ce suivi ne constitue pas une signature électronique.'}/></h4><fieldset disabled={busy}>
    <Field label={form.action==='sent'?'Date de l’envoi':form.action==='reopened'?'Date de la correction':'Date de la réponse'}><input ref={firstField} required type="date" min={record.data.issueDate} max={billingToday()} value={form.occurredOn} onChange={e=>{setForm({...form,occurredOn:e.target.value});if(!conflict)setError('');}}/></Field>
-   <Field label={form.action==='reopened'?'Raison de la correction':form.action==='sent'?'Note interne (facultatif)':'Origine de la réponse'} hint={form.action==='accepted'?'Ex. Devis signé reçu par e-mail, référence du message.':undefined}><textarea required={form.action!=='sent'} maxLength={2000} rows={3} value={form.note} onChange={e=>{setForm({...form,note:e.target.value});if(!conflict)setError('');}}/></Field>
+   {form.action==='accepted'?<AgreementOrigin value={form.note} onChange={note=>{setForm({...form,note});if(!conflict)setError('');}}/>:<Field label={form.action==='reopened'?'Raison de la correction':form.action==='sent'?'Note interne (facultatif)':'Origine de la réponse'}><textarea required={form.action!=='sent'} maxLength={2000} rows={3} value={form.note} onChange={e=>{setForm({...form,note:e.target.value});if(!conflict)setError('');}}/></Field>}
   </fieldset>{error&&<div className="bill-quote-error" role="alert"><p>{error}</p>{conflict&&<button type="button" disabled={busy} onClick={reload}>Actualiser le suivi</button>}</div>}<div className="bill-quote-form-actions"><button type="button" className="bill-button" disabled={busy} onClick={cancel}>Annuler</button><button className="bill-button bill-button-primary" disabled={busy||inactive}>{busy?'Enregistrement…':'Enregistrer le suivi'}</button></div></form>}
   <details className="bill-quote-history"><summary>Historique du suivi <span>{summary.version}</span></summary>{historyError&&<p role="alert">{historyError} <button type="button" onClick={()=>setHistoryRevision(n=>n+1)}>Réessayer</button></p>}{!events.length&&!historyBusy&&!historyError&&<p>Aucune action enregistrée.</p>}<ol>{events.map(e=><li key={e.id}><div><strong>{quoteActionLabels[e.action]}</strong><time dateTime={e.occurredOn}>{date(e.occurredOn)}</time></div>{e.note&&<p>{e.note}</p>}<small>Déclaré le {new Date(e.recordedAt).toLocaleString('fr-FR')} par {e.recordedBy}</small></li>)}</ol>{historyBusy&&<Loading compact label="Chargement de l’historique…"/>}{nextBefore&&<button className="bill-button" type="button" disabled={historyBusy} onClick={more}>Voir les événements précédents</button>}</details>
  </section>;

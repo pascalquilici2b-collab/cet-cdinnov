@@ -1,3 +1,4 @@
+import {showSuccess} from './action-feedback';
 import {QuoteTransition} from './billing-quote-transition';
 import {Send,CheckCheck} from 'lucide-react';
 import {forwardRef,useEffect,useImperativeHandle,useRef,useState} from 'react';
@@ -32,7 +33,7 @@ export const DocumentStatus=forwardRef<DocumentStatusHandle,Props>(function Docu
    onBusy('issue');
    if(!current.issuance){const key=current.id+':'+current.version;if(attempt.current?.key!==key)attempt.current={key,id:crypto.randomUUID()};current=await transport.issue(current.id,current.version,attempt.current.id,'automatic');if(!live.current)return;onDocument(current);}
    current=await transport.finalize(current.id,current.version);if(!live.current)return;
-   onDocument(current);onNotice(current.status==='issued'?'Document finalisé.':current.status==='issue_failed'?'La génération doit être reprise. Le numéro est conservé.':'Génération en cours.');
+   onDocument(current);if(current.status==='issued')showSuccess('Finalisé');else onNotice(current.status==='issue_failed'?'La génération doit être reprise. Le numéro est conservé.':'Génération en cours.');
    return current;
   }catch(e){
    if(!live.current)return;setError(message(e));

@@ -1,3 +1,4 @@
+import {showSuccess} from './action-feedback';
 import {ClientContacts} from './billing-client-contacts';
 import {sameClient,enrichClient} from '../billing-client-match';
 import {BrandMark} from './loading';
@@ -60,7 +61,7 @@ export function DirectoryPanel({kind,transport,busy,onBusy,onDirty,onChanged,onP
   running.current=true;setPending('save');onBusy('directory-save');setError('');setNotice('');let selected:BillingDirectoryRecord|undefined;
   try{
    const result=value.version===null||asCopy?await transport.directoryCreate(kind,id,data):await transport.directorySave(kind,id,value.version,data);
-   if(live.current){adopt(result);setRevision(n=>n+1);onChanged();setNotice(result.data.archived?'Fiche archivée. Les documents existants sont conservés.':'Fiche enregistrée.');if(onPick&&!result.data.archived)selected=result;}
+   if(live.current){adopt(result);setRevision(n=>n+1);onChanged();showSuccess(result.data.archived?'Fiche archivée':'Fiche enregistrée');if(onPick&&!result.data.archived)selected=result;}
   }catch(e){if(live.current){setError(message(e));setConflict(!!e&&typeof e==='object'&&'status' in e&&e.status===409);}}
   finally{running.current=false;if(live.current){setPending('');onBusy('');}}
   if(selected&&live.current)onPick?.(selected);
@@ -80,7 +81,7 @@ export function DirectoryPanel({kind,transport,busy,onBusy,onDirty,onChanged,onP
  const [matches,setMatches]=useState<{rows:BillingDirectoryRecord[];party:BillingClientData['party'];details:BillingClientData['details']}|null>(null);
  function useExisting(row:BillingDirectoryRecord,party:BillingClientData['party'],details:BillingClientData['details']){
   if(row.kind!=='clients')return;
-  setEditor({id:row.id,version:row.version,data:enrichClient(row.data,party,details),saved:JSON.stringify(row.data)});onDirty(true);setMatches(null);setNotice('Fiche existante préremplie.');
+  setEditor({id:row.id,version:row.version,data:enrichClient(row.data,party,details),saved:JSON.stringify(row.data)});onDirty(true);setMatches(null);showSuccess('Fiche préremplie');
  }
  async function prefillClient(party:BillingClientData['party'],details:BillingClientData['details']){
   if(busy||running.current)return;

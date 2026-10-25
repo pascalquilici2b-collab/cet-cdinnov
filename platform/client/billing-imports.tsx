@@ -1,3 +1,4 @@
+import {documentRow} from './billing-row-navigation';
 import type {ReactNode} from 'react';
 import {invoiceIsLate} from '../billing-display-state';
 import {BillingStateIcon} from './billing-state-icon';
@@ -50,7 +51,7 @@ export async function listWithImports(transport:BillingTransport,query:Parameter
 
 export function ImportedInvoiceRow({invoice:f,act,label,report}:{report?:ReactNode;invoice:Invoice;act:ImportedInvoices['act'];label?:string}){
  const state=f.datePaiement?'paid':invoiceIsLate(f.dateFacture||'')?'overdue':'finalized';
- return <tr data-imported-invoice={f.id}>
+ return <tr data-imported-invoice={f.id} {...documentRow(()=>act('edit',f.id))}>
   <td data-column="document"><button className="bill-document-link" onClick={()=>act('edit',f.id)}><span><strong>{invoiceDisplayNumber(f.number)}</strong><small>Importée</small></span></button></td>
   <td data-column="label">{importedInvoiceLabel(f)||label||'—'}</td>
   <td data-column="client"><div className="bill-list-client"><ClientAvatar name={f.client||''}/><span>{f.client||'—'}</span></div></td>

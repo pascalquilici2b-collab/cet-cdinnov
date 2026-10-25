@@ -1,3 +1,4 @@
+import {showSuccess} from './action-feedback';
 import {useRef,useState} from 'react';
 import {Dialog} from 'radix-ui';
 import type {BillingDocument,BillingTransport,BillingPaymentEntry,BillingPaymentOperationInput} from '../billing-contracts';
@@ -25,7 +26,7 @@ export function StatusPaymentDialog({record,mode,transport,onClose,onDocument,on
     const active=entries.filter(e=>e.kind!=='void'&&!e.reversedBy).sort((a,b)=>(a.kind==='refund'?0:1)-(b.kind==='refund'?0:1));
     for(const entry of active)current=await transport.payment(record.id,current.settlement!.version,{id:crypto.randomUUID(),documentVersion:current.version,kind:'void',targetId:entry.id,reason:'Correction du statut d’encaissement.'});
    }
-   onDocument(current);onClose();
+   onDocument(current);onClose();showSuccess('Statut enregistré');
   }catch(e){setError((e as Error).message);try{onDocument(await transport.get(record.id));}catch{/* Keep the same idempotent receipt for retry. */}}
   finally{running.current=false;setSaving(false);onBusy('');}
  }
