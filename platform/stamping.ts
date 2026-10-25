@@ -63,7 +63,7 @@ export async function processStampJob(job:Job,env:Environment){
   const batch=JSON.parse(b.data),data=JSON.parse(d.data);
   const reading=await service(env,source,{action:'extract'});
   // The model sees only minimised server-extracted evidence, never caller-supplied document text.
-  ai=batch.useAI?await stampingSuggestions(db,env,reading.evidence):{status:'disabled'};
+  ai=await stampingSuggestions(db,env,reading.evidence);
   await db.prepare('UPDATE stamp_documents SET data=? WHERE id=? AND version=? AND status=?').bind(JSON.stringify({...data,reading,ai}),d.id,d.version,'PROCESSING').run();
   const result=await service(env,source,{action:'process',groups:batch.import.groups,options:data.options||batch.options||{},choice:data.choice,suggestions:ai.suggestions||[],overrides:data.overrides||[]});
   const raw=Buffer.from(result.pdf,'base64');delete result.pdf;
@@ -102,7 +102,7 @@ export async function stampingRoute(request:Request,env:Environment,reply:Reply)
   if(method==='GET')return reply(200,{batches:(await db.prepare('SELECT id,name,version,created_at,expires_at FROM stamp_batches WHERE owner=? AND expires_at>? ORDER BY created_at DESC LIMIT 100').bind(session.email,Date.now()).all()).results});
   if(method==='POST'){
    const p=await json(request,10000);if(typeof p.name!=='string'||!p.name.trim()||p.name.length>120)return fail(400,'Nom de lot requis.');
-   const id=crypto.randomUUID(),now=Date.now();await db.prepare('INSERT INTO stamp_batches VALUES(?,?,?,1,?,?,?)').bind(id,session.email,p.name.trim(),JSON.stringify({useAI:p.useAI===true,options:{header:'Dépense imputée aux projets suivants',compact:true,split:true,allowAppendix:p.allowAppendix===true,pagePreference:p.pagePreference==='last'?'last':'first'}}),now,now+30*86400000).run();
+   const id=crypto.randomUUID(),now=Date.now();await db.prepare('INSERT INTO stamp_batches VALUES(?,?,?,1,?,?,?)').bind(id,session.email,p.name.trim(),JSON.stringify({useAI:true,options:{header:'Dépense imputée aux projets suivants',compact:true,split:true,allowAppendix:p.allowAppendix===true,pagePreference:p.pagePreference==='last'?'last':'first'}}),now,now+30*86400000).run();
    return reply(201,{id});
   }
  }
@@ -119,11 +119,26 @@ export async function stampingRoute(request:Request,env:Environment,reply:Reply)
   if(!await purge(db,env,b))return fail(409,'Une pièce vient de démarrer. Attendez sa fin avant suppression.');return reply(200,{ok:true});
  }
  if(tail==='table'&&method==='POST'){
-  await unlocked(db,b,request);const file=await upload(request,5*1024*1024);const inspected=await service(env,file.bytes,{action:'inspect',name:file.name});
+  await unlocked(db,b,request);const file=await upload(request,5*1024*1024);let inspected;
+  if(/\.pdf$/i.test(file.name)){
+   const info=await service(env,file.bytes,{action:'table-info'}),parts=[];let mappingHint={};
+   for(let page=0;page<info.pages;page++){const part=await service(env,file.bytes,{action:'inspect',name:file.name,options:{page,mappingHint}});parts.push(part);const mapped=part.sheets?.find((s:any)=>s.mapping?.employee_ref!==undefined&&s.mapping?.period!==undefined&&s.mapping?.allocation_amount!==undefined);if(mapped)mappingHint=mapped.mapping;}
+   inspected=await service(env,new Uint8Array(),{action:'combine',parts});
+  }else inspected=await service(env,file.bytes,{action:'inspect',name:file.name});
   const key=prefix(b)+'table-'+crypto.randomUUID()+'-'+inspected.sha256;await bucket(env).put(key,file.bytes);
-  const next={...data,table:{name:file.name,key,...inspected},import:null,importConfirmed:false};
+  const suggested=inspected.suggestedImport;delete inspected.suggestedImport;
+  const next={...data,useAI:true,table:{name:file.name,key,...inspected},import:suggested||null,importConfirmed:false};
+  if(new TextEncoder().encode(JSON.stringify(next)).length>1200000){await bucket(env).delete(key);return fail(413,'Tableau trop volumineux : répartissez les pièces en plusieurs lots.');}
   const updated=await db.prepare('UPDATE stamp_batches SET data=?,version=version+1 WHERE id=? AND version=? RETURNING id').bind(JSON.stringify(next),b.id,b.version).first();if(!updated){await bucket(env).delete(key);return fail(409,'Le lot a changé. Rechargez-le.');}
   await audit(db,b,'TABLE_IMPORTED',{hash:inspected.sha256});return reply(200,{ok:true});
+ }
+ if(tail==='review'&&method==='POST'){
+  await unlocked(db,b,request);if(!data.import)return fail(422,'Lisez le tableau avant de confirmer.');const p=await json(request);
+  const imported=await service(env,new Uint8Array(),{action:'review',original:data.import,changes:p.changes||[]});
+  const next={...data,import:imported,importConfirmed:p.confirmed===true&&imported.groups.length>0&&!imported.errors.length&&!imported.groups.some((g:any)=>g.errors.length)};
+  if(new TextEncoder().encode(JSON.stringify(next)).length>1200000)return fail(413,'Tableau trop volumineux : répartissez les pièces en plusieurs lots.');
+  const updated=await db.prepare('UPDATE stamp_batches SET data=?,version=version+1 WHERE id=? AND version=? RETURNING id').bind(JSON.stringify(next),b.id,b.version).first();if(!updated)return fail(409,'Le lot a changé.');
+  await audit(db,b,next.importConfirmed?'READING_CONFIRMED':'READING_CORRECTED',{source:imported.source_sha256,changes:p.changes||[]});return reply(200,{ok:true});
  }
  if(tail==='mapping'&&method==='POST'){
   await unlocked(db,b,request);if(!data.table)return fail(422,'Importez le tableau.');const p=await json(request,100000),raw=await object(env,data.table.key);
@@ -149,7 +164,7 @@ export async function stampingRoute(request:Request,env:Environment,reply:Reply)
   const rows=[['Fichier','État','Type','Période','Groupe','Base centimes','Imputé centimes','Reliquat centimes','Erreur','SHA256 source','SHA256 sortie'],...docs.map(d=>{const r=JSON.parse(d.data);return [d.name,d.status,r.reading?.fields?.document_type,r.reading?.fields?.period,d.match_group,r.base_cents,r.total_cents,r.remainder_cents,r.error?.message,d.sha256,r.output_sha256]})];
   files['rapport.csv']=strToU8('\ufeff'+rows.map(r=>r.map(escape).join(';')).join('\r\n'));
   const events=(await db.prepare('SELECT * FROM stamp_audit WHERE batch_id=? ORDER BY created_at').bind(b.id).all()).results;
-  files['tracabilite.json']=strToU8(JSON.stringify({batch:{id:b.id,name:b.name},source:data.table?.sha256,mapping:data.import?.mapping,groups:data.import?.groups,documents:docs.map(expose),audit:events},null,2));
+  files['tracabilite.json']=strToU8(JSON.stringify({batch:{id:b.id,name:b.name},source:data.table?.sha256,mapping:data.import?.mapping,groups:data.import?.groups,excluded:data.import?.excluded,documents:docs.map(expose),audit:events},null,2));
   return binary(reply,zipSync(files,{level:0}),'application/zip',`tamponnage-${b.id}.zip`);
  }
  const dr=tail.match(/^documents\/([^/]+)\/(analyze|approve|stamp|cancel|preview|source|output)$/);if(!dr||!uuid(dr[1]))return reply(404,{error:'Action introuvable.'});

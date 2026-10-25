@@ -2,7 +2,7 @@
 import base64
 import json
 import sys
-from .stamping_import import inspect, normalize
+from .stamping_import import inspect, normalize, review_import, combine_inspections
 from .stamping_pdf import extract, process, preview, StampError
 
 def main():
@@ -16,7 +16,14 @@ def main():
         request=json.loads(sys.stdin.buffer.read(30*1024*1024))
         raw=base64.b64decode(request.pop('file'),validate=True)
         action=request['action'];options=request.get('options',{})
-        if action=='inspect':result=inspect(raw,request['name'])
+        if action=='inspect':result=inspect(raw,request['name'],options)
+        elif action=='combine':result=combine_inspections(request['parts'])
+        elif action=='table-info':
+            import pymupdf
+            with pymupdf.open(stream=raw,filetype='pdf') as doc:
+                if doc.needs_pass or not 1<=len(doc)<=30:raise ValueError('Tableau limité à 30 pages non chiffrées.')
+                result={'pages':len(doc)}
+        elif action=='review':result=review_import(request['original'],request.get('changes',[]))
         elif action=='import':result=normalize(raw,request['name'],options)
         elif action=='extract':result=extract(raw)
         elif action=='process':result=process(raw,request['groups'],options,request.get('choice'),request.get('suggestions'),request.get('overrides'))

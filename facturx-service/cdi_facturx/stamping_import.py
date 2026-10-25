@@ -12,7 +12,7 @@ FIELDS = ['document_type', 'document_ref', 'period', 'employee_ref', 'invoice_nu
           'invoice_date', 'supplier_ref', 'project_name', 'project_code', 'programme',
           'base_amount', 'base_type', 'allocation_percent', 'allocation_amount', 'currency']
 ALIASES = {'type': 'document_type', 'reference': 'document_ref', 'mois': 'period',
-           'matricule': 'employee_ref', 'salarie': 'employee_ref', 'fournisseur': 'supplier_ref',
+           'agent': 'employee_ref', 'bulletins de salaire': 'period', 'bulletin de salaire': 'period', 'matricule': 'employee_ref', 'salarie': 'employee_ref', 'fournisseur': 'supplier_ref',
            'numero facture': 'invoice_number', 'date facture': 'invoice_date', 'projet': 'project_name',
            'montant': 'allocation_amount', 'pourcentage': 'allocation_percent', 'taux': 'allocation_percent',
            'cout employeur': 'base_amount', 'assiette': 'base_amount', 'devise': 'currency'}
@@ -60,6 +60,14 @@ def month(value):
     if found:
         return f'{found[2]}-{int(found[1]):02d}'
     names={'janvier':1,'fevrier':2,'mars':3,'avril':4,'mai':5,'juin':6,'juillet':7,'aout':8,'septembre':9,'octobre':10,'novembre':11,'decembre':12,'gennaio':1,'febbraio':2,'marzo':3,'aprile':4,'maggio':5,'giugno':6,'luglio':7,'agosto':8,'settembre':9,'ottobre':10,'novembre':11,'dicembre':12}
+    value = key(value).replace('.', '')
+    short = re.fullmatch(r'([a-z]+)[ -](\d{2}|\d{4})', value)
+    if short:
+        aliases = {'janv':1,'fevr':2,'fev':2,'avr':4,'juil':7,'juill':7,'sept':9,'oct':10,'nov':11,'dec':12}
+        number = names.get(short[1], aliases.get(short[1]))
+        if number:
+            year = int(short[2]) + (2000 if len(short[2]) == 2 else 0)
+            return f'{year}-{number:02d}'
     named=re.fullmatch(r'([a-z]+)\s+(\d{4})',key(value))
     if named and named[1] in names:return f'{named[2]}-{names[named[1]]:02d}'
     raise ValueError('Période attendue au format AAAA-MM.')
@@ -67,6 +75,9 @@ def month(value):
 def read_table(raw, filename):
     if len(raw) > 5 * 1024 * 1024:
         raise ValueError('Tableau limité à 5 Mo.')
+    if filename.lower().endswith('.pdf'):
+        from .stamping_tables import pdf_tables
+        return pdf_tables(raw)
     if filename.lower().endswith('.csv'):
         text = raw.decode('utf-8-sig', errors='strict')
         delimiter = ';' if text.partition('\n')[0].count(';') >= text.partition('\n')[0].count(',') else ','
@@ -75,7 +86,7 @@ def read_table(raw, filename):
             raise ValueError('Limite : 5 000 lignes et 100 colonnes.')
         return {'CSV': [[{'value': v, 'raw': v, 'format': '', 'cell': f'{column(i+1)}{j+1}'} for i, v in enumerate(r)] for j, r in enumerate(data)]}
     if not filename.lower().endswith('.xlsx') or raw[:2] != b'PK':
-        raise ValueError('Utilisez un fichier XLSX ou CSV UTF-8.')
+        raise ValueError('Utilisez un fichier Excel XLSX, CSV UTF-8 ou PDF.')
     with zipfile.ZipFile(io.BytesIO(raw)) as archive:
         entries = archive.infolist()
         if len(entries) > 1500 or sum(e.file_size for e in entries) > 30 * 1024 * 1024:
@@ -116,21 +127,151 @@ def column(n):
         n, k = divmod(n-1, 26); out = chr(65+k) + out
     return out
 
-def inspect(raw, filename):
-    book = read_table(raw, filename)
-    sheets = []
-    for name, rows in book.items():
-        best = max(range(min(20, len(rows))), key=lambda n: sum(key(c['value']) in FIELDS or key(c['value']) in ALIASES for c in rows[n]), default=0)
-        mapping = {}
-        for n, c in enumerate(rows[best] if rows else []):
-            field = ALIASES.get(key(c['value']), key(c['value']))
-            if field in FIELDS: mapping[field] = n
-        sheets.append({'name': name, 'rows': len(rows), 'header': best, 'mapping': mapping,
-                       'preview': [[str(c['value'] if c['value'] is not None else '')[:220] for c in r] for r in rows[:30]]})
-    return {'sheets': sheets, 'fields': FIELDS, 'sha256': hashlib.sha256(raw).hexdigest()}
+def identify_header(value):
+    label = key(value).replace('-', ' ').replace('’', "'")
+    label = re.sub(r'\s+', ' ', label)
+    label = label.replace('satalre','salaire').replace('salaire.','salaire')
+    if re.search(r'(rendu(?:[ -]?compte)?|declare|impute|rapporte|retenu|eligible)', label) and re.search(r'montant|total|depense|cout',label):
+        return 'allocation_amount', 100 if 'projet' in label else 80
+    if ('employeur' in label and ('verse' in label or 'cout' in label)):
+        return 'base_amount', 90
+    if 'temps' in label and ('%' in label or 'pourcentage' in label):
+        return 'allocation_percent', 90
+    field = ALIASES.get(label, label)
+    return (field, 40) if field in FIELDS else (None, 0)
 
-def normalize(raw, filename, config):
-    book = read_table(raw, filename)
+
+def detect(rows):
+    best = max(range(min(100, len(rows))), key=lambda n: sum(identify_header(c['value'])[1] for c in rows[n]), default=0)
+    mapping = {}; ranks = {}
+    for n,c in enumerate(rows[best] if rows else []):
+        field,rank = identify_header(c['value'])
+        if field and rank > ranks.get(field,0):
+            mapping[field] = n; ranks[field] = rank
+    return best,mapping
+
+
+def inspect(raw, filename, options=None):
+    from collections import Counter
+    options=options or {}
+    if filename.lower().endswith('.pdf') and isinstance(options.get('page'),int):
+        from .stamping_tables import pdf_tables
+        book=pdf_tables(raw,options['page'])
+    else:book=read_table(raw,filename)
+    sheets = []; results = []; unreadable = []
+    layouts=Counter(tuple(sorted(detect(rows)[1].items())) for rows in book.values() if all(f in detect(rows)[1] for f in ['employee_ref','period','project_name','allocation_amount']))
+    common=dict(layouts.most_common(1)[0][0]) if layouts else options.get('mappingHint',{})
+    for name,rows in book.items():
+        best,mapping = detect(rows)
+        if filename.lower().endswith('.pdf') and common and len(mapping)>=3 and all(common.get(k)==v for k,v in mapping.items()) and max(common.values())<len(rows[best]):
+            mapping={**common,**mapping}
+        sheets.append({'name':name,'rows':len(rows),'header':best,'mapping':mapping,
+                       'preview':[[str(c['value'] if c['value'] is not None else '')[:220] for c in r] for r in rows[:max(30,best+8)]]})
+        if all(f in mapping for f in ['employee_ref','period','project_name','allocation_amount']) and 'document_type' not in mapping:
+            config={'sheet':name,'header':best,'mapping':mapping,'documentType':'PAYSLIP','currency':'EUR','automatic':True,'grouped':True}
+            results.append(normalize(raw,filename,config,book))
+        elif filename.lower().endswith('.pdf') and len(mapping)>=2 and ('base_amount' in mapping or 'allocation_amount' in mapping):
+            unreadable.append({'row':best+1,'sheet':name,'message':'En-tête incomplet. Ajoutez la version Excel ou un PDF plus lisible pour inclure cette page.'})
+    suggested = None
+    if results or unreadable:
+        groups = {}
+        for result in results:
+            for g in result['groups']:
+                if g['id'] not in groups: groups[g['id']] = g
+                else:
+                    prior=groups[g['id']]
+                    prior['allocations'].extend(g['allocations'])
+                    if prior['base_amount_cents']!=g['base_amount_cents']: prior['errors'].append('Assiettes différentes entre pages.')
+                    prior['errors'].extend(g['errors'])
+                    update_group(prior)
+        suggested={'groups':list(groups.values()),'errors':unreadable,
+                   'warnings':list(dict.fromkeys(w for r in results for w in r['warnings'])),
+                   'source_sha256':hashlib.sha256(raw).hexdigest(),'mapping':{'automatic':True}}
+    return {'sheets':sheets,'fields':FIELDS,'sha256':hashlib.sha256(raw).hexdigest(),'suggestedImport':suggested}
+
+
+def combine_inspections(parts):
+    if not isinstance(parts,list) or not 1<=len(parts)<=30:raise ValueError('Pages de tableau invalides.')
+    first=parts[0];groups={};errors=[];warnings=[]
+    for part in parts:
+        if part['sha256']!=first['sha256']:raise ValueError('Les pages ne proviennent pas du même fichier.')
+        result=part.get('suggestedImport')
+        if not result:continue
+        errors.extend(result['errors']);warnings.extend(result['warnings'])
+        for g in result['groups']:
+            if g['id'] not in groups:groups[g['id']]=g
+            else:
+                prior=groups[g['id']];prior['allocations'].extend(g['allocations']);prior['errors'].extend(g['errors'])
+                if prior['base_amount_cents']!=g['base_amount_cents']:prior['errors'].append('Assiettes différentes entre pages.')
+                update_group(prior)
+    suggested={'groups':list(groups.values()),'errors':errors,'warnings':list(dict.fromkeys(warnings)),'source_sha256':first['sha256'],'mapping':{'automatic':True}} if groups or errors else None
+    return {'sha256':first['sha256'],'fields':FIELDS,'sheets':[s for p in parts for s in p['sheets']],'suggestedImport':suggested}
+
+
+def amount_value(cell):
+    value = cell['value']
+    if cell.get('pdf'):
+        # Some PDF fonts extract the decimal comma as a space. The monetary
+        # column and explicit two-digit suffix are both required to restore it.
+        text = str(value).strip().replace('€','').replace('EUR','').strip()
+        if re.fullmatch(r'\d{1,3}(?: \d{3})* \d{2}', text):
+            text = text[:-3]+','+text[-2:]
+        value=text
+    if isinstance(value,(float,int)) and re.search(r'[0#]\.[0#]{2}(?![0#])',cell.get('format','')):
+        return int((Decimal(str(value))*100).quantize(Decimal('1'),rounding=ROUND_HALF_UP))
+    return cents(value)
+
+
+def update_group(g):
+    g['total_cents']=sum(a['amount_cents'] or 0 for a in g['allocations'])
+    g['remainder_cents']=None if g['base_amount_cents'] is None else g['base_amount_cents']-g['total_cents']
+    g['errors']=[e for e in g['errors'] if e not in ['Total supérieur à l’assiette.','Projet présent plusieurs fois : vérifier les doublons.']]
+    if g['remainder_cents'] is not None and g['remainder_cents']<0:g['errors'].append('Total supérieur à l’assiette.')
+    projects=[key(a['project']) for a in g['allocations']]
+    if len(projects)!=len(set(projects)):g['errors'].append('Projet présent plusieurs fois : vérifier les doublons.')
+
+
+def review_import(original, changes):
+    from copy import deepcopy
+    if not isinstance(changes,list) or len(changes)>5000:raise ValueError('Corrections invalides.')
+    result=deepcopy(original); edits={}; known={(g['id'],a['id']) for g in result['groups'] for a in g['allocations']}
+    for change in changes:
+        if not isinstance(change,dict) or set(change)-{'groupId','allocationId','employee','period','project','amount','baseAmount','excluded'}:raise ValueError('Correction invalide.')
+        identity=(change.get('groupId'),change.get('allocationId'))
+        if identity not in known or identity in edits:raise ValueError('Ligne de correction inconnue ou dupliquée.')
+        edits[identity]=change
+    rebuilt={};errors=[];excluded=list(original.get('excluded',[]))
+    for g in result['groups']:
+        for a in g['allocations']:
+            patch=edits.get((g['id'],a['id']),{})
+            if patch.get('excluded') is True:
+                excluded.append({'allocation':a,'employee':g['employee_ref'],'period':g['period']});continue
+            employee=str(patch.get('employee',g['employee_ref'])).strip()
+            period=patch.get('period',g['period']);project=str(patch.get('project',a['project'])).strip()
+            value=patch.get('amount',a.get('amountRaw') if a['amount_cents'] is None else str(Decimal(a['amount_cents'])/100))
+            basevalue=patch.get('baseAmount',g.get('baseRaw') if a.get('base_cents',g['base_amount_cents']) is None else str(Decimal(a.get('base_cents',g['base_amount_cents']))/100))
+            try:
+                period=month(period)
+                if not 1<=len(employee)<=120 or not 1<=len(project)<=300:raise ValueError('Salarié et projet requis.')
+                amount=cents(value)
+                base=cents(basevalue) if basevalue not in [None,''] else None
+                if amount<0 or (base is not None and base<=0):raise ValueError('Montant invalide.')
+            except ValueError as exc:
+                raise ValueError(f"{employee or 'Salarié'} · {project or 'Projet'} : {exc}") from exc
+            if patch:a['review']={'before_employee':g['employee_ref'],'before_period':g['period'],'before_project':a['project'],'before_cents':a['amount_cents']}
+            a['project']=project;a['amount_cents']=amount;a['base_cents']=base;a.pop('amountRaw',None)
+            identity={f:g.get(f,'') for f in ['document_ref','employee_ref','invoice_number','supplier_ref','invoice_date']};identity['employee_ref']=employee
+            gid=hashlib.sha256(json.dumps([g['document_type'],period,identity],sort_keys=True).encode()).hexdigest()[:24]
+            target=rebuilt.setdefault(gid,{**g,**identity,'id':gid,'period':period,'base_amount_cents':base,'allocations':[],'errors':[],'rounding_cents':None})
+            if target['base_amount_cents']!=base:target['errors'].append('Assiettes différentes dans un même groupe.')
+            target['allocations'].append(a)
+    for g in rebuilt.values():update_group(g)
+    result.update(groups=list(rebuilt.values()),errors=list(original.get('errors',[]))+errors,excluded=excluded)
+    return result
+
+
+def normalize(raw, filename, config, book=None):
+    book = book if book is not None else read_table(raw, filename)
     sheet = config.get('sheet', next(iter(book)))
     if sheet not in book: raise ValueError('Feuille introuvable.')
     rows = book[sheet]; mapping = config.get('mapping', {})
@@ -138,7 +279,7 @@ def normalize(raw, filename, config):
     if not isinstance(header, int) or not 0 <= header < len(rows): raise ValueError('En-tête invalide.')
     if any(k not in FIELDS or not isinstance(v, int) or not 0 <= v < 100 for k,v in mapping.items()):
         raise ValueError('Correspondance invalide.')
-    groups = {}; errors = []; warnings = []; prior = {}; prior_cells = {}; source_hash = hashlib.sha256(raw).hexdigest()
+    groups = {}; errors = []; warnings = []; pending = []; prior = {}; prior_cells = {}; source_hash = hashlib.sha256(raw).hexdigest()
     excluded = config.get('excludedRows', [])
     if excluded and not str(config.get('exclusionReason', '')).strip(): raise ValueError('Justifiez les lignes exclues.')
     wide = config.get('projects', [])
@@ -164,6 +305,9 @@ def normalize(raw, filename, config):
                 else:
                     data[f] = prior.get(f)
                     if f in prior_cells: source_cells[f] = prior_cells[f]
+        if config.get('automatic'):
+            project_text=key(data['project_name'])
+            if not project_text or project_text in ['projet','projets','total'] or project_text.startswith('total '): continue
         variants = wide or [None]
         for project in variants:
             try:
@@ -189,16 +333,20 @@ def normalize(raw, filename, config):
                 if not name or len(name) > 300: raise ValueError('Nom de projet requis (300 caractères maximum).')
                 currency = str(current['currency'] or config.get('currency') or '').upper()
                 if currency != 'EUR': raise ValueError('Devise EUR à confirmer. Autres devises non prises en charge.')
-                base = cents(current['base_amount']) if current['base_amount'] is not None and current['base_amount'] != '' else None
+                base = amount_value({**cell('base_amount'),'value':current['base_amount']}) if current['base_amount'] is not None and current['base_amount'] != '' else None
                 base_type = str(current['base_type'] or ('EMPLOYER_COST' if dtype=='PAYSLIP' else config.get('baseType',''))).upper()
                 if base_type not in ['EMPLOYER_COST','HT','TTC','ELIGIBLE_BASE']: raise ValueError('Assiette à préciser (HT, TTC, coût employeur, éligible).')
                 if dtype=='PAYSLIP' and base_type!='EMPLOYER_COST': raise ValueError('La paie doit utiliser le coût employeur.')
-                rate = percent(current['allocation_percent'],rate_cell.get('format',''),config.get('percentMode','points')) if current['allocation_percent'] not in [None,''] else None
+                try:
+                    rate = percent(re.sub(r'(?<=\d) (\d{2})%',r',\1%',str(current['allocation_percent'])) if rate_cell.get('pdf') else current['allocation_percent'],rate_cell.get('format',''),config.get('percentMode','points')) if current['allocation_percent'] not in [None,''] else None
+                except ValueError:
+                    if not config.get('automatic') or current['allocation_amount'] in [None,'']:raise
+                    rate=None;warnings.append('Certains pourcentages sont illisibles. Les montants explicites du tableau sont conservés.')
                 calculated = current['allocation_amount'] in [None,'']
                 if calculated:
                     if not config.get('allowCalculation') or rate is None or base is None: raise ValueError('Montant absent : calcul au pourcentage non autorisé ou base absente.')
                     amount = int((Decimal(base)*rate/100).quantize(Decimal('1'), rounding=ROUND_HALF_UP))
-                else: amount = cents(current['allocation_amount'])
+                else: amount = amount_value(amount_cell)
                 if amount < 0 or (base is not None and base <= 0): raise ValueError('Montants négatifs et assiettes nulles non autorisés.')
                 identity = {f:str(current[f] or '').strip() for f in ['document_ref','employee_ref','invoice_number','supplier_ref','invoice_date']}
                 if isinstance(current['invoice_date'],(datetime,date)): identity['invoice_date']=current['invoice_date'].strftime('%Y-%m-%d')
@@ -209,10 +357,21 @@ def normalize(raw, filename, config):
                 g = groups.setdefault(gid, {'id':gid, 'document_type':dtype,'period':period,**identity,'currency':currency,'base_amount_cents':base,'base_type':base_type,'allocations':[],'errors':[]})
                 if g['base_amount_cents']!=base or g['base_type']!=base_type: g['errors'].append('Assiettes différentes dans un même groupe.')
                 if any(key(a['project'])==key(name) for a in g['allocations']): g['errors'].append('Projet présent plusieurs fois : vérifier les doublons.')
-                g['allocations'].append({'id':f'{index}-{len(g["allocations"])}','project':name,'code':str(current['project_code'] or ''),'programme':str(current['programme'] or ''),'amount_cents':amount,'percent':str(rate) if rate is not None else None,'calculated':calculated,
-                  'source':{'file':filename,'sha256':source_hash,'sheet':sheet,'row':index,'cell':amount_cell['cell'] if not calculated else rate_cell['cell'],'raw':str(amount_cell.get('raw','')),'rule':'ROUND_HALF_UP' if calculated else 'EXACT','fields':{f:{'cell':c['cell'],'raw':str(c['raw'])} for f,c in source_cells.items()}}})
+                g['allocations'].append({'id':f'{hashlib.sha256(sheet.encode()).hexdigest()[:8]}-{index}-{len(g["allocations"])}','project':name,'code':str(current['project_code'] or ''),'programme':str(current['programme'] or ''),'amount_cents':amount,'base_cents':base,'percent':str(rate) if rate is not None else None,'calculated':calculated,
+                  'source':{'file':filename,'sha256':source_hash,'sheet':sheet,'row':index,'cell':amount_cell['cell'] if not calculated else rate_cell['cell'],'raw':str(amount_cell.get('raw','')),'rule':'ROUND_HALF_UP' if calculated else ('DISPLAYED_CENTS' if amount_cell.get('formula') else 'EXACT'),'fields':{f:{'cell':c['cell'],'raw':str(c['raw'])} for f,c in source_cells.items()}}})
             except (ValueError,InvalidOperation,KeyError,TypeError) as exc:
-                errors.append({'row':index,'message':str(exc) or 'Ligne invalide.'})
+                message=str(exc) or 'Ligne invalide.'
+                errors.append({'row':index,'sheet':sheet,'message':message})
+                if config.get('automatic'):
+                    try: pending_amount=amount_value(amount_cell)
+                    except (ValueError,TypeError,InvalidOperation):pending_amount=None
+                    try: pending_base=amount_value({**cell('base_amount'),'value':current['base_amount']}) if current['base_amount'] not in [None,''] else None
+                    except (ValueError,TypeError,InvalidOperation):pending_base=None
+                    try: pending_period=month(current['period'])
+                    except ValueError:pending_period=str(current['period'] or '')
+                    aid=f'{hashlib.sha256(sheet.encode()).hexdigest()[:8]}-{index}-pending'
+                    pending.append({'id':aid,'document_type':'PAYSLIP','employee_ref':str(current['employee_ref'] or ''),'period':pending_period,'document_ref':'','invoice_number':'','supplier_ref':'','invoice_date':'','currency':'EUR','base_type':'EMPLOYER_COST','base_amount_cents':pending_base,'baseRaw':str(current['base_amount'] or ''),'errors':[message],'total_cents':pending_amount or 0,'remainder_cents':None,'rounding_cents':None,
+                        'allocations':[{'id':aid,'project':str(current['project_name'] or ''),'amount_cents':pending_amount,'amountRaw':str(current['allocation_amount'] or ''),'code':'','programme':'','percent':None,'calculated':False,'source':{'file':filename,'sha256':source_hash,'sheet':sheet,'row':index,'cell':amount_cell['cell'],'raw':str(amount_cell.get('raw','')),'rule':'REVIEW_REQUIRED'}}]})
     for group in groups.values():
         group['total_cents'] = sum(a['amount_cents'] for a in group['allocations'])
         group['remainder_cents'] = None if group['base_amount_cents'] is None else group['base_amount_cents']-group['total_cents']
@@ -223,4 +382,4 @@ def normalize(raw, filename, config):
             rate=sum(Decimal(r) for r in rates)
             if rate>100: group['errors'].append('Pourcentages supérieurs à 100 %.')
             group['rounding_cents']=group['total_cents']-int((Decimal(group['base_amount_cents'])*rate/100).quantize(Decimal('1'),rounding=ROUND_HALF_UP))
-    return {'groups':list(groups.values()),'errors':errors,'warnings':list(dict.fromkeys(warnings)), 'source_sha256':source_hash,'mapping':config}
+    return {'groups':list(groups.values())+pending,'errors':errors,'warnings':list(dict.fromkeys(warnings)), 'source_sha256':source_hash,'mapping':config}

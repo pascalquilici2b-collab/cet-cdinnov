@@ -25,7 +25,7 @@ await new Promise(r=>server.listen(0,'127.0.0.1',r));const base='http://127.0.0.
 const browser=await chromium.launch({channel:'msedge',headless:true});const errors=[],calls=[];
 try{
  const page=await browser.newPage({viewport:{width:1440,height:1000},locale:'fr-FR'});page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>calls.push(r.url()));page.setDefaultTimeout(20000);
- await page.goto(base);await page.getByRole('heading',{name:'Tamponnage des pièces'}).waitFor();await page.screenshot({path:out+'/accueil.png'});
+ await page.goto(base);await page.getByRole('heading',{name:'Tamponnage de pièces'}).waitFor();await page.screenshot({path:out+'/accueil.png'});
  await page.getByLabel('Nom du lot',{exact:true}).fill('Paie et factures · démonstration');await page.getByRole('button',{name:'Créer le lot',exact:true}).click();
  await page.getByLabel('Importer les PDF').setInputFiles([{name:'bulletin-fictif.pdf',mimeType:'application/pdf',buffer:Buffer.from(f.pdf,'base64')},{name:'facture-fictive.pdf',mimeType:'application/pdf',buffer:Buffer.from(f.invoice,'base64')}]);
  await page.getByRole('button',{name:'facture-fictive.pdf',exact:true}).waitFor();

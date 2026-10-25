@@ -92,13 +92,14 @@ def evidence_lines(text):
     for n,line in enumerate(text.splitlines()):
         if re.search(r'\b(?:NIR|IBAN|BIC|sécurité sociale|securite sociale|adresse)\b',line,re.I): continue
         line=re.sub(r'(?<!\d)[12]\s?\d{2}\s?\d{2}\s?\d{2}\s?\d{3}\s?\d{3}(?:\s?\d{2})?(?!\d)','[identifiant retiré]',line)
-        if re.search(r'bulletin|paie|période|periode|matricule|salari[ée]|facture|fournisseur|siret|total.*(?:employeur|HT|TTC)|coût employeur|cout employeur|r[ée]f[ée]rence|\bdate\b',line,re.I):
+        if re.search(r'\b(?:Madame|Monsieur|Mme|Mlle)\b|nom.*pr[ée]nom|bulletin|paie|période|periode|matricule|salari[ée]|facture|fournisseur|siret|total.*(?:employeur|HT|TTC)|coût employeur|cout employeur|r[ée]f[ée]rence|\bdate\b',line,re.I):
             result.append({'line':n,'text':line[:220]})
     return result[:60]
 
 def extract_fields(text):
     fields={}; proofs={}
     specs={
+      'employee_name':r"(?:nom et pr[ée]nom|salari[ée]|Madame|Monsieur|Mme|Mlle)\s*[:.]?\s+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ '-]{3,100})",
       'employee_ref':r'(?:matricule|référence salarié|reference salarie)\s*[:#]?\s*([\w./-]+)',
       'invoice_number':r'facture\s*(?:n[°ºo.]|numéro|numero|number|#|:)\s*[:.]?\s*([\w./-]+)',
       'supplier_ref':r'(?:référence fournisseur|reference fournisseur|fournisseur|SIRET)\s*:\s*([\w .-]+)',
@@ -153,15 +154,23 @@ def extract(raw):
 def sourced_ai(reading,suggestions):
     fields=dict(reading['fields']);proofs=dict(reading['proofs'])
     # Suggestions are identification only. No allocation, amount or programme is accepted.
-    allowed={'employee_ref','supplier_ref','invoice_number','document_ref','period','invoice_date'}
+    allowed={'employee_ref','employee_name','supplier_ref','invoice_number','document_ref','period','invoice_date'}
     for item in suggestions[:10]:
         if not isinstance(item,dict) or set(item)!={'field','value','quote'}: continue
         f=item['field'];v=item['value'];q=item['quote']
         if f not in allowed or not isinstance(v,str) or not isinstance(q,str) or not 1<=len(v)<=120: continue
         if key(v) not in key(q) or not any(key(q) in key(e['text']) for e in reading['evidence']): continue
-        if f=='period' and not re.fullmatch(r'\d{4}-(0[1-9]|1[0-2])',v): continue
+        if f=='period':
+            try:v=month(v)
+            except ValueError:continue
         if f not in fields: fields[f]=v;proofs[f]=q
     return {**reading,'fields':fields,'proofs':proofs}
+
+def same_employee(a,b):
+    def tokens(value):return re.findall(r"[a-z]+",key(value))
+    left,right=tokens(a),tokens(b)
+    return len(left)>=2 and sorted(left)==sorted(right)
+
 
 def select_group(reading,groups,choice=None):
     fields=reading['fields']; matches=[]
@@ -169,11 +178,13 @@ def select_group(reading,groups,choice=None):
         if g['document_type']!=fields.get('document_type'): continue
         required=['employee_ref','period'] if g['document_type']=='PAYSLIP' else ['supplier_ref','invoice_number']
         if all(key(fields.get(f))==key(g.get(f)) and fields.get(f) for f in required): matches.append(g)
+        elif g['document_type']=='PAYSLIP' and fields.get('period')==g.get('period') and same_employee(fields.get('employee_name',''),g.get('employee_ref','')):matches.append(g)
     selected=next((g for g in groups if g['id']==choice.get('groupId')),None) if choice else (matches[0] if len(matches)==1 else None)
     if choice and (not choice.get('identityConfirmed') or len(choice.get('reason','').strip())<5):
         raise StampError('REVIEW_REQUIRED','Confirmez l’identité de la pièce et justifiez le rapprochement manuel.')
     if selected is None: raise StampError('REVIEW_REQUIRED','Aucun rapprochement unique. Choisissez le groupe après vérification de l’identité.')
     conflicts=[f for f in ['period','employee_ref','supplier_ref','invoice_number','invoice_date','document_type'] if fields.get(f) and selected.get(f) and key(fields[f])!=key(selected[f])]
+    if 'employee_ref' in conflicts and same_employee(fields.get('employee_name',''),selected.get('employee_ref','')):conflicts.remove('employee_ref')
     if conflicts and not choice: raise StampError('REVIEW_REQUIRED','Divergence : '+', '.join(conflicts))
     if selected['errors']: raise StampError('INVALID_ALLOCATION','; '.join(selected['errors']))
     total=sum(a['amount_cents'] for a in selected['allocations'])

@@ -17,6 +17,14 @@ const range=(start:string,end:string)=>start===end?date(start):`${date(start)} �
 const euro=(amount:number)=>new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',maximumFractionDigits:2}).format(amount);
 const initials=(name:string)=>name.split(/\s+/).filter(Boolean).slice(0,2).map(n=>n[0]).join('');
 
+function LiveDate(){
+ const [now,setNow]=useState(()=>new Date());
+ useEffect(()=>{const tick=()=>setNow(new Date()),timer=setInterval(tick,1000);document.addEventListener('visibilitychange',tick);return()=>{clearInterval(timer);document.removeEventListener('visibilitychange',tick);};},[]);
+ const part=(options:Intl.DateTimeFormatOptions)=>new Intl.DateTimeFormat('fr-FR',{timeZone:'Europe/Paris',...options}).format(now);
+ const clock=new Intl.DateTimeFormat('fr-FR',{timeZone:'Europe/Paris',hour:'2-digit',minute:'2-digit'}).formatToParts(now);
+ const day=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Paris',year:'numeric',month:'2-digit',day:'2-digit'}).format(now);
+ return <time className="db-live-date" dateTime={now.toISOString()} aria-label={part({dateStyle:'full',timeStyle:'short'})}><span className="db-calendar-tile" aria-hidden="true"><span>{part({month:'short'}).replace('.','')}</span><strong key={day}>{part({day:'2-digit'})}</strong></span><span className="db-date-copy"><span>{part({weekday:'long'})}</span><strong>{part({month:'long',year:'numeric'})}</strong><span className="db-live-clock" aria-hidden="true"><Clock3 size={14}/>{clock.find(p=>p.type==='hour')?.value}<i>:</i>{clock.find(p=>p.type==='minute')?.value}</span></span></time>;
+}
 function Avatar({member,portrait}:{member:Member;portrait?:Props['portrait']}){
   const source=portrait?.(member)||'';
   const [failed,setFailed]=useState('');
@@ -59,7 +67,7 @@ function Dashboard({load,open,portrait}:Props){
   if(!data&&!error)return <LoadingScreen label="Chargement de l’activité…"/>;
   return <div className="cdi-dashboard" aria-busy={busy}>
     <ExpensePresentationStyle/>
-    <div className="db-heading"><div><time className="db-today" dateTime={data?.today||parisDay()}><span>{date(data?.today||parisDay(),{weekday:'long'})}</span><strong>{date(data?.today||parisDay(),{day:'numeric',month:'long'})}<small>{date(data?.today||parisDay(),{year:'numeric'})}</small></strong></time></div>
+    <div className="db-heading"><LiveDate/>
       <div className="db-update"><button className="db-button" disabled={busy} onClick={()=>refresh(r=>r+1)}><RefreshCw size={15} className={busy?'db-is-refreshing':''}/> {busy?'Actualisation…':'Actualiser'}</button>{data&&<small>Mis à jour à {date(data.generatedAt,{hour:'2-digit',minute:'2-digit'})}</small>}</div>
     </div>
     {error&&<div className="db-error" role="alert"><strong>Actualisation indisponible.</strong> {error} {data&&'Les informations ci-dessous proviennent de la dernière lecture.'}<button onClick={()=>refresh(r=>r+1)}>Réessayer</button></div>}
