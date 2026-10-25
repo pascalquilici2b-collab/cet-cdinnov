@@ -7,8 +7,8 @@ export function Loading({label='Chargement…',compact=false}:{label?:string;com
  </div>;
 }
 
-export function LoadingScreen({label='Chargement…'}:{label?:string}){
- return <div className="cdi-loading-screen" role="status">
+export function LoadingScreen({label='Chargement…',connection=false}:{label?:string;connection?:boolean}){
+ return <div className={'cdi-loading-screen'+(connection?' cdi-loading--auth':'')} role="status">
   <BrandMark/><span className="cdi-loading-sr">{label}</span>
  </div>;
 }

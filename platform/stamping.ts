@@ -1,6 +1,7 @@
 import {createHash} from 'node:crypto';
 import {Buffer} from 'node:buffer';
-import {zipSync,strToU8} from 'fflate';
+import {zipSync} from 'fflate';
+import {stampedLotFilename} from './stamping-filenames';
 import {sessionIdentity} from './identity';
 import {boundedBody} from './portal';
 import {stampingSuggestions} from './stamping-ai';
@@ -99,7 +100,7 @@ export async function stampingQueue(batch:{messages:{body:Job;ack():void;retry(o
   else message.retry({delaySeconds:30});
  }}
 }
-function binary(reply:Reply,raw:Uint8Array,type:string,name:string){const headers=new Headers(reply(200,{}).headers);headers.set('Content-Type',type);headers.set('Content-Disposition',`attachment; filename="${name}"`);headers.set('X-Content-Type-Options','nosniff');return new Response(new Uint8Array(raw),{headers});}
+function binary(reply:Reply,raw:Uint8Array,type:string,name:string){const headers=new Headers(reply(200,{}).headers);headers.set('Content-Type',type);const ascii=name.normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^\x20-\x7e]|["\\]/g,'_');const encoded=encodeURIComponent(name).replace(/['()*]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());headers.set('Content-Disposition',`attachment; filename="${ascii}"; filename*=UTF-8''${encoded}`);headers.set('X-Content-Type-Options','nosniff');return new Response(new Uint8Array(raw),{headers});}
 
 export async function stampingRoute(request:Request,env:Environment,reply:Reply):Promise<Response>{
  const session=await sessionIdentity(request,env);if(!session)return reply(401,{error:'Connexion requise.'});if(!session.admin)return reply(403,{error:'Le tamponnage est réservé à la direction.'});
@@ -194,12 +195,8 @@ export async function stampingRoute(request:Request,env:Environment,reply:Reply)
  if(tail==='export'&&method==='GET'){
   const docs=await documents(db,b.id),files:Record<string,Uint8Array>={};let totalBytes=0;
   for(const d of docs.filter(d=>d.status==='VERIFIED')){const result=JSON.parse(d.data);const pdf=await object(env,result.candidateKey);if(hash(pdf)!==result.output_sha256)return fail(503,'Empreinte du PDF invalide.');totalBytes+=pdf.length;if(totalBytes>30*1024*1024)return fail(413,'Export ZIP limité à 30 Mo. Téléchargez les PDF séparément.');files[`piece-${d.id}_tamponne.pdf`]=pdf;}
-  const escape=(v:unknown)=>'"'+String(v??'').replace(/^[=+\-@\t\r]/,"'$&").replace(/"/g,'""')+'"';
-  const rows=[['Fichier','État','Type','Période','Groupe','Base centimes','Imputé centimes','Reliquat centimes','Erreur','SHA256 source','SHA256 sortie'],...docs.map(d=>{const r=JSON.parse(d.data);return [d.name,d.status,r.reading?.fields?.document_type,r.reading?.fields?.period,d.match_group,r.base_cents,r.total_cents,r.remainder_cents,r.error?.message,d.sha256,r.output_sha256]})];
-  files['rapport.csv']=strToU8('\ufeff'+rows.map(r=>r.map(escape).join(';')).join('\r\n'));
-  const events=(await db.prepare('SELECT * FROM stamp_audit WHERE batch_id=? ORDER BY created_at').bind(b.id).all()).results;
-  files['tracabilite.json']=strToU8(JSON.stringify({batch:{id:b.id,name:b.name},source:data.table?.sha256,mapping:data.import?.mapping,groups:data.import?.groups,excluded:data.import?.excluded,documents:docs.map(expose),audit:events},null,2));
-  return binary(reply,zipSync(files,{level:0}),'application/zip',`tamponnage-${b.id}.zip`);
+  if(!Object.keys(files).length)return fail(422,'Aucune pièce tamponnée à télécharger.');
+  return binary(reply,zipSync(files,{level:0}),'application/zip',stampedLotFilename(b.name));
  }
  const dr=tail.match(/^documents\/([^/]+)(?:\/(analyze|approve|stamp|cancel|preview|source|output))?$/);if(!dr||!uuid(dr[1]))return reply(404,{error:'Action introuvable.'});
  const d=await db.prepare('SELECT * FROM stamp_documents WHERE id=? AND batch_id=?').bind(dr[1],b.id).first<Doc>();if(!d)return reply(404,{error:'Pièce introuvable.'});const result=JSON.parse(d.data),action=dr[2];

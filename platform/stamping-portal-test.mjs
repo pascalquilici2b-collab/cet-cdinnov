@@ -12,9 +12,11 @@ const browser=await chromium.launch({channel:'msedge',headless:true});const erro
 try{
  const context=await browser.newContext({viewport:{width:1500,height:1000},locale:'fr-FR'});
  await context.route('**/*',route=>route.request().url().startsWith(preview.base+'/')||route.request().url().startsWith('data:')?route.continue():route.abort());
+ let releaseModule;const moduleGate=new Promise(resolve=>releaseModule=resolve);await context.route('**/platform/stamping.js*',async route=>{await moduleGate;await route.continue();});
  const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));await page.goto(preview.base);
  await page.locator('[data-react-billing]').waitFor();await page.locator('[data-view=tamponnage]').click();
  await page.getByRole('heading',{name:'Tamponnage des pièces'}).waitFor();
+ await page.locator('#stampingRoot .cdi-bolt').waitFor();assert.equal(await page.locator('#stampingRoot .cdi-bolt').evaluate(e=>getComputedStyle(e).animationName),'cdi-bolt-rotate');assert.equal(await page.locator('.auth-brand-mark .cdi-bolt').evaluate(e=>getComputedStyle(e).animationName),'cdi-bolt-pulse');await page.screenshot({path:out+'/menu-triangle-rotation.png'});releaseModule();
  await page.waitForFunction(()=>!document.querySelector('.stamp-progress'));
  await page.screenshot({path:out+'/portail-tamponnage.png',fullPage:false});
  await page.locator('[data-theme-toggle]').click();

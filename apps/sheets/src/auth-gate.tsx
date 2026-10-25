@@ -101,7 +101,7 @@ export function AuthGate({
             {childrenProp}
           </div>
         )}
-        {v || H ? <LoadingScreen label="Connexion en cours…"/> : (R || !o) && (
+        {v || H ? <LoadingScreen connection label="Connexion en cours…"/> : (R || !o) && (
           <div className={"cloud-gate"}>
             <a className={"cloud-return"} href={"/"}>
               <IconArrowLeft size={16} />

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
-import {unzipSync,strFromU8} from 'fflate';
+import {unzipSync} from 'fflate';
 import {stampEnvironment,fixtures,users} from './stamping-test-helper.mjs';
 const ctx=await stampEnvironment(),f=await fixtures();let checks=0;
 const read=async(r,status=200)=>{assert.equal(r.status,status,await r.clone().text());return r.json();};
@@ -13,7 +13,7 @@ try{
   assert.equal((await ctx.call('/batches',{headers:{Origin:'https://evil.example'}})).status,403);
  });
  await check('Create private lot; import real CSV with exact provenance',async()=>{
-  id=(await read(await ctx.send('/batches',{name:'Lot synthétique',useAI:true}),201)).id;b=await read(await ctx.call('/batches/'+id));
+  id=(await read(await ctx.send('/batches',{name:'Lot synthétique / paie : 2026',useAI:true}),201)).id;b=await read(await ctx.call('/batches/'+id));
   await read(await ctx.upload(`/batches/${id}/table`,Buffer.from(f.table,'base64'),'allocations.csv',b.version));b=await read(await ctx.call('/batches/'+id));
   const s=b.data.table.sheets[0];await read(await ctx.send(`/batches/${id}/mapping`,{mapping:{sheet:s.name,header:s.header,mapping:s.mapping},confirmed:true},b.version));
   b=await read(await ctx.call('/batches/'+id));assert.equal(b.data.importConfirmed,true);assert.equal(b.data.import.groups.length,2);assert.equal(b.data.import.groups[0].total_cents,645940);
@@ -37,6 +37,7 @@ try{
   assert.equal(ctx.aiCalls(),0);assert.equal(ctx.serviceActions.filter(a=>a==='analyze').length,2);assert.equal(ctx.serviceActions.filter(a=>a==='extract'||a==='process').length,0);assert.ok(ctx.aiRequests.every(r=>!JSON.stringify(r).includes('7177.1')));
  });
  await check('Approval required; preview hash bound to exact output; idempotent stamp',async()=>{
+  assert.equal((await ctx.call(`/batches/${id}/export`)).status,422);
   let d=b.documents[0];assert.equal((await ctx.send(`/batches/${id}/documents/${d.id}/stamp`,{},d.version)).status,409);
   assert.equal((await ctx.call(`/batches/${id}/documents/${d.id}/output`)).status,409);
   assert.equal((await ctx.send(`/batches/${id}/documents/${d.id}/approve`,{reviewed:true,outputSha256:'bad'},d.version)).status,422);
@@ -44,9 +45,9 @@ try{
   const output=await ctx.call(`/batches/${id}/documents/${d.id}/output`);assert.equal(createHash('sha256').update(Buffer.from(await output.arrayBuffer())).digest('hex'),d.data.output_sha256);
   assert.equal((await ctx.send(`/batches/${id}/mapping`,{},b.version)).status,409);
  });
- await check('ZIP successes and complete audit; no source mutation',async()=>{
+ await check('ZIP contains stamped PDFs only, is named after the lot, and keeps internal audit',async()=>{
   const r=await ctx.call(`/batches/${id}/export`);assert.equal(r.status,200);const files=unzipSync(new Uint8Array(await r.arrayBuffer()));assert.equal(Object.keys(files).filter(p=>p.endsWith('.pdf')).length,2);
-  assert.match(strFromU8(files['rapport.csv']),/645940/);const trace=JSON.parse(strFromU8(files['tracabilite.json']));assert.ok(trace.audit.some(e=>e.action==='APPROVED'));assert.ok(trace.groups[0].allocations[0].source.cell);
+  assert.equal(Object.keys(files).length,2);assert.ok(Object.keys(files).every(p=>p.endsWith('.pdf')));assert.equal(decodeURIComponent(r.headers.get('Content-Disposition').split("filename*=UTF-8''")[1]),'Lot synthétique - paie - 2026 tamponné.zip');for(const d of b.documents)assert.equal(createHash('sha256').update(files[`piece-${d.id}_tamponne.pdf`]).digest('hex'),d.data.output_sha256);const events=(await ctx.db.prepare('SELECT action FROM stamp_audit WHERE batch_id=?').bind(id).all()).results;assert.ok(events.some(e=>e.action==='APPROVED'));
   assert.deepEqual(Buffer.from(await(await ctx.call(`/batches/${id}/documents/${payId}/source`)).arrayBuffer()),Buffer.from(f.pdf,'base64'));
  });
  await check('Owner isolation, guessed IDs, generic R2 route blocked',async()=>{
