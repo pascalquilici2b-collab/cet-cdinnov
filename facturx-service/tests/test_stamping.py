@@ -152,3 +152,47 @@ def test_french_month_and_date_range_evidence():
         result=extract_fields('Bulletin de paie\n'+label)
         assert result['fields']['period']=='2026-01' and result['proofs']['period']==label
     assert 'period' not in extract_fields('Période du 01/01/2026 au 28/02/2026')['fields']
+
+
+def test_single_read_and_signed_cache(monkeypatch):
+    from cdi_facturx import stamping_pdf as engine
+    monkeypatch.setenv('FACTURX_API_KEY','synthetic-reading-cache-secret-0123456789')
+    raw=pdf();count=0;real=engine.extract
+    def counted(source):
+        nonlocal count
+        count+=1
+        return real(source)
+    monkeypatch.setattr(engine,'extract',counted)
+    result=engine.analyze(raw,groups(4));assert count==1 and 'error' not in result
+    assert result['cachedReading']['receipt']
+    again=engine.analyze(raw,groups(4),cached=result['cachedReading']);assert count==1 and again['total_cents']==40000
+    forged=deepcopy(result['cachedReading']);forged['reading']['bases']['EMPLOYER_COST']['amount_cents']=999999
+    result2=engine.analyze(raw,groups(4),cached=forged);assert count==2 and result2['base_cents']==717710
+    engine.analyze(pdf(kind='INVOICE'),groups(kind='INVOICE'),cached=result['cachedReading']);assert count==3
+
+
+def test_qwen_only_when_identity_is_ambiguous():
+    from cdi_facturx.stamping_pdf import analyze
+    g=groups(4);g[0]['employee_ref']='OTHER'
+    result=analyze(pdf(),g);assert result['needsAI'] and result['error']['code']=='REVIEW_REQUIRED'
+    g=groups(4);g[0]['base_amount_cents']=12345
+    result=analyze(pdf(),g);assert not result['needsAI'] and result['error']['code']=='BASE_MISMATCH'
+    assert result['proposedGroupId']==g[0]['id']
+
+
+@pytest.mark.parametrize('n',[1,2,4,8])
+def test_reference_stamp_models(n):
+    result=process(pdf(),groups(n),{'allowAppendix':True})
+    text=' '.join(p.extract_text() or '' for p in PdfReader(io.BytesIO(base64.b64decode(result['pdf']))).pages)
+    assert 'Dépense soutenue avec les fonds' in text and '2021-2027' in text
+    assert text.count('Montant :')==n and text.count('Projet')>=n
+    assert 'Total :' not in text
+    assert result['checks']['source_visual']
+
+
+def test_programme_respected_and_generic_available():
+    g=groups(1);g[0]['allocations'][0]['programme']='Interreg Euro-Med'
+    result=process(pdf(),g);text=PdfReader(io.BytesIO(base64.b64decode(result['pdf']))).pages[0].extract_text()
+    assert 'Interreg Euro-Med' in text and 'Italie-France' not in text
+    result=process(pdf(),g,{'programme':'generic'});text=PdfReader(io.BytesIO(base64.b64decode(result['pdf']))).pages[0].extract_text()
+    assert 'Dépense imputée aux projets suivants' in text and 'Interreg Euro-Med' not in text

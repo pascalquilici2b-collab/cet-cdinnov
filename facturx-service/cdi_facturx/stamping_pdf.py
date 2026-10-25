@@ -6,6 +6,9 @@ All coordinates exposed by this module are PDF points from the visible top left.
 import base64
 from collections import Counter
 import hashlib
+import hmac
+import json
+import os
 import io
 import math
 import re
@@ -23,7 +26,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 
 from .stamping_import import cents, key, month
 
-VERSION = 'stamping-1.0-20261023'
+VERSION = 'stamping-2.0-20261025'
 FONT = 'CDIStamp'
 pdfmetrics.registerFont(TTFont(FONT, str(Path(__file__).parent/'assets/fonts/DejaVuSans.ttf')))
 
@@ -172,13 +175,18 @@ def same_employee(a,b):
     return len(left)>=2 and sorted(left)==sorted(right)
 
 
-def select_group(reading,groups,choice=None):
+def identity_matches(reading,groups):
     fields=reading['fields']; matches=[]
     for g in groups:
         if g['document_type']!=fields.get('document_type'): continue
         required=['employee_ref','period'] if g['document_type']=='PAYSLIP' else ['supplier_ref','invoice_number']
         if all(key(fields.get(f))==key(g.get(f)) and fields.get(f) for f in required): matches.append(g)
         elif g['document_type']=='PAYSLIP' and fields.get('period')==g.get('period') and same_employee(fields.get('employee_name',''),g.get('employee_ref','')):matches.append(g)
+    return matches
+
+
+def select_group(reading,groups,choice=None):
+    fields=reading['fields'];matches=identity_matches(reading,groups)
     selected=next((g for g in groups if g['id']==choice.get('groupId')),None) if choice else (matches[0] if len(matches)==1 else None)
     if choice and (not choice.get('identityConfirmed') or len(choice.get('reason','').strip())<5):
         raise StampError('REVIEW_REQUIRED','Confirmez l’identité de la pièce et justifiez le rapprochement manuel.')
@@ -202,23 +210,34 @@ def select_group(reading,groups,choice=None):
 
 def wrap(text,width,size):
     lines=[];line=''
-    for char in str(text).replace('\n',' '):
-        if pdfmetrics.stringWidth(line+char,FONT,size)>width:
-            lines.append(line.rstrip());line=char.lstrip()
-        else: line+=char
-    if line:lines.append(line.rstrip())
+    for word in str(text).replace('\n',' ').split():
+        candidate=(line+' '+word).strip()
+        if pdfmetrics.stringWidth(candidate,FONT,size)<=width:line=candidate;continue
+        if line:lines.append(line);line=''
+        for char in word:
+            if line and pdfmetrics.stringWidth(line+char,FONT,size)>width:lines.append(line);line=''
+            line+=char
+    if line:lines.append(line)
     return lines or ['']
 
-def layout(allocations,width=290,size=9,header='Dépense imputée aux projets suivants',show_total=True):
+
+def layout(allocations,width=290,size=9,header='Dépense imputée aux projets suivants',show_total=False):
     if not 8<=size<=12 or not 210<=width<=500: raise StampError('INVALID_LAYOUT','Largeur 210–500 points ; police 8–12 points.')
-    title=wrap(header,width-20,size+1);top=12+len(title)*(size+4)+6
+    title=wrap(header,width-28,size+2);top=12+len(title)*(size+4)+12
     rows=[]
-    for a in allocations:
-        text=wrap(a['project'],width-110,size)
-        h=max(1,len(text))*(size+3)+8
-        rows.append({'allocation':a,'lines':text,'y':top,'height':h});top+=h
-    height=top+(size+20 if show_total else 8)
-    return {'width':width,'height':height,'size':size,'title':title,'rows':rows,'total':sum(a['amount_cents'] for a in allocations),'show_total':show_total}
+    columns=2 if len(allocations)==2 else 1
+    stacked=len(allocations)<=2
+    for n,a in enumerate(allocations):
+        prefix='Projet : ' if stacked else f'Projet {n+1} : '
+        amount='Montant : '+money(a['amount_cents'])
+        text=wrap(prefix+a['project'],(width/columns-22) if stacked else width-pdfmetrics.stringWidth(amount,FONT,size)-32,size)
+        amounts=wrap(amount,width/columns-22,size) if stacked else [amount]
+        h=max(1,len(text))*(size+3)+(len(amounts)*(size+3)+16 if stacked else 12)
+        rows.append({'allocation':a,'lines':text,'amounts':amounts,'y':top,'height':h,'column':n if columns==2 else 0})
+        if columns==1:top+=h
+    if columns==2:top+=max(row['height'] for row in rows)
+    height=top+10
+    return {'width':width,'height':height,'size':size,'title':title,'rows':rows,'total':sum(a['amount_cents'] for a in allocations),'show_total':False,'columns':columns,'stacked':stacked}
 
 def rect_overlap(a,b,margin=0):
     return a[0]<b[2]+margin and a[2]>b[0]-margin and a[1]<b[3]+margin and a[3]>b[1]-margin
@@ -256,18 +275,26 @@ def find_space(mask,l):
 
 def draw_stamp(c,block,page):
     l=block['layout'];x=float(page.cropbox.left)+block['x'];top=float(page.cropbox.top)-block['y'];w=l['width'];h=l['height'];size=l['size']
-    c.setStrokeColorRGB(.08,.32,.64);c.setFillColorRGB(.06,.21,.43);c.setLineWidth(.8);c.rect(x,top-h,w,h,stroke=1,fill=0)
-    c.setFont(FONT,size+1)
-    for n,line in enumerate(l['title']):c.drawString(x+10,top-12-(n+1)*(size+4)+size+2,line)
+    c.setStrokeColorRGB(0,.45,1);c.setFillColorRGB(0,0,.48);c.setLineWidth(.8);c.rect(x,top-h,w,h,stroke=1,fill=0)
+    c.setFont('Helvetica-Bold',size+1)
+    for n,line in enumerate(l['title']):c.drawCentredString(x+w/2,top-13-n*(size+4),line)
     c.setFont(FONT,size)
-    for row in l['rows']:
-        y=top-row['y'];c.setLineWidth(.3);c.line(x+8,y,x+w-8,y)
-        for n,line in enumerate(row['lines']):c.drawString(x+10,y-12-n*(size+3),line)
-        c.drawRightString(x+w-10,y-12,money(row['allocation']['amount_cents']))
-    if l['show_total']:c.drawRightString(x+w-10,top-h+10,'Total : '+money(l['total']))
+    if l['columns']==2:
+        c.setLineWidth(.3);c.line(x+w/2,top-l['rows'][0]['y']+3,x+w/2,top-h+10)
+    for i,row in enumerate(l['rows']):
+        y=top-row['y'];left=x+10+row['column']*w/l['columns']
+        for n,line in enumerate(row['lines']):c.drawString(left,y-size-n*(size+3),line)
+        amount='Montant : '+money(row['allocation']['amount_cents'])
+        if l['stacked']:
+            for n,line in enumerate(row['amounts']):c.drawString(left,y-(len(row['lines'])+n)*(size+3)-size-8,line)
+        else:
+            c.drawRightString(x+w-10,y-size,amount)
+            if i<len(l['rows'])-1:
+                c.setLineWidth(.3);c.line(x+6,y-row['height']+6,x+w-6,y-row['height']+6)
 
-def process(raw,groups,options=None,choice=None,suggestions=None,overrides=None):
-    options=options or {};reading=sourced_ai(extract(raw),suggestions or [])
+def process(raw,groups,options=None,choice=None,suggestions=None,overrides=None,reading=None):
+    options=options or {};reading=sourced_ai(reading if reading is not None else extract(raw),suggestions or [])
+    if reading.get('source_sha256')!=digest(raw) or reading.get('algorithm')!=VERSION:raise StampError('INVALID_READING','La lecture ne correspond pas à cet original.')
     selected,base,conflicts=select_group(reading,groups,choice)
     if overrides:
         from copy import deepcopy
@@ -286,12 +313,15 @@ def process(raw,groups,options=None,choice=None,suggestions=None,overrides=None)
     allocations=[a for a in selected['allocations'] if a['amount_cents']>0]
     if not allocations:raise StampError('NO_ALLOCATION','Aucune imputation non nulle.')
     if len(allocations)>200:raise StampError('INVALID_ALLOCATION','Maximum 200 imputations par pièce.')
-    header=options.get('header','Dépense imputée aux projets suivants')
-    if header!='Dépense imputée aux projets suivants':
+    header='Dépense imputée aux projets suivants'
+    if options.get('header')=='programme' and options.get('programme')!='generic':
         programme=options.get('programme','')
         if not programme or any(key(a['programme'])!=key(programme) for a in allocations):
             raise StampError('PROGRAMME_MISMATCH','Le programme du modèle ne correspond pas à toutes les imputations.')
-        header='Dépense imputée - '+programme
+    known={a.get('programme','').strip() for a in allocations if a.get('programme','').strip()}
+    if options.get('programme')!='generic':
+        if not known or all('maritime' in key(p) or 'marittimo' in key(p) for p in known):header='Dépense soutenue avec les fonds du PC Italie-France Maritime 2021-2027'
+        elif len(known)==1 and all(a.get('programme','').strip() for a in allocations):header='Dépense soutenue avec les fonds du programme '+next(iter(known))
     source=open_source(raw);writer,normal=canonical(source);blocks=[];occupied=[]
     with pdfium.PdfDocument(normal) as doc:
         for i,page in enumerate(doc):
@@ -355,7 +385,7 @@ def process(raw,groups,options=None,choice=None,suggestions=None,overrides=None)
         if Counter(printed)!=Counter(a['id'] for a in allocations):raise StampError('VERIFY_FAILED','Imputations manquantes ou dupliquées.')
         for b in blocks:
             for row in b['layout']['rows']:
-                if money(row['allocation']['amount_cents']) not in output_text:raise StampError('VERIFY_FAILED','Montant absent du résultat.')
+                if money(row['allocation']['amount_cents']).replace(' ','') not in re.sub(r'\s+','',output_text):raise StampError('VERIFY_FAILED','Montant absent du résultat.')
                 if any(line not in output_text for line in row['lines']):raise StampError('VERIFY_FAILED','Libellé absent du résultat.')
         with pdfium.PdfDocument(result) as final:
             for i in range(len(doc)):
@@ -374,6 +404,32 @@ def process(raw,groups,options=None,choice=None,suggestions=None,overrides=None)
     return {'reading':reading,'groupId':selected['id'],'base_cents':base,'total_cents':total,'remainder_cents':base-total,'rounding_cents':None if overrides else selected.get('rounding_cents'),
             'allocations':selected['allocations'],'manual':bool(choice),'conflicts':conflicts,'blocks':[{'page':b['page'],'x':b['x'],'y':b['y'],'width':b['layout']['width'],'height':b['layout']['height'],'fontSize':b['layout']['size']} for b in blocks],
             'source_sha256':digest(raw),'output_sha256':digest(result),'algorithm':VERSION,'overridden':bool(overrides),'checks':{'geometry':True,'source_text':True,'source_visual':True,'allocations':True,'annotations':True},'pdf':base64.b64encode(result).decode()}
+
+def reading_receipt(reading):
+    secret=os.getenv('FACTURX_API_KEY','')
+    if len(secret)<32:return None
+    return hmac.new(secret.encode(),json.dumps(reading,sort_keys=True,ensure_ascii=False,separators=(',',':')).encode(),hashlib.sha256).hexdigest()
+
+
+def analyze(raw,groups,options=None,choice=None,suggestions=None,overrides=None,cached=None):
+    # Only the authenticated service can attest to a cached extraction. Never
+    # accept client-authored fields, or reuse a reading from a different PDF.
+    reading=None
+    if isinstance(cached,dict) and isinstance(cached.get('reading'),dict):
+        candidate=cached['reading'];expected=reading_receipt(candidate)
+        if expected and hmac.compare_digest(expected,str(cached.get('receipt',''))) and candidate.get('source_sha256')==digest(raw) and candidate.get('algorithm')==VERSION:reading=candidate
+    if reading is None:reading=extract(raw)
+    receipt=reading_receipt(reading)
+    try:
+        result=process(raw,groups,options,choice,suggestions,overrides,reading=reading)
+    except StampError as error:
+        resolved=sourced_ai(reading,suggestions or []);matches=identity_matches(resolved,groups)
+        result={'reading':resolved,'needsAI':error.code=='REVIEW_REQUIRED' and not choice,'error':{'code':error.code,'message':str(error)},'proposedGroupId':matches[0]['id'] if len(matches)==1 else None}
+    # Retain the original extraction as the signed cache; suggestions have their
+    # own quoted evidence and never become trusted extraction data.
+    result['cachedReading']={'reading':reading,'receipt':receipt} if receipt else None
+    return result
+
 
 def preview(raw,page=0):
     # Source previews also go through structural/security checks.

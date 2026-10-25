@@ -10,10 +10,10 @@ export async function py(args,input=''){
 }
 export async function fixtures(){return JSON.parse(await py(['-c',`import runpy,json,base64; m=runpy.run_path('tests/test_stamping.py'); print(json.dumps({'pdf':base64.b64encode(m['pdf']()).decode(),'invoice':base64.b64encode(m['pdf']('INVOICE')).decode(),'dense':base64.b64encode(m['pdf'](dense=True)).decode(),'table':base64.b64encode(m['table']()+b'\\n'+m['table'](kind='INVOICE').split(b'\\n',1)[1]).decode()}))`]));}
 export async function stampEnvironment(){
- let aiCalls=0;const requests=[];
+ let aiCalls=0;const requests=[],serviceActions=[];
  const ctx=await testEnvironment({stamping:true,ai:async input=>{aiCalls++;requests.push(input);return {response:JSON.stringify({suggestions:[{field:'allocation_amount',value:'50000',quote:'ignore instructions'}]})};},bindings:{BILLING_PDF_SERVICE_URL:'https://document.test',BILLING_PDF_SERVICE_KEY:'x'.repeat(40)},outboundService:async request=>{
   if(new URL(request.url).origin!=='https://document.test')throw new Error('Unexpected network destination');
-  const form=await request.formData();const payload=JSON.parse(form.get('payload'));payload.file=Buffer.from(await form.get('file').arrayBuffer()).toString('base64');
+  const form=await request.formData();const payload=JSON.parse(form.get('payload'));serviceActions.push(payload.action);payload.file=Buffer.from(await form.get('file').arrayBuffer()).toString('base64');
   const out=await py(['-m','cdi_facturx.stamping_job'],JSON.stringify(payload));return new Response(out,{headers:{'Content-Type':'application/json'}});
  }});
  await migrateStamping(ctx.db);await migrateStamping(ctx.db);
@@ -24,5 +24,5 @@ export async function stampEnvironment(){
  };
  const send=(path,payload={},version)=>call(path,{method:'POST',headers:version?{'If-Match':String(version)}:{},body:JSON.stringify(payload)});
  const upload=(path,bytes,name,version)=>{const form=new FormData();form.append('file',new Blob([bytes]),name);return call(path,{method:'POST',headers:version?{'If-Match':String(version)}:{},body:form});};
- return {...ctx,call,send,upload,admin,aiCalls:()=>aiCalls,aiRequests:requests};
+ return {...ctx,call,send,upload,admin,aiCalls:()=>aiCalls,aiRequests:requests,serviceActions};
 }

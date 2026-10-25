@@ -34,7 +34,7 @@ try{
   do{b=await read(await ctx.call('/batches/'+id));if(b.documents.every(d=>!['QUEUED','PROCESSING'].includes(d.status)))break;await new Promise(r=>setTimeout(r,200));}while(Date.now()<until);
   assert.deepEqual(b.documents.map(d=>d.status),['NEEDS_APPROVAL','NEEDS_APPROVAL'],JSON.stringify(b.documents));
   for(const d of b.documents){assert.equal(d.data.total_cents,645940);assert.equal(d.data.remainder_cents,71770);assert.ok(Object.values(d.data.checks).every(Boolean));}
-  assert.equal(ctx.aiCalls(),2);assert.ok(ctx.aiRequests.every(r=>!JSON.stringify(r).includes('7177.1')));
+  assert.equal(ctx.aiCalls(),0);assert.equal(ctx.serviceActions.filter(a=>a==='analyze').length,2);assert.equal(ctx.serviceActions.filter(a=>a==='extract'||a==='process').length,0);assert.ok(ctx.aiRequests.every(r=>!JSON.stringify(r).includes('7177.1')));
  });
  await check('Approval required; preview hash bound to exact output; idempotent stamp',async()=>{
   let d=b.documents[0];assert.equal((await ctx.send(`/batches/${id}/documents/${d.id}/stamp`,{},d.version)).status,409);

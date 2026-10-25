@@ -65,11 +65,18 @@ export async function processStampJob(job:Job,env:Environment){
  try{
   const source=await object(env,sourceKey(b,d));if(hash(source)!==d.sha256)throw new Error('source hash');
   const batch=JSON.parse(b.data),data=JSON.parse(d.data);
-  const reading=await service(env,source,{action:'extract'});
-  // The model sees only minimised server-extracted evidence, never caller-supplied document text.
-  ai=await stampingSuggestions(db,env,reading.evidence);
-  await db.prepare('UPDATE stamp_documents SET data=? WHERE id=? AND version=? AND status=?').bind(JSON.stringify({...data,reading,ai}),d.id,d.version,'PROCESSING').run();
-  const result=await service(env,source,{action:'process',groups:batch.import.groups,options:data.options||batch.options||{},choice:data.choice,suggestions:ai.suggestions||[],overrides:data.overrides||[]});
+  const startedAt=data.progress?.startedAt||Date.now(),payload={action:'analyze',groups:batch.import.groups,options:data.options||batch.options||{},choice:data.choice,overrides:data.overrides||[],cachedReading:data.cachedReading||null};
+  const progress=async(stage:string,extra:Record<string,unknown>={})=>db.prepare("UPDATE stamp_documents SET data=? WHERE id=? AND version=? AND status='PROCESSING'").bind(JSON.stringify({...data,...extra,progress:{startedAt,stage}}),d.id,d.version).run();
+  await progress('reading');
+  let result=await service(env,source,payload);ai={status:'not_needed',suggestions:[]};
+  if(result.needsAI){
+   await progress('ai',{reading:result.reading,cachedReading:result.cachedReading});
+   ai=await stampingSuggestions(db,env,result.reading.evidence);
+   if(ai.suggestions.length){await progress('reading',{reading:result.reading,ai,cachedReading:result.cachedReading});result=await service(env,source,{...payload,cachedReading:result.cachedReading,suggestions:ai.suggestions});}
+  }
+  await progress('saving',{...result,ai,pdf:undefined});
+  if(result.error)throw Object.assign(new Error(result.error.message),{code:result.error.code});
+  result.progress={startedAt,stage:'complete',elapsedMs:Date.now()-startedAt};
   const raw=Buffer.from(result.pdf,'base64');delete result.pdf;
   if(hash(raw)!==result.output_sha256||result.source_sha256!==d.sha256||Object.values(result.checks).some(v=>v!==true))throw new Error('verification');
   const key=candidateKey(b,d);await bucket(env).put(key,raw,{httpMetadata:{contentType:'application/pdf'}});
@@ -221,12 +228,12 @@ export async function stampingRoute(request:Request,env:Environment,reply:Reply)
   if(!env.STAMPING_QUEUE)return fail(503,'La file de traitement doit être activée.');
   if(!data.sealed){const sealed=await db.prepare("UPDATE stamp_batches SET data=json_set(data,'$.sealed',json('true')),version=version+1 WHERE id=? AND version=? RETURNING id").bind(b.id,b.version).first();if(!sealed)return fail(409,'Le lot a changé. Relancez l’analyse.');}
   if(['PROCESSING','VERIFIED','APPROVED'].includes(d.status))return fail(409,'Pièce en cours ou déjà validée.');
-  const p=await json(request,50000);if(p.overrides!==undefined&&!Array.isArray(p.overrides))return fail(400,'Corrections invalides.');const next={choice:p.choice||null,options:{...data.options,...p.options},overrides:p.overrides||[]};
+  const p=await json(request,50000);if(p.overrides!==undefined&&!Array.isArray(p.overrides))return fail(400,'Corrections invalides.');const next={choice:p.choice||null,options:{...data.options,...p.options},overrides:p.overrides||[],cachedReading:result.cachedReading||null,progress:{startedAt:Date.now(),stage:'queued'}};
   if(p.choice&&(typeof p.choice.reason!=='string'||p.choice.reason.trim().length<5))return fail(422,'Justifiez le rapprochement manuel.');
   const row=await db.prepare("UPDATE stamp_documents SET status='QUEUED',data=?,match_group=NULL,version=version+1 WHERE id=? AND version=? AND status NOT IN ('PROCESSING','VERIFIED','APPROVED') RETURNING version").bind(JSON.stringify(next),d.id,d.version).first<{version:number}>();if(!row)return fail(409,'La pièce a changé.');
   try{await (env.STAMPING_QUEUE as {send(body:Job):Promise<void>}).send({batchId:b.id,documentId:d.id,version:row.version,owner:b.owner});}
   catch{await db.prepare("UPDATE stamp_documents SET status='REVIEW_REQUIRED' WHERE id=? AND version=?").bind(d.id,row.version).run();return fail(503,'La file est indisponible. Relancez cette pièce.');}
-  await audit(db,b,'ANALYSIS_REQUESTED',next,d.id);return reply(202,{ok:true});
+  await audit(db,b,'ANALYSIS_REQUESTED',{choice:next.choice,options:next.options,overrides:next.overrides},d.id);return reply(202,{ok:true});
  }
  if(action==='cancel'){
   if(d.status==='PROCESSING')return fail(409,'La pièce en cours finit en sécurité. Les autres peuvent être annulées.');
