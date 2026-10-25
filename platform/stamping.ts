@@ -99,7 +99,7 @@ export async function stampingRoute(request:Request,env:Environment,reply:Reply)
   if(method==='POST'){const p=await json(request,20000);if(typeof p.name!=='string'||!p.name.trim()||p.name.length>120)return fail(400,'Nom de profil requis.');const id=crypto.randomUUID();await db.prepare('INSERT INTO stamp_profiles VALUES(?,?,?,?,?)').bind(id,session.email,p.name,JSON.stringify(p.mapping),Date.now()).run();return reply(201,{id});}
  }
  if(path==='/batches'){
-  if(method==='GET')return reply(200,{batches:(await db.prepare('SELECT id,name,version,created_at,expires_at FROM stamp_batches WHERE owner=? AND expires_at>? ORDER BY created_at DESC LIMIT 100').bind(session.email,Date.now()).all()).results});
+  if(method==='GET')return reply(200,{batches:(await db.prepare('SELECT id,owner,name,version,created_at,expires_at FROM stamp_batches WHERE owner=? AND expires_at>? ORDER BY created_at DESC LIMIT 100').bind(session.email,Date.now()).all()).results});
   if(method==='POST'){
    const p=await json(request,10000);if(typeof p.name!=='string'||!p.name.trim()||p.name.length>120)return fail(400,'Nom de lot requis.');
    const id=crypto.randomUUID(),now=Date.now();await db.prepare('INSERT INTO stamp_batches VALUES(?,?,?,1,?,?,?)').bind(id,session.email,p.name.trim(),JSON.stringify({useAI:true,options:{header:'Dépense imputée aux projets suivants',compact:true,split:true,allowAppendix:p.allowAppendix===true,pagePreference:p.pagePreference==='last'?'last':'first'}}),now,now+30*86400000).run();

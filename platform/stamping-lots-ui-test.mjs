@@ -1,0 +1,47 @@
+import assert from 'node:assert/strict';
+import {mkdir} from 'node:fs/promises';
+import {resolve} from 'node:path';
+import {createRequire} from 'node:module';
+import {billingPreview} from './billing-preview.mjs';
+import {migrateStamping} from './stamping-schema.mjs';
+import {users} from '../marches/test.mjs';
+const require=createRequire(process.env.PLAYWRIGHT_PACKAGE||'C:/Users/quili/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright/package.json');
+const {chromium}=require('playwright'),out=resolve('platform/.private/stamping-lots-20261025/qa');await mkdir(out,{recursive:true});
+const preview=await billingPreview({stamping:true});await migrateStamping(preview.ctx.db);
+const browser=await chromium.launch({channel:'msedge',headless:true});const errors=[];
+try{
+ const context=await browser.newContext({viewport:{width:1500,height:1000},locale:'fr-FR'});
+ await context.route('**/*',route=>route.request().url().startsWith(preview.base+'/')||route.request().url().startsWith('data:')?route.continue():route.abort());
+ const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));page.setDefaultTimeout(15000);await page.goto(preview.base);
+ await page.locator('[data-react-billing]').waitFor();
+ // Local synthetic portrait, also exercising private blob-image support.
+ await page.evaluate(()=>{state.salaries[0].photo='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO/aXuoAAAAASUVORK5CYII=';});
+ await page.locator('[data-view=tamponnage]').click();await page.getByRole('heading',{name:'Tamponnage de pièces',exact:true}).waitFor();
+ assert.equal(await page.getByText('Bulletins de paie et factures, avec leur tableau de répartition.',{exact:true}).count(),0);
+ await page.getByLabel('Nom du lot',{exact:true}).fill('Répartition test');await page.getByRole('button',{name:'Créer le lot',exact:true}).click();await page.getByRole('heading',{name:'Pièces du lot',exact:true}).waitFor();
+ const row=await preview.ctx.db.prepare('SELECT * FROM stamp_batches WHERE owner=?').bind(users[0]).first();
+ const group=(id,employee,period,amount)=>({id,employee_ref:employee,period,document_type:'PAYSLIP',base_amount_cents:100000,base_type:'EMPLOYER_COST',total_cents:amount,remainder_cents:100000-amount,errors:[],allocations:[{id:id+'a',project:'Projet test',amount_cents:amount,base_cents:100000,source:{sheet:'Tableau',cell:'H2',row:2}}]});
+ const reading={mapping:{automatic:true},groups:[group('one','Camille TEST','2024-09',12000),group('two','Camille TEST','2024-10',24000),group('three','Alex TEST','2025-01',30000)],errors:[],warnings:[]};
+ await preview.ctx.db.prepare('UPDATE stamp_batches SET data=? WHERE id=?').bind(JSON.stringify({...JSON.parse(row.data),import:reading,table:{name:'Test.xlsx',sheets:[{name:'Tableau',header:0,mapping:{}}]},importConfirmed:false}),row.id).run();
+ await page.getByRole('button',{name:'Actualiser',exact:true}).click();await page.getByRole('navigation',{name:'Salariés du tableau'}).waitFor();
+ const people=page.getByRole('navigation',{name:'Salariés du tableau'}),months=page.getByRole('navigation',{name:'Mois du salarié'});
+ assert.equal(await people.getByRole('button').count(),2);await people.getByRole('button',{name:/Camille TEST/}).click();
+ assert.equal(await months.getByRole('button').count(),2);await months.getByRole('button',{name:/Septembre 2024/}).click();assert.equal(await page.getByLabel('Montant Projet test',{exact:true}).inputValue(),'120.00');
+ await page.getByLabel('Montant Projet test',{exact:true}).fill('125,00');await months.getByRole('button',{name:/Octobre 2024/}).click();assert.equal(await page.getByLabel('Montant Projet test',{exact:true}).inputValue(),'240.00');
+ await months.getByRole('button',{name:/Septembre 2024/}).click();assert.equal(await page.getByLabel('Montant Projet test',{exact:true}).inputValue(),'125,00');assert.equal(await page.getByLabel('Mois reconnu',{exact:true}).inputValue(),'2024-09');
+ await page.getByLabel('Rechercher un salarié ou un mois').fill('Octobre');assert.equal(await months.getByRole('button').count(),1);assert.equal(await page.getByLabel('Montant Projet test',{exact:true}).inputValue(),'240.00');
+ await page.getByLabel('Rechercher un salarié ou un mois').fill('introuvable');await page.getByText('Aucune ligne ne correspond à la recherche.',{exact:true}).waitFor();assert.equal(await page.getByLabel('Montant Projet test',{exact:true}).count(),0);
+ await page.getByLabel('Rechercher un salarié ou un mois').fill('');await people.getByRole('button',{name:/Camille TEST/}).click();
+ await page.screenshot({path:out+'/salarie-mois-montants.png',fullPage:true});
+ await page.locator('[data-theme-toggle]').click();await page.screenshot({path:out+'/salarie-mois-dark.png',fullPage:true});
+ await page.setViewportSize({width:390,height:900});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await page.screenshot({path:out+'/salarie-mois-mobile.png',fullPage:true});
+ await page.getByRole('button',{name:'Tous les lots',exact:true}).click();await page.locator('.stamp-lot-row').waitFor();
+ await page.locator('.stamp-avatar img').evaluate(img=>img.decode());assert.equal(await page.locator('.stamp-avatar img').getAttribute('alt'),'Camille Direction');
+ const listed=await preview.ctx.worker.dispatchFetch('https://preview.example/api/v1/stamping/batches',{headers:{Origin:'https://app.cdinnov.eu',Authorization:'Bearer '+preview.sessions[0].token}});assert.equal((await listed.json()).batches[0].owner,users[0]);
+ const del=page.getByRole('button',{name:'Supprimer le lot Répartition test',exact:true});await del.click();const dialog=page.getByRole('dialog',{name:'Supprimer ce lot ?'});await dialog.waitFor();
+ await page.screenshot({path:out+'/confirmation-dark-mobile.png'});await page.keyboard.press('Escape');await dialog.waitFor({state:'hidden'});assert.equal(await page.locator('.stamp-lot-row').count(),1);
+ await del.click();await dialog.getByRole('button',{name:'Annuler',exact:true}).click();assert.equal(await page.locator('.stamp-lot-row').count(),1);
+ await del.click();await dialog.getByRole('button',{name:'Supprimer le lot',exact:true}).click();await dialog.waitFor({state:'hidden'});await page.locator('.stamp-lot-row').waitFor({state:'detached'});
+ assert.equal(await preview.ctx.db.prepare('SELECT id FROM stamp_batches WHERE id=?').bind(row.id).first(),null);assert.deepEqual(errors,[]);
+ console.log('Portal: creator portrait, employee → month → editable amounts, French month search, preserved edits, dark/mobile, delete/cancel/Escape and real deletion passed.');
+}finally{await browser.close();await preview.close();}
