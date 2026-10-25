@@ -361,10 +361,10 @@
 .bill-app .bill-document-pagination>div{justify-content:center;gap:10px}
 .bill-page-size{display:flex;align-items:center;justify-content:flex-end;gap:8px;white-space:nowrap}
 .bill-page-size select{border:1px solid var(--bill-line);border-radius:9px;background:var(--bill-surface);color:var(--bill-ink);padding:7px 28px 7px 10px;font:inherit}
-.bill-app .bill-list-table tr[data-imported-invoice]{--imported-surface:#f0f1f3}
-[data-theme=dark] .bill-app .bill-list-table tr[data-imported-invoice]{--imported-surface:#2a2a2e}
-.bill-app .bill-list-table tr[data-imported-invoice]>td{background:var(--imported-surface);border-bottom-color:var(--bill-line)}
-.bill-app .bill-list-table tr[data-imported-invoice]:hover>td{background:color-mix(in srgb,var(--imported-surface) 90%,var(--bill-accent))}
+.bill-app .bill-list-table tr[data-imported-invoice]{--imported-surface:#e9eaed}
+[data-theme=dark] .bill-app .bill-list-table tr[data-imported-invoice]{--imported-surface:#38383e}
+.bill-app .bill-list-table tr[data-imported-invoice],.bill-app .bill-list-table tr[data-imported-invoice]>td{background:var(--imported-surface)!important;border-bottom-color:var(--bill-line)}
+.bill-app .bill-list-table tr[data-imported-invoice]:hover>td{background:color-mix(in srgb,var(--imported-surface) 94%,var(--bill-accent))!important}
 .bill-project-directory .bill-directory-heading h2{display:flex;align-items:center;gap:10px}
 .bill-app .bill-project-directory .bill-directory-rows{margin-top:20px}
 .bill-app .bill-project-directory .bill-directory-row{display:grid;grid-template-columns:minmax(0,1fr) auto 36px;align-items:center;gap:16px}

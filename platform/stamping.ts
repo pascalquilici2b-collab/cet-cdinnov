@@ -2,7 +2,7 @@ import {createHash} from 'node:crypto';
 import {Buffer} from 'node:buffer';
 import {zipSync} from 'fflate';
 import {stampedLotFilename,stampedDocumentNames} from './stamping-filenames';
-import {sessionIdentity} from './identity';
+import {hasAccess,sessionIdentity} from './identity';
 import {boundedBody} from './portal';
 import {stampingSuggestions} from './stamping-ai';
 import type {Environment,Database,Reply} from './contracts';
@@ -103,7 +103,7 @@ export async function stampingQueue(batch:{messages:{body:Job;ack():void;retry(o
 function binary(reply:Reply,raw:Uint8Array,type:string,name:string){const headers=new Headers(reply(200,{}).headers);headers.set('Content-Type',type);const ascii=name.normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^\x20-\x7e]|["\\]/g,'_');const encoded=encodeURIComponent(name).replace(/['()*]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());headers.set('Content-Disposition',`attachment; filename="${ascii}"; filename*=UTF-8''${encoded}`);headers.set('X-Content-Type-Options','nosniff');return new Response(new Uint8Array(raw),{headers});}
 
 export async function stampingRoute(request:Request,env:Environment,reply:Reply):Promise<Response>{
- const session=await sessionIdentity(request,env);if(!session)return reply(401,{error:'Connexion requise.'});if(!session.admin)return reply(403,{error:'Le tamponnage est réservé à la direction.'});
+ const session=await sessionIdentity(request,env);if(!session)return reply(401,{error:'Connexion requise.'});if(!hasAccess(session,'tamponnage'))return reply(403,{error:'Votre compte n’a pas accès au tamponnage.'});
  const db=dbOf(env),path=new URL(request.url).pathname.slice('/api/v1/stamping'.length),method=request.method;
  if(path==='/context')return reply(200,{configured:!!env.BILLING_PDF_SERVICE_URL&&!!env.STAMPING_QUEUE,ai:!!env.MARKETS_AI,retentionDays:30});
  if(path==='/profiles'){

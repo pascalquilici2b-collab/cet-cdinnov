@@ -55,7 +55,7 @@ export function AuthGate({
               throw new Error(
                 Se.status === 401
                   ? "Reconnectez-vous avec votre compte CDInnov."
-                  : "Le service est indisponible. Réessayez dans un instant.",
+                  : Se.status === 403 ? "Votre compte n’a pas accès à CDInnovSheets." : "Le service est indisponible. Réessayez dans un instant.",
               );
             J && attempt === generation && readSession()?.email === ee.email && (h(ee), f(true), b(false), G(""));
           } catch (Se) {

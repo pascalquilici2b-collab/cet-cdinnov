@@ -26,7 +26,7 @@ let s = {
 };
 const el = (id) => document.getElementById(id);
 const uid = () => crypto.randomUUID();
-const allowed = () => isAdmin(AUTH_USER);
+const allowed = () => canAccess('facturier');
 function error(message) {
   s.error = message;
   render(true);

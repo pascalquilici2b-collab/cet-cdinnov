@@ -43,7 +43,7 @@ export async function requestState(
     signal: options.signal || AbortSignal.timeout(30000),
     headers,
   });
-  if (response.status === 401) expireSession();
+  if (response.status === 401 || response.status === 403) expireSession();
   if (readSession()?.email !== session.email)
     throw new Error("La session a changé. Reconnectez-vous pour continuer.");
   return response;
@@ -122,5 +122,7 @@ export async function signIn(
     sessionKey,
     JSON.stringify({ email, t: Date.now(), budgets: session }),
   );
+  const access=await fetch(apiBase+'/sheets/session',{headers:{Authorization:'Bearer '+session.token},cache:'no-store'});
+  if(!access.ok)throw new Error(access.status===403?'Votre compte n’a pas accès à CDInnovSheets.':'Impossible de vérifier votre accès. Réessayez.');
   return session;
 }

@@ -1,10 +1,10 @@
 /* Shared document states: one palette in the list, header, summary and menu. */
-.bill-app [data-status=draft],.bill-state-menu [data-status=draft]{--state-ink:#62626b;--state-bg:#f0f0f3;--state-line:#ddddE3}
+.bill-app [data-status=draft],.bill-state-menu [data-status=draft]{--state-ink:#a44507;--state-bg:#fff2e4;--state-line:#f3c391}
 .bill-app [data-status=finalized],.bill-state-menu [data-status=finalized]{--state-ink:#0668c7;--state-bg:#edf5ff;--state-line:#bdd9f7}
 .bill-app [data-status=overdue],.bill-state-menu [data-status=overdue]{--state-ink:#a44507;--state-bg:#fff2e4;--state-line:#f3c391}
 .bill-app [data-status=partial],.bill-state-menu [data-status=partial]{--state-ink:#875c0c;--state-bg:#fff7df;--state-line:#ebd499}
 .bill-app [data-status=paid],.bill-app [data-status=overpaid],.bill-state-menu [data-status=paid]{--state-ink:#176c3e;--state-bg:#eaf7ef;--state-line:#b7ddc5}
-[data-theme=dark] .bill-app [data-status=draft],[data-theme=dark] .bill-state-menu [data-status=draft]{--state-ink:#c3c3cb;--state-bg:#313135;--state-line:#505057}
+[data-theme=dark] .bill-app [data-status=draft],[data-theme=dark] .bill-state-menu [data-status=draft]{--state-ink:#ffb877;--state-bg:#432d1e;--state-line:#79502c}
 [data-theme=dark] .bill-app [data-status=finalized],[data-theme=dark] .bill-state-menu [data-status=finalized]{--state-ink:#91c8ff;--state-bg:#19334f;--state-line:#355a80}
 [data-theme=dark] .bill-app [data-status=overdue],[data-theme=dark] .bill-state-menu [data-status=overdue]{--state-ink:#ffb877;--state-bg:#432d1e;--state-line:#79502c}
 [data-theme=dark] .bill-app [data-status=partial],[data-theme=dark] .bill-state-menu [data-status=partial]{--state-ink:#ebce88;--state-bg:#3d3421;--state-line:#6d5b34}
@@ -53,3 +53,8 @@
 .bill-app .bill-mail-actions>.bill-mail-download{padding:9px;width:42px}
 .bill-outlook-icon{flex:none}.bill-app .bill-delivery-dialog .bill-button:disabled{opacity:.6}
 @media(max-width:600px){.bill-app .bill-delivery-dialog .bill-section{padding:16px}.bill-app .bill-delivery-dialog .bill-dialog-top{padding:15px 16px}.bill-app .bill-delivery-dialog .bill-outlook-account{align-items:flex-start}.bill-app .bill-payment-heading{flex-wrap:wrap;gap:8px}.bill-app .bill-status-trigger{white-space:normal;text-align:left}}
+
+.bill-app [data-status=sent],.bill-state-menu [data-status=sent]{--state-ink:#793bb5;--state-bg:#f5edff;--state-line:#dcc4f3}
+.bill-app [data-status=accepted],.bill-state-menu [data-status=accepted]{--state-ink:#176c3e;--state-bg:#eaf7ef;--state-line:#b7ddc5}
+[data-theme=dark] .bill-app [data-status=sent],[data-theme=dark] .bill-state-menu [data-status=sent]{--state-ink:#d2adff;--state-bg:#342343;--state-line:#674889}
+[data-theme=dark] .bill-app [data-status=accepted],[data-theme=dark] .bill-state-menu [data-status=accepted]{--state-ink:#8cddaa;--state-bg:#203c2c;--state-line:#39634a}

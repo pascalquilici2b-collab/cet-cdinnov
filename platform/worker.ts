@@ -1,3 +1,5 @@
+import {hasAccess} from './access';
+import type {AccessKey} from './access';
 import {orderLimitMessage} from './billing-order-budget';
 import legacy from '../server/legacy-runtime.mjs';
 import {identity, sessionIdentity, login} from './identity.ts';
@@ -24,6 +26,9 @@ export default {
       headers = responseHeaders(request,env);
       if(request.method==='OPTIONS') return new Response(null,{status:204,headers});
       env=portalEnvironment(env);
+      // Check direct application URLs before delegating to compatibility handlers.
+      const module:AccessKey|null=path.startsWith('/budgets/markets')?'facturier':path.startsWith('/budgets/agenda')?'agenda':path.startsWith('/sheets/')?'sheets':path==='/api/v1/dashboard'?'dashboard':path==='/api/v1/budget-records'||path.startsWith('/budgets/')&&path!=='/budgets/session'?'budgetsprojets':null;
+      if(module){const session=await sessionIdentity(request,env);if(!session)return reply(401,{error:'Connexion requise.'});if(!hasAccess(session,module)&&!(path==='/budgets/clients'&&hasAccess(session,'facturier')))return reply(403,{error:'Votre compte n’a pas accès à cette rubrique.'});}
       if(path.startsWith('/api/v1/stamping/'))return await stampingRoute(request,env,reply);
       if(path==='/api/v1/projects')return await projectsRoute(request,env,reply);
       if(path==='/api/v1/billing'||path.startsWith('/api/v1/billing/'))return await billingRoute(request,env,reply);

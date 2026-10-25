@@ -16,6 +16,32 @@ function isAdmin(email){
   email=normEmail(email);const account=state.auth?.accounts?.[email];
   return account?.role!==undefined?account.role==='admin':!cloudEnabled()&&AUTH_ADMINS.includes(email);
 }
+function accountModules(email=AUTH_USER){return CDIPlatform.accountAccess(state.auth?.accounts?.[email]?.access,isAdmin(email));}
+function canAccess(view){
+ if(!AUTH_USER)return false;
+ if(view==='parametres'||view==='cet')return isAdmin(AUTH_USER);
+ const key=({marches:'facturier',conges:'agenda'})[view]||view;
+ return accountModules()[key]===true;
+}
+function applyAccessNavigation(){
+ document.querySelectorAll('.nav-item[data-view]').forEach(n=>{n.hidden=!canAccess(n.dataset.view);n.style.display=n.hidden?'none':'';});
+ const sheets=document.getElementById('cdiSheetsLink');if(sheets){sheets.hidden=!canAccess('sheets');sheets.style.display=sheets.hidden?'none':'';}
+ document.querySelectorAll('.sidebar>.nav-label').forEach(label=>{let next=label.nextElementSibling,visible=false;while(next&&!next.classList.contains('nav-label')&&!next.classList.contains('spacer')){if(next.classList.contains('nav-item')&&!next.hidden)visible=true;next=next.nextElementSibling;}label.hidden=!visible;});
+}
+function firstAllowedView(){return CDIPlatform.accessModules.find(m=>m.key!=='sheets'&&canAccess(m.key))?.key||'access';}
+function renderAccessHome(){
+ $('#topAction').style.display='none';$('#pageTitle').textContent='Votre espace';$('#pageSub').textContent='';
+ $('#content').innerHTML='<section class="card card-pad" style="max-width:480px;margin:48px auto;text-align:center">'+(canAccess('sheets')?'<a class="btn btn-primary" href="./feuilles/">Ouvrir CDInnovSheets</a>':'Aucune rubrique n’est activée pour ce compte.')+'</section>';
+}
+async function authSetAccess(email,access){
+ if(!isAdmin(AUTH_USER))throw new Error('Accès réservé à un administrateur.');
+ if(!await cloudPush())throw new Error('Enregistrez les modifications en attente avant de modifier les droits.');
+ try{
+  await portalFetch(cloudURL()+'/accounts',{method:'POST',headers:{'Content-Type':'application/json','If-Match':String(portalVersion)},body:JSON.stringify({email,action:'access',access})});
+  if(!await cloudLoad({discard:true}))throw new Error('Accès enregistrés. Actualisez pour les afficher.');
+  toastSaved('Accès enregistrés');
+ }catch(e){if(e.status===409)await cloudLoad({discard:true});throw e;}
+}
 async function portalFetch(url,options={}){
   const session=await budgetsEnsureSession();
   const response=await fetch(url,{...options,cache:'no-store',headers:{...options.headers,Authorization:'Bearer '+session.token}});
@@ -26,7 +52,7 @@ async function portalRead(options={}){return (await portalFetch(cloudURL(),optio
 function portalRemember(){try{localStorage.removeItem(STORE_KEY);if(AUTH_USER)localStorage.setItem(STORE_KEY+':draft:'+AUTH_USER,JSON.stringify(state));}catch{}}
 function save(){
   if(typeof budgetsClientsChanged==='function')budgetsClientsChanged();
-  try{reconcileCetMovements();agendaState.leaves=null;}catch{}
+  try{if(isAdmin(AUTH_USER))reconcileCetMovements();agendaState.leaves=null;}catch{}
   state.majAt=new Date().toISOString();state.majBy=AUTH_USER||'';
   portalRemember();renderMajPill();cloudSave();
 }
@@ -36,15 +62,15 @@ async function cloudLoad(options={}){
   if(portalClean&&JSON.stringify(state)!==portalClean&&!options.discard){setSync('err','Modifications à enregistrer');return false;}
   setSync('busy','Chargement…');
   try{
-    const wasAdmin=isAdmin(user),data=await portalRead();if(AUTH_USER!==user||portalEpoch!==epoch)return false;
+    const previousAccess=JSON.stringify(accountModules(user)),wasAdmin=isAdmin(user),data=await portalRead();if(AUTH_USER!==user||portalEpoch!==epoch)return false;
     state={...freshState(),...data.workspace,params:data.workspace.params||structuredClone(PARAMS_DEFAULT)};
     for(const person of state.salaries)if(person.email)AUTH_USER_MAT[normEmail(person.email)]=person.matricule;
     portalVersion=data.version;portalClean=JSON.stringify(state);currentYear=Number(state.params.anneeSuivi)||currentYear;
     await portalLoadPhotos();if(AUTH_USER!==user||portalEpoch!==epoch)return false;
     setSync('ok','Synchronisé');
-    if(document.body.classList.contains('authed')&&wasAdmin!==isAdmin(user)){
+    if(document.body.classList.contains('authed')&&(wasAdmin!==isAdmin(user)||previousAccess!==JSON.stringify(accountModules(user)))){
       dashboardForget();financeForget();billingForget();stampingForget();personnelForget();marchesForget();agendaForget();budgetsForget();facturxForgetAuth();closeModal();nfDraft=null;
-      currentView='dashboard';unlockApp(user);
+      currentView=firstAllowedView();unlockApp(user);
     }else render();
     return true;
   }catch(e){if(AUTH_USER===user)setSync('err',e.status===401?'Connexion expirée':'Chargement impossible');return false;}

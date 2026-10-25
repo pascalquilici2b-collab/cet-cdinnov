@@ -1,3 +1,4 @@
+import {accountAccess} from './access';
 import {portalAdmin} from './identity.ts';
 import {leavePeriods} from '../agenda/leave-periods.mjs';
 import type {Database, Environment} from './contracts';
@@ -40,7 +41,9 @@ export async function readDashboard(request:Request,env:Environment,db:Database,
       ORDER BY json_extract(payload,'$.start'),id`).bind(end,start,today,today).all<{id:string;owner:string;payload:string}>()
   ]);
   if(!portal) throw new Error('Portail indisponible');
-  const admin=portalAdmin(portal,user);
+  const admin=portalAdmin(portal,user),access=accountAccess(portal.auth?.accounts?.[user]?.access,admin);
+  if(!access.agenda){portal.conges=[];storedTrips.results=[];}
+  if(!access.notesfrais)portal.notesFrais=[];
   const members:Member[]=rows(portal.salaries).map(s=>({id:String(s.matricule),name:[s.prenom,s.nom].filter(Boolean).join(' '),email:email(s.email)||legacyEmails[String(s.matricule)]||''}));
   const byId=new Map(members.map(m=>[m.id,m]));
   const byEmail=new Map(members.filter(m=>m.email).map(m=>[m.email,m]));
@@ -71,6 +74,6 @@ export async function readDashboard(request:Request,env:Environment,db:Database,
     trips:allTrips.filter(p=>p.start<=end&&p.end>=start),
     counts:{leaveToday:new Set(periods.filter((p:any)=>p.statut==='Validé'&&p.entries.some((e:any)=>e.date===today)).map((p:any)=>p.matricule)).size,
       travelToday:new Set(allTrips.filter(t=>t.start<=today&&t.end>=today).flatMap(t=>t.memberIds)).size,pending:pending.length},
-    pending,invoices:admin?recent(rows(portal.factures),'invoice'):null,
+    pending,invoices:access.facturier?recent(rows(portal.factures),'invoice'):null,
     expenses:recent(rows(portal.notesFrais).filter(n=>admin||ownIds.has(String(n.matricule))),'expense')};
 }

@@ -5,7 +5,7 @@ import {createHash} from 'node:crypto';
 import type {Database,Environment,Reply} from './contracts';
 import type {BillingContext,BillingDocument,BillingDraft,BillingIssue,BillingTotals,BillingSettings,BillingIssuanceSummary,BillingQuoteSummary} from './billing-contracts';
 import {normalizeDraft,calculateBilling,inspectDraft,blankSettings,normalizeSettings,blankDocumentDetails} from './billing-domain';
-import {sessionIdentity} from './identity';
+import {hasAccess,sessionIdentity} from './identity';
 import {boundedBody} from './portal';
 import {engagementTracking,linkedEngagements} from './billing-engagement-tracking';
 import {engagementRoute} from './billing-engagement';
@@ -169,7 +169,7 @@ async function list(request:Request,db:Database,reply:Reply) {
 export async function billingRoute(request:Request,env:Environment,reply:Reply):Promise<Response> {
  const session=await sessionIdentity(request,env);
  if(!session)return reply(401,{error:'Votre connexion CDInnov a expiré. Reconnectez-vous.'});
- if(!session.admin)return reply(403,{error:'La facturation est réservée à la direction.'});
+ if(!hasAccess(session,'facturier'))return reply(403,{error:'Votre compte n’a pas accès à la facturation.'});
  const path=new URL(request.url).pathname,db=env.BUDGETS_DB.withSession('first-primary');
  if(/^\/api\/v1\/billing\/(clients|services)(?:\/|$)/.test(path))return billingDirectoryRoute(request,db,session.email,reply);
  if(path==='/api/v1/billing/engagements'&&request.method==='GET')return reply(200,await engagementTracking(db));

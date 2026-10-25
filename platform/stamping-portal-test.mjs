@@ -16,7 +16,7 @@ try{
  const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));await page.goto(preview.base);
  await page.locator('[data-react-billing]').waitFor();await page.locator('[data-view=tamponnage]').click();
  await page.getByRole('heading',{name:'Tamponnage des pièces'}).waitFor();
- await page.locator('#stampingRoot .cdi-bolt').waitFor();assert.equal(await page.locator('#stampingRoot .cdi-bolt').evaluate(e=>getComputedStyle(e).animationName),'cdi-bolt-rotate');assert.equal(await page.locator('.auth-brand-mark .cdi-bolt').evaluate(e=>getComputedStyle(e).animationName),'cdi-bolt-pulse');await page.screenshot({path:out+'/menu-triangle-rotation.png'});releaseModule();
+ await page.locator('#stampingRoot .cdi-bolt').waitFor();assert.equal(await page.locator('#stampingRoot .cdi-bolt').evaluate(e=>getComputedStyle(e).animationName),'none');assert.equal(await page.locator('.auth-brand-mark .cdi-bolt').evaluate(e=>getComputedStyle(e).animationName),'none');await page.screenshot({path:out+'/menu-triangle-rotation.png'});releaseModule();
  await page.waitForFunction(()=>!document.querySelector('.stamp-progress'));
  await page.screenshot({path:out+'/portail-tamponnage.png',fullPage:false});
  await page.locator('[data-theme-toggle]').click();

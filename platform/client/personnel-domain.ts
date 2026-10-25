@@ -10,7 +10,7 @@ export interface Movement {id:string;date:string;matricule:string;type:string;qt
 export interface EnrichedMovement extends Movement {sal?:Employee;libelle:string;categorie:string;qteSignee:number;montant:number|null;annee:number|null;}
 export interface YearRow {sal:Employee;soldeFin:number;credits:number;debits:number;cpAffectes:number;alerteCP:boolean;alertePlafond:boolean;peiJ:number;perJ:number;}
 export interface Parameters {entreprise:string;plafondGlobal:Scalar;plafondCPan:Scalar;anneeSuivi:Scalar;unite:string;dispositifs:string;[key:string]:unknown;}
-export interface AccountSummary {email:string;name:string;admin:boolean;active:boolean;}
+export interface AccountSummary {email:string;name:string;admin:boolean;active:boolean;access?:import('../access').ModuleAccess;}
 export interface MovementFilter {sal:string;type:string;cat:string;q:string;}
 export type SortKey = 'date'|'sal'|'type'|'qte'|'statut'|'montant';
 export interface MovementSort {key:SortKey;dir:'asc'|'desc';}

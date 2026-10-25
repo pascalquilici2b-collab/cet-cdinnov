@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <style id="cdi-startup-guard">body:not(.authed)>.app{visibility:hidden}.theme-toggle>svg{width:18px;height:18px;fill:none;stroke:currentColor}.theme-toggle .theme-sun{display:none}[data-theme="dark"] .theme-toggle .theme-moon{display:none}[data-theme="dark"] .theme-toggle .theme-sun{display:block}</style>
-<link rel="stylesheet" href="/platform/loading.css?v=stamping-allocation-20261025">
+<link rel="stylesheet" href="/platform/loading.css?v=access-design-20261025">
 <script src="./platform/theme.js?v=apple-motion-20261020"></script>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -545,7 +545,7 @@ body:has(.agenda-shell) .topbar{flex-wrap:wrap;row-gap:12px}
 
 .mk-ai-proposals>div{min-width:0;overflow-wrap:anywhere}.mk-ai-proposals span{white-space:pre-wrap}.mk-panel,.mk-ai-result{min-width:0;max-width:100%;box-sizing:border-box}
 </style>
-<script src="./platform/workspace-client.js?v=stamping-allocation-20261025"></script>
+<script src="./platform/workspace-client.js?v=access-design-20261025"></script>
 </head>
 <body>
 <div class="app">
@@ -993,6 +993,7 @@ matchMedia('(max-width:880px)').addEventListener('change',()=>toggleSidebar(fals
 $$('.nav-item[data-view]').forEach(n=>{n.setAttribute('role','button');n.tabIndex=0;n.addEventListener('click',()=>{setView(n.dataset.view);toggleSidebar(false);});if(!n.hasAttribute('onkeydown'))n.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();n.click();}});});
 function setView(v,billingSection='modern'){
   if(billingLogoutPending)return;
+  if(AUTH_USER&&!canAccess(v)){toast('Votre compte n’a pas accès à cette rubrique.');return;}
   const nextBillingMode=billingSection==='modern'?'modern':'legacy';
   if(currentView==='facturier'&&(v!==currentView||billingMode!==nextBillingMode)&&!billingLeave())return;
   if(currentView==='marches'&&v!==currentView&&!marchesLeave())return;
@@ -1027,6 +1028,7 @@ $('#yearSelect').addEventListener('change', e=>{ currentYear=Number(e.target.val
 
 /* ---------- render dispatch ---------- */
 function render(){
+  if(AUTH_USER&&!canAccess(currentView)){currentView=firstAllowedView();document.body.dataset.view=currentView;}
   if(currentView!=='tamponnage')stampingForget();
   if(currentView!=='agenda')agendaReactForget();
   if(currentView!=='dashboard')dashboardForget();
@@ -1037,7 +1039,8 @@ function render(){
   renderUserChip();
   refreshYearPicker();
   renderMajPill();
-  if(currentView==='dashboard') renderDashboard();
+  if(currentView==='access')renderAccessHome();
+  else if(currentView==='dashboard') renderDashboard();
   else if(currentView==='cet') renderCetSummary();
   else if(currentView==='mouvements') renderMouvements();
   else if(currentView==='salaries') renderSalaries();
@@ -1107,11 +1110,11 @@ function renderDashboard(){
           if(AUTH_USER!==user||currentView!=='dashboard')return;
           const item=(action.kind==='invoice'?factures():notesFrais()).find(x=>x.id===action.id);
           if(!item)throw new Error('Ce document a été supprimé. Actualisez le tableau de bord.');
-          if(action.kind==='invoice'&&!isAdmin(user))throw new Error('Accès réservé à la direction.');
+          if(action.kind==='invoice'&&!canAccess('facturier'))throw new Error('Accès réservé à la direction.');
           if(action.kind==='expense'&&!isAdmin(user)&&item.matricule!==AUTH_USER_MAT[user])throw new Error('Cette note appartient à un autre collaborateur.');
         }
         if(action.kind==='invoice'||action.kind==='invoices'){
-          if(!isAdmin(user))return;factTab='factures';factYear='all';factMonth='all';factQ='';setView('facturier','factures');if(action.id&&currentView==='facturier'&&billingMode==='legacy')openFacture(action.id);
+          if(!canAccess('facturier'))return;factTab='factures';factYear='all';factMonth='all';factQ='';setView('facturier','factures');if(action.id&&currentView==='facturier'&&billingMode==='legacy')openFacture(action.id);
         }else{nfFilter={sal:'',statut:'',q:''};setView('notesfrais');if(action.id)openNoteFrais(action.id);}
       }
     });
@@ -2209,7 +2212,7 @@ async function exportNoteFraisPDF(id,preview=false){
     const filename='Note_de_frais_N'+(n.numero||'')+'_'+(s.nom||'').replace(/\s+/g,'')+'.pdf';
     if(AUTH_USER!==user||!financeExpenseAllowed(n)||preview&&!id&&nfDraft!==initialDraft)return;
     if(preview){
-      const blob=doc.output('blob'),module=await financeModule();if(AUTH_USER!==user||!financeExpenseAllowed(n))return;if(!document.getElementById('billingStyle')){const css=document.createElement('link');css.id='billingStyle';css.rel='stylesheet';css.href='platform/billing.css?v=stamping-allocation-20261025';document.head.append(css);}
+      const blob=doc.output('blob'),module=await financeModule();if(AUTH_USER!==user||!financeExpenseAllowed(n))return;if(!document.getElementById('billingStyle')){const css=document.createElement('link');css.id='billingStyle';css.rel='stylesheet';css.href='platform/billing.css?v=access-design-20261025';document.head.append(css);}
       modal('<div class="modal-head"><h3>Aperçu — Note de frais N°'+esc(n.numero)+'</h3><div class="grow"></div><button type="button" class="btn btn-ghost" id="nfPreviewDownload">Télécharger PDF</button><button type="button" class="btn btn-ghost" id="nfPreviewClose">'+(id?'Fermer':'Retour')+'</button></div><div class="modal-body bill-app"><div id="nfPreviewRoot"></div></div>',true);
       financeEditorDispose=module.mountExpensePreview($('#nfPreviewRoot'),blob);$('#nfPreviewDownload').onclick=()=>doc.save(filename);$('#nfPreviewClose').onclick=()=>id?closeModal():renderNoteEditor();
     }else{doc.save(filename);toast('PDF généré');}
@@ -2248,7 +2251,7 @@ function pagerHTML(total, page, per, fnPage, fnPer){
 }
 function codesAff(){ return state.codesAffaires || (state.codesAffaires=[]); }
 function factures(){ return state.factures || (state.factures=[]); }
-function facturierAdmin(){ return (typeof isAdmin==='function' && typeof AUTH_USER!=='undefined') ? isAdmin(AUTH_USER) : true; }
+function facturierAdmin(){ return canAccess('facturier'); }
 function caCode(c){ return [c.code1,c.code2].filter(x=>x!==''&&x!=null).join(' '); }
 function caCodeKey(c){ return String(c.code1==null?'':c.code1)+String(c.code2==null?'':c.code2); }
 function eurHT(n){ return (Number(n)||0).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'; }
@@ -2449,9 +2452,9 @@ function financeModule(){
 }
 function financeForget(){financeEpoch++;financeMounted?.dispose();financeMounted=null;financeView=null;$('#financeRoot')?.remove();}
 function financeEditorForget(){financeEditorEpoch++;if(financeEditorDispose){financeEditorDispose();financeEditorDispose=null;}}
-function financeExpenseAllowed(note){return !!(note&&AUTH_USER&&(isAdmin(AUTH_USER)||AUTH_USER_MAT[AUTH_USER]&&note.matricule===AUTH_USER_MAT[AUTH_USER]));}
+function financeExpenseAllowed(note){return !!(note&&AUTH_USER&&canAccess('notesfrais')&&(isAdmin(AUTH_USER)||AUTH_USER_MAT[AUTH_USER]&&note.matricule===AUTH_USER_MAT[AUTH_USER]));}
 function financeProps(view,user){
-  const admin=isAdmin(user),matricule=AUTH_USER_MAT[user]||null;
+  const admin=view==='facturier'?canAccess('facturier'):isAdmin(user),matricule=AUTH_USER_MAT[user]||null;
   return {snapshot:{view,admin,matricule,codes:admin?codesAff().slice():[],invoices:admin?factures().map(f=>({...f,validFacturx:!!(facturxSnapshotMatches(f))})):[],expenses:notesFrais().filter(financeExpenseAllowed),employees:state.salaries.map(({matricule,nom,prenom,photo})=>({matricule,nom,prenom,photo:photoURL(photo)})),clients:budgetsClients,clientStatus:financeClientStatus,clientError:financeClientError,filters:{tab:factTab,codeQ,factQ,year:factYear,month:factMonth,codePage,codePer,factPage,factPer,expenseQ:nfFilter.q,expensePerson:nfFilter.sal,expenseStatus:nfFilter.statut,expensePage:nfPage,expensePer:nfPer}},
     filter:patch=>{
       if(AUTH_USER!==user||currentView!==view)return;
@@ -2466,7 +2469,7 @@ function financeProps(view,user){
       if(AUTH_USER!==user||currentView!==view)return;
       if(['editExpense','deleteExpense','duplicateExpense','expensePdf'].includes(command)&&!financeExpenseAllowed(notesFrais().find(n=>n.id===arg)))return;
       const handlers={section:setBillingSection,clients:budgetsOpenClients,clientsRetry:()=>budgetsSyncClients().catch(budgetsClientsError),newCode:()=>openCodeAffaire(),editCode:openCodeAffaire,deleteCode:delCodeAffaire,newInvoice:()=>openFacture(),editInvoice:openFacture,deleteInvoice:delFacture,uploadPdf:openFacturePdf,originalPdf:facturxOriginal,createFacturx:openFacturX,finalFacturx:facturxFinal,removePdf:facturxRemovePdf,removeFacturx:facturxRemoveFinal,importSql:importSqlBiller,exportCodes:exportCodesCSV,exportInvoices:exportFacturesCSV,newExpense:()=>openNoteFrais(),editExpense:openNoteFrais,deleteExpense:delNoteFrais,duplicateExpense:dupNoteFrais,expensePdf:id=>exportNoteFraisPDF(id,true)};
-      if(!command.toLowerCase().includes('expense')&&!isAdmin(user))return;
+      if(!command.toLowerCase().includes('expense')&&!canAccess('facturier'))return;
       Promise.resolve(handlers[command]?.(arg)).catch(error=>toast(error.message));
     }};
 }
@@ -2483,11 +2486,11 @@ function renderReactFinance(view){
       financeMounted=module.mountFinance(element,financeProps(view,user));
     }).catch(()=>{if(epoch===financeEpoch&&element.isConnected)element.innerHTML='<div class="card card-pad" role="alert">Chargement impossible. <button class="btn btn-ghost" onclick="financeForget();render()">Réessayer</button></div>';});
   }
-  if(entering&&view==='facturier'&&isAdmin(user))setTimeout(()=>{if(AUTH_USER===user&&currentView===view)budgetsSyncClients().catch(budgetsClientsError);},0);
+  if(entering&&view==='facturier'&&canAccess('facturier'))setTimeout(()=>{if(AUTH_USER===user&&currentView===view)budgetsSyncClients().catch(budgetsClientsError);},0);
 }
 async function financeOpenEditor(kind,record,existing){
   const user=AUTH_USER;
-  if(!user||(kind!=='expense'&&!isAdmin(user)))return;
+  if(!user||(kind!=='expense'&&!canAccess('facturier')))return;
   modal('<div id="financeEditorRoot">'+loadingMarkup('Chargement du formulaire…')+'</div>',kind==='expense');
   const element=$('#financeEditorRoot'),epoch=++financeEditorEpoch;
   try{
@@ -2504,19 +2507,19 @@ async function financeOpenEditor(kind,record,existing){
 
 /* React personnel screens. Existing CET calculations, imports and storage remain authoritative. */
 let personnelPromise=null,personnelMounted=null,personnelEpoch=0,personnelView=null,personnelEditorDispose=null,personnelEditorEpoch=0;
-function personnelModule(){return personnelPromise||=import('./platform/personnel.js?v=stamping-allocation-20261025').catch(error=>{personnelPromise=null;throw error;});}
+function personnelModule(){return personnelPromise||=import('./platform/personnel.js?v=access-design-20261025').catch(error=>{personnelPromise=null;throw error;});}
 function personnelStyle(){if(!$('#personnelStyle')){const css=document.createElement('link');css.id='personnelStyle';css.rel='stylesheet';css.href='platform/personnel.css';document.head.append(css);}}
 function personnelEditorForget(){personnelEditorEpoch++;if(personnelEditorDispose){personnelEditorDispose();personnelEditorDispose=null;}}
 function personnelForget(){personnelEpoch++;if(personnelMounted){personnelMounted.dispose();personnelMounted=null;}personnelView=null;$('#personnelRoot')?.remove();}
-function personnelMovementAllowed(m){return !!(AUTH_USER&&movAccess&&(movAccess==='admin'&&isAdmin(AUTH_USER)||movAccess===AUTH_USER_MAT[AUTH_USER]&&(!m||m.matricule===movAccess)));}
+function personnelMovementAllowed(m){return !!(AUTH_USER&&canAccess('mouvements')&&movAccess&&(movAccess==='admin'&&isAdmin(AUTH_USER)||movAccess===AUTH_USER_MAT[AUTH_USER]&&(!m||m.matricule===movAccess)));}
 function personnelProps(view){
  const user=AUTH_USER,admin=isAdmin(user),access=admin?'admin':AUTH_USER_MAT[user]||null;
  const allowed=s=>admin||s.matricule===access;
  const a=admin?authState():null;
- const snapshot={view,admin,access,year:currentYear,years:availableYears(),hoursPerDay:HEURES_PAR_JOUR_CET,employees:state.salaries.filter(allowed).map(s=>({...s,photo:photoURL(s.photo)})),types:state.types,movements:allEnriched().filter(allowed),rows:computeYear(currentYear).filter(r=>allowed(r.sal)),params:state.params,filter:{...movFilter},sort:{...movSort},cloud:cloudEnabled(),accounts:a?[...new Set([...a.allowed,...Object.keys(a.accounts)])].sort().map(email=>({email,name:a.accounts[email]?.name||'',admin:isAdmin(email),active:!!a.accounts[email]})):[]};
+ const snapshot={view,admin,access,year:currentYear,years:availableYears(),hoursPerDay:HEURES_PAR_JOUR_CET,employees:state.salaries.filter(allowed).map(s=>({...s,photo:photoURL(s.photo)})),types:state.types,movements:allEnriched().filter(allowed),rows:computeYear(currentYear).filter(r=>allowed(r.sal)),params:state.params,filter:{...movFilter},sort:{...movSort},cloud:cloudEnabled(),accounts:a?[...new Set([...a.allowed,...Object.keys(a.accounts)])].sort().map(email=>({email,name:a.accounts[email]?.name||'',admin:isAdmin(email),active:!!a.accounts[email],access:CDIPlatform.accountAccess(a.accounts[email]?.access??a.pendingAccess?.[email],isAdmin(email))})):[]};
  const active=()=>AUTH_USER===user&&currentView===view&&!!$('#personnelRoot');
  const adminActions=new Set(['summary','exportSummary','newEmployee','editEmployee','deleteEmployee','payslip','previewPayslip','removePayslip','newType','editType','deleteType','saveParams','backup','importJSON','migrateFiles','reset','addAccount','resetAccount','removeAccount','grantAdmin','revokeAdmin']);
- return {snapshot,filter:patch=>{if(active()){Object.assign(movFilter,patch);renderReactPersonnel(view);}},sort:value=>{if(active()){movSort=value;renderReactPersonnel(view);}},year:value=>{if(active()){currentYear=Number(value);render();}},act:(name,arg,extra)=>{
+ return {snapshot,saveAccess:authSetAccess,filter:patch=>{if(active()){Object.assign(movFilter,patch);renderReactPersonnel(view);}},sort:value=>{if(active()){movSort=value;renderReactPersonnel(view);}},year:value=>{if(active()){currentYear=Number(value);render();}},act:(name,arg,extra)=>{
   if(!active()||adminActions.has(name)&&!isAdmin(AUTH_USER))return;
   const actions={summary:()=>setView('cet'),movements:()=>setView('mouvements'),detail:()=>openDetail(arg),newMovement:()=>openMouvement(),editMovement:()=>openMouvement(arg),deleteMovement:()=>delMouvement(arg),importCET:()=>onSuiviCET(arg),exportSummary:exportCSV,exportMovements:exportMouvCSV,print:()=>window.print(),newEmployee:()=>openSalarie(),editEmployee:()=>openSalarie(arg),deleteEmployee:()=>delSalarie(arg),payslip:()=>onPayslip(arg,extra),previewPayslip:()=>previewPayslip(arg),removePayslip:()=>removePayslip(arg),newType:()=>openType(),editType:()=>openType(arg),deleteType:()=>delType(arg),saveParams,backup:backupJSON,importJSON:()=>importJSON(arg),migrateFiles:migrateAttachmentsToR2,reset:resetAll,addAccount:()=>{authAddAllowed();const input=$('#newAllowedEmail');if(input)input.value='';},resetAccount:()=>authResetAccount(arg),removeAccount:()=>authRemoveAllowed(arg),grantAdmin:()=>authSetRole(arg,'admin'),revokeAdmin:()=>authSetRole(arg,'collaborator')};
   return actions[name]?.();
@@ -2541,7 +2544,7 @@ async function personnelOpenEditor(kind,record,mat){
   const employee=kind==='employee'||kind==='detail'?record&&{...record,photo:photoURL(record.photo)}:undefined;
   let run=0;const history=kind==='detail'?allEnriched().filter(m=>m.matricule===record.matricule).sort((a,b)=>(a.date||'').localeCompare(b.date||'')).map(m=>{if(m.statut==='Validé')run+=m.qteSignee;return {m,run};}).reverse():[];
   const actions={close:closeModal,saveMovement:()=>saveMouvement(record?.id||''),saveEmployee:()=>saveSalarie(record?.matricule||''),saveType:()=>saveType(record?.code||''),costPreview:salCoutPreview,regime:salRegimeChanged,photo:salPhotoUpload,removePhoto:salPhotoRemove,newMovement:()=>{closeModal();openMouvement(undefined,record.matricule);}};
-  personnelEditorDispose=module.mountPersonnelEditor(element,{kind,employee,movement:kind==='movement'?record:undefined,movementType:kind==='type'?record:undefined,employees:state.salaries.filter(s=>isAdmin(user)||s.matricule===AUTH_USER_MAT[user]),types:state.types,params:state.params,today:ymd(new Date()),year:currentYear,lockedMat:isAdmin(user)?null:AUTH_USER_MAT[user]||null,row:kind==='detail'?computeYear(currentYear).find(r=>r.sal.matricule===record.matricule):undefined,history,
+  personnelEditorDispose=module.mountPersonnelEditor(element,{kind,employee,canAddMovement:canAccess('mouvements'),movement:kind==='movement'?record:undefined,movementType:kind==='type'?record:undefined,employees:state.salaries.filter(s=>isAdmin(user)||s.matricule===AUTH_USER_MAT[user]),types:state.types,params:state.params,today:ymd(new Date()),year:currentYear,lockedMat:isAdmin(user)?null:AUTH_USER_MAT[user]||null,row:kind==='detail'?computeYear(currentYear).find(r=>r.sal.matricule===record.matricule):undefined,history,
    act:(name,...args)=>{if(AUTH_USER===user&&element.isConnected&&epoch===personnelEditorEpoch)return actions[name]?.(...args);},init:()=>{if(kind==='employee')salCoutPreview();}
   });
   if(kind==='movement'&&!record&&mat&&isAdmin(user))$('#mSal').value=mat;
@@ -2815,16 +2818,13 @@ function unlockApp(email){
   movAccess = isAdmin(AUTH_USER) ? 'admin' : (AUTH_USER_MAT[AUTH_USER] || null);
   movLockProfile=null; movFilter={sal:'',type:'',cat:'',q:''};
   salariesUnlocked = isAdmin(AUTH_USER);
-  const salNav=document.querySelector('.nav-item[data-view="salaries"]'); if(salNav) salNav.style.display = isAdmin(AUTH_USER)?'':'none';
-  const parNav=document.querySelector('.nav-item[data-view="parametres"]'); if(parNav) parNav.style.display = isAdmin(AUTH_USER)?'':'none';
-  const facNav=document.querySelector('.nav-item[data-view="facturier"]'); if(facNav) facNav.style.display = isAdmin(AUTH_USER)?'':'none';
-  const stampNav=document.querySelector('.nav-item[data-view="tamponnage"]'); if(stampNav) stampNav.style.display=isAdmin(AUTH_USER)?'':'none';
-  if(!isAdmin(AUTH_USER) && currentView==='facturier') currentView='dashboard';
+  if(!canAccess(currentView))currentView=firstAllowedView();
+  applyAccessNavigation();
   const regLbl=document.getElementById('navLabelReglages'); if(regLbl) regLbl.style.display = isAdmin(AUTH_USER)?'':'none';
   document.body.classList.add('authed');
   renderUserChip();
   render();
-  /* Markets deep link */ if(new URLSearchParams(location.search).get('view')==='marches'&&isAdmin(AUTH_USER))setTimeout(()=>setView('marches'),0);
+  /* Markets deep link */ if(new URLSearchParams(location.search).get('view')==='marches'&&canAccess('facturier'))setTimeout(()=>setView('marches'),0);
   setTimeout(()=>{if(new URLSearchParams(location.search).get('view')==='agenda'&&currentView!=='agenda')setView('agenda');else if(currentView==='agenda')agendaEnter();},0);
 }
 async function authLogout(){
@@ -2854,7 +2854,7 @@ async function authLogout(){
   }finally{billingUnlockLogout();}
 }
 function renderUserChip(){
-  document.querySelectorAll('.nav-item[data-view="marches"]').forEach(e=>e.style.display=isAdmin(AUTH_USER)?'':'none');
+  applyAccessNavigation();
   const el=$('#userChip'); if(!el) return;
   if(!AUTH_USER){ el.innerHTML=''; return; }
   const nm=agendaName(AUTH_USER),photo=agendaPortrait(AUTH_USER),admin=isAdmin(AUTH_USER);
@@ -4869,7 +4869,7 @@ function agendaNotificationHTML(t){
   };
   var el = (id) => document.getElementById(id);
   var uid = () => crypto.randomUUID();
-  var allowed = () => isAdmin(AUTH_USER);
+  var allowed = () => canAccess("facturier");
   function error(message) {
     s.error = message;
     render(true);
@@ -5790,6 +5790,32 @@ function isAdmin(email){
   email=normEmail(email);const account=state.auth?.accounts?.[email];
   return account?.role!==undefined?account.role==='admin':!cloudEnabled()&&AUTH_ADMINS.includes(email);
 }
+function accountModules(email=AUTH_USER){return CDIPlatform.accountAccess(state.auth?.accounts?.[email]?.access,isAdmin(email));}
+function canAccess(view){
+ if(!AUTH_USER)return false;
+ if(view==='parametres'||view==='cet')return isAdmin(AUTH_USER);
+ const key=({marches:'facturier',conges:'agenda'})[view]||view;
+ return accountModules()[key]===true;
+}
+function applyAccessNavigation(){
+ document.querySelectorAll('.nav-item[data-view]').forEach(n=>{n.hidden=!canAccess(n.dataset.view);n.style.display=n.hidden?'none':'';});
+ const sheets=document.getElementById('cdiSheetsLink');if(sheets){sheets.hidden=!canAccess('sheets');sheets.style.display=sheets.hidden?'none':'';}
+ document.querySelectorAll('.sidebar>.nav-label').forEach(label=>{let next=label.nextElementSibling,visible=false;while(next&&!next.classList.contains('nav-label')&&!next.classList.contains('spacer')){if(next.classList.contains('nav-item')&&!next.hidden)visible=true;next=next.nextElementSibling;}label.hidden=!visible;});
+}
+function firstAllowedView(){return CDIPlatform.accessModules.find(m=>m.key!=='sheets'&&canAccess(m.key))?.key||'access';}
+function renderAccessHome(){
+ $('#topAction').style.display='none';$('#pageTitle').textContent='Votre espace';$('#pageSub').textContent='';
+ $('#content').innerHTML='<section class="card card-pad" style="max-width:480px;margin:48px auto;text-align:center">'+(canAccess('sheets')?'<a class="btn btn-primary" href="./feuilles/">Ouvrir CDInnovSheets</a>':'Aucune rubrique n’est activée pour ce compte.')+'</section>';
+}
+async function authSetAccess(email,access){
+ if(!isAdmin(AUTH_USER))throw new Error('Accès réservé à un administrateur.');
+ if(!await cloudPush())throw new Error('Enregistrez les modifications en attente avant de modifier les droits.');
+ try{
+  await portalFetch(cloudURL()+'/accounts',{method:'POST',headers:{'Content-Type':'application/json','If-Match':String(portalVersion)},body:JSON.stringify({email,action:'access',access})});
+  if(!await cloudLoad({discard:true}))throw new Error('Accès enregistrés. Actualisez pour les afficher.');
+  toastSaved('Accès enregistrés');
+ }catch(e){if(e.status===409)await cloudLoad({discard:true});throw e;}
+}
 async function portalFetch(url,options={}){
   const session=await budgetsEnsureSession();
   const response=await fetch(url,{...options,cache:'no-store',headers:{...options.headers,Authorization:'Bearer '+session.token}});
@@ -5800,7 +5826,7 @@ async function portalRead(options={}){return (await portalFetch(cloudURL(),optio
 function portalRemember(){try{localStorage.removeItem(STORE_KEY);if(AUTH_USER)localStorage.setItem(STORE_KEY+':draft:'+AUTH_USER,JSON.stringify(state));}catch{}}
 function save(){
   if(typeof budgetsClientsChanged==='function')budgetsClientsChanged();
-  try{reconcileCetMovements();agendaState.leaves=null;}catch{}
+  try{if(isAdmin(AUTH_USER))reconcileCetMovements();agendaState.leaves=null;}catch{}
   state.majAt=new Date().toISOString();state.majBy=AUTH_USER||'';
   portalRemember();renderMajPill();cloudSave();
 }
@@ -5810,15 +5836,15 @@ async function cloudLoad(options={}){
   if(portalClean&&JSON.stringify(state)!==portalClean&&!options.discard){setSync('err','Modifications à enregistrer');return false;}
   setSync('busy','Chargement…');
   try{
-    const wasAdmin=isAdmin(user),data=await portalRead();if(AUTH_USER!==user||portalEpoch!==epoch)return false;
+    const previousAccess=JSON.stringify(accountModules(user)),wasAdmin=isAdmin(user),data=await portalRead();if(AUTH_USER!==user||portalEpoch!==epoch)return false;
     state={...freshState(),...data.workspace,params:data.workspace.params||structuredClone(PARAMS_DEFAULT)};
     for(const person of state.salaries)if(person.email)AUTH_USER_MAT[normEmail(person.email)]=person.matricule;
     portalVersion=data.version;portalClean=JSON.stringify(state);currentYear=Number(state.params.anneeSuivi)||currentYear;
     await portalLoadPhotos();if(AUTH_USER!==user||portalEpoch!==epoch)return false;
     setSync('ok','Synchronisé');
-    if(document.body.classList.contains('authed')&&wasAdmin!==isAdmin(user)){
+    if(document.body.classList.contains('authed')&&(wasAdmin!==isAdmin(user)||previousAccess!==JSON.stringify(accountModules(user)))){
       dashboardForget();financeForget();billingForget();stampingForget();personnelForget();marchesForget();agendaForget();budgetsForget();facturxForgetAuth();closeModal();nfDraft=null;
-      currentView='dashboard';unlockApp(user);
+      currentView=firstAllowedView();unlockApp(user);
     }else render();
     return true;
   }catch(e){if(AUTH_USER===user)setSync('err',e.status===401?'Connexion expirée':'Chargement impossible');return false;}
@@ -5980,8 +6006,8 @@ let billingMode='modern',billingModulePromise=null,billingMounted=null,billingTr
 function billingLockForLogout(){billingLogoutPending=true;$('#content').inert=true;}
 function billingUnlockLogout(){billingLogoutPending=false;$('#content').inert=false;}
 function billingModule(){
-  if(!$('#billingStyle')){const link=document.createElement('link');link.id='billingStyle';link.rel='stylesheet';link.href='platform/billing.css?v=stamping-allocation-20261025';document.head.append(link);}
-  return billingModulePromise ||= import('./platform/billing.js?v=stamping-allocation-20261025').catch(error=>{billingModulePromise=null;throw error;});
+  if(!$('#billingStyle')){const link=document.createElement('link');link.id='billingStyle';link.rel='stylesheet';link.href='platform/billing.css?v=access-design-20261025';document.head.append(link);}
+  return billingModulePromise ||= import('./platform/billing.js?v=access-design-20261025').catch(error=>{billingModulePromise=null;throw error;});
 }
 function billingLeave(){return billingMounted?.canLeave?.()!==false;}
 function billingForget(){
@@ -5991,7 +6017,7 @@ function billingForget(){
 function renderBillingWorkspace(){
   if(!AUTH_USER||currentView!=='facturier'||billingMode!=='modern')return;
   financeForget();
-  if(!isAdmin(AUTH_USER)){billingForget();$('#content').innerHTML='<div class="card card-pad" role="alert">La facturation est réservée à la direction.</div>';return;}
+  if(!canAccess('facturier')){billingForget();$('#content').innerHTML='<div class="card card-pad" role="alert">La facturation est réservée à la direction.</div>';return;}
   if(billingMounted&&$('#billingRoot')){billingMounted.update(billingWorkspaceProps());return;}
   const epoch=++billingEpoch,user=AUTH_USER;
   $('#content').innerHTML='<div id="billingRoot">'+loadingMarkup('Chargement de la facturation…')+'</div>';
@@ -6066,11 +6092,11 @@ function stampingForget(){stampingEpoch++;stampingMounted?.dispose();stampingMou
 function renderStamping(){
  if(stampingMounted&&document.getElementById('stampingRoot'))return;
  stampingForget();const epoch=++stampingEpoch,user=AUTH_USER;
- if(!user||!isAdmin(user)){$('#content').innerHTML='<div class="card card-pad">Le tamponnage est réservé à la direction.</div>';return;}
- if(!document.getElementById('stampingStyle')){const css=document.createElement('link');css.id='stampingStyle';css.rel='stylesheet';css.href='platform/stamping.css?v=stamping-payroll-20261025';document.head.append(css);}
+ if(!user||!canAccess('tamponnage')){$('#content').innerHTML='<div class="card card-pad">Le tamponnage est réservé à la direction.</div>';return;}
+ if(!document.getElementById('stampingStyle')){const css=document.createElement('link');css.id='stampingStyle';css.rel='stylesheet';css.href='platform/stamping.css?v=access-design-20261025';document.head.append(css);}
  $('#content').innerHTML='<div id="stampingRoot">'+loadingMarkup('Chargement du tamponnage…')+'</div>';
  const element=document.getElementById('stampingRoot'),active=()=>epoch===stampingEpoch&&AUTH_USER===user&&currentView==='tamponnage'&&element.isConnected;
- import('./platform/stamping.js?v=stamping-payroll-20261025').then(module=>{if(active())stampingMounted=module.mountStamping(element,{baseUrl:budgetsApi().replace(/\/budgets\/?$/,''),getToken:async()=>(await budgetsEnsureSession()).token,isActive:active,creator:owner=>({name:agendaName(owner),photo:agendaPortrait(owner)})});}).catch(()=>{if(active())element.innerHTML='<div role="alert">Chargement impossible. Revenez dans le module pour réessayer.</div>';});
+ import('./platform/stamping.js?v=access-design-20261025').then(module=>{if(active())stampingMounted=module.mountStamping(element,{baseUrl:budgetsApi().replace(/\/budgets\/?$/,''),getToken:async()=>(await budgetsEnsureSession()).token,isActive:active,creator:owner=>({name:agendaName(owner),photo:agendaPortrait(owner)})});}).catch(()=>{if(active())element.innerHTML='<div role="alert">Chargement impossible. Revenez dans le module pour réessayer.</div>';});
 }
 
 setView('dashboard');

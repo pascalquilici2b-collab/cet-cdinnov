@@ -1,6 +1,6 @@
 import { handleMarkets } from "../marches/worker.mjs";
 // work/deployment/worker/budget-service.mjs
-import {identity, sessionIdentity, login, admins} from "../platform/identity.ts";
+import {identity, sessionIdentity, login, admins, hasAccess} from "../platform/identity.ts";
 import { Buffer } from "node:buffer";
 var nameKey = (value) => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[’‘]/g, "'").replace(/[^a-z0-9]+/g, " ").trim();
 var clientCatalog = [
@@ -221,7 +221,7 @@ var worker_default = {
       if (path === "/budgets/session") return await login(request, env, db, reply);
       const session = await sessionIdentity(request, env), email = session?.email;
       if (!email) return reply(401, { error: "Votre connexion CDInnov a expir\xE9. Reconnectez-vous \xE0 votre compte CDInnov." });
-      if (path === "/budgets/markets" || path.startsWith("/budgets/markets/")) return await handleMarkets(request, db, email, session.admin, reply, jsonBody, env);
+      if (path === "/budgets/markets" || path.startsWith("/budgets/markets/")) return await handleMarkets(request, db, email, hasAccess(session,"facturier"), reply, jsonBody, env);
       if (path === "/budgets/agenda" || path.startsWith("/budgets/agenda/")) return await handleAgenda(request, db, email, session.admin, reply, jsonBody, env);
       if (path === "/budgets/clients") {
         if (request.method !== "POST") return reply(405, { error: "M\xE9thode non autoris\xE9e." });

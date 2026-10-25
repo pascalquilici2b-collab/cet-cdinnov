@@ -1,3 +1,4 @@
+import {accountAccess,validAccess} from './access';
 import {createHash,randomBytes} from 'node:crypto';
 import {Buffer} from 'node:buffer';
 import type {Environment,Reply,WorkspaceRow} from './contracts';
@@ -44,13 +45,13 @@ export function portalEnvironment(source:Environment):Environment {
 }
 
 export function portalView(p:Document,email:string):Document {
-  const admin=portalAdmin(p,email),mat=employee(p,email);
-  const accounts=Object.fromEntries(Object.entries(p.auth?.accounts||{}).filter(([key])=>admin||key===email).map(([key,a])=>[key,{...pick(a as Document,['name','created']),role:accountRole(key,a as Document)}]));
-  const auth={accounts,allowed:admin?p.auth?.allowed||[]:[email]};
+  const admin=portalAdmin(p,email),mat=employee(p,email),access=accountAccess(p.auth?.accounts?.[email]?.access,admin);
+  const accounts=Object.fromEntries(Object.entries(p.auth?.accounts||{}).filter(([key])=>admin||key===email).map(([key,a])=>[key,{...pick(a as Document,['name','created']),role:accountRole(key,a as Document),access:accountAccess((a as Document).access,accountRole(key,a as Document)==='admin')}]));
+  const auth={accounts,allowed:admin?p.auth?.allowed||[]:[email],...(admin?{pendingAccess:Object.fromEntries(Object.entries(p.auth?.invitations||{}).map(([key,value])=>[key,accountAccess((value as Document).access)]))}:{})};
   if(admin)return {...p,auth};
-  return {params:p.params,types:p.types,salaries:(p.salaries||[]).map((s:Document)=>own(s,mat)?s:pick(s,['matricule','nom','prenom','email','statut','photo'])),
-    mouvements:(p.mouvements||[]).filter((r:Document)=>own(r,mat)),conges:(p.conges||[]).map((r:Document)=>own(r,mat)?r:pick(r,['id','matricule','date','half','type','statut','req'])),
-    notesFrais:(p.notesFrais||[]).filter((r:Document)=>own(r,mat)),codesAffaires:p.codesAffaires||[],factures:[],facturxPartyMemory:{seller:[],buyer:[]},majAt:p.majAt,majBy:p.majBy,auth};
+  return {params:p.params,types:p.types,salaries:(p.salaries||[]).map((s:Document)=>own(s,mat)&&(access.salaries||access.mouvements||access.agenda)?s:pick(s,['matricule','nom','prenom','email','statut','photo'])),
+    mouvements:access.mouvements||access.agenda||access.salaries?(p.mouvements||[]).filter((r:Document)=>own(r,mat)):[],conges:access.agenda?(p.conges||[]).map((r:Document)=>own(r,mat)?r:pick(r,['id','matricule','date','half','type','statut','req'])):[],
+    notesFrais:access.notesfrais?(p.notesFrais||[]).filter((r:Document)=>own(r,mat)):[],codesAffaires:access.facturier||access.notesfrais||access.budgetsprojets?p.codesAffaires||[]:[],factures:access.facturier?p.factures||[]:[],facturxPartyMemory:access.facturier?p.facturxPartyMemory||{seller:[],buyer:[]}:{seller:[],buyer:[]},majAt:p.majAt,majBy:p.majBy,auth};
 }
 
 export async function boundedBody(request:Pick<Request,'body'>,max=1500000):Promise<Uint8Array>{
@@ -78,10 +79,13 @@ function merge(p:Document,next:Document,email:string){
   let result:Document;
   if(admin){result={...p,...next,auth:p.auth};}
   else {
-    const writable=new Set(['conges','mouvements','notesFrais','majAt','majBy']);
-    for(const key of new Set([...Object.keys(view),...Object.keys(next)]))if(!writable.has(key)&&!same(view[key],next[key]))fail(403,'Cette rubrique est réservée à un administrateur.');
+    const access=accountAccess(p.auth?.accounts?.[email]?.access),modules={conges:'agenda',mouvements:'mouvements',notesFrais:'notesfrais'} as const;
+    const writable=new Set<string>(['majAt','majBy',...Object.entries(modules).filter(([,key])=>access[key]).map(([key])=>key),...(access.facturier?['factures','codesAffaires','facturxPartyMemory']:[])]);
+    for(const key of new Set([...Object.keys(view),...Object.keys(next)]))if(!writable.has(key)&&!same(view[key],next[key]))fail(403,'Cette rubrique n’est pas autorisée pour votre compte.');
     result={...p};
+    if(access.facturier)for(const key of ['factures','codesAffaires','facturxPartyMemory'])result[key]=next[key];
     for(const key of ['conges','mouvements','notesFrais']){
+      if(!writable.has(key))continue;
       const other=(r:Document)=>!own(r,mat);
       if(!same(next[key].filter(other),view[key].filter(other)))fail(403,'Vous ne pouvez modifier que votre dossier.');
       const records=next[key].filter((r:Document)=>own(r,mat));
@@ -118,7 +122,7 @@ export async function portalRoute(request:Request,env:Environment,reply:Reply):P
     const data=await input(request),email=norm(data.email),invite=p.auth?.invitations?.[email];
     if(!invite||invite.expiresAt<Date.now()||typeof data.token!=='string'||digest(data.token)!==invite.hash)fail(403,'Invitation invalide ou expirée. Demandez un nouveau lien à un administrateur.');
     if(!/^[a-f0-9]{32}$/.test(data.salt)||!/^[a-f0-9]{64}$/.test(data.hash)||data.iter!==150000||typeof data.name!=='string'||data.name.length>200)fail(400,'Compte invalide.');
-    p.auth.accounts[email]={salt:data.salt,hash:data.hash,iter:data.iter,name:data.name.trim()||email,created:new Date().toISOString(),role:invite.role==='admin'?'admin':'collaborator'};delete p.auth.invitations[email];
+    p.auth.accounts[email]={salt:data.salt,hash:data.hash,iter:data.iter,name:data.name.trim()||email,created:new Date().toISOString(),role:invite.role==='admin'?'admin':'collaborator',access:accountAccess(invite.access)};delete p.auth.invitations[email];
     if(!p.auth.allowed.includes(email))p.auth.allowed.push(email);
     await writePortal(env,p,row.version,email);return reply(200,{ok:true});
   }
@@ -160,6 +164,15 @@ export async function portalRoute(request:Request,env:Environment,reply:Reply):P
     const data=await input(request),email=norm(data.email);if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254)fail(400,'Adresse invalide.');
     p.auth??={};p.auth.accounts??={};p.auth.allowed??=[];p.auth.invitations??={};
     const activeAdmins=Object.keys(p.auth.accounts).filter(e=>portalAdmin(p,e));
+    if(data.action==='access'){
+      const expected=version(request);if(expected!==row.version)fail(409,'Les comptes ont changé. Actualisez avant de modifier les droits.');
+      if(!validAccess(data.access))fail(400,'Liste des accès invalide.');
+      const target=p.auth.accounts[email]||p.auth.invitations[email];if(!target)fail(404,'Compte introuvable.');
+      if(accountRole(email,target)==='admin')fail(409,'Les administrateurs disposent toujours de tous les accès.');
+      const previous=accountAccess(target.access);target.access=data.access;
+      p.auth.accessHistory??=[];p.auth.accessHistory.push({email,from:previous,to:data.access,by:session.email,at:new Date().toISOString()});
+      return reply(200,{ok:true,version:await writePortal(env,p,expected,session.email)});
+    }
     if(data.action==='role'){
       const expected=version(request);
       if(expected!==row.version)fail(409,'Les comptes ont changé. Actualisez avant de modifier les droits.');
@@ -183,7 +196,7 @@ export async function portalRoute(request:Request,env:Environment,reply:Reply):P
     if(email===session.email&&data.action==='reset')fail(403,'Demandez à un autre administrateur de réinitialiser votre compte.');
     if(data.action==='reset'&&portalAdmin(p,email)&&activeAdmins.length<=1)fail(409,'Conservez au moins un administrateur actif.');
     const token=randomBytes(32).toString('base64url'),expiresAt=Date.now()+24*3600000;
-    p.auth.invitations[email]={hash:digest(token),expiresAt,role:data.action==='reset'?accountRole(email,p.auth.accounts[email]):'collaborator'};if(data.action==='reset')delete p.auth.accounts[email];
+    p.auth.invitations[email]={hash:digest(token),expiresAt,role:data.action==='reset'?accountRole(email,p.auth.accounts[email]):'collaborator',access:accountAccess(p.auth.accounts[email]?.access??p.auth.invitations[email]?.access)};if(data.action==='reset')delete p.auth.accounts[email];
     if(!p.auth.allowed.includes(email))p.auth.allowed.push(email);
     await writePortal(env,p,row.version,session.email);return reply(200,{email,token,expiresAt});
   }
@@ -209,7 +222,7 @@ export async function filesRoute(request:Request,env:Environment,headers:Headers
   }
   if(!['GET','DELETE'].includes(request.method))return reply(405,{error:'Méthode non autorisée.'});
   const p=JSON.parse((await readPortal(env)).payload),metadata=await bucket.head(key);
-  const canRead=session.admin||references(portalView(p,session.email),key)||metadata?.customMetadata?.owner===session.email;
+  const canRead=session.admin||references(portalView(p,session.email),key)||(!references(p,key)&&metadata?.customMetadata?.owner===session.email);
   if(!canRead)return reply(403,{error:'Ce fichier ne fait pas partie de votre dossier.'});
   if(request.method==='DELETE'){
     // Referenced files are retained, including another user's copy of a receipt.

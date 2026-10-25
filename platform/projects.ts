@@ -1,5 +1,5 @@
 import type {Environment,Reply} from './contracts';
-import {sessionIdentity} from './identity';
+import {sessionIdentity,hasAccess} from './identity';
 import {boundedBody} from './portal';
 import {validateMarket} from '../marches/domain.mjs';
 import {validClientLogoData} from './billing-client-logo';
@@ -8,9 +8,11 @@ export interface SharedProject {id:string;marketId:string;marketVersion:number;m
 export type ProjectInput=Pick<SharedProject,'id'|'marketId'|'marketVersion'|'marketIds'|'clientIds'|'logoData'|'name'|'code'|'programme'|'startDate'|'endDate'|'notes'|'archived'>;
 export async function projectsRoute(request:Request,env:Environment,reply:Reply){
  const session=await sessionIdentity(request,env);if(!session)return reply(401,{error:'Connexion requise.'});
+ const commercial=hasAccess(session,'facturier');
+ if(!commercial&&!hasAccess(session,'notesfrais')&&!hasAccess(session,'budgetsprojets'))return reply(403,{error:'Votre compte n’a pas accès aux projets.'});
  const db=env.BUDGETS_DB.withSession('first-primary');
  if(!['GET','PUT'].includes(request.method))return reply(405,{error:'Méthode non autorisée.'});
- if(request.method==='PUT'&&!session.admin)return reply(403,{error:'La gestion des projets est réservée à la direction.'});
+ if(request.method==='PUT'&&!commercial)return reply(403,{error:'La gestion des projets est réservée à la direction.'});
  const [allMarkets,budgetClients,directoryClients]=await Promise.all([
   db.prepare('SELECT id,payload FROM markets').all<{id:string;payload:string}>(),
   db.prepare('SELECT data_json FROM budget_clients').all<{data_json:string}>(),
@@ -28,7 +30,7 @@ export async function projectsRoute(request:Request,env:Environment,reply:Reply)
  };
  if(request.method==='GET'){
   const rows=await db.prepare('SELECT * FROM commercial_projects ORDER BY name COLLATE NOCASE,id').all<{id:string;market_id:string;market_version:number;name:string;code:string;archived:number;data_json:string}>();
-  return reply(200,{clients:session.admin?[...clients].map(([id,name])=>({id,name})).sort((a,b)=>a.name.localeCompare(b.name,'fr')):[],projects:rows.results.filter(p=>session.admin||!p.archived).map(p=>{const d=JSON.parse(p.data_json);return {id:p.id,marketId:p.market_id,marketVersion:p.market_version,name:p.name,code:p.code,programme:d.programme||'',startDate:d.startDate||'',endDate:d.endDate||'',archived:!!p.archived,...(session.admin?{notes:d.notes||''}:{}),...describe(p.market_id,d)};})});
+  return reply(200,{clients:commercial?[...clients].map(([id,name])=>({id,name})).sort((a,b)=>a.name.localeCompare(b.name,'fr')):[],projects:rows.results.filter(p=>commercial||!p.archived).map(p=>{const d=JSON.parse(p.data_json);return {id:p.id,marketId:p.market_id,marketVersion:p.market_version,name:p.name,code:p.code,programme:d.programme||'',startDate:d.startDate||'',endDate:d.endDate||'',archived:!!p.archived,...(commercial?{notes:d.notes||''}:{}),...describe(p.market_id,d)};})});
  }
  if(!request.headers.get('content-type')?.startsWith('application/json'))return reply(415,{error:'Format JSON requis.'});
  let data:ProjectInput;try{data=JSON.parse(new TextDecoder().decode(await boundedBody(request,400000)));}catch{return reply(400,{error:'Projet invalide ou logo trop volumineux.'});}

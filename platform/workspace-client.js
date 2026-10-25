@@ -21,6 +21,8 @@ var CDIPlatform = (() => {
   // platform/client/workspace-client.ts
   var workspace_client_exports = {};
   __export(workspace_client_exports, {
+    accessModules: () => accessModules,
+    accountAccess: () => accountAccess,
     createBudgetTransport: () => createBudgetTransport,
     recordChanges: () => recordChanges
   });
@@ -118,6 +120,23 @@ var CDIPlatform = (() => {
     }, success: (label) => show(anchor, label) };
   }
   var feedback = typeof window === "undefined" ? null : window.CDIActionFeedback ||= install();
+
+  // platform/access.ts
+  var accessModules = [
+    { key: "dashboard", label: "Tableau de bord", group: "Pilotage", default: true },
+    { key: "mouvements", label: "Mouvements CET", group: "Pilotage", default: true },
+    { key: "salaries", label: "Salari\xE9s", group: "Pilotage", default: false },
+    { key: "notesfrais", label: "Notes de frais", group: "Pilotage", default: true },
+    { key: "agenda", label: "Cong\xE9s et d\xE9placements", group: "Pilotage", default: true },
+    { key: "tamponnage", label: "Tamponnage des pi\xE8ces", group: "Applications", default: false },
+    { key: "facturier", label: "Logiciel de facturation", group: "Applications", default: false },
+    { key: "budgetsprojets", label: "Outil budgets", group: "Applications", default: true },
+    { key: "sheets", label: "CDInnovSheets", group: "Applications", default: true }
+  ];
+  function accountAccess(value, admin = false) {
+    const data = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+    return Object.fromEntries(accessModules.map((m) => [m.key, admin || (typeof data[m.key] === "boolean" ? data[m.key] : m.default)]));
+  }
 
   // platform/record-changes.ts
   var object = (v) => !!v && typeof v === "object" && !Array.isArray(v);
