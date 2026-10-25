@@ -32,6 +32,10 @@ async function service(env:Environment,raw:Uint8Array,payload:unknown){
  return result.result;
 }
 async function object(env:Environment,key:string){const stored=await bucket(env).get(key);if(!stored)return fail(404,'Fichier introuvable.');return new Uint8Array(await stored.arrayBuffer());}
+async function removeDocumentFiles(env:Environment,b:Batch,id:string,beforeVersion?:number){
+ let cursor:string|undefined;const start=prefix(b)+id+'/';
+ do{const listing=await bucket(env).list({prefix:start,cursor});const keys=listing.objects.map((o:any)=>o.key).filter((key:string)=>beforeVersion===undefined||Number(key.slice(start.length).match(/^candidate-(\d+)\.pdf$/)?.[1]??Infinity)<beforeVersion);if(keys.length)await bucket(env).delete(keys);cursor=listing.truncated?listing.cursor:undefined;}while(cursor);
+}
 async function upload(request:Request,limit:number){
  const bytes=await boundedBody(request,limit+65536);const form=await new Request(request.url,{method:'POST',headers:{'Content-Type':request.headers.get('content-type')||''},body:new Uint8Array(bytes)}).formData();
  const file=form.get('file');if(!file||typeof file==='string'||file.size>limit||!file.size)return fail(400,'Fichier absent ou trop volumineux.');
@@ -39,10 +43,10 @@ async function upload(request:Request,limit:number){
 }
 const documents=async(db:Database,id:string)=>(await db.prepare('SELECT * FROM stamp_documents WHERE batch_id=? ORDER BY rowid').bind(id).all<Doc>()).results;
 async function unlocked(db:Database,b:Batch,request:Request){
- if(JSON.parse(b.data).sealed)return fail(409,'Le tableau est verrouillé dès la première analyse. Créez un nouveau lot pour le remplacer.');
+ if(JSON.parse(b.data).sealed)return fail(409,'Le document de paiement est verrouillé après analyse. Supprimez-le pour réinitialiser les répartitions et le remplacer.');
  if(request.headers.get('if-match')!==String(b.version))return fail(409,'Le lot a changé. Actualisez avant de continuer.');
  const row=await db.prepare("SELECT id FROM stamp_documents WHERE batch_id=? AND status IN ('QUEUED','PROCESSING','APPROVED','VERIFIED') LIMIT 1").bind(b.id).first();
- if(row)return fail(409,'Le tableau est verrouillé pendant le traitement ou après validation. Créez un nouveau lot pour changer les imputations.');
+ if(row)return fail(409,'Le document de paiement est verrouillé pendant le traitement ou après validation.');
 }
 async function purge(db:Database,env:Environment,b:Batch){
  // Fence new uploads/jobs atomically before deleting private objects.
@@ -118,6 +122,28 @@ export async function stampingRoute(request:Request,env:Environment,reply:Reply)
   if((await documents(db,b.id)).some(d=>d.status==='PROCESSING'&&d.lease_until>Date.now()))return fail(409,'Attendez la fin de la pièce en cours avant suppression.');
   if(!await purge(db,env,b))return fail(409,'Une pièce vient de démarrer. Attendez sa fin avant suppression.');return reply(200,{ok:true});
  }
+ if(tail==='table/source'&&method==='GET'){
+  if(!data.table?.key)return fail(404,'Document de paiement introuvable.');
+  const raw=await object(env,data.table.key);if(hash(raw)!==data.table.sha256)return fail(503,'Empreinte du document invalide.');
+  const type=/\.pdf$/i.test(data.table.name)?'application/pdf':/\.xlsx$/i.test(data.table.name)?'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':'text/csv; charset=utf-8';
+  return binary(reply,raw,type,'document-paiement.'+(/\.pdf$/i.test(data.table.name)?'pdf':/\.xlsx$/i.test(data.table.name)?'xlsx':'csv'));
+ }
+ if(tail==='table'&&method==='DELETE'){
+  if(request.headers.get('if-match')!==String(b.version))return fail(409,'Le lot a changé. Actualisez avant de continuer.');
+  if(!data.table)return fail(404,'Document de paiement introuvable.');
+  const removal=crypto.randomUUID(),next={...data,table:null,import:null,importConfirmed:false,sealed:false,lastTableRemoval:removal};
+  // Both the reference and every dependent result change in one transaction.
+  // Queued jobs retain their old document version and cannot claim the reset rows.
+  const rows=await db.batch([
+   db.prepare("UPDATE stamp_batches SET data=?,version=version+1 WHERE id=? AND version=? AND NOT EXISTS (SELECT 1 FROM stamp_documents WHERE batch_id=? AND status IN ('PROCESSING','DELETING')) RETURNING id").bind(JSON.stringify(next),b.id,b.version,b.id),
+   db.prepare("UPDATE stamp_documents SET status='UPLOADED',version=version+1,data='{}',match_group=NULL,lease_until=0 WHERE batch_id=? AND EXISTS (SELECT 1 FROM stamp_batches WHERE id=? AND json_extract(data,'$.lastTableRemoval')=?) RETURNING id,version").bind(b.id,b.id,removal)
+  ]) as {results:{id:string;version:number}[]}[];
+  if(!rows[0].results?.length)return fail(409,'Attendez la fin de la pièce en cours, puis actualisez le lot.');
+  await audit(db,b,'PAYMENT_DOCUMENT_REMOVED',{source:data.table.sha256,resetDocuments:rows[1].results.length});
+  await bucket(env).delete(data.table.key);
+  for(const row of rows[1].results as {id:string;version:number}[])await removeDocumentFiles(env,b,row.id,row.version);
+  return reply(200,{ok:true});
+ }
  if(tail==='table'&&method==='POST'){
   await unlocked(db,b,request);const file=await upload(request,5*1024*1024);let inspected;
   if(/\.pdf$/i.test(file.name)){
@@ -130,10 +156,10 @@ export async function stampingRoute(request:Request,env:Environment,reply:Reply)
   const next={...data,useAI:true,table:{name:file.name,key,...inspected},import:suggested||null,importConfirmed:false};
   if(new TextEncoder().encode(JSON.stringify(next)).length>1200000){await bucket(env).delete(key);return fail(413,'Tableau trop volumineux : répartissez les pièces en plusieurs lots.');}
   const updated=await db.prepare('UPDATE stamp_batches SET data=?,version=version+1 WHERE id=? AND version=? RETURNING id').bind(JSON.stringify(next),b.id,b.version).first();if(!updated){await bucket(env).delete(key);return fail(409,'Le lot a changé. Rechargez-le.');}
-  await audit(db,b,'TABLE_IMPORTED',{hash:inspected.sha256});return reply(200,{ok:true});
+  await audit(db,b,'TABLE_IMPORTED',{hash:inspected.sha256});if(data.table?.key)await bucket(env).delete(data.table.key);return reply(200,{ok:true});
  }
  if(tail==='review'&&method==='POST'){
-  await unlocked(db,b,request);if(!data.import)return fail(422,'Lisez le tableau avant de confirmer.');const p=await json(request);
+  await unlocked(db,b,request);if(!data.import)return fail(422,'Lisez le document de paiement avant de confirmer.');const p=await json(request);
   const imported=await service(env,new Uint8Array(),{action:'review',original:data.import,changes:p.changes||[]});
   const next={...data,import:imported,importConfirmed:p.confirmed===true&&imported.groups.length>0&&!imported.errors.length&&!imported.groups.some((g:any)=>g.errors.length)};
   if(new TextEncoder().encode(JSON.stringify(next)).length>1200000)return fail(413,'Tableau trop volumineux : répartissez les pièces en plusieurs lots.');
@@ -141,7 +167,7 @@ export async function stampingRoute(request:Request,env:Environment,reply:Reply)
   await audit(db,b,next.importConfirmed?'READING_CONFIRMED':'READING_CORRECTED',{source:imported.source_sha256,changes:p.changes||[]});return reply(200,{ok:true});
  }
  if(tail==='mapping'&&method==='POST'){
-  await unlocked(db,b,request);if(!data.table)return fail(422,'Importez le tableau.');const p=await json(request,100000),raw=await object(env,data.table.key);
+  await unlocked(db,b,request);if(!data.table)return fail(422,'Importez le document de paiement.');const p=await json(request,100000),raw=await object(env,data.table.key);
   const imported=await service(env,raw,{action:'import',name:data.table.name,options:p.mapping});
   const next={...data,import:imported,importConfirmed:p.confirmed===true&&imported.groups.length>0&&!imported.errors.length&&!imported.groups.some((g:any)=>g.errors.length)};
   if(new TextEncoder().encode(JSON.stringify(next)).length>1200000)return fail(413,'Le tableau et sa traçabilité sont trop volumineux pour un lot. Répartissez-les en plusieurs fichiers.');
@@ -167,8 +193,19 @@ export async function stampingRoute(request:Request,env:Environment,reply:Reply)
   files['tracabilite.json']=strToU8(JSON.stringify({batch:{id:b.id,name:b.name},source:data.table?.sha256,mapping:data.import?.mapping,groups:data.import?.groups,excluded:data.import?.excluded,documents:docs.map(expose),audit:events},null,2));
   return binary(reply,zipSync(files,{level:0}),'application/zip',`tamponnage-${b.id}.zip`);
  }
- const dr=tail.match(/^documents\/([^/]+)\/(analyze|approve|stamp|cancel|preview|source|output)$/);if(!dr||!uuid(dr[1]))return reply(404,{error:'Action introuvable.'});
+ const dr=tail.match(/^documents\/([^/]+)(?:\/(analyze|approve|stamp|cancel|preview|source|output))?$/);if(!dr||!uuid(dr[1]))return reply(404,{error:'Action introuvable.'});
  const d=await db.prepare('SELECT * FROM stamp_documents WHERE id=? AND batch_id=?').bind(dr[1],b.id).first<Doc>();if(!d)return reply(404,{error:'Pièce introuvable.'});const result=JSON.parse(d.data),action=dr[2];
+ if(!action&&method==='DELETE'){
+  if(request.headers.get('if-match')!==String(d.version))return fail(409,'La pièce a changé. Actualisez le lot.');
+  const removed=await db.prepare("UPDATE stamp_documents SET status='DELETING',version=version+1,match_group=NULL WHERE id=? AND batch_id=? AND version=? AND status!='PROCESSING' RETURNING version").bind(d.id,b.id,d.version).first<{version:number}>();
+  if(!removed)return fail(409,'Attendez la fin de l’analyse de cette pièce avant de la supprimer.');
+  // A retry can finish deletion after a storage interruption; the tombstone
+  // prevents analysis, download or export of a partially removed document.
+  await removeDocumentFiles(env,b,d.id);
+  await db.prepare("DELETE FROM stamp_documents WHERE id=? AND version=? AND status='DELETING'").bind(d.id,removed.version).run();
+  await audit(db,b,'DOCUMENT_REMOVED',{name:d.name,source:d.sha256},d.id);return reply(200,{ok:true});
+ }
+ if(d.status==='DELETING')return fail(409,'Relancez la suppression de cette pièce pour la terminer.');
  if(['source','output','preview'].includes(action)&&method==='GET'){
   if(action!=='source'&&!result.candidateKey)return fail(422,'Aperçu indisponible.');
   if(action==='output'&&d.status!=='VERIFIED')return fail(409,'Validez et tamponnez la pièce avant téléchargement.');
@@ -180,7 +217,7 @@ export async function stampingRoute(request:Request,env:Environment,reply:Reply)
  if(method!=='POST')return reply(405,{error:'Méthode non autorisée.'});
  if(request.headers.get('if-match')!==String(d.version))return fail(409,'La pièce a changé. Actualisez le lot.');
  if(action==='analyze'){
-  if(!data.importConfirmed)return fail(422,'Confirmez le tableau sans erreur avant analyse.');
+  if(!data.importConfirmed)return fail(422,'Confirmez le document de paiement sans erreur avant analyse.');
   if(!env.STAMPING_QUEUE)return fail(503,'La file de traitement doit être activée.');
   if(!data.sealed){const sealed=await db.prepare("UPDATE stamp_batches SET data=json_set(data,'$.sealed',json('true')),version=version+1 WHERE id=? AND version=? RETURNING id").bind(b.id,b.version).first();if(!sealed)return fail(409,'Le lot a changé. Relancez l’analyse.');}
   if(['PROCESSING','VERIFIED','APPROVED'].includes(d.status))return fail(409,'Pièce en cours ou déjà validée.');

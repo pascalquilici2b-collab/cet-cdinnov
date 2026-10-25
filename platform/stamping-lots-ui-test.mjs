@@ -23,8 +23,8 @@ try{
  const group=(id,employee,period,amount)=>({id,employee_ref:employee,period,document_type:'PAYSLIP',base_amount_cents:100000,base_type:'EMPLOYER_COST',total_cents:amount,remainder_cents:100000-amount,errors:[],allocations:[{id:id+'a',project:'Projet test',amount_cents:amount,base_cents:100000,source:{sheet:'Tableau',cell:'H2',row:2}}]});
  const reading={mapping:{automatic:true},groups:[group('one','Camille TEST','2024-09',12000),group('two','Camille TEST','2024-10',24000),group('three','Alex TEST','2025-01',30000)],errors:[],warnings:[]};
  await preview.ctx.db.prepare('UPDATE stamp_batches SET data=? WHERE id=?').bind(JSON.stringify({...JSON.parse(row.data),import:reading,table:{name:'Test.xlsx',sheets:[{name:'Tableau',header:0,mapping:{}}]},importConfirmed:false}),row.id).run();
- await page.getByRole('button',{name:'Actualiser',exact:true}).click();await page.getByRole('navigation',{name:'Salariés du tableau'}).waitFor();
- const people=page.getByRole('navigation',{name:'Salariés du tableau'}),months=page.getByRole('navigation',{name:'Mois du salarié'});
+ await page.getByRole('button',{name:'Actualiser',exact:true}).click();await page.getByRole('navigation',{name:'Salariés du document'}).waitFor();
+ const people=page.getByRole('navigation',{name:'Salariés du document'}),months=page.getByRole('navigation',{name:'Mois du salarié'});
  assert.equal(await people.getByRole('button').count(),2);await people.getByRole('button',{name:/Camille TEST/}).click();
  assert.equal(await months.getByRole('button').count(),2);await months.getByRole('button',{name:/Septembre 2024/}).click();assert.equal(await page.getByLabel('Montant Projet test',{exact:true}).inputValue(),'120.00');
  await page.getByLabel('Montant Projet test',{exact:true}).fill('125,00');await months.getByRole('button',{name:/Octobre 2024/}).click();assert.equal(await page.getByLabel('Montant Projet test',{exact:true}).inputValue(),'240.00');

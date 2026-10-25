@@ -29,10 +29,10 @@ try{
  await page.getByLabel('Nom du lot',{exact:true}).fill('Paie et factures · démonstration');await page.getByRole('button',{name:'Créer le lot',exact:true}).click();
  await page.getByLabel('Importer les PDF').setInputFiles([{name:'bulletin-fictif.pdf',mimeType:'application/pdf',buffer:Buffer.from(f.pdf,'base64')},{name:'facture-fictive.pdf',mimeType:'application/pdf',buffer:Buffer.from(f.invoice,'base64')}]);
  await page.getByRole('button',{name:'facture-fictive.pdf',exact:true}).waitFor();
- await page.getByLabel('Importer le tableau').setInputFiles({name:'repartition.csv',mimeType:'text/csv',buffer:Buffer.from(f.table,'base64')});
+ await page.getByLabel('Importer le document de paiement').setInputFiles({name:'repartition.csv',mimeType:'text/csv',buffer:Buffer.from(f.table,'base64')});
  await page.getByRole('heading',{name:'Correspondance des colonnes'}).waitFor();await page.screenshot({path:out+'/import.png',fullPage:true});
  await page.getByRole('button',{name:'Vérifier les lignes',exact:true}).click();await page.getByText('2 groupes de répartition',{exact:true}).waitFor();
- await page.getByRole('button',{name:'Confirmer le tableau',exact:true}).click();await page.getByRole('button',{name:'Analyser les pièces',exact:true}).click();
+ await page.getByRole('button',{name:'Confirmer le document',exact:true}).click();await page.getByRole('button',{name:'Analyser les pièces',exact:true}).click();
  await page.locator('.stamp-status.NEEDS_APPROVAL').first().waitFor({timeout:60000});await page.locator('.stamp-status.NEEDS_APPROVAL').nth(1).waitFor({timeout:60000});
  await page.getByRole('button',{name:'bulletin-fictif.pdf',exact:true}).click();await page.locator('.stamp-preview img').waitFor();await page.locator('.stamp-preview img').evaluate(img=>img.decode());
  assert.match(await page.locator('.stamp-detail').innerText(),/6\s?459,40/);assert.match(await page.locator('.stamp-detail').innerText(),/717,70/);
