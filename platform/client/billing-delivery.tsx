@@ -1,3 +1,4 @@
+import {captureSuccess} from './action-feedback';
 import {defaultBillingEmail} from '../billing-email-default';
 import {OutlookIcon} from './outlook-icon';
 import {OutlookAccount} from './billing-outlook-account';
@@ -28,17 +29,17 @@ export function EmailDocument({record,transport}:{record:BillingDocument;transpo
  },[open,record.id,transport]);
  const download=(value:{url:string;filename:string})=>{const link=document.createElement('a');link.href=value.url;link.download=value.filename;document.body.append(link);link.click();link.remove();};
  async function prepare(){
-  if(busy)return;setBusy(true);setError('');setReady(null);
+  if(busy)return;const completed=captureSuccess();setBusy(true);setError('');setReady(null);
   try{if((await transport.get(record.id)).rectification?.replacementId)throw Error('Cette facture a été remplacée. Ouvrez sa rectification.');const filename=(record.data.kind==='quote'?'Devis-':'Facture-')+(record.issuance?.number||record.id).replace(/[^a-zA-Z0-9_-]/g,'_'),pdf=await transport.issuedFile(record.id,'pdf');
    const chosen=contacts.find(c=>c.id===selected&&c.email===recipient),blob=await outlookMessage({...(record.data.kind==='invoice'?{bcc:'cdi@cdinnov.com' as const}:{}),recipient:recipient.trim(),recipientName:chosen?.name,subject,message,filename:filename+'.pdf',pdf});
-   const result={url:URL.createObjectURL(blob),filename:filename+'.eml'};setReady(result);download(result);
+   const result={url:URL.createObjectURL(blob),filename:filename+'.eml'};setReady(result);download(result);completed('Message prêt');
   }catch(e){setError(e instanceof Error?e.message:'Le message n’a pas pu être préparé.');}finally{setBusy(false);}
  }
  async function prepareOnline(){
-  if(busy)return;setBusy(true);setError('');
+  if(busy)return;const completed=captureSuccess();setBusy(true);setError('');
   const outlookWindow=window.open('about:blank','_blank');if(outlookWindow){outlookWindow.opener=null;outlookWindow.document.title='Outlook · CDInnov';outlookWindow.document.body.textContent='Préparation du brouillon Outlook…';}
   try{if((await transport.get(record.id)).rectification?.replacementId)throw Error('Cette facture a été remplacée. Ouvrez sa rectification.');const microsoft=await import('./billing-microsoft'),identity=await microsoft.outlookToken(transport),pdf=await transport.issuedFile(record.id,'pdf'),contact=contacts.find(c=>c.id===selected&&c.email===recipient);
-   const result=await createMicrosoftDraft({...(record.data.kind==='invoice'?{bcc:'cdi@cdinnov.com' as const}:{}),token:identity.token,email:identity.email,documentId:record.id,recipient:recipient.trim(),recipientName:contact?.name,subject,message,filename:(record.data.kind==='quote'?'Devis-':'Facture-')+(record.issuance?.number||record.id)+'.pdf',pdf,currentEmail:async()=>(await transport.session()).email,storage:sessionStorage});setOutlookDraft(result);if(outlookWindow&&!outlookWindow.closed)outlookWindow.location.replace(result.webLink);
+   const result=await createMicrosoftDraft({...(record.data.kind==='invoice'?{bcc:'cdi@cdinnov.com' as const}:{}),token:identity.token,email:identity.email,documentId:record.id,recipient:recipient.trim(),recipientName:contact?.name,subject,message,filename:(record.data.kind==='quote'?'Devis-':'Facture-')+(record.issuance?.number||record.id)+'.pdf',pdf,currentEmail:async()=>(await transport.session()).email,storage:sessionStorage});setOutlookDraft(result);completed('Brouillon créé');if(outlookWindow&&!outlookWindow.closed)outlookWindow.location.replace(result.webLink);
   }catch(e){if(outlookWindow&&!outlookWindow.closed)outlookWindow.close();setError(e instanceof Error?e.message:'Le brouillon Outlook n’a pas pu être préparé.');}finally{setBusy(false);}
  }
  return <><button type="button" className="bill-button" onClick={()=>setOpen(true)}><Send size={16}/> Envoyer par e-mail</button><dialog ref={dialog} className="bill-directory-dialog bill-delivery-dialog" aria-label="Envoyer par e-mail" onCancel={e=>{if(busy)e.preventDefault();else setOpen(false);}}><div className="bill-dialog-top"><strong><OutlookIcon size={25}/>Préparer dans Outlook</strong><button type="button" disabled={busy} aria-label="Fermer" onClick={()=>setOpen(false)}>×</button></div><form className="bill-section" onSubmit={e=>{e.preventDefault();void prepareOnline();}}>

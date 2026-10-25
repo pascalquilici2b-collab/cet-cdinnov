@@ -1,7 +1,7 @@
 import {createHash} from 'node:crypto';
 import {Buffer} from 'node:buffer';
 import {zipSync} from 'fflate';
-import {stampedLotFilename} from './stamping-filenames';
+import {stampedLotFilename,stampedDocumentNames} from './stamping-filenames';
 import {sessionIdentity} from './identity';
 import {boundedBody} from './portal';
 import {stampingSuggestions} from './stamping-ai';
@@ -194,7 +194,8 @@ export async function stampingRoute(request:Request,env:Environment,reply:Reply)
  }
  if(tail==='export'&&method==='GET'){
   const docs=await documents(db,b.id),files:Record<string,Uint8Array>={};let totalBytes=0;
-  for(const d of docs.filter(d=>d.status==='VERIFIED')){const result=JSON.parse(d.data);const pdf=await object(env,result.candidateKey);if(hash(pdf)!==result.output_sha256)return fail(503,'Empreinte du PDF invalide.');totalBytes+=pdf.length;if(totalBytes>30*1024*1024)return fail(413,'Export ZIP limité à 30 Mo. Téléchargez les PDF séparément.');files[`piece-${d.id}_tamponne.pdf`]=pdf;}
+  const verified=docs.filter(d=>d.status==='VERIFIED'),names=stampedDocumentNames(verified,data.import?.groups||[]);
+  for(const d of verified){const result=JSON.parse(d.data);const pdf=await object(env,result.candidateKey);if(hash(pdf)!==result.output_sha256)return fail(503,'Empreinte du PDF invalide.');totalBytes+=pdf.length;if(totalBytes>30*1024*1024)return fail(413,'Export ZIP limité à 30 Mo. Téléchargez les PDF séparément.');files[names.get(d.id)!]=pdf;}
   if(!Object.keys(files).length)return fail(422,'Aucune pièce tamponnée à télécharger.');
   return binary(reply,zipSync(files,{level:0}),'application/zip',stampedLotFilename(b.name));
  }
@@ -217,7 +218,7 @@ export async function stampingRoute(request:Request,env:Environment,reply:Reply)
   const raw=await object(env,action==='source'?sourceKey(b,d):result.candidateKey);
   if(hash(raw)!==(action==='source'?d.sha256:result.output_sha256))return fail(503,'Empreinte du fichier invalide.');
   if(new URL(request.url).searchParams.has('image')){const image=await service(env,raw,{action:'preview',options:{page:Number(new URL(request.url).searchParams.get('page')||0)}});return binary(reply,Buffer.from(image.image,'base64'),'image/png','apercu.png');}
-  return binary(reply,raw,'application/pdf',`piece-${d.id}${action==='output'?'_tamponne':''}.pdf`);
+  return binary(reply,raw,'application/pdf',action==='output'?stampedDocumentNames([d],data.import?.groups||[]).get(d.id)!:`piece-${d.id}.pdf`);
  }
  if(method!=='POST')return reply(405,{error:'Méthode non autorisée.'});
  if(request.headers.get('if-match')!==String(d.version))return fail(409,'La pièce a changé. Actualisez le lot.');

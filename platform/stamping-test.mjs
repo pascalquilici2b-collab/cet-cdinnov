@@ -47,7 +47,7 @@ try{
  });
  await check('ZIP contains stamped PDFs only, is named after the lot, and keeps internal audit',async()=>{
   const r=await ctx.call(`/batches/${id}/export`);assert.equal(r.status,200);const files=unzipSync(new Uint8Array(await r.arrayBuffer()));assert.equal(Object.keys(files).filter(p=>p.endsWith('.pdf')).length,2);
-  assert.equal(Object.keys(files).length,2);assert.ok(Object.keys(files).every(p=>p.endsWith('.pdf')));assert.equal(decodeURIComponent(r.headers.get('Content-Disposition').split("filename*=UTF-8''")[1]),'Lot synthétique - paie - 2026 tamponné.zip');for(const d of b.documents)assert.equal(createHash('sha256').update(files[`piece-${d.id}_tamponne.pdf`]).digest('hex'),d.data.output_sha256);const events=(await ctx.db.prepare('SELECT action FROM stamp_audit WHERE batch_id=?').bind(id).all()).results;assert.ok(events.some(e=>e.action==='APPROVED'));
+  assert.equal(Object.keys(files).length,2);assert.ok(Object.keys(files).every(p=>p.endsWith('.pdf')));assert.equal(decodeURIComponent(r.headers.get('Content-Disposition').split("filename*=UTF-8''")[1]),'Lot synthétique - paie - 2026 tamponné.zip');for(const d of b.documents)assert.equal(createHash('sha256').update(files[d.id===payId?'DR_EPCIC_RH_SAL-TEST_Janvier_2026.pdf':'facture-fictive_tamponné.pdf']).digest('hex'),d.data.output_sha256);const events=(await ctx.db.prepare('SELECT action FROM stamp_audit WHERE batch_id=?').bind(id).all()).results;assert.ok(events.some(e=>e.action==='APPROVED'));
   assert.deepEqual(Buffer.from(await(await ctx.call(`/batches/${id}/documents/${payId}/source`)).arrayBuffer()),Buffer.from(f.pdf,'base64'));
  });
  await check('Owner isolation, guessed IDs, generic R2 route blocked',async()=>{

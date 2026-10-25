@@ -22,7 +22,7 @@ try{
  page=await context.newPage();page.setDefaultTimeout(20000);const errors=[];page.on('pageerror',e=>errors.push(e.message));
  const nav=name=>page.getByRole('navigation',{name:'Documents commerciaux'}).getByRole('button',{name,exact:true});
  const row=title=>page.locator('.bill-list-table tbody tr').filter({has:page.locator('[data-column=label]',{hasText:title})});
- const success=page.locator('.cdi-action-success');
+ const success=page.locator('.cdi-action-success,.cdi-button-success');
  await page.goto(preview.base);await nav('Devis').click();
  // Clicking a plain cell opens finalized and draft documents; actions never open the row.
  await row(source.data.title).locator('[data-column=client]').click();await expect(page.getByRole('button',{name:'Télécharger le PDF',exact:true})).toBeVisible();

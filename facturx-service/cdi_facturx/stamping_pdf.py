@@ -27,7 +27,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 from .stamping_import import cents, key, month
 from .stamping_payroll import employer_cost
 
-VERSION = 'stamping-2.2-20261025'
+VERSION = 'stamping-2.3-20261025'
 FONT = 'CDIStamp'
 BOLD = 'CDIStampBold'
 pdfmetrics.registerFont(TTFont(FONT, str(Path(__file__).parent/'assets/fonts/Montserrat-Regular.ttf')))
@@ -232,24 +232,26 @@ def wrap(text,width,size,font=FONT):
     return lines or ['']
 
 
-def layout(allocations,width=290,size=5,header='Dépense imputée aux projets suivants',show_total=False):
+def layout(allocations,width=180,size=5,header='Dépense imputée aux projets suivants',show_total=False):
     if not 5<=size<=12 or not 150<=width<=500: raise StampError('INVALID_LAYOUT','Largeur 150–500 points ; police 5–12 points.')
     title_size=5.6 if size==5 else size+.6
-    title=wrap(header,width-20,title_size,BOLD);top=9+len(title)*(title_size+2)+6
+    title=wrap(header,width-16,title_size,BOLD);top=9+len(title)*(title_size+2)+4
     rows=[]
-    columns=2 if len(allocations)==2 else 1
-    stacked=len(allocations)<=2
+    # Keep projects and amounts in adjacent columns, even when a wider box is chosen.
+    columns=1;stacked=False;padding=8;gap=8
+    amount_width=max(pdfmetrics.stringWidth('Montant : '+money(a['amount_cents']),FONT,size) for a in allocations)
+    project_width=min(max(pdfmetrics.stringWidth(f'Projet {n+1} : '+a['project'],FONT,size) for n,a in enumerate(allocations)),width-2*padding-gap-amount_width)
+    content_width=project_width+gap+amount_width
+    left=(width-content_width)/2
     for n,a in enumerate(allocations):
-        prefix='Projet : ' if stacked else f'Projet {n+1} : '
+        prefix=f'Projet {n+1} : '
         amount='Montant : '+money(a['amount_cents'])
-        text=wrap(prefix+a['project'],(width/columns-22) if stacked else width-pdfmetrics.stringWidth(amount,FONT,size)-32,size)
-        amounts=wrap(amount,width/columns-22,size) if stacked else [amount]
-        h=max(1,len(text))*(size+3)+(len(amounts)*(size+3)+8 if stacked else 8)
-        rows.append({'allocation':a,'lines':text,'amounts':amounts,'y':top,'height':h,'column':n if columns==2 else 0})
-        if columns==1:top+=h
-    if columns==2:top+=max(row['height'] for row in rows)
-    height=top+10
-    return {'width':width,'height':height,'size':size,'title_size':title_size,'title':title,'rows':rows,'total':sum(a['amount_cents'] for a in allocations),'show_total':False,'columns':columns,'stacked':stacked}
+        text=wrap(prefix+a['project'],project_width,size)
+        h=max(1,len(text))*(size+3)+6
+        rows.append({'allocation':a,'lines':text,'amounts':[amount],'y':top,'height':h,'column':0})
+        top+=h
+    height=top+6
+    return {'width':width,'height':height,'size':size,'title_size':title_size,'title':title,'rows':rows,'total':sum(a['amount_cents'] for a in allocations),'show_total':False,'columns':columns,'stacked':stacked,'left':left,'amount_right':left+content_width,'column_gap':gap}
 
 def rect_overlap(a,b,margin=0):
     return a[0]<b[2]+margin and a[2]>b[0]-margin and a[1]<b[3]+margin and a[3]>b[1]-margin
@@ -317,13 +319,13 @@ def draw_stamp(c,block,page):
     if l['columns']==2:
         c.setLineWidth(.3);c.line(x+w/2,top-l['rows'][0]['y']+3,x+w/2,top-h+10)
     for i,row in enumerate(l['rows']):
-        y=top-row['y'];left=x+10+row['column']*w/l['columns']
+        y=top-row['y'];left=x+l['left']
         for n,line in enumerate(row['lines']):c.drawString(left,y-size-n*(size+3),line)
         amount='Montant : '+money(row['allocation']['amount_cents'])
         if l['stacked']:
             for n,line in enumerate(row['amounts']):c.drawString(left,y-(len(row['lines'])+n)*(size+3)-size-8,line)
         else:
-            c.drawRightString(x+w-10,y-size,amount)
+            c.drawRightString(x+l['amount_right'],y-size,amount)
             if i<len(l['rows'])-1:
                 c.setLineWidth(.3);c.line(x+6,y-row['height']+6,x+w-6,y-row['height']+6)
 
@@ -362,8 +364,8 @@ def process(raw,groups,options=None,choice=None,suggestions=None,overrides=None,
         for i,page in enumerate(doc):
             image=render_page(page);mask,bounds=occupancy(page,writer.pages[i],image);image.close();page.close()
             occupied.append((mask,bounds))
-        widths=[float(options.get('width',290))];sizes=[float(options.get('fontSize',5))]
-        if options.get('compact',True):widths+= [240,180,340];sizes += [5] if sizes[0]!=5 else []
+        widths=[float(options.get('width',180))];sizes=[float(options.get('fontSize',5))]
+        if options.get('compact',True):widths+= [150,200,240];sizes += [5] if sizes[0]!=5 else []
         order=list(range(len(doc)))
         if options.get('pagePreference')=='last':order.reverse()
         manual=options.get('placement')
@@ -386,7 +388,7 @@ def process(raw,groups,options=None,choice=None,suggestions=None,overrides=None,
                 # Retry smaller groups on copies of the maps, preserving source order and every line once.
                 masks=[p[0].copy() for p in occupied]
                 for start in range(0,len(allocations),3):
-                    l=layout(allocations[start:start+3],240,5,header)
+                    l=layout(allocations[start:start+3],180,5,header)
                     for i in order:
                         point=find_space(masks[i],l)
                         if point:
@@ -397,7 +399,7 @@ def process(raw,groups,options=None,choice=None,suggestions=None,overrides=None,
             writer.add_blank_page(width=595,height=842)
             i=len(writer.pages)-1;y=24
             for start in range(0,len(allocations),8):
-                l=layout(allocations[start:start+8],500,5,header)
+                l=layout(allocations[start:start+8],widths[0],sizes[0],header)
                 if y+l['height']>810:
                     writer.add_blank_page(width=595,height=842);i+=1;y=24
                 blocks.append({'page':i,'x':24,'y':y,'layout':l});y+=l['height']+20

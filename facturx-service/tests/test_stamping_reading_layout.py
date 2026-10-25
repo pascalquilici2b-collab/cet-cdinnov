@@ -23,7 +23,7 @@ def test_stamp_fonts_phrase_and_euros():
     title=[s for s in spans if 'Dépense soutenue' in s[0]]
     assert title and 'Montserrat' in title[0][1] and title[0][2]==5.6 and 'Bold' in title[0][1]
     text=''.join(s[0] for s in spans)
-    assert 'Dépense soutenue avec les fonds du PC Italie-France Maritime 2021-2027' in text
+    assert 'Dépense soutenue avec les fonds du PC Italie-France Maritime 2021-2027' in ' '.join(text.split())
     assert '100,00 €' in text
     rows=[s for s in spans if 'Projet 1' in s[0] or '100,00 €' in s[0]]
     assert rows and all('Montserrat' in s[1] and s[2]==5 for s in rows)
@@ -44,3 +44,22 @@ def test_incorrect_monthly_base_remains_blocked_after_name_repair():
     g=deepcopy(groups());g[0]['base_amount_cents']+=1
     with pytest.raises(StampError) as error:process(pdf(),g,{'allowOverlap':True})
     assert error.value.code=='BASE_MISMATCH'
+
+
+def test_compact_columns_and_centered_multiline_heading():
+    from cdi_facturx.stamping_pdf import layout
+    from reportlab.pdfbase import pdfmetrics
+    from cdi_facturx.stamping_pdf import FONT
+    data=groups(4)[0]['allocations']
+    for row,project in zip(data,['DEVELOP','I.V.C','NEST4ESG','P.Ri.s.Ma.MED2']):row['project']=project
+    title='Dépense soutenue avec les fonds du PC Italie-France Maritime 2021-2027'
+    for width in [150,180,290]:
+        box=layout(data,width=width,header=title)
+        assert len(box['title'])>=2 if width==180 else True
+        assert box['column_gap']==8
+        longest=max(pdfmetrics.stringWidth(line,FONT,5) for row in box['rows'] for line in row['lines'])
+        amount_width=max(pdfmetrics.stringWidth(row['amounts'][0],FONT,5) for row in box['rows'])
+        assert box['amount_right']-amount_width-(box['left']+longest)<=8.01
+        assert box['left']>=8 and box['amount_right']<=width-8
+    result=process(pdf(),groups(4))
+    assert result['blocks'][0]['width']==180
