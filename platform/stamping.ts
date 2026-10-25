@@ -199,7 +199,7 @@ export async function stampingRoute(request:Request,env:Environment,reply:Reply)
   if(!Object.keys(files).length)return fail(422,'Aucune pièce tamponnée à télécharger.');
   return binary(reply,zipSync(files,{level:0}),'application/zip',stampedLotFilename(b.name));
  }
- const dr=tail.match(/^documents\/([^/]+)(?:\/(analyze|approve|stamp|cancel|preview|source|output))?$/);if(!dr||!uuid(dr[1]))return reply(404,{error:'Action introuvable.'});
+ const dr=tail.match(/^documents\/([^/]+)(?:\/(analyze|revise|approve|stamp|cancel|preview|source|output))?$/);if(!dr||!uuid(dr[1]))return reply(404,{error:'Action introuvable.'});
  const d=await db.prepare('SELECT * FROM stamp_documents WHERE id=? AND batch_id=?').bind(dr[1],b.id).first<Doc>();if(!d)return reply(404,{error:'Pièce introuvable.'});const result=JSON.parse(d.data),action=dr[2];
  if(!action&&method==='DELETE'){
   if(request.headers.get('if-match')!==String(d.version))return fail(409,'La pièce a changé. Actualisez le lot.');
@@ -222,6 +222,30 @@ export async function stampingRoute(request:Request,env:Environment,reply:Reply)
  }
  if(method!=='POST')return reply(405,{error:'Méthode non autorisée.'});
  if(request.headers.get('if-match')!==String(d.version))return fail(409,'La pièce a changé. Actualisez le lot.');
+ if(action==='revise'){
+  if(!['NEEDS_APPROVAL','APPROVED','VERIFIED'].includes(d.status)||!result.candidateKey)return fail(409,'Un aperçu contrôlé est requis avant modification.');
+  const p=await json(request,70000);
+  if(Object.keys(p).some(k=>!['placements','overrides','additions'].includes(k))||['placements','overrides','additions'].some(k=>p[k]!==undefined&&(!Array.isArray(p[k])||p[k].length>200)))return fail(400,'Modification invalide.');
+  const raw=await object(env,sourceKey(b,d));if(hash(raw)!==d.sha256)return fail(503,'Empreinte du fichier invalide.');
+  // The previous result is authoritative private server state; callers cannot
+  // supply the reading, base, allocations, or verification evidence.
+  const previous={...result,blocks:result.blocks?.map(({image,...b}:any)=>b)};
+  const options={...data.options,...result.options,allowOverlap:true,fontSize:5};delete options.placement;delete options.placements;
+  if(p.placements)options.placements=p.placements;
+  else if(result.blocks?.every((b:any)=>b.allocationIds))options.placements=result.blocks.map(({page,x,y,layoutWidth,scale,allocationIds}:any)=>({page,x,y,layoutWidth,scale,allocationIds}));
+  const revised=await service(env,raw,{action:'revise',previous,options,overrides:p.overrides||[],additions:p.additions||[]});
+  const pdf=Buffer.from(revised.pdf||'','base64');delete revised.pdf;
+  if(!revised.checks||Object.values(revised.checks).some(v=>v!==true)||revised.source_sha256!==d.sha256||hash(pdf)!==revised.output_sha256)return fail(503,'Le PDF modifié n’a pas passé les contrôles.');
+  const key=prefix(b)+d.id+`/candidate-${d.version+1}-${crypto.randomUUID()}.pdf`;
+  await bucket(env).put(key,pdf,{httpMetadata:{contentType:'application/pdf'}});
+  const next={...result,...revised,candidateKey:key,options,error:undefined,overrides:[],progress:{stage:'complete',startedAt:Date.now()}};
+  let updated;
+  try{updated=await db.prepare("UPDATE stamp_documents SET status='NEEDS_APPROVAL',version=version+1,data=? WHERE id=? AND version=? AND status=? AND EXISTS (SELECT 1 FROM stamp_batches WHERE id=? AND expires_at>?) RETURNING id").bind(JSON.stringify(next),d.id,d.version,d.status,b.id,Date.now()).first();}
+  catch(error){await bucket(env).delete(key);throw error;}
+  if(!updated){await bucket(env).delete(key);return fail(409,'La pièce a changé pendant la modification. Actualisez le lot.');}
+  await audit(db,b,'PREVIEW_REVISED',{version:d.version+1,previous:result.output_sha256,output:revised.output_sha256,placements:options.placements,overrides:p.overrides||[],additions:p.additions||[]},d.id);
+  return reply(200,{ok:true});
+ }
  if(action==='analyze'){
   if(!data.importConfirmed)return fail(422,'Confirmez le document de paiement sans erreur avant analyse.');
   if(!env.STAMPING_QUEUE)return fail(503,'La file de traitement doit être activée.');

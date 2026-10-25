@@ -311,6 +311,11 @@ def least_occupied(mask,l):
     return best
 
 def draw_stamp(c,block,page):
+    scale=block.get('scale',1)
+    if scale!=1:
+        x=float(page.cropbox.left)+block['x'];top=float(page.cropbox.top)-block['y']
+        c.saveState();c.translate(x,top);c.scale(scale,scale);c.translate(-x,-top)
+        draw_stamp(c,{**block,'scale':1},page);c.restoreState();return
     l=block['layout'];x=float(page.cropbox.left)+block['x'];top=float(page.cropbox.top)-block['y'];w=l['width'];h=l['height'];size=l['size']
     c.setStrokeColorRGB(0,.45,1);c.setFillColorRGB(0,0,.48);c.setLineWidth(.8);c.rect(x,top-h,w,h,stroke=1,fill=0)
     c.setFont(BOLD,l['title_size'])
@@ -329,10 +334,21 @@ def draw_stamp(c,block,page):
             if i<len(l['rows'])-1:
                 c.setLineWidth(.3);c.line(x+6,y-row['height']+6,x+w-6,y-row['height']+6)
 
-def process(raw,groups,options=None,choice=None,suggestions=None,overrides=None,reading=None):
+def stamp_image(block):
+    """Transparent, exact stamp artwork for the browser's PDF manipulation handles."""
+    l=block['layout'];buf=io.BytesIO();c=canvas.Canvas(buf,pagesize=(l['width']+2,l['height']+2),pageCompression=1)
+    page=PdfWriter().add_blank_page(width=l['width']+2,height=l['height']+2)
+    draw_stamp(c,{'layout':l,'x':1,'y':1},page);c.save()
+    with pdfium.PdfDocument(buf.getvalue()) as doc:
+        bitmap=doc[0].render(scale=3,fill_color=(255,255,255,0));im=bitmap.to_pil()
+        cropped=im.crop((3,3,3+round(l['width']*3),3+round(l['height']*3)));out=io.BytesIO();cropped.save(out,format='PNG');cropped.close();im.close();bitmap.close()
+    return base64.b64encode(out.getvalue()).decode()
+
+
+def process(raw,groups,options=None,choice=None,suggestions=None,overrides=None,reading=None,resolved=None):
     options=options or {};reading=sourced_ai(reading if reading is not None else extract(raw),suggestions or [])
-    if reading.get('source_sha256')!=digest(raw) or reading.get('algorithm')!=VERSION:raise StampError('INVALID_READING','La lecture ne correspond pas à cet original.')
-    selected,base,conflicts=select_group(reading,groups,choice)
+    if reading.get('source_sha256')!=digest(raw) or (resolved is None and reading.get('algorithm')!=VERSION):raise StampError('INVALID_READING','La lecture ne correspond pas à cet original.')
+    selected,base,conflicts=resolved if resolved is not None else select_group(reading,groups,choice)
     if overrides:
         from copy import deepcopy
         selected=deepcopy(selected)
@@ -347,6 +363,7 @@ def process(raw,groups,options=None,choice=None,suggestions=None,overrides=None,
             if amount<0:raise StampError('INVALID_OVERRIDE','Montant négatif refusé.')
             a['override']={'before_cents':a['amount_cents'],'after_cents':amount,'reason':override['reason'],'status':'OVERRIDE'};a['amount_cents']=amount
         if sum(a['amount_cents'] for a in selected['allocations'])>base:raise StampError('OVER_ALLOCATION','Les montants corrigés dépassent l’assiette.')
+    if sum(a['amount_cents'] for a in selected['allocations'])>base:raise StampError('OVER_ALLOCATION','Le montant imputé dépasse le salaire brut chargé / montant de référence.')
     allocations=[a for a in selected['allocations'] if a['amount_cents']>0]
     if not allocations:raise StampError('NO_ALLOCATION','Aucune imputation non nulle.')
     if len(allocations)>200:raise StampError('INVALID_ALLOCATION','Maximum 200 imputations par pièce.')
@@ -368,8 +385,28 @@ def process(raw,groups,options=None,choice=None,suggestions=None,overrides=None,
         if options.get('compact',True):widths+= [150,200,240];sizes += [5] if sizes[0]!=5 else []
         order=list(range(len(doc)))
         if options.get('pagePreference')=='last':order.reverse()
-        manual=options.get('placement')
-        if manual:
+        manual=options.get('placement');placements=options.get('placements')
+        if placements is not None:
+            if not isinstance(placements,list) or not 1<=len(placements)<=200:raise StampError('INVALID_LAYOUT','Disposition invalide.')
+            ids=[]
+            for p in placements:
+                row_ids=p.get('allocationIds',[]);rows=[a for a in allocations if a['id'] in row_ids]
+                if not rows or len(rows)!=len(row_ids):raise StampError('INVALID_LAYOUT','Les lignes du tampon ont changé. Actualisez sa disposition.')
+                ids+=row_ids;l=layout(rows,float(p.get('layoutWidth',180)),5,header)
+                scale=p.get('scale',1);i=p.get('page');x=p.get('x');y=p.get('y')
+                if not isinstance(scale,(int,float)) or not math.isfinite(scale) or not .5<=scale<=3:raise StampError('INVALID_LAYOUT','Taille du tampon invalide.')
+                if not isinstance(i,int) or not 0<=i<len(doc)+25 or (i>=len(doc) and not options.get('allowAppendix')):raise StampError('INVALID_LAYOUT','Page du tampon invalide.')
+                while i>=len(writer.pages):writer.add_blank_page(width=595,height=842)
+                mask=occupied[i][0] if i<len(doc) else Image.new('L',(595,842))
+                w=l['width']*scale;h=l['height']*scale
+                if not all(isinstance(v,(int,float)) and math.isfinite(v) for v in [x,y]) or not inside(mask,x,y,w,h):raise StampError('COLLISION','Le tampon dépasse la page. Déplacez-le vers l’intérieur.')
+                overlap=not safe(mask,x,y,w,h)
+                if overlap and not options.get('allowOverlap'):raise StampError('COLLISION','Le tampon recouvre du contenu.')
+                if any(b['page']==i and rect_overlap((x,y,x+w,y+h),(b['x'],b['y'],b['x']+b['layout']['width']*b.get('scale',1),b['y']+b['layout']['height']*b.get('scale',1))) for b in blocks):raise StampError('COLLISION','Les tampons se superposent.')
+                blocks.append({'page':i,'x':x,'y':y,'layout':l,'scale':scale,'overlap':overlap})
+                if i>=len(doc):mask.close()
+            if Counter(ids)!=Counter(a['id'] for a in allocations):raise StampError('INVALID_LAYOUT','Chaque projet doit figurer une fois sur le tampon.')
+        elif manual:
             i=manual.get('page');x=manual.get('x');y=manual.get('y')
             l=layout(allocations,widths[0],sizes[0],header)
             if not isinstance(i,int) or not 0<=i<len(doc) or not isinstance(x,(int,float)) or not isinstance(y,(int,float)) or not inside(occupied[i][0],x,y,l['width'],l['height']) or (not options.get('allowOverlap') and not safe(occupied[i][0],x,y,l['width'],l['height'])):
@@ -439,16 +476,52 @@ def process(raw,groups,options=None,choice=None,suggestions=None,overrides=None,
                 for b in blocks:
                     if b['page']==i:
                         l=b['layout']
-                        valid=inside(occupied[i][0],b['x'],b['y'],l['width'],l['height']) if b.get('overlap') and options.get('allowOverlap') else safe(occupied[i][0],b['x'],b['y'],l['width'],l['height'])
+                        w=l['width']*b.get('scale',1);h=l['height']*b.get('scale',1)
+                        valid=inside(occupied[i][0],b['x'],b['y'],w,h) if b.get('overlap') and options.get('allowOverlap') else safe(occupied[i][0],b['x'],b['y'],w,h)
                         if not valid:raise StampError('COLLISION','Collision au contrôle final.')
-                        paint.rectangle((math.floor(b['x']-2),math.floor(b['y']-2),math.ceil(b['x']+l['width']+2),math.ceil(b['y']+l['height']+2)),fill=(0,0,0))
+                        paint.rectangle((math.floor(b['x']-4),math.floor(b['y']-4),math.ceil(b['x']+w+4),math.ceil(b['y']+h+4)),fill=(0,0,0))
                 if diff.getbbox():raise StampError('VERIFY_FAILED','Le visuel source a changé hors du tampon.')
                 before.close();after.close();diff.close()
         for mask,_ in occupied:mask.close()
     total=sum(a['amount_cents'] for a in allocations)
     return {'reading':reading,'groupId':selected['id'],'base_cents':base,'total_cents':total,'remainder_cents':base-total,'rounding_cents':None if overrides else selected.get('rounding_cents'),
-            'allocations':selected['allocations'],'manual':bool(choice),'conflicts':conflicts,'blocks':[{'page':b['page'],'x':b['x'],'y':b['y'],'width':b['layout']['width'],'height':b['layout']['height'],'fontSize':b['layout']['size'],'overlap':bool(b.get('overlap'))} for b in blocks],
+            'allocations':selected['allocations'],'manual':bool(choice),'conflicts':conflicts,'blocks':[{'page':b['page'],'x':b['x'],'y':b['y'],'width':b['layout']['width']*b.get('scale',1),'height':b['layout']['height']*b.get('scale',1),'layoutWidth':b['layout']['width'],'scale':b.get('scale',1),'fontSize':b['layout']['size']*b.get('scale',1),'allocationIds':[r['allocation']['id'] for r in b['layout']['rows']],'image':stamp_image(b),'overlap':bool(b.get('overlap'))} for b in blocks],
             'source_sha256':digest(raw),'output_sha256':digest(result),'algorithm':VERSION,'overridden':bool(overrides),'checks':{'geometry':True,'source_text':True,'source_visual':True,'allocations':True,'annotations':True},'pdf':base64.b64encode(result).decode()}
+
+def revise(raw,previous,options=None,overrides=None,additions=None):
+    """Server-only redraw from the persisted successful result. Never OCR or AI.
+
+    The Worker supplies `previous` from its private database, never from the
+    browser, and invalidates the old approval before publishing this revision.
+    """
+    from copy import deepcopy
+    if previous.get('source_sha256')!=digest(raw) or not previous.get('allocations') or not previous.get('checks') or not all(v is True for v in previous['checks'].values()):raise StampError('INVALID_READING','Un aperçu contrôlé est requis avant modification.')
+    reading=previous['reading'];base=previous['base_cents']
+    if not isinstance(base,int) or base<=0:raise StampError('INVALID_READING','Montant de référence invalide.')
+    allocations=deepcopy(previous['allocations'])
+    if not isinstance(additions or [],list) or len(additions or [])>200:raise StampError('INVALID_ALLOCATION','Projets ajoutés invalides.')
+    for item in additions or []:
+        project=str(item.get('project','')).strip();aid=str(item.get('id',''));amount=cents(item.get('amount',''))
+        if not 1<=len(project)<=300 or not re.fullmatch(r'manual-[a-f0-9-]{36}',aid) or amount<=0 or any(a['id']==aid or key(a['project'])==key(project) for a in allocations):raise StampError('INVALID_ALLOCATION','Renseignez un projet distinct et un montant positif.')
+        allocations.append({'id':aid,'project':project,'amount_cents':amount,'programme':'','percent':None,'calculated':False,'source':{'rule':'MANUAL','file':'','sheet':'','cell':'','row':None},'manual':True})
+    selected={'id':previous['groupId'],'allocations':allocations,'rounding_cents':previous.get('rounding_cents')}
+    options=deepcopy(options or {})
+    if 'placements' not in options and len(previous.get('blocks',[]))==1:
+        b=previous['blocks'][0]
+        options['placements']=[{**{k:b[k] for k in ['page','x','y']},'layoutWidth':b.get('layoutWidth',b['width']),'scale':b.get('scale',1),'allocationIds':[a['id'] for a in previous['allocations'] if a['amount_cents']>0]}]
+    if options.get('placements') and (overrides or additions):
+        # Corrections retain the user's chosen position/size. A zero amount
+        # removes its printed row; new projects extend the final block.
+        zero={o.get('allocationId') for o in overrides or [] if cents(o.get('amount',''))==0}
+        for p in options['placements']:p['allocationIds']=[aid for aid in p.get('allocationIds',[]) if aid not in zero]
+        options['placements'][-1]['allocationIds'] += [a['id'] for a in additions or []]
+        options['placements']=[p for p in options['placements'] if p['allocationIds']]
+        if not options['placements']:options.pop('placements')
+    result=process(raw,[],options,overrides=overrides,reading=reading,resolved=(selected,base,previous.get('conflicts',[])))
+    if result['total_cents']>base:raise StampError('OVER_ALLOCATION','Le montant imputé dépasse le salaire brut chargé / montant de référence.')
+    result.update(manual=previous.get('manual',False),cachedReading=previous.get('cachedReading'),renderVersion='stamping-edit-1')
+    return result
+
 
 def reading_receipt(reading):
     secret=os.getenv('FACTURX_API_KEY','')

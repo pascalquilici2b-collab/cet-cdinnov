@@ -42,14 +42,15 @@ try{
  await page.getByText('Total supérieur à l’assiette.',{exact:true}).waitFor();
  assert.equal(await page.getByRole('button',{name:'Analyser les pièces',exact:true}).isEnabled(),false);
  await page.getByLabel('Montant Projet A',{exact:true}).fill('1100,00');
+ await page.getByRole('button',{name:'Ajouter un projet',exact:true}).click();await page.getByLabel('Nouveau projet',{exact:true}).fill('PROJET AJOUTÉ');await page.getByLabel('Montant du nouveau projet',{exact:true}).fill('100,00');assert.equal(await page.locator('.stamp-source-cell').count(),0);
  for(const width of [1440,390]){await page.setViewportSize({width,height:1000});await page.evaluate(()=>document.documentElement.dataset.theme='dark');await page.screenshot({path:out+`/repartition-dark-${width}.png`,fullPage:true});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));}
  await page.setViewportSize({width:1440,height:1000});await page.getByRole('button',{name:'Confirmer la répartition',exact:true}).click();
  await page.getByRole('button',{name:'Analyser les pièces',exact:true}).waitFor();
  await page.getByLabel('Importer les PDF').setInputFiles({name:'bulletin-test.pdf',mimeType:'application/pdf',buffer:payroll});
  await page.getByRole('button',{name:'bulletin-test.pdf',exact:true}).waitFor();await page.getByRole('button',{name:'Analyser les pièces',exact:true}).click();
- await page.locator('.stamp-status.NEEDS_APPROVAL').waitFor({timeout:60000});await page.getByRole('button',{name:'bulletin-test.pdf',exact:true}).click();
- await page.locator('.stamp-preview img').waitFor();await page.locator('.stamp-preview img').evaluate(img=>img.decode());
- assert.match(await page.locator('.stamp-detail').innerText(),/5\s?604,19/);
+ await page.locator('.stamp-status.NEEDS_APPROVAL').waitFor({timeout:60000});await page.getByRole('button',{name:'Aperçu à valider · bulletin-test.pdf',exact:true}).click();
+ await page.locator('.stamp-preview canvas').waitFor();
+ assert.match(await page.locator('.stamp-detail').innerText(),/5\s?704,19/);
  await page.getByLabel('J’ai vérifié la pièce, les imputations et l’aperçu',{exact:true}).check();await page.getByRole('button',{name:'Valider cette pièce',exact:true}).click();await page.getByRole('button',{name:'Tamponner',exact:true}).click();
  const [download]=await Promise.all([page.waitForEvent('download'),page.getByRole('button',{name:'Télécharger le PDF tamponné',exact:true}).click()]);await download.saveAs(out+'/bulletin-test-tamponne.pdf');
  await page.screenshot({path:out+'/tampon-valide.png',fullPage:true});assert.deepEqual(errors,[]);

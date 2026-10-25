@@ -3,7 +3,7 @@ import base64
 import json
 import sys
 from .stamping_import import inspect, normalize, review_import, combine_inspections
-from .stamping_pdf import extract, process, analyze, preview, StampError
+from .stamping_pdf import extract, process, analyze, revise, preview, StampError
 
 def main():
     sys.stdout.reconfigure(encoding='utf-8')
@@ -28,6 +28,7 @@ def main():
         elif action=='extract':result=extract(raw)
         elif action=='process':result=process(raw,request['groups'],options,request.get('choice'),request.get('suggestions'),request.get('overrides'))
         elif action=='analyze':result=analyze(raw,request['groups'],options,request.get('choice'),request.get('suggestions'),request.get('overrides'),request.get('cachedReading'))
+        elif action=='revise':result=revise(raw,request['previous'],options,request.get('overrides'),request.get('additions'))
         elif action=='preview':result={'image':base64.b64encode(preview(raw,options.get('page',0))).decode()}
         else:raise ValueError('Action inconnue.')
         sys.stdout.write(json.dumps({'ok':True,'result':result},ensure_ascii=False))

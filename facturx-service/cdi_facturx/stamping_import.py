@@ -236,8 +236,13 @@ def review_import(original, changes):
     if not isinstance(changes,list) or len(changes)>5000:raise ValueError('Corrections invalides.')
     result=deepcopy(original); edits={}; known={(g['id'],a['id']) for g in result['groups'] for a in g['allocations']}
     for change in changes:
-        if not isinstance(change,dict) or set(change)-{'groupId','allocationId','employee','period','project','amount','baseAmount','excluded'}:raise ValueError('Correction invalide.')
+        if not isinstance(change,dict) or set(change)-{'groupId','allocationId','employee','period','project','amount','baseAmount','excluded','added'}:raise ValueError('Correction invalide.')
         identity=(change.get('groupId'),change.get('allocationId'))
+        if change.get('added') is True:
+            g=next((g for g in result['groups'] if g['id']==change.get('groupId')),None)
+            if g is None or identity in known or not re.fullmatch(r'manual-[a-f0-9-]{36}',str(change.get('allocationId',''))):raise ValueError('Nouveau projet invalide.')
+            g['allocations'].append({'id':change['allocationId'],'project':'','amount_cents':0,'base_cents':g['base_amount_cents'],'programme':'','percent':None,'calculated':False,'manual':True,'source':{'rule':'MANUAL','sheet':'','cell':'','row':None}})
+            known.add(identity)
         if identity not in known or identity in edits:raise ValueError('Ligne de correction inconnue ou dupliquée.')
         edits[identity]=change
     rebuilt={};errors=[];excluded=list(original.get('excluded',[]))
