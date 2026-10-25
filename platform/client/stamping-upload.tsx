@@ -9,7 +9,7 @@ import './stamping-upload.css';
 export function StampUpload({payment=false,disabled=false,busy=false,onFiles}:{payment?:boolean;disabled?:boolean;busy?:boolean;onFiles:(files:File[])=>void}){
  const input=useRef<HTMLInputElement>(null),depth=useRef(0);
  const [dragging,setDragging]=useState(false),[error,setError]=useState('');
- const title=payment?'Document de paiement':'Déposer les PDF';
+ const title=payment?'Document de paiement':'Pièces à tamponner';
  const accept=payment?'.xlsx,.csv,.pdf':'.pdf,application/pdf';
  const commit=(files:File[])=>{
   if(disabled||!files.length)return;
