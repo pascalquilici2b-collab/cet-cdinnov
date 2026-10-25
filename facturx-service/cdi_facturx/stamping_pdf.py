@@ -27,12 +27,14 @@ from reportlab.pdfbase.ttfonts import TTFont
 from .stamping_import import cents, key, month
 from .stamping_payroll import employer_cost
 
-VERSION = 'stamping-2.1-20261025'
+VERSION = 'stamping-2.2-20261025'
 FONT = 'CDIStamp'
-pdfmetrics.registerFont(TTFont(FONT, str(Path(__file__).parent/'assets/fonts/DejaVuSans.ttf')))
+BOLD = 'CDIStampBold'
+pdfmetrics.registerFont(TTFont(FONT, str(Path(__file__).parent/'assets/fonts/Montserrat-Regular.ttf')))
+pdfmetrics.registerFont(TTFont(BOLD, str(Path(__file__).parent/'assets/fonts/Montserrat-Bold.ttf')))
 
 def digest(raw): return hashlib.sha256(raw).hexdigest()
-def money(n): return f'{n//100:,}'.replace(',', ' ') + f',{n%100:02d} EUR'
+def money(n): return f'{n//100:,}'.replace(',', ' ') + f',{n%100:02d} €'
 
 class StampError(ValueError):
     def __init__(self, code, message):
@@ -103,7 +105,8 @@ def evidence_lines(text):
 def extract_fields(text):
     fields={}; proofs={}
     specs={
-      'employee_name':r"(?:nom et pr[ée]nom|salari[ée]|Madame|Monsieur|Mme|Mlle)\s*[:.]?\s+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ '-]{3,100})",
+      # A contribution column called « Part salarié » is not a person's name.
+      'employee_name':r"(?:\b(?:Madame|Monsieur|Mme|Mlle)\.?[ \t]+|(?:^|[\r\n])[ \t]*(?:nom et pr[ée]nom|salari[ée])[ \t]*:[ \t]*)([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ '’\-]{3,100})",
       'employee_ref':r'(?:matricule|référence salarié|reference salarie)\s*[:#]?\s*([\w./-]+)',
       'invoice_number':r'facture\s*(?:n[°ºo.]|numéro|numero|number|#|:)\s*[:.]?\s*([\w./-]+)',
       'supplier_ref':r'(?:référence fournisseur|reference fournisseur|fournisseur|SIRET)\s*:\s*([\w .-]+)',
@@ -216,22 +219,23 @@ def select_group(reading,groups,choice=None):
     if total>base: raise StampError('OVER_ALLOCATION','Les imputations dépassent l’assiette vérifiée.')
     return selected,base,conflicts
 
-def wrap(text,width,size):
+def wrap(text,width,size,font=FONT):
     lines=[];line=''
     for word in str(text).replace('\n',' ').split():
         candidate=(line+' '+word).strip()
-        if pdfmetrics.stringWidth(candidate,FONT,size)<=width:line=candidate;continue
+        if pdfmetrics.stringWidth(candidate,font,size)<=width:line=candidate;continue
         if line:lines.append(line);line=''
         for char in word:
-            if line and pdfmetrics.stringWidth(line+char,FONT,size)>width:lines.append(line);line=''
+            if line and pdfmetrics.stringWidth(line+char,font,size)>width:lines.append(line);line=''
             line+=char
     if line:lines.append(line)
     return lines or ['']
 
 
-def layout(allocations,width=290,size=9,header='Dépense imputée aux projets suivants',show_total=False):
-    if not 8<=size<=12 or not 210<=width<=500: raise StampError('INVALID_LAYOUT','Largeur 210–500 points ; police 8–12 points.')
-    title=wrap(header,width-28,size+2);top=12+len(title)*(size+4)+12
+def layout(allocations,width=290,size=5,header='Dépense imputée aux projets suivants',show_total=False):
+    if not 5<=size<=12 or not 150<=width<=500: raise StampError('INVALID_LAYOUT','Largeur 150–500 points ; police 5–12 points.')
+    title_size=5.6 if size==5 else size+.6
+    title=wrap(header,width-20,title_size,BOLD);top=9+len(title)*(title_size+2)+6
     rows=[]
     columns=2 if len(allocations)==2 else 1
     stacked=len(allocations)<=2
@@ -240,12 +244,12 @@ def layout(allocations,width=290,size=9,header='Dépense imputée aux projets su
         amount='Montant : '+money(a['amount_cents'])
         text=wrap(prefix+a['project'],(width/columns-22) if stacked else width-pdfmetrics.stringWidth(amount,FONT,size)-32,size)
         amounts=wrap(amount,width/columns-22,size) if stacked else [amount]
-        h=max(1,len(text))*(size+3)+(len(amounts)*(size+3)+16 if stacked else 12)
+        h=max(1,len(text))*(size+3)+(len(amounts)*(size+3)+8 if stacked else 8)
         rows.append({'allocation':a,'lines':text,'amounts':amounts,'y':top,'height':h,'column':n if columns==2 else 0})
         if columns==1:top+=h
     if columns==2:top+=max(row['height'] for row in rows)
     height=top+10
-    return {'width':width,'height':height,'size':size,'title':title,'rows':rows,'total':sum(a['amount_cents'] for a in allocations),'show_total':False,'columns':columns,'stacked':stacked}
+    return {'width':width,'height':height,'size':size,'title_size':title_size,'title':title,'rows':rows,'total':sum(a['amount_cents'] for a in allocations),'show_total':False,'columns':columns,'stacked':stacked}
 
 def rect_overlap(a,b,margin=0):
     return a[0]<b[2]+margin and a[2]>b[0]-margin and a[1]<b[3]+margin and a[3]>b[1]-margin
@@ -281,11 +285,34 @@ def find_space(mask,l):
             if safe(mask,x,y,l['width'],l['height']): return x,y
     return None
 
+
+def inside(mask,x,y,width,height,margin=7):
+    return all(math.isfinite(v) for v in [x,y,width,height]) and x>=margin and y>=margin and x+width<=mask.width-margin and y+height<=mask.height-margin
+
+
+def least_occupied(mask,l):
+    # Integral image: score every candidate in constant time, prefer the footer
+    # on ties. This fallback is only used with explicit overlap authorisation.
+    small=mask.resize((math.ceil(mask.width/4),math.ceil(mask.height/4)),Image.Resampling.BOX)
+    pixels=list(small.getdata());sw,sh=small.size;stride=sw+1;integral=[0]*((sh+1)*stride)
+    for y in range(sh):
+        row=0
+        for x in range(sw):
+            row+=pixels[y*sw+x];integral[(y+1)*stride+x+1]=integral[y*stride+x+1]+row
+    best=None
+    for y in range(int(mask.height-l['height']-12),11,-6):
+        for x in range(12,int(mask.width-l['width']-10),6):
+            a,b=int(x/4),int(y/4);c,d=math.ceil((x+l['width'])/4),math.ceil((y+l['height'])/4)
+            score=integral[d*stride+c]-integral[b*stride+c]-integral[d*stride+a]+integral[b*stride+a]
+            if best is None or score<best[0]:best=(score,x,y)
+    small.close()
+    return best
+
 def draw_stamp(c,block,page):
     l=block['layout'];x=float(page.cropbox.left)+block['x'];top=float(page.cropbox.top)-block['y'];w=l['width'];h=l['height'];size=l['size']
     c.setStrokeColorRGB(0,.45,1);c.setFillColorRGB(0,0,.48);c.setLineWidth(.8);c.rect(x,top-h,w,h,stroke=1,fill=0)
-    c.setFont('Helvetica-Bold',size+1)
-    for n,line in enumerate(l['title']):c.drawCentredString(x+w/2,top-13-n*(size+4),line)
+    c.setFont(BOLD,l['title_size'])
+    for n,line in enumerate(l['title']):c.drawCentredString(x+w/2,top-10-n*(l['title_size']+2),line)
     c.setFont(FONT,size)
     if l['columns']==2:
         c.setLineWidth(.3);c.line(x+w/2,top-l['rows'][0]['y']+3,x+w/2,top-h+10)
@@ -335,17 +362,17 @@ def process(raw,groups,options=None,choice=None,suggestions=None,overrides=None,
         for i,page in enumerate(doc):
             image=render_page(page);mask,bounds=occupancy(page,writer.pages[i],image);image.close();page.close()
             occupied.append((mask,bounds))
-        widths=[float(options.get('width',290))];sizes=[float(options.get('fontSize',9))]
-        if options.get('compact',True):widths+= [240,340];sizes += [8]
+        widths=[float(options.get('width',290))];sizes=[float(options.get('fontSize',5))]
+        if options.get('compact',True):widths+= [240,180,340];sizes += [5] if sizes[0]!=5 else []
         order=list(range(len(doc)))
         if options.get('pagePreference')=='last':order.reverse()
         manual=options.get('placement')
         if manual:
             i=manual.get('page');x=manual.get('x');y=manual.get('y')
             l=layout(allocations,widths[0],sizes[0],header)
-            if not isinstance(i,int) or not 0<=i<len(doc) or not isinstance(x,(int,float)) or not isinstance(y,(int,float)) or not safe(occupied[i][0],x,y,l['width'],l['height']):
+            if not isinstance(i,int) or not 0<=i<len(doc) or not isinstance(x,(int,float)) or not isinstance(y,(int,float)) or not inside(occupied[i][0],x,y,l['width'],l['height']) or (not options.get('allowOverlap') and not safe(occupied[i][0],x,y,l['width'],l['height'])):
                 raise StampError('COLLISION','Le tampon dépasse la page ou recouvre du contenu.')
-            blocks=[{'page':i,'x':x,'y':y,'layout':l}]
+            blocks=[{'page':i,'x':x,'y':y,'layout':l,'overlap':not safe(occupied[i][0],x,y,l['width'],l['height'])}]
         else:
             for size in sizes:
                 for width in widths:
@@ -359,7 +386,7 @@ def process(raw,groups,options=None,choice=None,suggestions=None,overrides=None,
                 # Retry smaller groups on copies of the maps, preserving source order and every line once.
                 masks=[p[0].copy() for p in occupied]
                 for start in range(0,len(allocations),3):
-                    l=layout(allocations[start:start+3],240,8,header)
+                    l=layout(allocations[start:start+3],240,5,header)
                     for i in order:
                         point=find_space(masks[i],l)
                         if point:
@@ -370,10 +397,17 @@ def process(raw,groups,options=None,choice=None,suggestions=None,overrides=None,
             writer.add_blank_page(width=595,height=842)
             i=len(writer.pages)-1;y=24
             for start in range(0,len(allocations),8):
-                l=layout(allocations[start:start+8],500,9,header)
+                l=layout(allocations[start:start+8],500,5,header)
                 if y+l['height']>810:
                     writer.add_blank_page(width=595,height=842);i+=1;y=24
                 blocks.append({'page':i,'x':24,'y':y,'layout':l});y+=l['height']+20
+        if not blocks and options.get('allowOverlap'):
+            candidates=[]
+            for i in reversed(order):
+                for width in dict.fromkeys(widths):
+                    l=layout(allocations,width,5,header);point=least_occupied(occupied[i][0],l)
+                    if point:candidates.append((point[0],{'page':i,'x':point[1],'y':point[2],'layout':l,'overlap':True}))
+            if candidates:blocks=[min(candidates,key=lambda c:c[0])[1]]
         if not blocks:raise StampError('NO_SAFE_AREA','Aucune zone libre. Choisissez une autre disposition ou autorisez une annexe.')
         for i,page in enumerate(writer.pages):
             selected_blocks=[b for b in blocks if b['page']==i]
@@ -403,14 +437,15 @@ def process(raw,groups,options=None,choice=None,suggestions=None,overrides=None,
                 for b in blocks:
                     if b['page']==i:
                         l=b['layout']
-                        if not safe(occupied[i][0],b['x'],b['y'],l['width'],l['height']):raise StampError('COLLISION','Collision au contrôle final.')
+                        valid=inside(occupied[i][0],b['x'],b['y'],l['width'],l['height']) if b.get('overlap') and options.get('allowOverlap') else safe(occupied[i][0],b['x'],b['y'],l['width'],l['height'])
+                        if not valid:raise StampError('COLLISION','Collision au contrôle final.')
                         paint.rectangle((math.floor(b['x']-2),math.floor(b['y']-2),math.ceil(b['x']+l['width']+2),math.ceil(b['y']+l['height']+2)),fill=(0,0,0))
                 if diff.getbbox():raise StampError('VERIFY_FAILED','Le visuel source a changé hors du tampon.')
                 before.close();after.close();diff.close()
         for mask,_ in occupied:mask.close()
     total=sum(a['amount_cents'] for a in allocations)
     return {'reading':reading,'groupId':selected['id'],'base_cents':base,'total_cents':total,'remainder_cents':base-total,'rounding_cents':None if overrides else selected.get('rounding_cents'),
-            'allocations':selected['allocations'],'manual':bool(choice),'conflicts':conflicts,'blocks':[{'page':b['page'],'x':b['x'],'y':b['y'],'width':b['layout']['width'],'height':b['layout']['height'],'fontSize':b['layout']['size']} for b in blocks],
+            'allocations':selected['allocations'],'manual':bool(choice),'conflicts':conflicts,'blocks':[{'page':b['page'],'x':b['x'],'y':b['y'],'width':b['layout']['width'],'height':b['layout']['height'],'fontSize':b['layout']['size'],'overlap':bool(b.get('overlap'))} for b in blocks],
             'source_sha256':digest(raw),'output_sha256':digest(result),'algorithm':VERSION,'overridden':bool(overrides),'checks':{'geometry':True,'source_text':True,'source_visual':True,'allocations':True,'annotations':True},'pdf':base64.b64encode(result).decode()}
 
 def reading_receipt(reading):
