@@ -157,9 +157,9 @@ export async function stampingRoute(request:Request,env:Environment,reply:Reply)
   await unlocked(db,b,request);const file=await upload(request,5*1024*1024);let inspected;
   if(/\.pdf$/i.test(file.name)){
    const info=await service(env,file.bytes,{action:'table-info'}),parts=[];let mappingHint={};
-   for(let page=0;page<info.pages;page++){const part=await service(env,file.bytes,{action:'inspect',name:file.name,options:{page,mappingHint}});parts.push(part);const mapped=part.sheets?.find((s:any)=>s.mapping?.employee_ref!==undefined&&s.mapping?.period!==undefined&&s.mapping?.allocation_amount!==undefined);if(mapped)mappingHint=mapped.mapping;}
+   for(let page=0;page<info.pages;page++){const part=await service(env,file.bytes,{action:'inspect',name:file.name,options:{page,mappingHint,category:JSON.parse(b.data).category||'RH'}});parts.push(part);const mapped=part.sheets?.find((s:any)=>s.mapping?.allocation_amount!==undefined&&(s.mapping?.employee_ref!==undefined||s.mapping?.supplier_ref!==undefined));if(mapped)mappingHint=mapped.mapping;}
    inspected=await service(env,new Uint8Array(),{action:'combine',parts});
-  }else inspected=await service(env,file.bytes,{action:'inspect',name:file.name});
+  }else inspected=await service(env,file.bytes,{action:'inspect',name:file.name,options:{category:JSON.parse(b.data).category||'RH'}});
   const key=prefix(b)+'table-'+crypto.randomUUID()+'-'+inspected.sha256;await bucket(env).put(key,file.bytes);
   const suggested=inspected.suggestedImport;delete inspected.suggestedImport;
   const next={...data,useAI:true,table:{name:file.name,key,...inspected},import:suggested||null,importConfirmed:false};

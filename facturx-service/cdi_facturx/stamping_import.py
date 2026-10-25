@@ -131,12 +131,19 @@ def identify_header(value):
     label = key(value).replace('-', ' ').replace('’', "'")
     label = re.sub(r'\s+', ' ', label)
     label = label.replace('satalre','salaire').replace('salaire.','salaire')
+    if 'eligible' in label and 'projet' in label and re.search(r'montant|total|depense|cout',label):
+        return 'allocation_amount', 120
     if re.search(r'(rendu(?:[ -]?compte)?|declare|impute|rapporte|retenu|eligible)', label) and re.search(r'montant|total|depense|cout',label):
         return 'allocation_amount', 100 if 'projet' in label else 80
     if ('employeur' in label and ('verse' in label or 'cout' in label)) or re.search(r'(?:salaire\s+)?brut\s+charge',label):
         return 'base_amount', 90
     if 'temps' in label and ('%' in label or 'pourcentage' in label):
         return 'allocation_percent', 90
+    if re.search(r'\b(?:montant|total|cout)\b',label) and re.search(r'\b(?:ht|ttc)\b',label):
+        return 'base_amount', 85 if re.search(r'\bttc\b',label) else 80
+    if re.search(r'facture',label) and re.search(r'numero|n[°ºo]|reference',label):return 'invoice_number', 80
+    if label in ['prestataire','nom du fournisseur','nom du prestataire','fournisseur / prestataire']:return 'supplier_ref',80
+    if label in ['nom du projet','intitule du projet','projet concerne']:return 'project_name',80
     field = ALIASES.get(label, label)
     return (field, 40) if field in FIELDS else (None, 0)
 
@@ -159,7 +166,8 @@ def inspect(raw, filename, options=None):
         book=pdf_tables(raw,options['page'])
     else:book=read_table(raw,filename)
     sheets = []; results = []; unreadable = []
-    layouts=Counter(tuple(sorted(detect(rows)[1].items())) for rows in book.values() if all(f in detect(rows)[1] for f in ['employee_ref','period','project_name','allocation_amount']))
+    required=['supplier_ref','invoice_number','project_name','allocation_amount'] if options.get('category')=='SERVICES' else ['employee_ref','period','project_name','allocation_amount']
+    layouts=Counter(tuple(sorted(detect(rows)[1].items())) for rows in book.values() if all(f in detect(rows)[1] for f in required))
     common=dict(layouts.most_common(1)[0][0]) if layouts else options.get('mappingHint',{})
     for name,rows in book.items():
         best,mapping = detect(rows)
@@ -167,8 +175,11 @@ def inspect(raw, filename, options=None):
             mapping={**common,**mapping}
         sheets.append({'name':name,'rows':len(rows),'header':best,'mapping':mapping,
                        'preview':[[str(c['value'] if c['value'] is not None else '')[:220] for c in r] for r in rows[:max(30,best+8)]]})
-        if all(f in mapping for f in ['employee_ref','period','project_name','allocation_amount']) and 'document_type' not in mapping:
-            config={'sheet':name,'header':best,'mapping':mapping,'documentType':'PAYSLIP','currency':'EUR','automatic':True,'grouped':True}
+        if all(f in mapping for f in required) and 'document_type' not in mapping:
+            invoice=options.get('category')=='SERVICES'
+            base_header=key(rows[best][mapping['base_amount']]['value']) if 'base_amount' in mapping else ''
+            base_type='TTC' if re.search(r'\bttc\b',base_header) else 'HT' if re.search(r'\bht\b',base_header) else 'ELIGIBLE_BASE'
+            config={'sheet':name,'header':best,'mapping':mapping,'documentType':'INVOICE' if invoice else 'PAYSLIP','baseType':base_type if invoice else 'EMPLOYER_COST','currency':'EUR','automatic':True,'grouped':True}
             results.append(normalize(raw,filename,config,book))
         elif filename.lower().endswith('.pdf') and len(mapping)>=2 and ('base_amount' in mapping or 'allocation_amount' in mapping):
             unreadable.append({'row':best+1,'sheet':name,'message':'En-tête incomplet. Ajoutez la version Excel ou un PDF plus lisible pour inclure cette page.'})
@@ -192,6 +203,7 @@ def inspect(raw, filename, options=None):
 
 def combine_inspections(parts):
     if not isinstance(parts,list) or not 1<=len(parts)<=30:raise ValueError('Pages de tableau invalides.')
+    if not any(p.get('sheets') for p in parts):raise ValueError('Aucun tableau reconnu dans ce PDF. Essayez sa version Excel ou un PDF plus net.')
     first=parts[0];groups={};errors=[];warnings=[]
     for part in parts:
         if part['sha256']!=first['sha256']:raise ValueError('Les pages ne proviennent pas du même fichier.')
@@ -236,7 +248,7 @@ def review_import(original, changes):
     if not isinstance(changes,list) or len(changes)>5000:raise ValueError('Corrections invalides.')
     result=deepcopy(original); edits={}; known={(g['id'],a['id']) for g in result['groups'] for a in g['allocations']}
     for change in changes:
-        if not isinstance(change,dict) or set(change)-{'groupId','allocationId','employee','period','project','amount','baseAmount','excluded','added'}:raise ValueError('Correction invalide.')
+        if not isinstance(change,dict) or set(change)-{'groupId','allocationId','employee','period','supplier','invoiceNumber','project','amount','baseAmount','excluded','added'}:raise ValueError('Correction invalide.')
         identity=(change.get('groupId'),change.get('allocationId'))
         if change.get('added') is True:
             g=next((g for g in result['groups'] if g['id']==change.get('groupId')),None)
@@ -251,13 +263,16 @@ def review_import(original, changes):
             patch=edits.get((g['id'],a['id']),{})
             if patch.get('excluded') is True:
                 excluded.append({'allocation':a,'employee':g['employee_ref'],'period':g['period']});continue
-            employee=str(patch.get('employee',g['employee_ref'])).strip()
+            invoice=g['document_type']=='INVOICE'
+            employee=str(patch.get('supplier' if invoice else 'employee',g['supplier_ref'] if invoice else g['employee_ref'])).strip()
+            invoice_number=str(patch.get('invoiceNumber',g['invoice_number'])).strip()
             period=patch.get('period',g['period']);project=str(patch.get('project',a['project'])).strip()
             value=patch.get('amount',a.get('amountRaw') if a['amount_cents'] is None else str(Decimal(a['amount_cents'])/100))
             basevalue=patch.get('baseAmount',g.get('baseRaw') if a.get('base_cents',g['base_amount_cents']) is None else str(Decimal(a.get('base_cents',g['base_amount_cents']))/100))
             try:
-                period=month(period)
-                if not 1<=len(employee)<=120 or not 1<=len(project)<=300:raise ValueError('Salarié et projet requis.')
+                period=month(period) if period or not invoice else ''
+                if not 1<=len(employee)<=120 or not 1<=len(project)<=300:raise ValueError('Fournisseur et projet requis.' if invoice else 'Salarié et projet requis.')
+                if invoice and not 1<=len(invoice_number)<=120:raise ValueError('Numéro de facture requis.')
                 amount=cents(value)
                 base=cents(basevalue) if basevalue not in [None,''] else None
                 if amount<0 or (base is not None and base<=0):raise ValueError('Montant invalide.')
@@ -265,7 +280,8 @@ def review_import(original, changes):
                 raise ValueError(f"{employee or 'Salarié'} · {project or 'Projet'} : {exc}") from exc
             if patch:a['review']={'before_employee':g['employee_ref'],'before_period':g['period'],'before_project':a['project'],'before_cents':a['amount_cents']}
             a['project']=project;a['amount_cents']=amount;a['base_cents']=base;a.pop('amountRaw',None)
-            identity={f:g.get(f,'') for f in ['document_ref','employee_ref','invoice_number','supplier_ref','invoice_date']};identity['employee_ref']=employee
+            identity={f:g.get(f,'') for f in ['document_ref','employee_ref','invoice_number','supplier_ref','invoice_date']};identity['supplier_ref' if invoice else 'employee_ref']=employee
+            if invoice:identity['invoice_number']=invoice_number
             gid=hashlib.sha256(json.dumps([g['document_type'],period,identity],sort_keys=True).encode()).hexdigest()[:24]
             target=rebuilt.setdefault(gid,{**g,**identity,'id':gid,'period':period,'base_amount_cents':base,'allocations':[],'errors':[],'rounding_cents':None})
             if target['base_amount_cents']!=base:target['errors'].append('Assiettes différentes dans un même groupe.')
@@ -355,7 +371,9 @@ def normalize(raw, filename, config, book=None):
                 if amount < 0 or (base is not None and base <= 0): raise ValueError('Montants négatifs et assiettes nulles non autorisés.')
                 identity = {f:str(current[f] or '').strip() for f in ['document_ref','employee_ref','invoice_number','supplier_ref','invoice_date']}
                 if isinstance(current['invoice_date'],(datetime,date)): identity['invoice_date']=current['invoice_date'].strftime('%Y-%m-%d')
-                if identity['invoice_date']: date.fromisoformat(identity['invoice_date'])
+                if identity['invoice_date']:
+                    if re.fullmatch(r'\d{2}/\d{2}/\d{4}',identity['invoice_date']):identity['invoice_date']=datetime.strptime(identity['invoice_date'],'%d/%m/%Y').date().isoformat()
+                    date.fromisoformat(identity['invoice_date'])
                 if dtype=='PAYSLIP' and not identity['employee_ref']: raise ValueError('Matricule ou référence salarié requis.')
                 if dtype=='INVOICE' and (not identity['invoice_number'] or not identity['supplier_ref']): raise ValueError('Numéro facture et référence fournisseur requis.')
                 gid = hashlib.sha256(json.dumps([dtype,period,identity],sort_keys=True).encode()).hexdigest()[:24]
@@ -375,7 +393,7 @@ def normalize(raw, filename, config, book=None):
                     try: pending_period=month(current['period'])
                     except ValueError:pending_period=str(current['period'] or '')
                     aid=f'{hashlib.sha256(sheet.encode()).hexdigest()[:8]}-{index}-pending'
-                    pending.append({'id':aid,'document_type':'PAYSLIP','employee_ref':str(current['employee_ref'] or ''),'period':pending_period,'document_ref':'','invoice_number':'','supplier_ref':'','invoice_date':'','currency':'EUR','base_type':'EMPLOYER_COST','base_amount_cents':pending_base,'baseRaw':str(current['base_amount'] or ''),'errors':[message],'total_cents':pending_amount or 0,'remainder_cents':None,'rounding_cents':None,
+                    pending.append({'id':aid,'document_type':config.get('documentType','PAYSLIP'),'employee_ref':str(current['employee_ref'] or ''),'period':pending_period,'document_ref':'','invoice_number':str(current['invoice_number'] or ''),'supplier_ref':str(current['supplier_ref'] or ''),'invoice_date':str(current['invoice_date'] or ''),'currency':'EUR','base_type':config.get('baseType','EMPLOYER_COST'),'base_amount_cents':pending_base,'baseRaw':str(current['base_amount'] or ''),'errors':[message],'total_cents':pending_amount or 0,'remainder_cents':None,'rounding_cents':None,
                         'allocations':[{'id':aid,'project':str(current['project_name'] or ''),'amount_cents':pending_amount,'amountRaw':str(current['allocation_amount'] or ''),'code':'','programme':'','percent':None,'calculated':False,'source':{'file':filename,'sha256':source_hash,'sheet':sheet,'row':index,'cell':amount_cell['cell'],'raw':str(amount_cell.get('raw','')),'rule':'REVIEW_REQUIRED'}}]})
     for group in groups.values():
         group['total_cents'] = sum(a['amount_cents'] for a in group['allocations'])

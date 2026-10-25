@@ -24,8 +24,9 @@ def clusters(values, gap=3):
 
 def scan_grid(page):
     """OCR once per page, then associate words with ruled/merged cells."""
-    pix = page.get_pixmap(matrix=pymupdf.Matrix(4, 4), alpha=False)
-    image = Image.frombytes('RGB', (pix.width, pix.height), pix.samples)
+    pix = page.get_pixmap(matrix=pymupdf.Matrix(4, 4), colorspace=pymupdf.csGRAY, alpha=False)
+    image = Image.frombytes('L', (pix.width, pix.height), pix.samples)
+    del pix
     small = image.convert('L'); small.thumbnail((1100, 1100))
     w, h = small.size
     mask = small.point(lambda p: 0 if p < 170 else 255)
@@ -60,25 +61,37 @@ def scan_grid(page):
         links.append(row)
     if len(slots)>400:raise ValueError('Tableau scanné trop dense. Utilisez sa version Excel.')
     tile_w,tile_h,cols=600,180,4
-    canvas=Image.new('RGB',(cols*tile_w,((len(slots)+cols-1)//cols)*tile_h),'white')
-    for (i,a,b),slot in slots.items():
-        crop=image.crop((round((xs[i]+3)*sx),round((a+2)*sy),round((xs[i+1]-3)*sx),round((b-2)*sy)))
-        # Empty margin in a tall merged cell would shrink its name unnecessarily.
-        grey=crop.convert('L');ink=grey.point(lambda p:255 if p<180 else 0).getbbox()
-        if ink:crop=crop.crop(ink)
-        crop.thumbnail((tile_w-36,tile_h-32))
-        canvas.paste(crop,(slot%cols*tile_w+18,slot//cols*tile_h+16))
-    with tempfile.TemporaryDirectory(prefix='cdi-table-') as folder:
-        source=Path(folder)/'cells.png';canvas.save(source)
-        result=subprocess.run([binary,str(source),'stdout','-l','fra+eng','--psm','11','tsv'],capture_output=True,timeout=25,check=True)
     texts={}
-    for word in csv.DictReader(io.StringIO(result.stdout.decode('utf-8')),delimiter='\t',quoting=csv.QUOTE_NONE):
-        if word.get('level')!='5' or not word.get('text','').strip():continue
-        x=int(word['left'])+int(word['width'])/2;y=int(word['top'])+int(word['height'])/2
-        slot=int(y//tile_h)*cols+int(x//tile_w)
-        texts.setdefault(slot,[]).append((round(y/8),x,word['text']))
+    # Bounded grayscale tiles avoid a 100+ MB canvas and Tesseract's much
+    # larger working buffers on dense payment tables. Keep original cell IDs.
+    entries=list(slots.items());chunk_size=48
+    with tempfile.TemporaryDirectory(prefix='cdi-table-') as folder:
+        for start in range(0,len(entries),chunk_size):
+            chunk=entries[start:start+chunk_size]
+            with Image.new('L',(cols*tile_w,((len(chunk)+cols-1)//cols)*tile_h),'white') as canvas:
+                for local,((i,a,b),slot) in enumerate(chunk):
+                    box=(round((xs[i]+3)*sx),round((a+2)*sy),round((xs[i+1]-3)*sx),round((b-2)*sy))
+                    if box[2]<=box[0] or box[3]<=box[1]:continue
+                    with image.crop(box) as crop:
+                        ink=crop.point(lambda p:255 if p<180 else 0).getbbox()
+                        if not ink:continue
+                        with crop.crop(ink) as content:
+                            content.thumbnail((tile_w-36,tile_h-32))
+                            canvas.paste(content,(local%cols*tile_w+18,local//cols*tile_h+16))
+                source=Path(folder)/'cells.png';canvas.save(source)
+            try:
+                result=subprocess.run([binary,str(source),'stdout','-l','fra+eng','--psm','11','tsv'],capture_output=True,timeout=25,check=True)
+            except subprocess.TimeoutExpired as exc:
+                raise ValueError('Lecture du tableau scanné trop longue. Réessayez ou importez sa version Excel.') from exc
+            except subprocess.CalledProcessError as exc:
+                raise ValueError('La lecture du tableau scanné a échoué. Réessayez ou importez sa version Excel.') from exc
+            for word in csv.DictReader(io.StringIO(result.stdout.decode('utf-8')),delimiter='\t',quoting=csv.QUOTE_NONE):
+                if word.get('level')!='5' or not word.get('text','').strip():continue
+                x=int(word['left'])+int(word['width'])/2;y=int(word['top'])+int(word['height'])/2
+                local=int(y//tile_h)*cols+int(x//tile_w)
+                if 0<=local<len(chunk):texts.setdefault(chunk[local][1],[]).append((round(y/8),x,word['text']))
     contents={slot:' '.join(t[2] for t in sorted(tokens)) for slot,tokens in texts.items()}
-    image.close();small.close();mask.close();canvas.close()
+    image.close();small.close();mask.close()
     return [[contents.get(slot,'') for slot in row] for row in links]
 
 
@@ -115,7 +128,10 @@ def pdf_tables(raw, only_page=None):
             # Scanned pages sometimes contain a poor pre-existing OCR layer.
             # Re-read those from pixels rather than trusting merged OCR text.
             from .stamping_import import detect
-            if not any(all(f in detect([[{'value':v} for v in r] for r in t])[1] for f in ['employee_ref','period','project_name','allocation_amount']) for t in tables):
+            def recognized(table):
+                mapping=detect([[{'value':v} for v in r] for r in table])[1]
+                return all(f in mapping for f in ['project_name','allocation_amount']) and (all(f in mapping for f in ['employee_ref','period']) or all(f in mapping for f in ['supplier_ref','invoice_number']))
+            if not any(recognized(t) for t in tables):
                 data = scan_grid(page)
                 if data:
                     tables = [data]
