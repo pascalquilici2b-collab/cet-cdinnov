@@ -1,7 +1,7 @@
 import type {Database} from './contracts';
 import type {BillingEngagementDetails,BillingEngagementTracking} from './billing-contracts';
 import type {Market} from './client/markets-contracts';
-import {quoteConsumption} from '../marches/tracking.mjs';
+import {readAnnualQuotes,consumptionForMarket} from '../marches/annual-consumption.mjs';
 import {marketTracking} from '../marches/domain.mjs';
 
 const key=(s:string)=>s.trim().toLocaleLowerCase('fr');
@@ -16,7 +16,7 @@ export async function linkedEngagements(db:Database,marketId?:string){
 /** Read projections: files stay archived once, markets and the billing list share the same links. */
 export async function engagementTracking(db:Database):Promise<BillingEngagementTracking>{
  const [marketRows,linked,consumption,invoices,legacy,documents,allocations]=await Promise.all([
-  db.prepare('SELECT id,payload FROM markets ORDER BY updated_at DESC').all<{id:string;payload:string}>(),linkedEngagements(db),quoteConsumption(db),
+  db.prepare('SELECT id,payload FROM markets ORDER BY updated_at DESC').all<{id:string;payload:string}>(),linkedEngagements(db),readAnnualQuotes(db),
   db.prepare(`SELECT d.id,d.source_document_id,d.data_json,d.totals_json,i.number,EXISTS(SELECT 1 FROM billing_document_trash t WHERE t.document_id=d.id) AS trashed FROM billing_documents d JOIN billing_issuances i ON i.document_id=d.id JOIN billing_issue_jobs j ON j.issuance_id=i.id
    WHERE d.kind='invoice' AND j.state='ready' AND NOT EXISTS(SELECT 1 FROM billing_invoice_rectifications r JOIN billing_issuances ri ON ri.document_id=r.replacement_id JOIN billing_issue_jobs rj ON rj.issuance_id=ri.id WHERE r.original_id=d.id AND rj.state='ready')`).all<{id:string;source_document_id:string|null;data_json:string;totals_json:string;number:string;trashed:number}>(),
   db.prepare("SELECT json_extract(payload,'$.factures') AS invoices FROM app_portal_workspace WHERE id='shared'").first<{invoices:string}>(),
@@ -46,5 +46,5 @@ export async function engagementTracking(db:Database):Promise<BillingEngagementT
   if(matches.length===1){matches[0].invoicedMinor+=f.amountMinor;matches[0].invoices.push({id:f.id,number:f.number,amountMinor:f.amountMinor,trashed:f.trashed});}
  }
  for(const o of orders)o.reservedMinor=Math.max(0,(allocations.results.find(a=>a.market_id===o.marketId&&a.order_id===o.id)?.total||0)-o.invoicedMinor);
- return {orders,reviews,markets:markets.map(m=>({id:m.id,reference:m.reference,title:m.title,client:m.clientName,maximumMinor:marketTracking(m).maximumMinor,quotedMinor:consumption.get(m.id)?.quotedMinor||0,sentQuoteCount:consumption.get(m.id)?.sentQuoteCount||0}))};
+ return {orders,reviews,markets:markets.map(m=>({id:m.id,reference:m.reference,title:m.title,client:m.clientName,...consumptionForMarket({...m,linkedEngagements:linked.filter(e=>e.marketId===m.id)},consumption),consumption:consumptionForMarket({...m,linkedEngagements:linked.filter(e=>e.marketId===m.id)},consumption)}))};
 }

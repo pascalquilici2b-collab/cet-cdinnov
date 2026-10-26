@@ -8,3 +8,5 @@
 [data-theme=dark] .personnel .account-role.is-admin{color:#acc7fa;background:#232d40;border-color:#35435c}
 .account-role-spinner{animation:account-role-spin 1s linear infinite}@keyframes account-role-spin{to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){.account-role-spinner{animation:none}}
+
+.cdi-export-sections{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:18px;border:0;padding:0}.cdi-export-sections label{display:flex;align-items:center;gap:9px;font-size:13px}.cdi-export-sections input{accent-color:#007aff;width:17px;height:17px}

@@ -28,7 +28,9 @@ export async function engagementRoute(request:Request,db:Database,env:Environmen
  const project=market?projectsForMarket(marketId,markets).find(p=>p.id===projectId):null;
  if(marketId&&!market||projectId&&!project)return fail(422,'Le projet doit appartenir au marché sélectionné.');
  const order=kind==='order'?[...(project?.orders||[]),...(market?.orders||[])].find(o=>o.reference.trim().toLocaleLowerCase('fr')===reference.toLocaleLowerCase('fr')):null;
- const metadata={reference,date,amountMinor,marketId,marketReference:market?.reference||'',projectId,project:project?.name||(!refs.projectId?refs.project:''),client:record.data.buyer.name,orderId:kind==='order'?(order?.id||'engagement:'+record.id):''};
+ const extra=Object.fromEntries(['marketReference','engagement','serviceCode','otherReference'].map(k=>[k,(params.get(k)||'').trim()]));
+ if(Object.values(extra).some(v=>v.length>300||/[\x00-\x1f\x7f]/.test(v)))return fail(422,'Références trop longues ou invalides.');
+ const metadata={...extra,reference,date,amountMinor,marketId,marketReference:market?.reference||extra.marketReference||'',projectId,project:project?.name||(!refs.projectId?refs.project:''),client:record.data.buyer.name,orderId:kind==='order'?(order?.id||'engagement:'+record.id):''};
  let filename='';try{filename=decodeURIComponent(request.headers.get('x-filename')||'');}catch{}
  if(!filename.trim()||filename.length>200||/[\x00-\x1f\x7f/\\]/.test(filename))return fail(400,'Nom de fichier invalide.');
  const bytes=await boundedBody(request,10*1024*1024),head=new TextDecoder('latin1').decode(bytes.slice(0,8));

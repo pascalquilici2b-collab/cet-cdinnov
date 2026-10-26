@@ -213,6 +213,7 @@ export async function filesRoute(request:Request,env:Environment,headers:Headers
   if(!key||key.length>500||/[\x00-\x1f]/.test(key))return reply(400,{error:'Clé invalide.'});
   if(key.startsWith('billing/'))return reply(403,{error:'Les documents émis sont accessibles uniquement depuis la facturation.'});
   if(key.startsWith('stamping/'))return reply(403,{error:'Les pièces de tamponnage sont accessibles uniquement depuis leur lot.'});
+  if(key.startsWith('client-employees/'))return reply(403,{error:'Les documents salariés sont accessibles uniquement depuis l’espace du client.'});
   const bucket=env.CET_FILES as any;
   if(request.method==='PUT'){
     const bytes=await boundedBody(request,20*1024*1024);

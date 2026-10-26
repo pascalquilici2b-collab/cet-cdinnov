@@ -36,3 +36,5 @@
 .bill-report-preview-message{height:100%;min-height:280px;display:flex;align-items:center;justify-content:center;gap:12px;flex-direction:column;color:var(--bill-muted);font-size:13px}
 .bill-report-updating{position:absolute;right:24px;top:22px;display:flex;align-items:center;gap:6px;padding:5px 9px;border-radius:999px;background:var(--bill-surface);color:var(--bill-muted);font-size:11px;box-shadow:0 2px 12px #0001}
 @media(max-width:850px){.bill-report-layout{display:block;overflow:auto}.bill-report-layout .bill-report-fields{overflow:visible;max-height:none;height:auto}.bill-report-preview-pane{border-left:0;border-top:1px solid var(--bill-line);height:580px;min-height:580px;box-sizing:border-box}.bill-report-preview-pane .bill-pdf-viewport{min-height:0}.bill-report-dialog .bill-support-actions{padding:12px}}
+
+.bill-engagement-dialog fieldset{border:0;margin:0;padding:0;display:grid;gap:14px;min-width:0}.bill-analyze-button{color:#7543bc;background:#f1eafa;border-color:#dbc9f3}[data-theme=dark] .bill-analyze-button{color:#d4afff;background:#332646;border-color:#62417f}

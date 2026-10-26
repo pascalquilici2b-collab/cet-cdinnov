@@ -66,7 +66,7 @@ export interface Market {
   initialDurationMonths?: number|null;
   maximumMinor?: number|null;
   invoicedMinor?: number|null;
-  tracking?:{sentQuoteCount:number;quotedMinor:number};
+  tracking?:import('../billing-contracts').MarketConsumption;
   periodBasis: string;
   renewalMode: string;
   renewalCount: number | null;

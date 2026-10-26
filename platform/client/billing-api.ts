@@ -5,7 +5,7 @@ export function createBillingTransport(options:{baseUrl:string;getToken:()=>Prom
   async function request<T>(path:string,method='GET',body?:unknown,version?:number,binary=false,extraHeaders?:Record<string,string>):Promise<T>{
     active();const token=await options.getToken();active();
     const controller=new AbortController();controllers.add(controller);
-    const timer=setTimeout(()=>controller.abort(),path.endsWith('/finalize')?210000:path.endsWith('/issue')||path.endsWith('.pdf')?90000:30000);
+    const timer=setTimeout(()=>controller.abort(),path.endsWith('/engagement-analysis')?90000:path.endsWith('/finalize')?210000:path.endsWith('/issue')||path.endsWith('.pdf')?90000:30000);
     try{
       const response=await fetch(options.baseUrl.replace(/\/$/,'')+(path.startsWith('/api/v1/')||path.startsWith('/budgets/')?'':'/api/v1/billing')+path,{method,cache:'no-store',signal:controller.signal,headers:{Authorization:'Bearer '+token,...(body===undefined||body instanceof Blob?{}:{'Content-Type':'application/json'}),...extraHeaders,...(version===undefined?{}:{'If-Match':String(version)})},...(body===undefined?{}:{body:body instanceof Blob?body:JSON.stringify(body)})});
       const data=response.ok&&binary?await response.blob():await response.json();active();
@@ -17,17 +17,23 @@ export function createBillingTransport(options:{baseUrl:string;getToken:()=>Prom
   async function numbered(promise:Promise<BillingDocument>){const doc=await promise;const siren=doc.data.seller.siren.replace(/\s/g,'')||doc.data.seller.siret.replace(/\s/g,'').slice(0,9);return !doc.issuance&&!doc.reservedNumber&&!doc.quote?.revision.abandoned&&/^\d{9}$/.test(siren)?request<BillingDocument>('/documents/'+encodeURIComponent(doc.id)+'/number','POST',{},doc.version):doc;}
   const reportPath=(id:string)=>id.startsWith('imported:')?'/imported-invoices/'+encodeURIComponent(id.slice(9))+'/intervention-report':'/documents/'+encodeURIComponent(id)+'/intervention-report';
   return {
+    clientEmployees:id=>request('/client-employees/'+encodeURIComponent(id)),
+    saveClientEmployees:(id,version,data)=>request('/client-employees/'+encodeURIComponent(id),'PUT',data,version),
+    saveClientEmployeeDocument:(id,version,kind,employeeId,file)=>request('/client-employees/'+encodeURIComponent(id)+'/documents?'+new URLSearchParams({kind,employeeId}),'POST',file,version,false,{'X-Filename':encodeURIComponent(file.name),'Content-Type':file.type}),
+    clientEmployeeDocument:(id,doc)=>request('/client-employees/'+encodeURIComponent(id)+'/documents/'+encodeURIComponent(doc),'GET',undefined,undefined,true),
     orderBudget:(id,data)=>request('/order-budget','POST',{id,data}),
     engagements:()=>request('/engagements'),
     report:id=>request(reportPath(id)),
     saveReport:(id,version,data)=>request(reportPath(id),'PUT',data,version),
     reportPDF:id=>request(reportPath(id)+'.pdf','GET',undefined,undefined,true),
     previewReport:(id,data)=>request(reportPath(id)+'.pdf','POST',data,undefined,true),
-    uploadEngagement:(id,version,kind,file,details)=>request('/documents/'+encodeURIComponent(id)+'/engagement?'+new URLSearchParams({kind,...(details?{reference:details.reference,date:details.date,amountMinor:details.amountMinor===null?'':String(details.amountMinor),marketId:details.marketId,projectId:details.projectId}:{})}),'PUT',file,version,false,{'X-Filename':encodeURIComponent(file.name),'Content-Type':file.type||'application/octet-stream'}),
+    uploadEngagement:(id,version,kind,file,details)=>request('/documents/'+encodeURIComponent(id)+'/engagement?'+new URLSearchParams({kind,...(details?{reference:details.reference,date:details.date,amountMinor:details.amountMinor===null?'':String(details.amountMinor),marketId:details.marketId,projectId:details.projectId,marketReference:details.marketReference,engagement:details.engagement||'',serviceCode:details.serviceCode||'',otherReference:details.otherReference||''}:{})}),'PUT',file,version,false,{'X-Filename':encodeURIComponent(file.name),'Content-Type':file.type||'application/octet-stream'}),
+    analyzeEngagement:text=>request('/engagement-analysis','POST',{text}),
     engagementFile:id=>request('/documents/'+encodeURIComponent(id)+'/engagement','GET',undefined,undefined,true),
     marketDocument:(marketId,documentId)=>request('/budgets/markets/'+encodeURIComponent(marketId)+'/documents/'+encodeURIComponent(documentId),'GET',undefined,undefined,true),
     rectify:(id,version,input)=>numbered(request<BillingDocument>('/documents/'+encodeURIComponent(id)+'/rectify','POST',input,version)),
     session:()=>request('/api/v1/session'),
+    confirmSent:(id,version,input)=>request('/documents/'+encodeURIComponent(id)+'/outlook-sent','POST',input,version),
     emailHistory:id=>request('/documents/'+encodeURIComponent(id)+'/email'),
     email:(id,version,input)=>request('/documents/'+encodeURIComponent(id)+'/email','POST',input,version),
     projects:()=>request('/api/v1/projects'),

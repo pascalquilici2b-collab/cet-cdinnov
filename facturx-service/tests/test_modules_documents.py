@@ -23,8 +23,8 @@ def test_new_fields_quote_and_invoice():
     invoice=deepcopy(d);invoice['kind']='invoice';invoice['details']['validityMonths']=''
     invoice['references']['quoteNumber']='20261022-001'
     final=render_document(invoice,t,number='FACTURE-TEST',issued=True)
-    assert 'IBAN' in extract(final) and 'BC-000142' in extract(final) and 'À retourner à : cdi@cdinnov.com' in extract(final)
-    assert 'Relevé d’intervention' in extract(final) and 'Vérification des pièces' in extract(final)
+    assert 'IBAN' in extract(final) and 'BC-000142' in extract(final) and 'À retourner à : cdi@cdinnov.com' not in extract(final)
+    assert 'Relevé d’intervention' not in extract(final) and 'Vérification des pièces' not in extract(final)  # separate attachment
     assert 'Référence devis : 20261022-001' in extract(final)
     with fitz.open(stream=final,filetype='pdf') as pdf:
         assert not [l for p in pdf for l in p.get_links()]

@@ -284,7 +284,7 @@ function Summary({ s, m }: { s: MarketsSnapshot; m: Market }) {
         />
         <Field path="startBasis" label="Démarrage du marché" value={m.startBasis||''} options={{'':'Choisir',notification:'À notification',first_order:'Au premier bon de commande',date:'Date de démarrage'}}/>
         {m.startBasis==='date'&&<Field path="startDate" label="Date de démarrage" type="date" value={m.startDate} required/>}
-        <Field path="initialDurationMonths" label="Durée initiale du marché" value={m.initialDurationMonths} options={{'':'Choisir','12':'12 mois','24':'24 mois','36':'36 mois'}}/>
+        <Field path="initialDurationMonths" label="Durée initiale du marché" value={m.initialDurationMonths} options={{'':'Choisir','6':'6 mois','12':'12 mois','24':'24 mois','36':'36 mois'}}/>
         <Field
           path="notificationDate"
           label="Date portée sur la notification"
@@ -438,11 +438,12 @@ function Prices({ s, m }: { s: MarketsSnapshot; m: Market }) {
   );
 }
 function MarketTracking({m}:{m:Market}){
- const t=marketTracking(m),consumed=m.tracking?.quotedMinor??0,ratio=t.maximumMinor?100*consumed/t.maximumMinor:0;
+ const t=marketTracking(m),maximum=m.tracking?.annual?m.tracking.maximumMinor:t.maximumMinor,consumed=m.tracking?.quotedMinor??0,ratio=maximum?100*consumed/maximum:0;
  return <section className="mk-tracking" aria-label="Suivi actualisé du marché">
   <h2><Gauge size={19}/> Suivi actualisé du marché</h2>
-  <div className="mk-tracking-values"><div><strong>{t.orderCount}</strong><span>Bons de commande reçus <span tabIndex={0} title="Bons datés, y compris ceux des projets archivés. L’archivage ne supprime pas un engagement contractuel." aria-label="Calcul des commandes">ⓘ</span></span></div><div><strong>{money(consumed)}</strong><span>Devis envoyés HT <span tabIndex={0} title="Prévisionnel des devis envoyés ou acceptés, même échus. Les refus, versions remplacées et brouillons sont exclus. Les commandes et factures ne s’y ajoutent pas." aria-label="Calcul des devis envoyés">ⓘ</span></span></div><div><strong>{money(t.maximumMinor)}</strong><span>Maximum contractuel HT</span></div></div>
-  {t.maximumMinor!==null&&<><progress aria-label="Consommation prévisionnelle par devis envoyés" value={Math.min(consumed,t.maximumMinor)} max={t.maximumMinor||1}/><small>{ratio.toLocaleString('fr-FR',{maximumFractionDigits:1})} % prévisionnel{consumed>t.maximumMinor?' · Maximum dépassé':''}</small></>}
+  <div className="mk-tracking-values"><div><strong>{t.orderCount}</strong><span>Bons de commande reçus <span tabIndex={0} title="Bons datés, y compris ceux des projets archivés. L’archivage ne supprime pas un engagement contractuel." aria-label="Calcul des commandes">ⓘ</span></span></div><div><strong>{money(consumed)}</strong><span>Devis envoyés HT <span tabIndex={0} title="Prévisionnel des devis envoyés ou acceptés, même échus. Les refus, versions remplacées et brouillons sont exclus. Les commandes et factures ne s’y ajoutent pas." aria-label="Calcul des devis envoyés">ⓘ</span></span></div><div><strong>{money(maximum)}</strong><span>{m.tracking?.annual?'Plafond annuel HT':'Maximum contractuel HT'}</span></div></div>
+  {m.tracking?.resetDate&&<small style={{display:'block',textAlign:'right'}}>Réinitialisation : {m.tracking.resetDate.split('-').reverse().join('/')}</small>}
+  {maximum!==null&&<><progress aria-label="Consommation prévisionnelle par devis envoyés" value={Math.min(consumed,maximum)} max={maximum||1}/><small>{ratio.toLocaleString('fr-FR',{maximumFractionDigits:1})} % prévisionnel{consumed>maximum?' · Maximum dépassé':''}</small></>}
   {t.unknownAmounts>0&&<small role="status">{t.unknownAmounts} bon(s) sans montant : consommation incomplète.</small>}
   {t.startDate&&<small>Début d’exécution : {t.startDate.split('-').reverse().join('/')}</small>}
  </section>;

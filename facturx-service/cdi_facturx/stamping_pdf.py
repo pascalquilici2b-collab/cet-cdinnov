@@ -529,7 +529,7 @@ def reading_receipt(reading):
     return hmac.new(secret.encode(),json.dumps(reading,sort_keys=True,ensure_ascii=False,separators=(',',':')).encode(),hashlib.sha256).hexdigest()
 
 
-def analyze(raw,groups,options=None,choice=None,suggestions=None,overrides=None,cached=None):
+def analyze(raw,groups,options=None,choice=None,suggestions=None,overrides=None,cached=None,direct=None):
     # Only the authenticated service can attest to a cached extraction. Never
     # accept client-authored fields, or reuse a reading from a different PDF.
     reading=None
@@ -539,10 +539,14 @@ def analyze(raw,groups,options=None,choice=None,suggestions=None,overrides=None,
     if reading is None:reading=extract(raw)
     receipt=reading_receipt(reading)
     try:
-        result=process(raw,groups,options,choice,suggestions,overrides,reading=reading)
+        if direct:
+            from .stamping_direct import direct_allocation
+            result=process(raw,[],options,overrides=overrides,reading=reading,resolved=direct_allocation(raw,reading,direct))
+            result['directInvoice']=direct
+        else:result=process(raw,groups,options,choice,suggestions,overrides,reading=reading)
     except StampError as error:
         resolved=sourced_ai(reading,suggestions or []);matches=identity_matches(resolved,groups)
-        result={'reading':resolved,'needsAI':error.code=='REVIEW_REQUIRED' and not choice,'error':{'code':error.code,'message':str(error)},'proposedGroupId':matches[0]['id'] if len(matches)==1 else None}
+        result={'reading':resolved,'needsAI':error.code=='REVIEW_REQUIRED' and not choice and not direct,'error':{'code':error.code,'message':str(error)},'proposedGroupId':matches[0]['id'] if len(matches)==1 else None}
     # Retain the original extraction as the signed cache; suggestions have their
     # own quoted evidence and never become trusted extraction data.
     result['cachedReading']={'reading':reading,'receipt':receipt} if receipt else None

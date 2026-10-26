@@ -1,4 +1,4 @@
-export const TYPES = {framework:'Accord-cadre à bons de commande',fixed:'Marché forfaitaire',quote:'Devis accepté',mixed:'Marché mixte'};
+export const TYPES = {framework:'Accord-cadre à bons de commande',fixed:'Marché forfaitaire',quote:'Devis accepté',mixed:'Marché mixte',consultation:'Consultation ou 3 devis',direct:'Gré à gré'};
 export const UNITS = {day:'Jour',hour:'Heure',flat:'Forfait',unit:'Unité',km:'Kilomètre'};
 export const BILLING = {actual:'Au réel',fixed:'Forfait',milestone:'Jalon',schedule:'Échéancier',mixed:'Mixte'};
 export const CONDITIONS={payment:'Paiement',billing:'Facturation / échéancier',orders:'Bons de commande',revision:'Révision des prix',expenses:'Frais et déplacements',deliverables:'Livrables',report:'Relevés d’intervention',tax:'TVA',other:'Autre condition'};
@@ -84,7 +84,7 @@ export function validateMarket(input,documents=[]) {
   if(Object.hasOwn(input,'startDate'))m.startDate=date(input.startDate,'Date de démarrage');
   if(Object.hasOwn(input,'initialDurationMonths')){
     m.initialDurationMonths=input.initialDurationMonths===null?null:Number(input.initialDurationMonths);
-    if(m.initialDurationMonths!==null&&![12,24,36].includes(m.initialDurationMonths))throw new Error('Durée initiale : choisissez 12, 24 ou 36 mois.');
+    if(m.initialDurationMonths!==null&&![6,12,24,36].includes(m.initialDurationMonths))throw new Error('Durée initiale : choisissez 6, 12, 24 ou 36 mois.');
   }
   if(Object.hasOwn(input,'maximumMinor'))m.maximumMinor=amount(input.maximumMinor,'Montant maximum contractuel');
   if(m.startBasis==='date'&&!m.startDate)throw new Error('Renseignez la date de démarrage du marché.');

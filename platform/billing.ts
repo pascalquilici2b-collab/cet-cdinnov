@@ -1,3 +1,4 @@
+import {readAnnualQuotes,consumptionForMarket} from '../marches/annual-consumption.mjs';
 import {budgetSQL,budgetBindings,checkOrderBudget,orderLimitMessage} from './billing-order-budget';
 import {projectsForMarket,projectMarketIds} from './project-links';
 import {marketActivity} from './project-activity';
@@ -8,6 +9,7 @@ import {normalizeDraft,calculateBilling,inspectDraft,blankSettings,normalizeSett
 import {hasAccess,sessionIdentity} from './identity';
 import {boundedBody} from './portal';
 import {engagementTracking,linkedEngagements} from './billing-engagement-tracking';
+import {analyzeEngagement} from './billing-engagement-analysis';
 import {engagementRoute} from './billing-engagement';
 import {reportRoute} from './billing-report';
 import {blankDraft} from './billing-domain';
@@ -16,9 +18,11 @@ import {reserveDraftNumber} from './billing-draft-number';
 import {automaticNumberSeries} from './billing-numbering';
 import {createNumberSeries,reserveIssuance} from './billing-issuance';
 import {preflightIssuance,generateIssuance,issuedFile} from './billing-generation';
+import {clientEmployeesRoute} from './client-employees';
 import {billingDirectoryRoute} from './billing-directory';
 import {billingQuoteRoute,quoteJSON} from './billing-quote';
 import {billingPaymentRoute,settlementJSON} from './billing-payments';
+import {confirmOutlookSent,sentAtSQL} from './billing-outlook-confirm';
 import {billingEmail} from './billing-delivery';
 import {rectificationJSON,rectifyInvoice} from './billing-rectification';
 import {addBillingDays} from './billing-domain';
@@ -28,6 +32,7 @@ interface Row {
  id:string; kind:'invoice'|'quote'; status:'draft'; version:number; data_json:string;
  totals_json:string|null; issues_json:string; create_hash:string; source_document_id:string|null;
  source_version:number|null; created_at:string; updated_at:string; created_by:string; updated_by:string;
+ sent_at?:string|null;
  rectification_json?:string|null;
  reserved_number_json?:string|null; issuance_json?:string|null; quote_json?:string|null; settlement_json?:string|null;
 }
@@ -37,14 +42,14 @@ const object=(v:unknown):v is ObjectValue=>!!v&&typeof v==='object'&&!Array.isAr
 const uuid=(v:unknown):v is string=>typeof v==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
 const digest=(s:string)=>createHash('sha256').update(s).digest('hex');
 const text=(v:unknown)=>typeof v==='string'?v:'';
-const document=(r:Row):BillingDocument=>{const issuance:BillingIssuanceSummary|null=r.issuance_json?(typeof r.issuance_json==='string'?JSON.parse(r.issuance_json):r.issuance_json):null;return {id:r.id,version:r.version,status:issuance?(issuance.state==='ready'?'issued':issuance.state==='failed'?'issue_failed':'finalizing'):'draft',issuance,quote:r.quote_json?(typeof r.quote_json==='string'?JSON.parse(r.quote_json):r.quote_json) as BillingQuoteSummary:null,data:normalizeDraft(JSON.parse(r.data_json)),
+const document=(r:Row):BillingDocument=>{const issuance:BillingIssuanceSummary|null=r.issuance_json?(typeof r.issuance_json==='string'?JSON.parse(r.issuance_json):r.issuance_json):null;return {sentAt:r.sent_at||null,id:r.id,version:r.version,status:issuance?(issuance.state==='ready'?'issued':issuance.state==='failed'?'issue_failed':'finalizing'):'draft',issuance,quote:r.quote_json?(typeof r.quote_json==='string'?JSON.parse(r.quote_json):r.quote_json) as BillingQuoteSummary:null,data:normalizeDraft(JSON.parse(r.data_json)),
  ...(r.rectification_json?{rectification:JSON.parse(r.rectification_json)}:{}),reservedNumber:r.reserved_number_json?JSON.parse(r.reserved_number_json):null,settlement:r.settlement_json?JSON.parse(r.settlement_json):null,sourceDocumentId:r.source_document_id,createdAt:r.created_at,updatedAt:r.updated_at,createdBy:r.created_by,updatedBy:r.updated_by,
  totals:r.totals_json===null?null:JSON.parse(r.totals_json),issues:JSON.parse(r.issues_json)};};
 const issuanceJSON=`(SELECT json_object('id',i.id,'number',i.number,'state',j.state,'attempts',j.attempts,'errorCode',j.error_code,'createdAt',i.created_at,'updatedAt',j.updated_at,
  'files',json(CASE WHEN j.state='ready' THEN (SELECT json_group_array(json_extract(value,'$.kind')) FROM json_each(j.manifest_json,'$.artifacts')) ELSE '[]' END))
  FROM billing_issuances i JOIN billing_issue_jobs j ON j.issuance_id=i.id WHERE i.document_id=billing_documents.id)`;
 const reservedNumberJSON=`(SELECT json_object('number',number,'date',number_date,'seriesId',series_id) FROM billing_draft_numbers WHERE document_id=billing_documents.id)`;
-const get=(db:Database,id:string)=>db.prepare(`SELECT *,${rectificationJSON()} AS rectification_json,${reservedNumberJSON} AS reserved_number_json,${issuanceJSON} AS issuance_json,${quoteJSON()} AS quote_json,${settlementJSON()} AS settlement_json FROM billing_documents WHERE id=?`).bind(id).first<Row>();
+const get=(db:Database,id:string)=>db.prepare(`SELECT *,${sentAtSQL} AS sent_at,${rectificationJSON()} AS rectification_json,${reservedNumberJSON} AS reserved_number_json,${issuanceJSON} AS issuance_json,${quoteJSON()} AS quote_json,${settlementJSON()} AS settlement_json FROM billing_documents WHERE id=?`).bind(id).first<Row>();
 const conflict=()=>fail(409,'Ce document a changé ou cet identifiant est déjà utilisé. Rechargez le document avant de continuer.');
 function expectedVersion(request:Request,allowZero=false):number {
  const value=request.headers.get('if-match');
@@ -103,7 +108,7 @@ async function context(db:Database,env:Environment):Promise<BillingContext> {
  ]);
  const parsedMarkets=markets.results.map(r=>({...r,market:JSON.parse(r.payload)}));
  const projectOwners=parsedMarkets.map(r=>({id:r.id,projects:r.market.projects||[]}));
- const engagements=await linkedEngagements(db);
+ const [engagements,annualQuotes]=await Promise.all([linkedEngagements(db),readAnnualQuotes(db)]);
  const marketProjects=(id:string)=>projectsForMarket(id,projectOwners).map(p=>{const orders=[...p.orders,...(parsedMarkets.find(m=>m.id===id)?.market.orders||[])];return {...p,orders:[...orders,...engagements.filter(e=>e.kind==='order'&&e.marketId===id&&e.projectId===p.id&&!orders.some(o=>o.id===e.orderId)).map(e=>({id:e.orderId,reference:e.reference,date:e.date,amountMinor:e.amountMinor,documentId:'',notes:'',archived:false}))]};});
  return {
   documentService:{configured:documentServiceConfigured(env)},
@@ -111,7 +116,7 @@ async function context(db:Database,env:Environment):Promise<BillingContext> {
   clientLogos:logos.results.map(r=>{const p=JSON.parse(r.data_json);return {id:r.id,name:text(p.party?.name),siren:text(p.party?.siren),siret:text(p.party?.siret),logoKey:text(p.logoKey),logoData:text(p.logoData)};}),
   clients:clients.results.map(r=>JSON.parse(r.data_json)).filter(object).map(r=>({id:text(r.id),name:text(r.name)})).filter(r=>r.id&&r.name),
   businessCodes:codes.results.map(r=>JSON.parse(r.data_json)).filter(object).map(r=>({id:text(r.id),code:[r.code1,r.code2].filter(v=>typeof v==='number'||(typeof v==='string'&&v)).join(' '),label:text(r.label),client:text(r.client)})).filter(r=>r.id),
-  markets:parsedMarkets.filter(r=>r.market.status!=='archived').map(r=>{const p=r.market;return {id:r.id,version:r.version,title:text(p.title),reference:text(p.reference),clientName:text(p.clientName),clientId:text(p.clientId),activity:marketActivity({...p,projects:marketProjects(r.id)}),prices:Array.isArray(p.prices)?p.prices:[],projects:marketProjects(r.id)};}),
+  markets:parsedMarkets.filter(r=>r.market.status!=='archived').map(r=>{const p=r.market;return {id:r.id,consumption:consumptionForMarket({...p,id:r.id},annualQuotes),version:r.version,title:text(p.title),reference:text(p.reference),clientName:text(p.clientName),clientId:text(p.clientId),activity:marketActivity({...p,projects:marketProjects(r.id)}),prices:Array.isArray(p.prices)?p.prices:[],projects:marketProjects(r.id)};}),
   seller:settings.data.seller,settings
  };
 }
@@ -137,7 +142,7 @@ async function list(request:Request,db:Database,reply:Reply) {
  const paymentStates=['finalized','unpaid','partial','paid','overpaid','overdue'];
  const quoteStates=['prepared','sent','accepted','refused','expired','previous','abandoned'];
  if([...params.keys()].some(k=>!['kind','q','limit','offset','state','client','project'].includes(k))||[...new Set(params.keys())].some(k=>params.getAll(k).length>1)||
-  (kind!==null&&kind!=='quote'&&kind!=='invoice')||q.length>200||client.length>600||project.length>600||!['trash','all','draft','issued','finalizing','issue_failed',...quoteStates,...paymentStates].includes(state)||(quoteStates.includes(state)&&kind!=='quote')||(paymentStates.includes(state)&&kind!=='invoice'))return fail(400,'Filtres de recherche invalides.');
+  (kind!==null&&kind!=='quote'&&kind!=='invoice')||q.length>200||client.length>600||project.length>600||!['trash','all','draft','issued','finalizing','issue_failed',...quoteStates,...paymentStates].includes(state)||(quoteStates.includes(state)&&kind!=='quote'&&!(state==='sent'&&kind==='invoice'))||(paymentStates.includes(state)&&kind!=='invoice'))return fail(400,'Filtres de recherche invalides.');
  const limit=pageParameter(params,'limit',25,100,1),offset=pageParameter(params,'offset',0,1000000);
  // Count and page share one snapshot. Search characters remain literal, including SQL wildcards.
  const row=await db.prepare(`WITH enriched AS (
@@ -146,11 +151,12 @@ async function list(request:Request,db:Database,reply:Reply) {
    ELSE 'name:'||coalesce(json_extract(data_json,'$.buyer.name'),'') END AS client_key,
   CASE WHEN coalesce(json_extract(data_json,'$.references.projectId'),'')<>'' THEN 'id:'||json_extract(data_json,'$.references.projectId')
    ELSE 'name:'||coalesce(json_extract(data_json,'$.references.project'),'') END AS project_key,
-  ${rectificationJSON()} AS rectification_json,${reservedNumberJSON} AS reserved_number_json,${issuanceJSON} AS issuance_json,${quoteJSON()} AS quote_json,${settlementJSON()} AS settlement_json FROM billing_documents WHERE (? IS NULL OR kind=?) AND (EXISTS(SELECT 1 FROM billing_document_trash t WHERE t.document_id=billing_documents.id)=?)
+  ${sentAtSQL} AS sent_at,${rectificationJSON()} AS rectification_json,${reservedNumberJSON} AS reserved_number_json,${issuanceJSON} AS issuance_json,${quoteJSON()} AS quote_json,${settlementJSON()} AS settlement_json FROM billing_documents WHERE (? IS NULL OR kind=?) AND (EXISTS(SELECT 1 FROM billing_document_trash t WHERE t.document_id=billing_documents.id)=?)
  ), classified AS (SELECT *,CASE WHEN json_extract(issuance_json,'$.state')='ready' THEN 'issued' WHEN json_extract(issuance_json,'$.state')='failed' THEN 'issue_failed' WHEN issuance_json IS NOT NULL THEN 'finalizing' ELSE 'draft' END AS effective_status FROM enriched),
  filtered AS (SELECT * FROM classified WHERE (?='' OR client_key=?) AND (?='' OR project_key=?) AND (CASE
   WHEN ?='trash' THEN 1
-  WHEN ?='finalized' THEN effective_status='issued' AND kind='invoice' AND json_extract(settlement_json,'$.state')='unpaid' AND json_extract(settlement_json,'$.overdue')=0
+  WHEN ?='sent' AND kind='invoice' THEN effective_status='issued' AND sent_at IS NOT NULL AND json_extract(settlement_json,'$.state')='unpaid' AND json_extract(settlement_json,'$.overdue')=0
+  WHEN ?='finalized' THEN sent_at IS NULL AND effective_status='issued' AND kind='invoice' AND json_extract(settlement_json,'$.state')='unpaid' AND json_extract(settlement_json,'$.overdue')=0
   WHEN ?='previous' THEN kind='quote' AND json_extract(quote_json,'$.revision.currentId')<>id AND json_extract(quote_json,'$.revision.abandoned')=0
   WHEN ?='abandoned' THEN kind='quote' AND json_extract(quote_json,'$.revision.abandoned')=1
   ELSE (kind<>'quote' OR (?='all' AND ?<>'') OR (json_extract(quote_json,'$.revision.currentId')=id AND json_extract(quote_json,'$.revision.abandoned')=0))
@@ -160,8 +166,8 @@ async function list(request:Request,db:Database,reply:Reply) {
  (SELECT json_group_array(json(item)) FROM (SELECT json_object('value',client_key,'label',max(json_extract(data_json,'$.buyer.name'))) AS item FROM classified WHERE coalesce(json_extract(data_json,'$.buyer.name'),'')<>'' GROUP BY client_key ORDER BY max(json_extract(data_json,'$.buyer.name')) COLLATE NOCASE)) AS clients_json,
  (SELECT json_group_array(json(item)) FROM (SELECT json_object('value',project_key,'label',max(json_extract(data_json,'$.references.project'))) AS item FROM classified WHERE coalesce(json_extract(data_json,'$.references.project'),'')<>'' GROUP BY project_key ORDER BY max(json_extract(data_json,'$.references.project')) COLLATE NOCASE)) AS projects_json,
  (SELECT json_group_array(json(row_json)) FROM (
- SELECT json_object('id',id,'kind',kind,'status',status,'version',version,'data_json',data_json,'totals_json',totals_json,'issues_json',issues_json,'source_document_id',source_document_id,'created_at',created_at,'updated_at',updated_at,'created_by',created_by,'updated_by',updated_by,'rectification_json',rectification_json,'reserved_number_json',reserved_number_json,'issuance_json',issuance_json,'quote_json',quote_json,'settlement_json',settlement_json) AS row_json
- FROM filtered ORDER BY updated_at DESC,id LIMIT ? OFFSET ?)) AS rows_json`).bind(kind,kind,state==='trash'?1:0,client,client,project,project,state,state,state,state,state,q,state,state,state,state,state,q,q,q,q,q,limit,offset).first<{total:number;rows_json:string;clients_json:string;projects_json:string}>();
+ SELECT json_object('id',id,'kind',kind,'status',status,'version',version,'data_json',data_json,'totals_json',totals_json,'issues_json',issues_json,'source_document_id',source_document_id,'created_at',created_at,'updated_at',updated_at,'created_by',created_by,'updated_by',updated_by,'sent_at',sent_at,'rectification_json',rectification_json,'reserved_number_json',reserved_number_json,'issuance_json',issuance_json,'quote_json',quote_json,'settlement_json',settlement_json) AS row_json
+ FROM filtered ORDER BY updated_at DESC,id LIMIT ? OFFSET ?)) AS rows_json`).bind(kind,kind,state==='trash'?1:0,client,client,project,project,state,state,state,state,state,state,q,state,state,state,state,state,q,q,q,q,q,limit,offset).first<{total:number;rows_json:string;clients_json:string;projects_json:string}>();
  return reply(200,{documents:JSON.parse(row?.rows_json||'[]').map(document),total:row?.total||0,limit,offset,filters:{clients:JSON.parse(row?.clients_json||'[]'),projects:JSON.parse(row?.projects_json||'[]')}});
 }
 
@@ -171,7 +177,9 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
  if(!session)return reply(401,{error:'Votre connexion CDInnov a expiré. Reconnectez-vous.'});
  if(!hasAccess(session,'facturier'))return reply(403,{error:'Votre compte n’a pas accès à la facturation.'});
  const path=new URL(request.url).pathname,db=env.BUDGETS_DB.withSession('first-primary');
+ if(path.startsWith('/api/v1/billing/client-employees/'))return clientEmployeesRoute(request,db,env,session.email,reply);
  if(/^\/api\/v1\/billing\/(clients|services)(?:\/|$)/.test(path))return billingDirectoryRoute(request,db,session.email,reply);
+ if(path==='/api/v1/billing/engagement-analysis')return analyzeEngagement(request,db,env,reply);
  if(path==='/api/v1/billing/engagements'&&request.method==='GET')return reply(200,await engagementTracking(db));
  const legacyReport=path.match(/^\/api\/v1\/billing\/imported-invoices\/([^/]+)\/intervention-report(\.pdf)?$/);
  if(legacyReport){
@@ -217,7 +225,7 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
   }
   return reply(200,document(existing));
  }
- const match=path.match(/^\/api\/v1\/billing\/documents\/([^/]+)(\/engagement|\/intervention-report(?:\.pdf)?|\/rectify|\/restore|\/number|\/email|\/payments|\/quote-versions|\/revise|\/abandon-revision|\/quote-events|\/convert|\/preview\.pdf|\/issue|\/finalize|\/files\/(?:pdf|xml|validation|verapdf))?$/);
+ const match=path.match(/^\/api\/v1\/billing\/documents\/([^/]+)(\/engagement|\/intervention-report(?:\.pdf)?|\/rectify|\/restore|\/number|\/email|\/outlook-sent|\/payments|\/quote-versions|\/revise|\/abandon-revision|\/quote-events|\/convert|\/preview\.pdf|\/issue|\/finalize|\/files\/(?:pdf|xml|validation|verapdf))?$/);
  if(!match)return reply(404,{error:'Accès de facturation introuvable.'});
  if(!uuid(match[1]))return fail(400,'Identifiant de document invalide.');
  const id=match[1].toLowerCase();
@@ -251,6 +259,7 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
   if(!row)return reply(404,{error:'Document introuvable.'});if(row.version!==expected)return conflict();
   await reserveDraftNumber(db,document(row),session.email);return reply(200,document((await get(db,id))!));
  }
+ if(match[2]==='/outlook-sent'){const row=await get(db,id);if(!row)return reply(404,{error:'Facture introuvable.'});return confirmOutlookSent(request,db,document(row),session.email,reply,async()=>document((await get(db,id))!));}
  if(match[2]==='/email'){
   const row=await get(db,id);if(!row)return reply(404,{error:'Document introuvable.'});
   if(request.method==='POST'&&document(row).rectification?.replacementId)return fail(409,'Ouvrez la rectification de cette facture.');
@@ -348,7 +357,7 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
   if(sourceRecord.status!=='issued'||sourceRecord.quote?.state!=='accepted'||!sourceRecord.quote.engagement)return fail(409,'Acceptez le devis puis liez un bon de commande ou un devis signé avant de créer la facture.');
   const sourceData=normalizeDraft(JSON.parse(source.data_json)),settings=await readSettings(db);
   const commitment=sourceRecord.quote.engagement.details;
-  if(commitment){sourceData.references={...sourceData.references,marketId:commitment.marketId,marketReference:commitment.marketReference,projectId:commitment.projectId,project:commitment.project,...(sourceRecord.quote.engagement.kind==='order'?{orderId:commitment.orderId,orderReference:commitment.reference}:{})};}
+  if(commitment){sourceData.references={...sourceData.references,...(commitment.engagement?{engagement:commitment.engagement}:{}),...(commitment.serviceCode?{serviceCode:commitment.serviceCode}:{}),...(commitment.otherReference?{otherReference:commitment.otherReference}:{}),marketId:commitment.marketId,marketReference:commitment.marketReference,projectId:commitment.projectId,project:commitment.project,...(sourceRecord.quote.engagement.kind==='order'?{orderId:commitment.orderId,orderReference:commitment.reference}:{})};}
   const p=prepared({...sourceData,kind:'invoice',dueDate:'',issueDate:new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Paris'}).format(new Date()),paymentMeans:'30',paymentTerms:settings.data.paymentTerms,legalNotes:settings.data.legalNotes,vatDue:settings.data.vatDue,validUntil:'',references:{...sourceData.references,...(document(source).issuance?.number?{quoteNumber:document(source).issuance!.number}:{})},iban:settings.data.iban,bic:settings.data.bic,details:{...blankDocumentDetails(),...sourceData.details,validityMonths:'',returnEmail:settings.data.returnEmail??'cdi@cdinnov.com',interventions:[]}}),stamp=new Date().toISOString();
   let created:Row|null;
   try {

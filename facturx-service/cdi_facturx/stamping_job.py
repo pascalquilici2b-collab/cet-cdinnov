@@ -27,7 +27,7 @@ def main():
         elif action=='import':result=normalize(raw,request['name'],options)
         elif action=='extract':result=extract(raw)
         elif action=='process':result=process(raw,request['groups'],options,request.get('choice'),request.get('suggestions'),request.get('overrides'))
-        elif action=='analyze':result=analyze(raw,request['groups'],options,request.get('choice'),request.get('suggestions'),request.get('overrides'),request.get('cachedReading'))
+        elif action=='analyze':result=analyze(raw,request['groups'],options,request.get('choice'),request.get('suggestions'),request.get('overrides'),request.get('cachedReading'),request.get('directInvoice'))
         elif action=='revise':result=revise(raw,request['previous'],options,request.get('overrides'),request.get('additions'))
         elif action=='preview':result={'image':base64.b64encode(preview(raw,options.get('page',0))).decode()}
         else:raise ValueError('Action inconnue.')

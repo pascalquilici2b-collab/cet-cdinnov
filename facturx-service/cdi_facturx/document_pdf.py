@@ -55,7 +55,7 @@ _RULE = colors.HexColor("#d6e3e6")
 _PAGE_W, _PAGE_H = A4
 _MARGIN = 43.0
 _WIDTH = _PAGE_W - 2 * _MARGIN
-_UNITS = {"DAY": "jour", "HUR": "heure", "C62": "unité", "KMT": "km", "KGM": "kg", "MTR": "m", "MTK": "m²", "LTR": "litre", "MON": "mois", "ANN": "année"}
+_UNITS = {"DAY": "jour", "HUR": "heure", "C62": "unité", "LS": "forfait", "KMT": "km", "KGM": "kg", "MTR": "m", "MTK": "m²", "LTR": "litre", "MON": "mois", "ANN": "année"}
 _VAT = {"S": "TVA", "Z": "Taux zéro", "E": "Exonération", "AE": "Autoliquidation", "O": "Hors champ"}
 _MEANS = {"30": "Virement", "58": "Virement SEPA", "49": "Prélèvement", "59": "Prélèvement SEPA", "48": "Carte bancaire", "10": "Espèces", "20": "Chèque", "transfer": "Virement", "card": "Carte bancaire", "cheque": "Chèque", "cash": "Espèces", "direct_debit": "Prélèvement"}
 _VAT_DUE = {"invoice": "TVA exigible sur les débits", "payment": "TVA exigible sur les encaissements", "delivery": "TVA exigible à la livraison"}
@@ -339,8 +339,6 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
     pdf.addPageTemplates(PageTemplate(id="commercial", frames=[frame], onPage=page_frame))
     story: list[Any] = []
 
-    if document['kind'] == 'quote' and _text(document.get("title")):
-        story.append(p(document["title"], "title", 'title'))
     meta = [("Numéro du document", reference), ("Date du document", _date(document.get("issueDate")))]
     if credit:
         meta.append(("Facture corrigée", _text(credit.get("invoiceNumber"))))
@@ -387,22 +385,30 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
     story.append(parties)
     references = document.get("references") or {}
     details = document.get("details") or {}
-    ref_labels = (("quoteNumber", "Référence devis"), ("businessCode", "Code affaire"), ("marketReference", "Marché / contrat"), ("orderReference", "Commande"), ("project", "Projet"), ("serviceCode", "Service destinataire"), ("engagement", "Engagement"))
+    ref_labels = (("quoteNumber", "Référence devis"), ("businessCode", "Code affaire"), ("marketReference", "Marché / contrat"), ("orderReference", "N°"), ("project", "Projet"), ("serviceCode", "Service destinataire"), ("engagement", "Engagement"), ("otherReference", "Autre référence"))
     shown_refs = [(label, _text(references.get(key)), 'references.'+key) for key, label in ref_labels if _text(references.get(key)) and (key != 'orderReference' or document['kind'] == 'invoice')]
     shown_refs += [(label, _text(details.get(key)), 'details.'+key) for key, label in (("marketObject", "Objet du marché"), ("personInCharge", "Personne en charge"), ("fundingProgramme", "Programme")) if _text(details.get(key))]
     periods = details.get('periods', [details['period']] if details.get('period') else [])
     numbers = [str(number) for number in range(1, 9) if f'S{number}' in periods]
+    if document['kind'] == 'quote' and _text(document.get('title')):
+        shown_refs.append(('Objet du document', document['title'], 'title'))
+    if _text(details.get('customPeriod')):
+        shown_refs.append(('Période concernée', details['customPeriod'], 'details.customPeriod'))
     if numbers:
         label = ('Semestre ' + numbers[0]) if len(numbers) == 1 else ('Semestres ' + ', '.join(numbers[:-1]) + ' et ' + numbers[-1])
         shown_refs.append(('Périodes concernées' if len(numbers) > 1 else 'Période concernée', label, None))
     if shown_refs:
         story.append(heading("Références"))
-        ref_cells = [p(f"{label} : {value}", "small", field) for label, value, field in shown_refs]
+        ref_cells = [p(f"{label} : {value}", "small", field) for label, value, field in shown_refs if label not in ('Objet du document','Période concernée','Périodes concernées')]
         if len(ref_cells) % 2:
             ref_cells.append("")
-        ref_table = Table([ref_cells[i:i+2] for i in range(0, len(ref_cells), 2)], colWidths=[_WIDTH/2, _WIDTH/2], splitByRow=1, splitInRow=1)
-        ref_table.setStyle(_table_style([('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),2),('BOTTOMPADDING',(0,0),(-1,-1),2)]))
-        story.append(ref_table)
+        if ref_cells:
+            ref_table = Table([ref_cells[i:i+2] for i in range(0, len(ref_cells), 2)], colWidths=[_WIDTH/2, _WIDTH/2], splitByRow=1, splitInRow=1)
+            ref_table.setStyle(_table_style([('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),2),('BOTTOMPADDING',(0,0),(-1,-1),2)]))
+            story.append(ref_table)
+        for label, value, field in shown_refs:
+            if label in ('Objet du document', 'Période concernée', 'Périodes concernées'):
+                story.append(p(f"{label} : {value}", "small", field))
 
     story.append(heading("Prestations"))
     if _text(document.get('description')):
@@ -505,7 +511,7 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
         story.append(KeepTogether(legal_block))
     if _text(document.get("notes")):
         story.extend([heading("Informations complémentaires"), p(document["notes"], "small", 'notes')])
-    if details.get('returnEmail'):
+    if document['kind'] == 'quote' and details.get('returnEmail'):
         story.append(p('À retourner à : ' + details['returnEmail'], 'small', 'details.returnEmail'))
     for party, label in (("seller", "Informations légales de l'émetteur"), ("buyer", "Informations du destinataire")):
         if party == "seller" and cdi:

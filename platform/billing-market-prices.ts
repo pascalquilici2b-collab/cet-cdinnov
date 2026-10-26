@@ -21,7 +21,7 @@ export function applicablePrices(market:BpuMarket|undefined,date:string,query=''
 }
 export function bpuLine(price:Price):BillingLine{
  const rate=price.vatRate==null?'20':String(price.vatRate);
- return {...newLine(),description:priceDescription(price),unitPrice:price.amountMinor==null?'':(price.amountMinor/100).toFixed(2),unitCode:({day:'DAY',hour:'HUR',flat:'C62',unit:'C62',km:'KMT'} as Record<string,string>)[price.unit]||'C62',vatRate:rate,vatCategory:rate==='0'?'Z':'S'};
+ return {...newLine(),description:priceDescription(price),unitPrice:price.amountMinor==null?'':(price.amountMinor/100).toFixed(2),unitCode:({day:'DAY',hour:'HUR',flat:'LS',unit:'C62',km:'KMT'} as Record<string,string>)[price.unit]||'C62',vatRate:rate,vatCategory:rate==='0'?'Z':'S'};
 }
 export function priceTtcMinor(price:Price):number|null{
  if(price.amountMinor==null||price.vatRate==null)return null;

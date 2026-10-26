@@ -19,7 +19,7 @@ function harness(email='pascal@example.test'){
  return {input,calls,get posts(){return count},get payload(){return payload},set mode(v){mode=v}};
 }
 test('each CDInnov account writes only to its own Microsoft mailbox',async()=>{
- for(const email of ['pascal@example.test','david@example.test','albert@example.test']){const h=harness(email);assert.equal((await createMicrosoftDraft({...h.input,bcc:'cdi@cdinnov.com'})).id,ready.id);assert.equal(h.posts,1);assert.equal(h.payload.bccRecipients[0].emailAddress.address,'cdi@cdinnov.com');assert.equal(h.payload.toRecipients[0].emailAddress.address,'contact@example.test');assert.equal(h.payload.attachments.length,1);assert.equal(Buffer.from(h.payload.attachments[0].contentBytes,'base64').toString(),await pdf.text());assert.ok(!h.payload.from&&!h.payload.sender);assert.equal((await createMicrosoftDraft({...h.input,bcc:'cdi@cdinnov.com'})).id,ready.id);assert.equal(h.posts,1);}
+ for(const email of ['pascal@example.test','david@example.test','albert@example.test']){const h=harness(email);assert.equal((await createMicrosoftDraft({...h.input,cc:'cdi@cdinnov.com'})).id,ready.id);assert.equal(h.posts,1);assert.equal(h.payload.ccRecipients[0].emailAddress.address,'cdi@cdinnov.com');assert.equal(h.payload.toRecipients[0].emailAddress.address,'contact@example.test');assert.equal(h.payload.attachments.length,1);assert.equal(Buffer.from(h.payload.attachments[0].contentBytes,'base64').toString(),await pdf.text());assert.ok(!h.payload.from&&!h.payload.sender);assert.equal((await createMicrosoftDraft({...h.input,cc:'cdi@cdinnov.com'})).id,ready.id);assert.equal(h.posts,1);}
 });
 test('reject another user, a portal session change, an unsafe link, or a header injection',async()=>{
  const h=harness();await assert.rejects(createMicrosoftDraft({...h.input,email:'david@example.test',currentEmail:async()=>'david@example.test'}),/ne correspond pas/);assert.equal(h.posts,0);
@@ -34,5 +34,5 @@ test('recover a lost response without creating a second draft',async()=>{
 });
 test('explicit refusal can be retried; large PDFs fail before creating a partial draft',async()=>{
  const h=harness();h.mode='refused';await assert.rejects(createMicrosoftDraft(h.input),/autorisé/);h.mode='ok';await createMicrosoftDraft(h.input);assert.equal(h.posts,2);
- const large=harness();await assert.rejects(createMicrosoftDraft({...large.input,pdf:new Blob(['%PDF-',new Uint8Array(3*1024*1024)])}),/dépasse 3 Mo/);assert.equal(large.posts,0);
+ const large=harness();await assert.rejects(createMicrosoftDraft({...large.input,pdf:new Blob(['%PDF-',new Uint8Array(3*1024*1024)])}),/3 Mo/);assert.equal(large.posts,0);
 });

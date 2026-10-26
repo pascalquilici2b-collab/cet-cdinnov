@@ -72,11 +72,12 @@ class DraftReferences(StrictModel):
     projectId: text(300) = ""
     orderId: text(300) = ""
     quoteNumber: text(300) = ""
+    otherReference: text(300) = ""
 
     @model_serializer(mode='wrap')
     def original_shape(self, handler):
         value = handler(self)
-        for key in ("projectId", "orderId", "quoteNumber"):
+        for key in ("projectId", "orderId", "quoteNumber", "otherReference"):
             if key not in self.model_fields_set:
                 value.pop(key, None)
         return value
@@ -131,6 +132,7 @@ class DraftDetails(StrictModel):
     marketObject: text(500)
     period: Literal['', 'S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8']
     periods: Annotated[list[Literal['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8']], Field(max_length=8)] = Field(default_factory=list)
+    customPeriod: text(300) = ''
     personInCharge: text(300)
     fundingProgramme: text(160)
     validityMonths: text(3)
@@ -140,6 +142,8 @@ class DraftDetails(StrictModel):
     @model_serializer(mode='wrap')
     def preserve_legacy_period(self, handler):
         result = handler(self)
+        if 'customPeriod' not in self.model_fields_set:
+            result.pop('customPeriod', None)
         if 'periods' not in self.model_fields_set:
             result.pop('periods', None)
         return result

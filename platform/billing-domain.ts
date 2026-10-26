@@ -63,7 +63,7 @@ export function normalizeSettings(raw:unknown):BillingSettingsData {
   return {schemaVersion:1,seller:party(v.seller),paymentTerms:textField(v,'paymentTerms',4000),iban:textField(v,'iban',50),bic:textField(v,'bic',20),...commercial(v),...(Object.hasOwn(v,'fundingProgrammes')?{fundingProgrammes:[...new Set((v.fundingProgrammes as string[]).map(p=>p.trim()).filter(Boolean))]}:{}),...(Object.hasOwn(v,'returnEmail')?{returnEmail:textField(v,'returnEmail',300)}:{})};
 }
 function documentDetails(raw:unknown):NonNullable<BillingDraft['details']>{
- const keys=[...Object.keys(blankDocumentDetails()),'periods'],v=object(raw,keys,'Informations du document');
+ const keys=[...Object.keys(blankDocumentDetails()),'periods','customPeriod'],v=object(raw,keys,'Informations du document');
  if(!['','S1','S2','S3','S4','S5','S6','S7','S8'].includes(v.period as string))fail('Période concernée invalide.');
  if(Object.hasOwn(v,'periods')&&(!Array.isArray(v.periods)||v.periods.length>8||v.periods.some(p=>!billingPeriods.includes(p))))fail('Périodes concernées invalides.');
  const periods=Object.hasOwn(v,'periods')?documentPeriods(v as unknown as NonNullable<BillingDraft['details']>):undefined;
@@ -73,7 +73,7 @@ function documentDetails(raw:unknown):NonNullable<BillingDraft['details']>{
   if(!billingId(r.id)||seen.has(r.id as string))fail('Identifiant d’intervention invalide.');seen.add(r.id as string);
   return {id:r.id as string,priceId:textField(r,'priceId',80),label:textField(r,'label',300),description:textField(r,'description',4000),days:textField(r,'days',40)};
  });
- return {marketObject:textField(v,'marketObject',500),period:periods?periods[0]||'':v.period as NonNullable<BillingDraft['details']>['period'],...(periods?{periods}:{}),personInCharge:textField(v,'personInCharge',300),fundingProgramme:textField(v,'fundingProgramme',160),validityMonths:textField(v,'validityMonths',3),returnEmail:textField(v,'returnEmail',300),interventions};
+ return {...(Object.hasOwn(v,'customPeriod')?{customPeriod:textField(v,'customPeriod',300)}:{}),marketObject:textField(v,'marketObject',500),period:periods?periods[0]||'':v.period as NonNullable<BillingDraft['details']>['period'],...(periods?{periods}:{}),personInCharge:textField(v,'personInCharge',300),fundingProgramme:textField(v,'fundingProgramme',160),validityMonths:textField(v,'validityMonths',3),returnEmail:textField(v,'returnEmail',300),interventions};
 }
 const referenceKeys=['businessCode','marketId','marketReference','orderReference','project','serviceCode','engagement'];
 const lineKeys=['id','description','quantity','unitCode','unitPrice','discountPercent','vatRate','vatCategory','exemptionReason'];
@@ -103,7 +103,7 @@ export function normalizeDraft(raw:unknown):BillingDraft {
     if(!categories.includes(row.vatCategory as VatCategory))fail('Catégorie de TVA non reconnue.');
     return {...Object.fromEntries(lineKeys.map(k=>[k,textField(row,k,k==='description'?4000:k==='exemptionReason'?1000:k==='id'?36:k==='unitCode'?3:40)])),id} as unknown as BillingLine;
   });
-  const references=object(value.references,[...referenceKeys,'projectId','orderId','quoteNumber'],'Références');
+  const references=object(value.references,[...referenceKeys,'projectId','orderId','quoteNumber','otherReference'],'Références');
   return {
     schemaVersion:credit?3:2,kind:value.kind as BillingKind,currency:'EUR',...(creditNote?{creditNote}:{}),
     ...(Object.hasOwn(value,'details')?{details:documentDetails(value.details)}:{}),
@@ -111,7 +111,7 @@ export function normalizeDraft(raw:unknown):BillingDraft {
     ...(Object.hasOwn(value,'annotations')?{annotations:normalizeAnnotations(value.annotations)}:{}),
     title:textField(value,'title',300),issueDate:textField(value,'issueDate',10),dueDate:textField(value,'dueDate',10),validUntil:textField(value,'validUntil',10),clientId:textField(value,'clientId',200),
     seller:party(value.seller,legacy),buyer:party(value.buyer,legacy),lines,
-    references:Object.fromEntries([...referenceKeys,...['projectId','orderId','quoteNumber'].filter(k=>Object.hasOwn(references,k))].map(k=>[k,textField(references,k,300)])) as unknown as BillingReferences,
+    references:Object.fromEntries([...referenceKeys,...['projectId','orderId','quoteNumber','otherReference'].filter(k=>Object.hasOwn(references,k))].map(k=>[k,textField(references,k,300)])) as unknown as BillingReferences,
     paymentTerms:textField(value,'paymentTerms',4000),iban:textField(value,'iban',50),bic:textField(value,'bic',20),notes:textField(value,'notes',10000),
     ...commercial(legacy?{paymentMeans:'30',vatDue:'',legalNotes:blankLegal(),businessProcess:''}:value)
   };

@@ -15,6 +15,6 @@ export function billingDisplayState(document:BillingDocument|null|undefined,toda
  const settlement=document.settlement;
  if(settlement?.state==='paid'||settlement?.state==='overpaid')return settlement.state;
  if(settlement&&settlement.dueMinor!=='0'&&invoiceIsLate(document.data.issueDate,document.data.dueDate,today))return 'overdue';
- return settlement?.state==='partial'?'partial':'finalized';
+ return settlement?.state==='partial'?'partial':document.data.kind==='invoice'&&document.sentAt?'sent':'finalized';
 }
-export const billingStateLabel=(document:BillingDocument|null|undefined)=>billingDisplayLabels[billingDisplayState(document)];
+export const billingStateLabel=(document:BillingDocument|null|undefined)=>document?.data.kind==='invoice'&&billingDisplayState(document)==='sent'?'Envoyée':billingDisplayLabels[billingDisplayState(document)];

@@ -47,12 +47,12 @@ test('legacy report has independent versioning, persists and rejects concurrent 
  }finally{await ctx.worker.dispose();}
 });
 
-test('invoice Outlook message includes the fixed blind copy and platform sentence, quote does not',async()=>{
+test('invoice Outlook message includes the fixed visible copy and platform sentence, quote does not',async()=>{
  const data=quoteFixture(),invoice={data:{...data,kind:'invoice'},issuance:{number:'F-TEST'}};
  const message=defaultBillingEmail(invoice);assert.match(message,/La facture électronique vous sera également adressée sur votre plateforme agréée/);assert.doesNotMatch(defaultBillingEmail({data}),/plateforme agréée/);
- const input={recipient:'contact@example.test',bcc:'cdi@cdinnov.com',subject:'Facture F-TEST',message,filename:'facture.pdf',pdf:new Blob([samplePDF()])};
- assert.match(await(await outlookMessage(input)).text(),/\r\nBcc: cdi@cdinnov.com\r\n/);
- assert.doesNotMatch(await(await outlookMessage({...input,bcc:undefined})).text(),/\r\nBcc:/);
+ const input={recipient:'contact@example.test',cc:'cdi@cdinnov.com',subject:'Facture F-TEST',message,filename:'facture.pdf',pdf:new Blob([samplePDF()])};
+ assert.match(await(await outlookMessage(input)).text(),/\r\nCc: cdi@cdinnov.com\r\n/);
+ assert.doesNotMatch(await(await outlookMessage({...input,cc:undefined})).text(),/\r\nCc:/);
 });
 
 

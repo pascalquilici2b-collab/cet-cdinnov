@@ -53,6 +53,8 @@ def render_intervention_report(document: dict, number: str, report_date: str) ->
     project = (document.get('references') or {}).get('project')
     if project:
         story.append(p('Projet : ' + project))
+    if details.get('customPeriod'):
+        story.append(p('Période concernée : ' + details['customPeriod'], 'small'))
     periods = details.get('periods', [details['period']] if details.get('period') else [])
     numbers = [str(n) for n in range(1, 9) if f'S{n}' in periods]
     if numbers:

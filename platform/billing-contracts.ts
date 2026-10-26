@@ -13,7 +13,7 @@ export interface BillingLine {
 export interface BillingReferences {
   businessCode:string; marketId:string; marketReference:string; orderReference:string;
   project:string; serviceCode:string; engagement:string;
-  projectId?:string; orderId?:string; quoteNumber?:string;
+  projectId?:string; orderId?:string; quoteNumber?:string; otherReference?:string;
 }
 export interface BillingDraft {
   annotations?:BillingAnnotation[];
@@ -27,17 +27,18 @@ export interface BillingDraft {
 }
 interface BillingAnnotationBox {id:string;page:number;x:number;y:number;width:number;height:number;}
 export type BillingAnnotation=(BillingAnnotationBox&{kind:'text';text:string;fontSize:number;color:'ink'|'blue'|'red'})|(BillingAnnotationBox&{kind:'highlight';color:'yellow'|'blue'|'green'});
-export interface BillingInterventionReport {version:number;date:string;title:string;periods:BillingPeriod[];rows:BillingIntervention[];}
-export interface BillingEngagementDetails {reference:string;date:string;amountMinor:number|null;marketId:string;marketReference:string;projectId:string;project:string;client:string;orderId:string;}
+export interface BillingInterventionReport {version:number;date:string;title:string;periods:BillingPeriod[];customPeriod?:string;rows:BillingIntervention[];}
+export interface BillingEngagementDetails {engagement?:string;serviceCode?:string;otherReference?:string;reference:string;date:string;amountMinor:number|null;marketId:string;marketReference:string;projectId:string;project:string;client:string;orderId:string;}
 export interface BillingEngagement {kind:'order'|'signed_quote';filename:string;createdAt:string;details?:BillingEngagementDetails;}
+export interface MarketConsumption {annual:boolean;resetDate:string|null;maximumMinor:number|null;quotedMinor:number;sentQuoteCount:number;documentIds:string[];orders?:{reference:string;date:string;amountMinor:number|null}[];orderedMinor?:number;periods:(Omit<MarketConsumption,'periods'|'annual'>&{startDate:string;endDate:string;current:boolean})[];}
 export interface BillingEngagementTracking {
  reviews?:{id:string;number:string;client:string;reference:string;reason:string}[];
- markets:{id:string;reference:string;title:string;client:string;maximumMinor:number|null;quotedMinor:number;sentQuoteCount:number}[];
+ markets:{id:string;reference:string;title:string;client:string;maximumMinor:number|null;quotedMinor:number;sentQuoteCount:number;consumption?:MarketConsumption}[];
  orders:{id:string;kind:'order'|'signed_quote';reference:string;date:string;amountMinor:number|null;marketId:string;market:string;client:string;projectId:string;project:string;quoteIds:string[];files:{documentId:string;filename:string;marketId?:string}[];notes?:string;historyPending?:boolean;reservedMinor?:number;invoicedMinor:number;invoices:{id:string;number:string;amountMinor:number;trashed:boolean}[]}[];
 }
 export interface BillingIntervention {id:string;priceId:string;label:string;description:string;days:string;}
 export type BillingPeriod='S1'|'S2'|'S3'|'S4'|'S5'|'S6'|'S7'|'S8';
-export interface BillingDocumentDetails {marketObject:string;period:''|BillingPeriod;periods?:BillingPeriod[];personInCharge:string;fundingProgramme:string;validityMonths:string;returnEmail:string;interventions:BillingIntervention[];}
+export interface BillingDocumentDetails {marketObject:string;period:''|BillingPeriod;periods?:BillingPeriod[];customPeriod?:string;personInCharge:string;fundingProgramme:string;validityMonths:string;returnEmail:string;interventions:BillingIntervention[];}
 /** Only schema v3 carries a credit reference; old v2 snapshots keep their exact wire shape. */
 export interface BillingCreditReference {invoiceId:string;invoiceVersion:number;invoiceNumber:string;invoiceDate:string;reason:string;}
 export type BillingBusinessProcess = ''|'B1'|'S1'|'M1'|'B2'|'S2'|'M2'|'S3'|'B4'|'S4'|'M4'|'S5'|'S6'|'B7'|'S7'|'B8'|'S8'|'M8'|'B9'|'S9'|'M9';
@@ -60,6 +61,7 @@ export interface BillingTotals {
 }
 export interface BillingInvoiceRectification {parentId:string|null;parentNumber:string|null;replacementId:string|null;replacementNumber:string|null;replacementState:'draft'|'issued'|null;}
 export interface BillingDocument {
+  sentAt?:string|null;
   rectification?:BillingInvoiceRectification;
   id:string; version:number; status:'draft'|'finalizing'|'issue_failed'|'issued'; data:BillingDraft;
   issuance:BillingIssuanceSummary|null;
@@ -104,22 +106,29 @@ export interface BillingContext {
   documentService:{configured:boolean};
   clients:{id:string; name:string}[];
   businessCodes:{id:string; code:string; label:string; client:string}[];
-  markets:{id:string;version?:number; title:string; reference:string; clientName:string;clientId?:string;activity?:import('./project-activity').Activity;prices?:import('./client/markets-contracts').Price[];projects?:import('./client/markets-contracts').MarketProject[]}[];
+  markets:{id:string;consumption?:MarketConsumption;version?:number; title:string; reference:string; clientName:string;clientId?:string;activity?:import('./project-activity').Activity;prices?:import('./client/markets-contracts').Price[];projects?:import('./client/markets-contracts').MarketProject[]}[];
   seller:BillingParty;
   settings:BillingSettings;
 }
 export interface BillingTransport {
+  clientEmployees(id:string):Promise<import('./client-employees-domain').ClientEmployeeSpace>;
+  saveClientEmployees(id:string,version:number,data:{agents:import('./client-employees-domain').ClientEmployee[];payments:import('./client-employees-domain').ClientPaymentMonth[]}):Promise<import('./client-employees-domain').ClientEmployeeSpace>;
+  saveClientEmployeeDocument(id:string,version:number,kind:'mission'|'payment',employeeId:string,file:File):Promise<import('./client-employees-domain').ClientEmployeeSpace>;
+  clientEmployeeDocument(id:string,documentId:string):Promise<Blob>;
+
   orderBudget(id:string,data:BillingDraft):Promise<{linked:boolean;blocked:boolean;message?:string;reference?:string;maximumMinor?:number|null;usedMinor?:number;availableMinor?:number|null;amountMinor?:number|null}>;
   engagements():Promise<BillingEngagementTracking>;
   report(id:string):Promise<BillingInterventionReport>;
   saveReport(id:string,version:number,data:Omit<BillingInterventionReport,'version'>):Promise<BillingInterventionReport>;
   reportPDF(id:string):Promise<Blob>;
   previewReport(id:string,data:Omit<BillingInterventionReport,'version'>):Promise<Blob>;
-  uploadEngagement(id:string,version:number,kind:BillingEngagement['kind'],file:File,details?:Pick<BillingEngagementDetails,'reference'|'date'|'amountMinor'|'marketId'|'projectId'>):Promise<BillingDocument>;
+  uploadEngagement(id:string,version:number,kind:BillingEngagement['kind'],file:File,details?:Pick<BillingEngagementDetails,'reference'|'date'|'amountMinor'|'marketId'|'projectId'|'marketReference'|'engagement'|'serviceCode'|'otherReference'>):Promise<BillingDocument>;
+  analyzeEngagement(text:string):Promise<{fields:Partial<BillingEngagementDetails>}>;
   engagementFile(id:string):Promise<Blob>;
   marketDocument(marketId:string,documentId:string):Promise<Blob>;
   rectify(id:string,version:number,input:{id:string;notTransmitted:true}):Promise<BillingDocument>;
   session():Promise<{email:string}>;
+  confirmSent(id:string,version:number,input:{recipient:string;subject:string;message:string}):Promise<BillingDocument>;
   emailHistory(id:string):Promise<{deliveries:import('./billing-delivery').EmailDelivery[]}>;
   email(id:string,version:number,input:import('./billing-delivery').EmailInput):Promise<{delivery:import('./billing-delivery').EmailDelivery}>;
   projects():Promise<{projects:import('./projects').SharedProject[];clients?:{id:string;name:string}[]}>;
