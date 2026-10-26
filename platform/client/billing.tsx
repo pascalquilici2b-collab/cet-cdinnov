@@ -104,7 +104,7 @@ function DraftPreview({draft,totals,record,transport,pdfAvailable,onChange}:{pdf
 
 function Billing({props,handle}:{props:BillingProps;handle:Handle}){
  const [descriptionPicker,setDescriptionPicker]=useState(false);
- const [kind,setKind]=useState<BillingKind>(props.initialKind||'invoice'),[query,setQuery]=useState(''),[search,setSearch]=useState(''),[offset,setOffset]=useState(0),[pageSize,setPageSize]=useState(10),[documents,setDocuments]=useState<BillingListRow[]>([]),[total,setTotal]=useState(0),[loading,setLoading]=useState(true),[listError,setListError]=useState(''),[revision,setRevision]=useState(0);
+ const [kind,setKind]=useState<BillingKind>(props.initialKind||'quote'),[query,setQuery]=useState(''),[search,setSearch]=useState(''),[offset,setOffset]=useState(0),[pageSize,setPageSize]=useState(10),[documents,setDocuments]=useState<BillingListRow[]>([]),[total,setTotal]=useState(0),[loading,setLoading]=useState(true),[listError,setListError]=useState(''),[revision,setRevision]=useState(0);
  const [editor,setEditor]=useState<Editor|null>(null),[context,setContext]=useState<BillingContext|null>(null),[contextError,setContextError]=useState(''),[contextRevision,setContextRevision]=useState(0),[busy,setBusy]=useState(''),[error,setError]=useState(''),[notice,setNotice]=useState(''),[conflict,setConflict]=useState(false),[mobileTab,setMobileTab]=useState<'edit'|'preview'>('edit');
  const [settingsMode,setSettingsMode]=useState(false),[settingsEditor,setSettingsEditor]=useState<SettingsEditor|null>(null),[settingsError,setSettingsError]=useState(''),[settingsConflict,setSettingsConflict]=useState(false);
  const [listState,setListState]=useState<BillingListState>('all');
