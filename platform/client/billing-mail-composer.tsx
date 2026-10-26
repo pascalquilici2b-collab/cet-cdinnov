@@ -1,10 +1,11 @@
 import {useEffect,useRef,useState} from 'react';
-import {Send,CheckCircle2,Download,Paperclip,Trash2,File,RefreshCw,PenLine,ChevronLeft,UserRound,Check} from 'lucide-react';
+import {Send,CheckCircle2,Download,Paperclip,Trash2,File,RefreshCw,PenLine,ChevronLeft} from 'lucide-react';
 import {captureSuccess} from './action-feedback';
 import {OutlookIcon} from './outlook-icon';
 import {OutlookAccount} from './billing-outlook-account';
 import {PDFIcon} from './billing-pdf-icon';
 import {Field} from './billing-fields';
+import {MailContactSelect} from './billing-mail-contact-select';
 import {MailSignatureEditor,MailSignaturePreview} from './billing-mail-signature';
 import {emptySignature,signedMail,validateMail,mailAddresses,type MailSignatureRecord} from '../billing-mail-content';
 import {defaultBillingEmail} from '../billing-email-default';
@@ -21,7 +22,7 @@ type Attachment=MailAttachment&{id:string;certificate?:boolean};
 export function EmailDocument({record,transport,onDocument}:{record:BillingDocument;transport:BillingTransport;onDocument?:(doc:BillingDocument)=>void}){
  const invoice=record.data.kind==='invoice',number=record.issuance?.number||record.id,stem=(invoice?'Facture-':'Devis-')+number.replace(/[^a-zA-Z0-9_-]/g,'_');
  const [connection,setConnection]=useState<{email:string;connected:boolean;sendEnabled?:boolean}|null>(null),[open,setOpen]=useState(false),[busy,setBusy]=useState(false),[loading,setLoading]=useState(false),[error,setError]=useState(''),[reportError,setReportError]=useState('');
- const [contacts,setContacts]=useState<BillingClientContact[]>([]),[recipient,setRecipient]=useState(''),[cc,setCc]=useState(invoice?'cdi@cdinnov.com':''),[bcc,setBcc]=useState(''),[showCc,setShowCc]=useState(invoice),[showBcc,setShowBcc]=useState(false),[subject,setSubject]=useState(`${invoice?'Facture':'Devis'} ${number} — ${record.data.title}`),[message,setMessage]=useState(defaultBillingEmail(record));
+ const [contacts,setContacts]=useState<BillingClientContact[]>([]),[contactsError,setContactsError]=useState(''),[recipient,setRecipient]=useState(''),[cc,setCc]=useState(invoice?'cdi@cdinnov.com':''),[bcc,setBcc]=useState(''),[showCc,setShowCc]=useState(invoice),[showBcc,setShowBcc]=useState(false),[subject,setSubject]=useState(`${invoice?'Facture':'Devis'} ${number} — ${record.data.title}`),[message,setMessage]=useState(defaultBillingEmail(record));
  const [files,setFiles]=useState<Attachment[]>([]),[certificate,setCertificate]=useState(false),[ready,setReady]=useState<{url:string;filename:string}|null>(null),[draft,setDraft]=useState<{webLink:string}|null>(null),[confirmed,setConfirmed]=useState(false),[retry,setRetry]=useState(0),[review,setReview]=useState(false),[receipt,setReceipt]=useState<MicrosoftSendReceipt|null>(null);
  const [signature,setSignature]=useState<MailSignatureRecord>({version:0,data:emptySignature()}),[includeSignature,setIncludeSignature]=useState(true);
  const dialog=useRef<HTMLDialogElement>(null),upload=useRef<HTMLInputElement>(null),certUpload=useRef<HTMLInputElement>(null),sending=useRef(false),receiptKey=useRef(''),autoChecks=useRef(0),recipientsInitialized=useRef(false);
@@ -29,7 +30,7 @@ export function EmailDocument({record,transport,onDocument}:{record:BillingDocum
  useEffect(()=>()=>{if(ready)URL.revokeObjectURL(ready.url);},[ready]);
  const invalidate=()=>{setReady(null);setDraft(null);setReview(false);};
  useEffect(()=>{
-  if(!open){dialog.current?.close();return;}dialog.current?.showModal();let active=true;setLoading(true);setError('');setReportError('');
+  if(!open){dialog.current?.close();return;}dialog.current?.showModal();let active=true;setLoading(true);setError('');setReportError('');setContactsError('');
   const identity=async()=>{
    const session=await transport.session();receiptKey.current='cdi-mail-receipt:'+session.email.toLowerCase()+':'+record.id+':'+record.version;
    try{const saved=JSON.parse(localStorage.getItem(receiptKey.current)||'null');if(active&&saved?.id)setReceipt(saved);}catch{/* Existing Graph ledger remains the second duplicate guard. */}
@@ -44,11 +45,11 @@ export function EmailDocument({record,transport,onDocument}:{record:BillingDocum
   const recipients=async()=>{
    let list:BillingClientContact[]=[];
    if(record.data.clientId){const client=await transport.directoryGet('clients',record.data.clientId);if(client.kind==='clients')list=client.data.contacts||[];}
-   else{const matches:BillingClientContact[][]=[];for(let offset=0;;){const page=await transport.directoryList('clients',{q:'',offset,limit:100,archived:false});for(const c of page.records)if(c.kind==='clients'&&sameClient(c.data,record.data.buyer))matches.push(c.data.contacts||[]);offset+=page.records.length;if(offset>=page.total||!page.records.length)break;}if(matches.length===1)list=matches[0];}
+   else{const matches:BillingClientContact[][]=[];for(let offset=0;;){const page=await transport.directoryList('clients',{q:'',offset,limit:100,archived:false});for(const c of page.records)if(c.kind==='clients'&&sameClient(c.data,record.data.buyer))matches.push(c.data.contacts||[]);offset+=page.records.length;if(offset>=page.total||!page.records.length)break;}if(matches.length===1)list=matches[0];else if(matches.length>1)throw Error('Plusieurs fiches correspondent à ce client. Sélectionnez sa fiche dans le document.');}
    const seen=new Set<string>();list=list.filter(c=>{try{const addresses=mailAddresses(c.email,true);if(addresses.length!==1||seen.has(addresses[0]))return false;seen.add(addresses[0]);return true;}catch{return false;}}).sort((a,b)=>a.name.localeCompare(b.name,'fr'));
    if(active){setContacts(list);if(!recipientsInitialized.current){setRecipient(list.length?'':record.data.buyer.email);recipientsInitialized.current=true;}}
   };
-  void Promise.allSettled([identity(),attachments(),recipients()]).then(results=>{if(!active)return;const failed=results.filter((r):r is PromiseRejectedResult=>r.status==='rejected');if(failed.length)setError(failed.map(r=>r.reason?.message||'Chargement impossible.').join(' '));setLoading(false);});return()=>{active=false;};
+  void Promise.allSettled([identity(),attachments(),recipients().catch(e=>{if(active)setContactsError(e.message||'Contacts indisponibles. Fermez et rouvrez le message.');})]).then(results=>{if(!active)return;const failed=results.filter((r):r is PromiseRejectedResult=>r.status==='rejected');if(failed.length)setError(failed.map(r=>r.reason?.message||'Chargement impossible.').join(' '));setLoading(false);});return()=>{active=false;};
  },[open,record.id,retry,transport]);
  const reportSentence=`Le relevé d’intervention relatif à la facture ${number} est également joint à ce message.`;
  const reportAttached=invoice&&files.some(f=>f.id==='report'),certificateAttached=certificate&&files.some(f=>f.certificate);
@@ -81,8 +82,8 @@ export function EmailDocument({record,transport,onDocument}:{record:BillingDocum
  return <><button type="button" className="bill-button" onClick={()=>setOpen(true)}><Send size={16}/>Envoyer par e-mail</button><dialog ref={dialog} className="bill-directory-dialog bill-delivery-dialog bill-cdi-mail" aria-label="Envoyer par e-mail" onCancel={e=>{if(busy)e.preventDefault();else setOpen(false);}}><div className="bill-dialog-top"><strong><OutlookIcon size={25}/>Rédaction CDI</strong><button type="button" disabled={busy} aria-label="Fermer" onClick={()=>setOpen(false)}>×</button></div><form className="bill-section" onSubmit={e=>{e.preventDefault();if(!review)reviewMessage();else void send();}}>
  {open&&<OutlookAccount transport={transport} disabled={busy||!!receipt} sendAccess onConnection={setConnection}/>}
  <fieldset disabled={locked} className="bill-fields" onChange={invalidate}>
- {contacts.length>0&&<div className="bill-mail-contacts" role="group" aria-label="Contacts du client"><div className="bill-mail-contacts-title"><UserRound size={15}/>Contacts du client</div><div className="bill-mail-contact-list">{contacts.map(c=>{const address=c.email.trim().toLowerCase(),chosen=recipient.split(/[;,]/).some(a=>a.trim().toLowerCase()===address);return <button type="button" key={c.id} className="bill-mail-contact" aria-pressed={chosen} onClick={()=>{setRecipient(old=>{const rest=old.split(/[;,]/).map(a=>a.trim()).filter(a=>a&&a.toLowerCase()!==address);return (chosen?rest:[...rest,c.email.trim()]).join('; ');});invalidate();}}><span className="bill-mail-contact-check">{chosen?<Check size={14}/>:<UserRound size={14}/>}</span><span><strong>{c.name||c.email}</strong><small>{c.role?c.role+' · ':''}{c.email}</small></span></button>;})}</div></div>}
- <div className="bill-mail-recipient"><Field label="Destinataire" wide><input type="text" inputMode="email" autoComplete="off" required placeholder={contacts.length?'Choisir un contact ci-dessus ou saisir une adresse…':'nom@exemple.fr ; autre@exemple.fr'} value={recipient} onChange={e=>setRecipient(e.target.value)}/></Field><div className="bill-mail-recipient-options"><button type="button" aria-pressed={showCc} onClick={()=>setShowCc(!showCc)}>Cc</button><button type="button" aria-pressed={showBcc} onClick={()=>setShowBcc(!showBcc)}>Cci</button></div></div>
+ <Field label="Contacts" wide><MailContactSelect label="Contacts" contacts={contacts} value={recipient} disabled={locked} error={contactsError} onChange={value=>{setRecipient(value);invalidate();}}/></Field>
+ <div className="bill-mail-recipient"><Field label="Destinataire" wide><input type="text" inputMode="email" autoComplete="off" required placeholder={contacts.length?'Choisir des contacts ci-dessus ou saisir une adresse…':'nom@exemple.fr ; autre@exemple.fr'} value={recipient} onChange={e=>setRecipient(e.target.value)}/></Field><div className="bill-mail-recipient-options"><button type="button" aria-pressed={showCc} onClick={()=>setShowCc(!showCc)}>Cc</button><button type="button" aria-pressed={showBcc} onClick={()=>setShowBcc(!showBcc)}>Cci</button></div></div>
  {showCc&&<Field label="Copie (Cc)" wide><input inputMode="email" value={cc} placeholder="nom@exemple.fr ; autre@exemple.fr" onChange={e=>setCc(e.target.value)}/></Field>}{showBcc&&<Field label="Copie cachée (Cci)" wide><input inputMode="email" value={bcc} placeholder="nom@exemple.fr" onChange={e=>setBcc(e.target.value)}/></Field>}
  <Field label="Objet du message" wide><input maxLength={200} required value={subject} onChange={e=>setSubject(e.target.value)}/></Field><Field label="Message" wide><textarea rows={9} maxLength={9000} required value={message} onChange={e=>setMessage(e.target.value)}/></Field>
  </fieldset>
