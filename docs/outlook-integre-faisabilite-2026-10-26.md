@@ -29,3 +29,11 @@ Après l’envoi direct, le serveur vérifie le compte Microsoft, le message env
 Un verrou entre onglets et un suivi local par compte/document/version empêchent le renvoi involontaire après une réponse perdue. Le bouton de vérification ne renvoie jamais le message. La signature ne s’applique qu’au compte connecté. Les autres collaborateurs autorisent leur propre connexion Microsoft.
 
 Validation : TypeScript ; 12 tests des brouillons/envois/recipients/signatures/MIME ; parcours historique Outlook ; test de l’interface avec le vrai Worker/D1 isolé et Graph simulé (envoi facture, preuve serveur, devis envoyé, idempotence, signature par compte, clair/sombre/mobile). Aucun message client réel, statut métier ou document de production modifié pendant ces tests.
+
+## Contacts et signatures personnelles
+
+La rédaction propose d’abord les contacts de la fiche client liée (ou une correspondance unique pour les anciens documents). La sélection ajoute ou retire des destinataires sans écraser les adresses saisies. Avec des contacts disponibles, aucune adresse générale n’est sélectionnée implicitement. Sans contact, l’adresse de la fiche reste préremplie. Cc et Cci restent éditables. Le chargement des contacts ne dépend plus du rendu PDF.
+
+Microsoft Graph ne documente pas de propriété ni de méthode permettant de lire les signatures Outlook ; mailboxSettings ne les expose pas. Source consultée le 26 octobre 2026 : https://learn.microsoft.com/en-us/graph/api/resources/mailboxsettings?view=graph-rest-1.0 . Aucune API privée, aucun accès élargi aux boîtes ni extraction depuis les messages envoyés n’est utilisé.
+
+La signature CDInnov mémorisée pour le compte connecté est insérée automatiquement et prévisualisée. Avant la première configuration, une signature simple reprend le nom et l’adresse de la session ; elle est éditable. Le texte générique « Conseil Développement Innovation » a été retiré des messages par défaut ; il peut toujours figurer dans une signature personnelle si son auteur le souhaite. Le texte ou l’image de la signature Outlook peut être renseigné une fois dans « Ma signature ».

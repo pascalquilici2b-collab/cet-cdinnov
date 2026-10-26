@@ -127,7 +127,7 @@ export interface BillingTransport {
   engagementFile(id:string):Promise<Blob>;
   marketDocument(marketId:string,documentId:string):Promise<Blob>;
   rectify(id:string,version:number,input:{id:string;notTransmitted:true}):Promise<BillingDocument>;
-  session():Promise<{email:string}>;
+  session():Promise<{email:string;name?:string}>;
   mailSignature():Promise<import('./billing-mail-content').MailSignatureRecord>;
   saveMailSignature(version:number,data:import('./billing-mail-content').MailSignature):Promise<import('./billing-mail-content').MailSignatureRecord>;
   confirmSent(id:string,version:number,input:{recipient:string;subject:string;message:string;graph?:{accessToken:string;messageId:string}}):Promise<BillingDocument>;
