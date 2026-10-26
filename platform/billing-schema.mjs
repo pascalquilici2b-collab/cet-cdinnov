@@ -13,6 +13,7 @@ import {projectsSchema} from './projects-schema.mjs';
 import {billingDeliverySchema} from './billing-delivery-schema.mjs';
 /** Explicit migration only: HTTP requests never create or alter billing tables. */
 export const billingSchema = [
+ `CREATE TABLE IF NOT EXISTS billing_mail_signatures(owner TEXT PRIMARY KEY,version INTEGER NOT NULL CHECK(version>=1),data_json TEXT NOT NULL CHECK(json_valid(data_json)),updated_at TEXT NOT NULL)`,
  `CREATE TABLE IF NOT EXISTS billing_settings (
   id TEXT PRIMARY KEY CHECK(id='default'),version INTEGER NOT NULL CHECK(version>=1),
   data_json TEXT NOT NULL CHECK(json_valid(data_json)),updated_at TEXT NOT NULL,updated_by TEXT NOT NULL

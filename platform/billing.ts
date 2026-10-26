@@ -23,6 +23,7 @@ import {billingDirectoryRoute} from './billing-directory';
 import {billingQuoteRoute,quoteJSON} from './billing-quote';
 import {billingPaymentRoute,settlementJSON} from './billing-payments';
 import {confirmOutlookSent,sentAtSQL} from './billing-outlook-confirm';
+import {mailSignatureRoute} from './billing-mail-signature';
 import {billingEmail} from './billing-delivery';
 import {rectificationJSON,rectifyInvoice} from './billing-rectification';
 import {addBillingDays} from './billing-domain';
@@ -190,6 +191,7 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
   data.seller=settings.data.seller;data.buyer.name=String(f.client||'');data.issueDate=String(f.dateFacture||'');data.title=String(f.title||f.label||f.libelle||'');data.references.project=String(f.projectName||f.project||'');data.references.businessCode=String(f.code||'');
   return reportRoute(request,db,env,'imported:'+id,data,String(f.number||id),session.email,reply,!!legacyReport[2]);
  }
+ if(path==='/api/v1/billing/mail-signature')return mailSignatureRoute(request,db,session.email,reply);
  if(path==='/api/v1/billing/settings')return settingsRoute(request,db,session.email,reply);
  if(path==='/api/v1/billing/number-series'){
   if(request.method==='GET')return reply(200,(await db.prepare('SELECT id,issuer_siren,kind,prefix,width,first_value,next_value,start_date,end_date,last_issue_date,version FROM billing_number_series ORDER BY start_date DESC,kind,id').all()).results);

@@ -128,7 +128,9 @@ export interface BillingTransport {
   marketDocument(marketId:string,documentId:string):Promise<Blob>;
   rectify(id:string,version:number,input:{id:string;notTransmitted:true}):Promise<BillingDocument>;
   session():Promise<{email:string}>;
-  confirmSent(id:string,version:number,input:{recipient:string;subject:string;message:string}):Promise<BillingDocument>;
+  mailSignature():Promise<import('./billing-mail-content').MailSignatureRecord>;
+  saveMailSignature(version:number,data:import('./billing-mail-content').MailSignature):Promise<import('./billing-mail-content').MailSignatureRecord>;
+  confirmSent(id:string,version:number,input:{recipient:string;subject:string;message:string;graph?:{accessToken:string;messageId:string}}):Promise<BillingDocument>;
   emailHistory(id:string):Promise<{deliveries:import('./billing-delivery').EmailDelivery[]}>;
   email(id:string,version:number,input:import('./billing-delivery').EmailInput):Promise<{delivery:import('./billing-delivery').EmailDelivery}>;
   projects():Promise<{projects:import('./projects').SharedProject[];clients?:{id:string;name:string}[]}>;

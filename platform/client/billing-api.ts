@@ -17,6 +17,8 @@ export function createBillingTransport(options:{baseUrl:string;getToken:()=>Prom
   async function numbered(promise:Promise<BillingDocument>){const doc=await promise;const siren=doc.data.seller.siren.replace(/\s/g,'')||doc.data.seller.siret.replace(/\s/g,'').slice(0,9);return !doc.issuance&&!doc.reservedNumber&&!doc.quote?.revision.abandoned&&/^\d{9}$/.test(siren)?request<BillingDocument>('/documents/'+encodeURIComponent(doc.id)+'/number','POST',{},doc.version):doc;}
   const reportPath=(id:string)=>id.startsWith('imported:')?'/imported-invoices/'+encodeURIComponent(id.slice(9))+'/intervention-report':'/documents/'+encodeURIComponent(id)+'/intervention-report';
   return {
+    mailSignature:()=>request('/mail-signature'),
+    saveMailSignature:(version,data)=>request('/mail-signature','PUT',{data},version),
     clientEmployees:id=>request('/client-employees/'+encodeURIComponent(id)),
     saveClientEmployees:(id,version,data)=>request('/client-employees/'+encodeURIComponent(id),'PUT',data,version),
     saveClientEmployeeDocument:(id,version,kind,employeeId,file)=>request('/client-employees/'+encodeURIComponent(id)+'/documents?'+new URLSearchParams({kind,employeeId}),'POST',file,version,false,{'X-Filename':encodeURIComponent(file.name),'Content-Type':file.type}),

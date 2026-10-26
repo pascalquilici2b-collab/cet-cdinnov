@@ -15,7 +15,7 @@ async function readMessage(input:DraftInput,id:string){return graph<Message>(inp
  */
 export async function sendMicrosoftTestMail(input:DraftInput&{confirmed:boolean}):Promise<MicrosoftSendReceipt>{
  if(!input.confirmed)throw Error('Confirmez l’envoi du message de test.');
- if(normalize(input.recipient)!==normalize(input.email)||input.cc)throw Error('Ce test est réservé à votre propre adresse Outlook, sans copie.');
+ if(normalize(input.recipient)!==normalize(input.email)||input.cc||input.bcc)throw Error('Ce test est réservé à votre propre adresse Outlook, sans copie.');
  const session=async()=>{if(normalize(await input.currentEmail())!==normalize(input.email))throw Error('La session CDInnov a changé. Rouvrez le test.');};
  await session();const owner=await microsoftProfile(input.token,input.fetcher);if(!microsoftOwnerMatches(input.email,owner))throw Error('Connectez le compte Outlook correspondant à votre session CDInnov.');
  const files=await checkedAttachments(input),expected=await Promise.all(files.map(async f=>({name:attachmentName(f.filename),contentBytes:bytes64(new Uint8Array(await f.blob.arrayBuffer()))})));
