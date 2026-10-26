@@ -134,7 +134,8 @@ export async function stampingRoute(request:Request,env:Environment,reply:Reply)
  }
  if(tail==='direct'&&method==='POST'){
   await unlocked(db,b,request);if(data.category!=='SERVICES'||data.table)return fail(422,'Le mode sans référence est réservé aux prestations sans document de paiement.');
-  const directInvoice=normalizeDirectInvoice(await json(request,5000)),next={...data,directInvoice,importConfirmed:true,import:{groups:[],errors:[]}};
+  const directInvoice=normalizeDirectInvoice(await json(request,5000));delete directInvoice.amount;delete directInvoice.manualTotal;delete directInvoice.manualConfirmed;
+  const next={...data,directInvoice,importConfirmed:true,import:{groups:[],errors:[]}};
   const changed=await db.prepare('UPDATE stamp_batches SET data=?,version=version+1 WHERE id=? AND version=? RETURNING id').bind(JSON.stringify(next),b.id,b.version).first();if(!changed)return fail(409,'Le lot a changé.');
   await audit(db,b,'DIRECT_INVOICE_CONFIGURED',directInvoice);return reply(200,{ok:true});
  }
@@ -259,7 +260,7 @@ export async function stampingRoute(request:Request,env:Environment,reply:Reply)
   if(!env.STAMPING_QUEUE)return fail(503,'La file de traitement doit être activée.');
   if(!data.sealed){const sealed=await db.prepare("UPDATE stamp_batches SET data=json_set(data,'$.sealed',json('true')),version=version+1 WHERE id=? AND version=? RETURNING id").bind(b.id,b.version).first();if(!sealed)return fail(409,'Le lot a changé. Relancez l’analyse.');}
   if(['PROCESSING','VERIFIED','APPROVED'].includes(d.status))return fail(409,'Pièce en cours ou déjà validée.');
-  const p=await json(request,50000);if(p.overrides!==undefined&&!Array.isArray(p.overrides))return fail(400,'Corrections invalides.');const next={...(data.directInvoice?{directInvoice:normalizeDirectInvoice({...data.directInvoice,...result.directInvoice,...p.directInvoice})}:{}),choice:p.choice||null,options:{...data.options,fontSize:5,allowOverlap:true,...p.options},overrides:p.overrides||[],cachedReading:result.cachedReading||null,progress:{startedAt:Date.now(),stage:'queued'}};
+  const p=await json(request,50000);if(p.overrides!==undefined&&!Array.isArray(p.overrides))return fail(400,'Corrections invalides.');const next={...(data.directInvoice?{directInvoice:normalizeDirectInvoice({...data.directInvoice,...result.directInvoice,...p.directInvoice},true)}:{}),choice:p.choice||null,options:{...data.options,fontSize:5,allowOverlap:true,...p.options},overrides:p.overrides||[],cachedReading:result.cachedReading||null,progress:{startedAt:Date.now(),stage:'queued'}};
   if(p.choice&&(typeof p.choice.reason!=='string'||p.choice.reason.trim().length<5))return fail(422,'Justifiez le rapprochement manuel.');
   const row=await db.prepare("UPDATE stamp_documents SET status='QUEUED',data=?,match_group=NULL,version=version+1 WHERE id=? AND version=? AND status NOT IN ('PROCESSING','VERIFIED','APPROVED') RETURNING version").bind(JSON.stringify(next),d.id,d.version).first<{version:number}>();if(!row)return fail(409,'La pièce a changé.');
   try{await (env.STAMPING_QUEUE as {send(body:Job):Promise<void>}).send({batchId:b.id,documentId:d.id,version:row.version,owner:b.owner});}

@@ -24,10 +24,14 @@ def direct_allocation(raw,reading,config):
         raise StampError('VAT_MISMATCH','Le taux de TVA choisi ne correspond pas aux totaux HT et TTC. Vérifiez le taux ; une facture à plusieurs taux nécessite une répartition détaillée.')
     if ht is None:ht=round_amount(Decimal(ttc)/multiplier)
     if ttc is None:ttc=round_amount(Decimal(ht)*multiplier)
-    amount=ht if config['basis']=='HT' else ttc
+    base=ht if config['basis']=='HT' else ttc
+    if not config.get('amount'):raise StampError('AMOUNT_REQUIRED','Saisissez le montant à imputer pour cette facture.')
+    try:amount=cents(config['amount'])
+    except (ValueError,TypeError):raise StampError('AMOUNT_REQUIRED','Montant à imputer invalide.')
     if amount<=0:raise StampError('NO_ALLOCATION','Le montant à imputer doit être positif.')
+    if amount>base:raise StampError('OVER_ALLOCATION','Le montant à imputer dépasse le total '+config['basis']+' de la facture.')
     identifier='direct-'+digest(raw)
-    group={'id':identifier,'document_type':'INVOICE','base_type':config['basis'],'base_amount_cents':amount,'errors':[],
+    group={'id':identifier,'document_type':'INVOICE','base_type':config['basis'],'base_amount_cents':base,'errors':[],
            'allocations':[{'id':identifier+'-1','project':config['project'].strip(),'programme':str(config.get('programme','')).strip(),'amount_cents':amount}],
            'rounding_cents':0}
-    return group,amount,[]
+    return group,base,[]

@@ -16,7 +16,7 @@
 - Outlook officiel ne peut pas être intégré dans une iframe. Voir [la note de faisabilité](outlook-integre-faisabilite-2026-10-26.md). Le brouillon s’ouvre dans Outlook avec le compte personnel du salarié. Aucune intégration embarquée ni permission Mail.Send ajoutée.
 - Le relevé doit comporter le travail effectué et les jours avant d’être joint ; aucune intervention n’est inventée. La confirmation d’envoi reste déclarative.
 - Le parcours Microsoft Graph actuel accepte moins de 3 Mo de pièces au total. Au-delà, utiliser le fichier de message .eml (20 Mo maximum au total).
-- Une facture présentant plusieurs taux de TVA ou une part seulement éligible nécessite une répartition détaillée ; le mode sans document de paiement impute le total HT ou TTC choisi.
+- Le mode sans document de paiement demande le montant à imputer sur chaque facture, même lorsqu’il est partiel, et contrôle qu’il ne dépasse pas le total HT ou TTC choisi. Une facture présentant plusieurs taux de TVA nécessite une répartition détaillée.
 - Les marchés annuels doivent avoir un plafond HT et une base de réinitialisation cohérents. Si la date ou le plafond sont ambigus, l’application le signale au lieu de les inventer.
 - Les affectations qui changent en cours de mois doivent être précisées avant la génération du paiement ; aucun prorata automatique n’est présumé.
 - L’export ZIP lit les données successivement. Pour une photographie cohérente, lancer l’export en dehors des modifications simultanées.
@@ -27,3 +27,9 @@
 Contrôle TypeScript et compilation. Tests des contrats, historique annuel et révisions, arrondis, droits, archives ZIP, concurrence, pièces jointes et conversion. Tests Python du rendu PDF et du tamponnage. Parcours navigateur sur données fictives : GED avec vrais DOCX/XLSX, Outlook avec relevé PDF, pièces amovibles et confirmation, tamponnage sans référence. Mode clair/sombre et petit écran vérifiés pour la GED ; documents générés relus visuellement. Sauvegarde de la base et du Worker avant migration additive des trois tables GED.
 
 Sources initiales : 34fc8ef. Aucun changement de forfait ou de région d’hébergement.
+
+## Précisions intégrées après publication
+
+- Montant saisi directement pour chaque facture de prestations à tamponner, avec TVA distincte ; aucun montant d’imputation calculé automatiquement à partir du TTC. La lecture du total de la facture sert au contrôle. Les lots et PDF déjà traités ne sont pas recalculés.
+- Trame de lettre remplacée par le modèle FRIHUB du dossier Marie-Fancoise FAGGIANELLI, commun à la lettre NEST4ESG. Nom du partenaire et logo en haut à droite issus de la fiche client, en priorité le logo importé. Le logo est conservé dans ses proportions. En l’absence de logo connu, aucun logo d’un autre client n’est repris. Affectation, projet, période, fonction et signataires viennent des données saisies. Original fourni préservé ; nouvelle trame dépersonnalisée.
+- Vérifications : saisie obligatoire et montant partiel dans le parcours réel de tamponnage ; lettre d’un autre client avec logo personnalisé ; absence d’images d’un autre client/programme ; rendu Word sur une page.

@@ -55,3 +55,5 @@
 .stamp-help>[role=tooltip]{pointer-events:none}
 
 .stamp-app .stamp-direct-rate{width:78px;min-width:0;padding:7px 9px}.stamp-direct .stamp-grid{margin:16px 0}
+
+.stamp-app .stamp-direct-amount{width:120px;min-width:0;text-align:right;padding:7px 9px;font-variant-numeric:tabular-nums}

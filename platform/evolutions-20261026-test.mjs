@@ -34,6 +34,9 @@ test('employee allocations validate overlaps and payment references',()=>{
  const a=agent();a.allocations.push(allocation('61'));assert.throws(()=>normalizeClientEmployees([a]),/100/);a.allocations[1]=allocation('100','2027-01-01','2027-12-31');assert.equal(normalizeClientEmployees([a]).length,1);
  assert.throws(()=>normalizeClientPayments([{employeeId:'unknown',month:'2026-10'}],[a]),/Salarié/);
  assert.equal(normalizeDirectInvoice({project:'Test',programme:'Maritime',basis:'HT',vatRate:'20'}).basis,'HT');assert.throws(()=>normalizeDirectInvoice({project:'Test',programme:'',basis:'HT',vatRate:'101'}));
+ const direct={project:'Test',programme:'Maritime',basis:'HT',vatRate:'20'};
+ for(const amount of [undefined,'','0','-10','1.001','abc'])assert.throws(()=>normalizeDirectInvoice({...direct,amount},true),/montant/);
+ assert.equal(normalizeDirectInvoice({...direct,amount:'29,15'},true).amount,'29.15');
 });
 test('Outlook MIME contains Cc and removable multiple attachments, never Bcc',async()=>{
  const pdf=new Blob([samplePDF()],{type:'application/pdf'}),input={recipient:'client@example.test',subject:'Facture',message:'Bonjour',cc:'cdi@cdinnov.com',attachments:[{filename:'Facture.pdf',blob:pdf},{filename:'Releve.pdf',blob:pdf}]};

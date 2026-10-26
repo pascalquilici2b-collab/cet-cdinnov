@@ -1,26 +1,19 @@
+import type {BillingClientData} from '../billing-contracts';
+import {brandMission} from './client-mission-branding';
 import {allocatedAmount} from '../client-employee-money';
 import {unzipSync,zipSync,strFromU8,strToU8} from 'fflate';
 import type {ClientEmployee,ClientAllocation,ClientPaymentMonth} from '../client-employees-domain';
 const escaped=(s:string)=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const fr=(s:string)=>s.split('-').reverse().join('/');
 export const employeeFileName=(s:string)=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9_-]/g,'_').slice(0,130);
-export async function missionDocument(client:string,employee:ClientEmployee,a:ClientAllocation,version:number){
+export async function missionDocument(client:BillingClientData,employee:ClientEmployee,a:ClientAllocation,version:number){
  if(!employee.role.trim()||!employee.supervisor.trim()||!a.tasks.trim())throw Error('Complétez la fonction, le responsable et les missions avant de générer la lettre.');
- const response=await fetch('/templates/client-mission-v1.docx',{cache:'no-cache'});if(!response.ok)throw Error('Modèle de lettre indisponible.');
- const parts=unzipSync(new Uint8Array(await response.arrayBuffer())),values:Record<string,string>={project:[a.project,a.projectCode].filter(Boolean).join(' / '),client,employee:employee.name,role:employee.role,start:fr(a.startDate),end:fr(a.endDate),version:String(version),percent:a.percent,signatures:employee.supervisor+'                         '+employee.name,tasks:a.tasks.trim()};
+ const response=await fetch('/templates/client-mission-v2.docx',{cache:'no-cache'});if(!response.ok)throw Error('Modèle de lettre indisponible.');
+ const parts=unzipSync(new Uint8Array(await response.arrayBuffer())),values:Record<string,string>={project:[a.project,a.projectCode].filter(Boolean).join(' / '),client:client.party.name,employee:employee.name,role:employee.role,start:fr(a.startDate),end:fr(a.endDate),version:String(version),percent:a.percent,signatures:employee.supervisor+'\t'+employee.name,tasks:a.tasks.trim()};
  let xml=strFromU8(parts['word/document.xml']);
- xml=xml.replace(/\{\{(\w+)\}\}/g,(_,key)=>escaped(values[key]||'').replace(/\r?\n/g,'</w:t><w:br/><w:t xml:space="preserve">'));
+ xml=xml.replace(/\{\{(\w+)\}\}/g,(_,key)=>escaped(values[key]||'').replace(/\t/g,'</w:t><w:tab/><w:t xml:space="preserve">').replace(/\r?\n/g,'</w:t><w:br/><w:t xml:space="preserve">'));
  parts['word/document.xml']=strToU8(xml);
- // The original model carries two organisations' logos. Never brand another client or programme with them.
- for(const name of Object.keys(parts).filter(n=>/^word\/header\d+\.xml$/.test(n))){
-  const doc=new DOMParser().parseFromString(strFromU8(parts[name]),'application/xml');
-  for(const node of Array.from(doc.getElementsByTagNameNS('http://schemas.openxmlformats.org/wordprocessingml/2006/main','drawing'))){
-   const blip=node.getElementsByTagNameNS('http://schemas.openxmlformats.org/drawingml/2006/main','blip')[0],id=blip?.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships','embed');
-   const keep=id==='rId1'?/marit/i.test(a.programme):/commerce.*industrie.*corse/i.test(client);
-   if(!keep)node.remove();
-  }
-  parts[name]=strToU8(new XMLSerializer().serializeToString(doc));
- }
+ await brandMission(parts,client,a.programme);
  return new Blob([zipSync(parts) as Uint8Array<ArrayBuffer>],{type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
 }
 export function paymentAllocations(agent:ClientEmployee,month:string){
