@@ -1,0 +1,41 @@
+import assert from 'node:assert/strict';
+import {createRequire} from 'node:module';
+import {mkdir} from 'node:fs/promises';
+import {billingPreview} from './billing-preview.mjs';
+import {users} from '../marches/test.mjs';
+const require=createRequire('C:/Users/quili/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright/package.json');
+const {chromium,expect}=require('playwright/test');
+const preview=await billingPreview(),browser=await chromium.launch({channel:'msedge',headless:true});
+const out='platform/.private/leave-permissions-20261027';await mkdir(out,{recursive:true});
+try{
+ const seed=JSON.parse((await preview.ctx.db.prepare("SELECT payload FROM app_portal_workspace WHERE id='shared'").first()).payload);
+ seed.params={anneeSuivi:2026};seed.types=[];seed.mouvements=[];
+ seed.salaries.find(s=>s.matricule==='005').email=users[1];
+ for(const s of seed.salaries){s.cpAcquis=12;s.cpEnCours=3;}
+ seed.auth.accounts[users[1]].access={dashboard:true,mouvements:true,salaries:false,notesfrais:true,agenda:true,tamponnage:true,facturier:true,budgetsprojets:true,sheets:true};
+ await preview.ctx.setPortal(JSON.stringify(seed));
+ const context=await browser.newContext({viewport:{width:1440,height:1000},locale:'fr-FR'});
+ await context.route('**/*',r=>r.request().url().startsWith(preview.base+'/')||/^(blob:|data:)/.test(r.request().url())?r.continue():r.abort());
+ const page=await context.newPage(),errors=[],patches=[];page.on('pageerror',e=>errors.push(e.message));
+ page.on('request',r=>{if(r.method()==='PATCH'&&r.url().endsWith('/api/v1/portal'))patches.push(r.postDataJSON());});
+ await page.goto(preview.base+'/?consultant=1');
+ await page.evaluate(async()=>{cloudEnabled=()=>true;cloudURL=()=>location.origin+'/api/v1/portal';portalClean='';await cloudLoad({discard:true});setView('agenda');});
+ await page.locator('[data-react-agenda]').waitFor();
+ await page.evaluate(()=>agendaNewLeave('2026-11-02'));await page.locator('#cgSal').waitFor();
+ assert.equal(await page.locator('#cgSal').inputValue(),'005');assert.ok(await page.locator('#cgSal').isDisabled());
+ await page.locator('#cgD2').fill('2026-11-03');
+ await page.getByRole('button',{name:'Ajouter',exact:true}).click();
+ const saved=await page.evaluate(()=>cloudPush());
+ assert.equal(saved,true,JSON.stringify(preview.requests.filter(r=>r.path==='/api/v1/portal')));
+ const changed=JSON.parse((await preview.ctx.db.prepare("SELECT payload FROM app_portal_workspace WHERE id='shared'").first()).payload);
+ const requests=changed.conges.filter(c=>c.date>='2026-11-02');
+ assert.equal(requests.length,4);assert.ok(requests.every(c=>c.matricule==='005'&&c.statut==='En attente'));
+ assert.deepEqual(changed.salaries,seed.salaries);assert.deepEqual(changed.types,seed.types);
+ assert.ok(patches.length);assert.ok(patches.every(p=>p.changes.every(c=>c.path[0]==='conges')));
+ await page.evaluate(()=>setView('mouvements'));await page.locator('[data-react-personnel]').waitFor();
+ assert.ok(await page.evaluate(()=>cloudPush()));
+ await page.evaluate(()=>setView('agenda'));await page.locator('[data-react-agenda]').waitFor();
+ await page.screenshot({path:out+'/demande-salarie-enregistree.png',fullPage:true});
+ assert.deepEqual(errors,[]);
+ console.log('PASS: delegated employee 005 can submit leave; only own pending leave records are written; private colleague balances and shared types stay unchanged.');
+}finally{await browser.close();await preview.close();}

@@ -1166,7 +1166,12 @@ const SAL_EMAIL = {'001':'quilici.pascal@cdinnov.com','002':'pasqualini.david@cd
 function salEmail(mat){ return SAL_EMAIL[mat]||null; }
 function cpPris(mat,Y){ let j=conges().filter(c=>c.matricule===mat && c.type==='Congés payés' && yearOf(c.date)===Y && c.statut==='Validé').length*0.5; j+=autoSamedisList(mat).filter(x=>x.statut==='Validé' && yearOf(x.date)===Y).length; return j; }
 const CP_INIT={'001':{a:21.5,e:32.5},'002':{a:80.5,e:30},'003':{a:9.5,e:30},'004':{a:0,e:10},'005':{a:0.5,e:32.5}};
-function migrateCP(){ let ch=false; state.salaries.forEach(s=>{ if(s.cpAcquis==null){ s.cpAcquis=CP_INIT[s.matricule]?CP_INIT[s.matricule].a:0; ch=true; } if(s.cpEnCours==null){ s.cpEnCours=CP_INIT[s.matricule]?CP_INIT[s.matricule].e:0; ch=true; } }); if(ch) save(); }
+function migrateCP(){
+  // Other employees' balances are deliberately omitted from collaborator views.
+  // Missing values must not become attempted writes to their private records.
+  if(!congesAdmin())return;
+  let ch=false; state.salaries.forEach(s=>{ if(s.cpAcquis==null){ s.cpAcquis=CP_INIT[s.matricule]?CP_INIT[s.matricule].a:0; ch=true; } if(s.cpEnCours==null){ s.cpEnCours=CP_INIT[s.matricule]?CP_INIT[s.matricule].e:0; ch=true; } }); if(ch) save();
+}
 function cpCounterWidget(mat,Y){ const s=salByMat(mat); if(!s) return '';
   const acq=Number(s.cpAcquis||0), enc=Number(s.cpEnCours||0), pris=cpPris(mat,Y);
   return `<div class="stat cp-widget">
@@ -1196,6 +1201,7 @@ function joursOuvres(d1,d2){
 }
 /* migration ancien format (dateDebut/dateFin/nbJours) -> demi-journées */
 function migrateConges(){
+  if(!congesAdmin())return;
   const arr=state.conges||[];
   if(!arr.some(c=>c && !c.half && c.dateDebut)) return;
   const out=[];
@@ -2570,7 +2576,7 @@ document.addEventListener('click', ()=>{ if(typeof $$==='function') $$('.salpick
 
 /* --- Mouvement form --- */
 function openMouvement(id,mat){const m=id?state.mouvements.find(x=>x.id===id):null;if(!personnelMovementAllowed(m)||id&&!m)return;return personnelOpenEditor('movement',m,mat);}
-function migrateTypes(){ if(!state.types) state.types=[]; if(!state.types.some(t=>t.code==='ALIM_TRANSFO_CP')){ const nt={code:'ALIM_TRANSFO_CP',libelle:'Alimentation – Transformation CP en CET',categorie:'Alimentation',signe:1,compteCP:'Non',epargne:'Oui',monetisation:'Oui'}; const i=state.types.findIndex(t=>t.code==='ALIM_CP'); if(i>=0) state.types.splice(i+1,0,nt); else state.types.push(nt); save(); } }
+function migrateTypes(){ if(!isAdmin(AUTH_USER))return; if(!state.types) state.types=[]; if(!state.types.some(t=>t.code==='ALIM_TRANSFO_CP')){ const nt={code:'ALIM_TRANSFO_CP',libelle:'Alimentation – Transformation CP en CET',categorie:'Alimentation',signe:1,compteCP:'Non',epargne:'Oui',monetisation:'Oui'}; const i=state.types.findIndex(t=>t.code==='ALIM_CP'); if(i>=0) state.types.splice(i+1,0,nt); else state.types.push(nt); save(); } }
 function transfoDeduct(m){ const s=salByMat(m.matricule); if(!s) return; const qte=Number(m.qte)||0; const acq=Number(s.cpAcquis)||0; const fromAcq=Math.max(0,Math.min(qte,acq)); const fromEnc=qte-fromAcq; s.cpAcquis=acq-fromAcq; s.cpEnCours=(Number(s.cpEnCours)||0)-fromEnc; m.transfoAcq=fromAcq; m.transfoEnc=fromEnc; }
 function transfoRestore(m){ const s=salByMat(m.matricule); if(!s){ m.transfoAcq=0; m.transfoEnc=0; return; } if(m.transfoAcq==null && m.transfoEnc==null){ s.cpAcquis=(Number(s.cpAcquis)||0)+(Number(m.qte)||0); } else { s.cpAcquis=(Number(s.cpAcquis)||0)+(Number(m.transfoAcq)||0); s.cpEnCours=(Number(s.cpEnCours)||0)+(Number(m.transfoEnc)||0); } m.transfoAcq=0; m.transfoEnc=0; }
 function saveMouvement(id){
