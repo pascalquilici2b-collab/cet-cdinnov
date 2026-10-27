@@ -21,7 +21,9 @@ export function signedMail(message:string,signature:MailSignature,enabled:boolea
  const s=normalizeSignature(signature);if(!enabled||!s.text&&!s.imageData)return {message,inline:[]};
  const imageId='cdinnov-signature',inline:MailAttachment[]=[];
  if(s.imageData){const raw=atob(s.imageData.split(',')[1]),bytes=Uint8Array.from(raw,c=>c.charCodeAt(0)),mime=s.imageData.startsWith('data:image/png')?'image/png':'image/jpeg';inline.push({filename:mime==='image/png'?'Signature.png':'Signature.jpg',blob:new Blob([bytes],{type:mime}),contentId:imageId,isInline:true});}
- return {message:[message.trim(),s.text].filter(Boolean).join('\n\n'),html:'<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.5;color:#202124">'+escape(message.trim()).replace(/\r?\n/g,'<br>')+'<br><br>'+escape(s.text).replace(/\r?\n/g,'<br>')+(s.imageData?'<br><img src="cid:'+imageId+'" width="320" style="max-width:320px;height:auto" alt="">':'')+'</div>',inline};
+ // Exactly two line breaks separate the last sentence from either a text or image signature.
+ const signatureHTML=escape(s.text).replace(/\r?\n/g,'<br>')+(s.imageData?(s.text?'<br>':'')+'<img src="cid:'+imageId+'" width="320" style="max-width:320px;height:auto;vertical-align:top" alt="">':'');
+ return {message:[message.trim(),s.text].filter(Boolean).join('\n\n'),html:'<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.5;color:#202124">'+escape(message.trim()).replace(/\r?\n/g,'<br>')+'<br><br>'+signatureHTML+'</div>',inline};
 }
 /** Compare rendered content after Exchange has wrapped/reformatted the HTML. */
 export function comparableMailBody(body:{contentType:string;content:string}){

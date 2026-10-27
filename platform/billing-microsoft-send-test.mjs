@@ -5,6 +5,17 @@ import {mailAddresses,signedMail,emptySignature,normalizeSignature} from './bill
 import {outlookMessage} from './billing-outlook-message.ts';
 const memory=()=>{const m=new Map();return {getItem:k=>m.get(k)||null,setItem:(k,v)=>m.set(k,v),removeItem:k=>m.delete(k)};};
 const png='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==';
+test('text and image-only signatures follow the message by exactly two line breaks',()=>{
+ const body='Bonne réception.\n\n\n';
+ const text=signedMail(body,{...emptySignature(),text:'\nPascal\nConsultant\n'},true);
+ assert.equal(text.message,'Bonne réception.\n\nPascal\nConsultant');
+ assert.match(text.html,/Bonne réception\.<br><br>Pascal/);
+ const image=signedMail(body,{text:'',imageData:png,imageName:'Signature.png'},true);
+ assert.match(image.html,/Bonne réception\.<br><br><img /);
+ assert.doesNotMatch(image.html,/<br><br><br>/);
+ assert.equal(image.inline.length,1);
+ assert.equal(signedMail(body,{text:'',imageData:png,imageName:'Signature.png'},false).html,undefined);
+});
 function fixture(){let m=null,sends=0,posts=0,mode='ok';const store=memory();const fetcher=async(url,options={})=>{const u=new URL(url);assert.equal(u.origin,'https://graph.microsoft.com');assert.ok(u.pathname.startsWith('/v1.0/me'));
  if(u.pathname==='/v1.0/me')return Response.json({id:'owner',mail:'owner@example.test',userPrincipalName:'owner@example.test'});
  if(u.pathname.endsWith('/drafts/messages'))return Response.json({value:m?.isDraft?[m]:[]});
