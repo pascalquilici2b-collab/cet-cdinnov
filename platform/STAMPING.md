@@ -1,3 +1,18 @@
+# Tamponnage — mise à jour du 27 octobre 2026
+
+- Consultation de tous les lots non expirés par les comptes ayant accès au module ; modifications réservées au créateur et aux administrateurs. Originaux et résultats restent servis par les routes authentifiées, sans URL publique de stockage.
+- Import de PDF et ZIP dans les deux catégories. Extraction des PDF en mémoire dans le navigateur, contrôle des tailles réelles, des chemins, du nombre de fichiers et des archives incomplètes. Les fichiers hors PDF sont ignorés et signalés.
+- À l’import, les PDF regroupés (100 pages au maximum) sont découpés selon l’identité, le mois ou le numéro de facture. Les pages d’un même document restent ensemble ; les scans illisibles sont isolés pour vérification. Chaque pièce résultante reste limitée à 30 pages. Le PDF regroupé original est conservé avec le lot. Le découpage concerne les nouveaux imports : réimporter un ancien PDF regroupé dans un nouveau lot si nécessaire.
+- OCR des pages scannées par appels bornés de trois pages au maximum. Qwen n’intervient pas dans le découpage.
+- « Confirmer les corrections » utilise la répartition choisie et le montant explicitement vérifié, sans OCR, Qwen ou remise en file d’analyse. La pièce passe à « Prêt » après génération et contrôle du PDF. Les dépassements d’imputation, doublons de rapprochement et modifications concurrentes restent bloqués.
+- Les originaux, contrôles géométriques, limites de 100 pièces / 200 Mio par lot et conservation de 30 jours sont maintenus. ZIP/PDF entrants : 20 Mio par fichier. Une archive ZIP contient les PDF à tamponner ; le document de paiement est toujours importé séparément.
+
+Tests : `tests/test_stamping_intake_manual.py`, `platform/stamping-shared-import-test.mjs`, `platform/stamping-zip-test.mjs`, `platform/stamping-shared-ui-test.mjs`. Le contrôle Docker `deployment/verify_stamping.py` vérifie aussi les bulletins multi-pages avec le vrai Tesseract.
+
+Les sections ci-dessous décrivent la livraison initiale et sont historiques ; les comportements ci-dessus et le code courant font foi.
+
+---
+
 # Tamponnage des pièces — livraison du 23 octobre 2026
 
 Le module est intégré dans **Applications → Tamponnage**, réservé aux administrateurs du portail CDInnov. La livraison est développée et testée localement, sur la branche `codex/tamponnage`, à partir de `08e91d9164423005488ec0a6d73f656a8c717ed1`. Aucune modification de production n'a été effectuée.

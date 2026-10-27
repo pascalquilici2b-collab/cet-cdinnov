@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import {build} from 'esbuild';
+import {zipSync} from 'fflate';
+const compiled=await build({entryPoints:['platform/client/stamping-zip.ts'],bundle:true,format:'esm',platform:'node',write:false});
+const {stampImportFiles}=await import('data:text/javascript;base64,'+Buffer.from(compiled.outputFiles[0].text).toString('base64'));
+const pdf=new TextEncoder().encode('%PDF-1.7 test');
+const archive=(entries,name='lot.zip')=>new File([zipSync(entries)],name,{type:'application/zip'});
+const result=await stampImportFiles([archive({'agent/janvier.pdf':pdf,'agent/fevrier.PDF':pdf,'notes.txt':new Uint8Array([1])})]);
+assert.deepEqual(result.files.map(f=>f.name),['janvier.pdf','fevrier.PDF']);assert.equal(result.ignored,1);assert.deepEqual(new Uint8Array(await result.files[0].arrayBuffer()),pdf);
+await assert.rejects(()=>stampImportFiles([archive({'../outside.pdf':pdf})]),/Chemin invalide/);
+await assert.rejects(()=>stampImportFiles([archive({'big.pdf':new Uint8Array(21*1024*1024)})]),/20 Mo|volumineuse/);
+await assert.rejects(()=>stampImportFiles([archive(Object.fromEntries(Array.from({length:101},(_,i)=>[i+'.pdf',pdf])))]),/100 PDF/);
+await assert.rejects(()=>stampImportFiles([new File(['broken'],'bad.zip')]),/incomplète|illisi|invalid/i);
+await assert.rejects(()=>stampImportFiles([archive({'readme.txt':pdf})]),/Aucun PDF/);
+const raw=zipSync({'one.pdf':pdf});await assert.rejects(()=>stampImportFiles([new File([raw.subarray(0,35)],'truncated.zip')]),/incomplète|invalid/i);
+console.log('ZIP PDF expansion, folders, ignored files, path traversal, inflated size/count limits, malformed/truncated inputs: PASS');

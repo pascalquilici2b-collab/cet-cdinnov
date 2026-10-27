@@ -50,9 +50,11 @@ try{
   assert.equal(Object.keys(files).length,2);assert.ok(Object.keys(files).every(p=>p.endsWith('.pdf')));assert.equal(decodeURIComponent(r.headers.get('Content-Disposition').split("filename*=UTF-8''")[1]),'Lot synthétique - paie - 2026 tamponné.zip');for(const d of b.documents)assert.equal(createHash('sha256').update(files[d.id===payId?'DR_EPCIC_RH_SAL-TEST_Janvier_2026.pdf':'facture-fictive_tamponné.pdf']).digest('hex'),d.data.output_sha256);const events=(await ctx.db.prepare('SELECT action FROM stamp_audit WHERE batch_id=?').bind(id).all()).results;assert.ok(events.some(e=>e.action==='APPROVED'));
   assert.deepEqual(Buffer.from(await(await ctx.call(`/batches/${id}/documents/${payId}/source`)).arrayBuffer()),Buffer.from(f.pdf,'base64'));
  });
- await check('Owner isolation, guessed IDs, generic R2 route blocked',async()=>{
-  await ctx.setPortal(JSON.stringify({auth:{accounts:{...ctx.accounts,[users[1]]:{...ctx.accounts[users[1]],role:'admin'}},allowed:users}}));const other=await ctx.login(users[1]);
-  for(const path of [`/batches/${id}`,`/batches/${id}/documents/${payId}/source`,`/batches/${id}/documents/${payId}/output`,`/batches/${id}/export`])assert.equal((await ctx.call(path,{headers:{Authorization:'Bearer '+other.token}})).status,404);
+ await check('Team visibility, author/admin edits, guessed IDs and generic R2 route blocked',async()=>{
+  await ctx.setPortal(JSON.stringify({auth:{accounts:{...ctx.accounts,[users[1]]:{...ctx.accounts[users[1]],role:'collaborator',access:{tamponnage:true}}},allowed:users}}));const other=await ctx.login(users[1]);
+  for(const path of [`/batches/${id}`,`/batches/${id}/documents/${payId}/source`,`/batches/${id}/documents/${payId}/output`,`/batches/${id}/export`])assert.equal((await ctx.call(path,{headers:{Authorization:'Bearer '+other.token}})).status,200);
+  assert.equal((await ctx.call('/batches/'+id,{method:'DELETE',headers:{Authorization:'Bearer '+other.token}})).status,403);
+  const shared=await read(await ctx.call('/batches',{headers:{Authorization:'Bearer '+other.token}}));assert.ok(shared.batches.some(b=>b.id===id&&b.canEdit===false));
   const r=await ctx.worker.dispatchFetch('https://preview.example/files/stamping/any',{headers:{Origin:'http://127.0.0.1:5196',Authorization:'Bearer '+ctx.admin.token}});assert.equal(r.status,403);
   const empty=(await read(await ctx.send('/batches',{name:'Autre lot'}),201)).id;assert.equal((await ctx.call(`/batches/${empty}/documents/${payId}/source`)).status,404);
  });

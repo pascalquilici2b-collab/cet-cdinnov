@@ -10,11 +10,11 @@ export function StampUpload({payment=false,disabled=false,busy=false,onFiles}:{p
  const input=useRef<HTMLInputElement>(null),depth=useRef(0);
  const [dragging,setDragging]=useState(false),[error,setError]=useState('');
  const title=payment?'Document de paiement':'Pièces à tamponner';
- const accept=payment?'.xlsx,.csv,.pdf':'.pdf,application/pdf';
+ const accept=payment?'.xlsx,.csv,.pdf':'.pdf,.zip,application/pdf,application/zip';
  const commit=(files:File[])=>{
   if(disabled||!files.length)return;
   if(payment&&files.length!==1){setError('Déposez un seul document de paiement à la fois.');return;}
-  if(files.some(f=>!(payment?/\.(xlsx|csv|pdf)$/i:/\.pdf$/i).test(f.name))){setError(payment?'Choisissez un fichier Excel (.xlsx), CSV ou PDF.':'Choisissez uniquement des fichiers PDF.');return;}
+  if(files.some(f=>!(payment?/\.(xlsx|csv|pdf)$/i:/\.(pdf|zip)$/i).test(f.name))){setError(payment?'Choisissez un fichier Excel (.xlsx), CSV ou PDF.':'Choisissez des fichiers PDF ou ZIP.');return;}
   if(files.some(f=>f.size>(payment?5:20)*1024*1024)){setError(`Maximum ${payment?5:20} Mo par fichier.`);return;}
   setError('');onFiles(files);
  };
@@ -28,7 +28,7 @@ export function StampUpload({payment=false,disabled=false,busy=false,onFiles}:{p
    onDragLeave={e=>{e.preventDefault();depth.current=Math.max(0,depth.current-1);if(!depth.current)setDragging(false);}}
    onDrop={e=>{e.preventDefault();depth.current=0;setDragging(false);commit(Array.from(e.dataTransfer.files));}}>
    <span className={'stamp-upload-icons'+(payment?' has-excel':'')} aria-hidden="true"><span><StampFileIcon name="document.pdf"/></span><span><StampFileIcon name={payment?'document.xlsx':'piece.pdf'}/></span><span><StampFileIcon name="document.pdf"/></span></span>
-   <strong>{title}</strong><small>{payment?'Excel ou PDF · 5 Mo maximum':'100 pièces maximum · 20 Mo par pièce'}</small>
+   <strong>{title}</strong><small>{payment?'Excel ou PDF · 5 Mo maximum':'PDF ou ZIP · 20 Mo par fichier · 100 pièces par lot'}</small>
    <span className="stamp-upload-cta">{busy?<LoaderCircle size={15}/>:<Upload size={15}/>}<span>{busy?'Import en cours…':active?'Relâchez pour importer':'Choisir ou glisser les fichiers'}</span></span>
    <input ref={input} aria-label={payment?'Importer le document de paiement':'Importer les PDF'} type="file" accept={accept} multiple={!payment} disabled={disabled} hidden onChange={e=>{const files=Array.from(e.target.files||[]);e.target.value='';commit(files);}}/>
   </div>

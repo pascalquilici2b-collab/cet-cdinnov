@@ -1,0 +1,32 @@
+import assert from 'node:assert/strict';
+import {stampEnvironment,fixtures,py,users} from './stamping-test-helper.mjs';
+const ctx=await stampEnvironment(),f=await fixtures();
+const read=async(r,status=200)=>{assert.equal(r.status,status,await r.clone().text());return r.json();};
+try{
+ const {id}=await read(await ctx.send('/batches',{name:'Lot partagé fictif',category:'RH'}),201),path='/batches/'+id;
+ await read(await ctx.upload(path+'/table',Buffer.from(f.table,'base64'),'payment.csv',1));let b=await read(await ctx.call(path)),s=b.data.table.sheets[0];
+ await read(await ctx.send(path+'/mapping',{mapping:{sheet:s.name,header:s.header,mapping:s.mapping},confirmed:true},b.version));
+ const bundle=await py(['-c',"import sys;sys.path.insert(0,'tests');from test_stamping_intake_manual import bundle;sys.stdout.buffer.write(bundle())"]);
+ const imported=await read(await ctx.upload(path+'/documents',bundle,'bulletins.pdf'),201);assert.equal(imported.added,3);
+ b=await read(await ctx.call(path));assert.deepEqual(b.documents.map(d=>d.data.sourceUpload.pages),[[1,2],[3,3],[4,4]]);
+ const d=b.documents[0],g=b.data.import.groups.find(g=>g.document_type==='PAYSLIP');
+ const choice={groupId:g.id,identityConfirmed:true,baseConfirmed:true,baseAmount:'7500',reason:'Lecture manuelle de la pièce fictive'};
+ const start=ctx.serviceActions.length;
+ await read(await ctx.send(path+'/documents/'+d.id+'/confirm',{choice},d.version));
+ assert.deepEqual(ctx.serviceActions.slice(start),['confirm']);assert.equal(ctx.aiCalls(),0);
+ b=await read(await ctx.call(path));const confirmed=b.documents[0];assert.equal(confirmed.status,'APPROVED');assert.equal(confirmed.data.base_cents,750000);assert.ok(confirmed.data.manualConfirmation.withoutAnalysis);
+ assert.equal((await ctx.send(path+'/documents/'+d.id+'/confirm',{choice},d.version)).status,409);
+ const second=b.documents[1];assert.equal((await ctx.send(path+'/documents/'+second.id+'/confirm',{choice},second.version)).status,409);
+ b=await read(await ctx.call(path));assert.equal(b.documents[1].status,'UPLOADED');assert.equal(b.documents[0].data.candidateKey,confirmed.data.candidateKey);
+ const duplicate=await read(await ctx.upload(path+'/documents',bundle,'same.pdf'));assert.equal(duplicate.added,0);assert.equal(duplicate.duplicates,3);
+ await read(await ctx.send(path+'/documents/'+d.id+'/stamp',{},confirmed.version));
+ await ctx.setPortal(JSON.stringify({auth:{accounts:{...ctx.accounts,[users[1]]:{...ctx.accounts[users[1]],role:'collaborator',access:{tamponnage:true}}},allowed:users}}));
+ const other=await ctx.login(users[1]),headers={Authorization:'Bearer '+other.token};
+ const list=await read(await ctx.call('/batches',{headers}));assert.equal(list.batches.find(b=>b.id===id).canEdit,false);
+ for(const route of [path,path+'/table/source',path+'/documents/'+d.id+'/source',path+'/documents/'+d.id+'/preview',path+'/documents/'+d.id+'/output',path+'/export'])assert.equal((await ctx.call(route,{headers})).status,200,route);
+ assert.equal((await ctx.call(path,{method:'DELETE',headers})).status,403);
+ assert.equal((await ctx.call(path+'/documents/'+second.id+'/confirm',{method:'POST',headers,body:JSON.stringify({choice})})).status,403);
+ await read(await ctx.call(path,{method:'DELETE'}));
+ assert.equal((await(await ctx.worker.getR2Bucket('CET_FILES')).list()).objects.length,0);
+ console.log('Shared read access, isolated edits, multipage split/deduplication, explicit manual approval without AI/queue, stale/duplicate protection, original/archive cleanup: PASS');
+}finally{await ctx.worker.dispose();}

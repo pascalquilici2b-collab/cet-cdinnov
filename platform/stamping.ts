@@ -112,7 +112,7 @@ export async function stampingRoute(request:Request,env:Environment,reply:Reply)
   if(method==='POST'){const p=await json(request,20000);if(typeof p.name!=='string'||!p.name.trim()||p.name.length>120)return fail(400,'Nom de profil requis.');const id=crypto.randomUUID();await db.prepare('INSERT INTO stamp_profiles VALUES(?,?,?,?,?)').bind(id,session.email,p.name,JSON.stringify(p.mapping),Date.now()).run();return reply(201,{id});}
  }
  if(path==='/batches'){
-  if(method==='GET')return reply(200,{batches:(await db.prepare(`SELECT id,owner,name,version,created_at,expires_at,CASE WHEN json_extract(data,'$.category') IN ('RH','SERVICES') THEN json_extract(data,'$.category') WHEN EXISTS(SELECT 1 FROM json_each(data,'$.import.groups') WHERE json_extract(value,'$.document_type')='INVOICE') THEN CASE WHEN EXISTS(SELECT 1 FROM json_each(data,'$.import.groups') WHERE json_extract(value,'$.document_type')='PAYSLIP') THEN 'MIXED' ELSE 'SERVICES' END ELSE 'RH' END AS category FROM stamp_batches WHERE owner=? AND expires_at>? ORDER BY created_at DESC LIMIT 100`).bind(session.email,Date.now()).all()).results});
+  if(method==='GET')return reply(200,{batches:(await db.prepare(`SELECT id,owner,name,version,created_at,expires_at,CASE WHEN json_extract(data,'$.category') IN ('RH','SERVICES') THEN json_extract(data,'$.category') WHEN EXISTS(SELECT 1 FROM json_each(data,'$.import.groups') WHERE json_extract(value,'$.document_type')='INVOICE') THEN CASE WHEN EXISTS(SELECT 1 FROM json_each(data,'$.import.groups') WHERE json_extract(value,'$.document_type')='PAYSLIP') THEN 'MIXED' ELSE 'SERVICES' END ELSE 'RH' END AS category FROM stamp_batches WHERE expires_at>? ORDER BY created_at DESC`).bind(Date.now()).all<any>()).results.map(b=>({...b,canEdit:b.owner===session.email||session.admin}))});
   if(method==='POST'){
    const p=await json(request,10000);if(typeof p.name!=='string'||!p.name.trim()||p.name.length>120)return fail(400,'Nom de lot requis.');
    if(p.category!==undefined&&!['RH','SERVICES'].includes(p.category))return fail(400,'Choisissez un type de pièces valide.');
@@ -121,12 +121,13 @@ export async function stampingRoute(request:Request,env:Environment,reply:Reply)
   }
  }
  const route=path.match(/^\/batches\/([^/]+)(?:\/(.*))?$/);if(!route||!uuid(route[1]))return reply(404,{error:'Route introuvable.'});
- const b=await db.prepare('SELECT * FROM stamp_batches WHERE id=? AND owner=? AND expires_at>?').bind(route[1],session.email,Date.now()).first<Batch>();if(!b)return reply(404,{error:'Lot introuvable.'});
- const tail=route[2]||'',data=JSON.parse(b.data);
+ const b=await db.prepare('SELECT * FROM stamp_batches WHERE id=? AND expires_at>?').bind(route[1],Date.now()).first<Batch>();if(!b)return reply(404,{error:'Lot introuvable.'});
+ const tail=route[2]||'',data=JSON.parse(b.data),canEdit=b.owner===session.email||session.admin;
+ if(method!=='GET'&&!canEdit)return reply(403,{error:'Ce lot est consultable par l’équipe. Sa modification est réservée au créateur et aux administrateurs.'});
  if(!tail&&method==='GET'){
   await db.prepare("UPDATE stamp_documents SET status='REVIEW_REQUIRED',lease_until=0,data=json_set(data,'$.error',json(?)) WHERE batch_id=? AND status='PROCESSING' AND lease_until<?").bind(JSON.stringify({code:'INTERRUPTED',message:'Le traitement a été interrompu. Relancez cette pièce.'}),b.id,Date.now()).run();
   const docs=await documents(db,b.id),used=new Set(docs.map(d=>d.match_group));
-  return reply(200,{...b,data,documents:docs.map(expose),unmatchedGroups:(data.import?.groups||[]).filter((g:any)=>!used.has(g.id)).map((g:any)=>g.id)});
+  return reply(200,{...b,canEdit,data,documents:docs.map(expose),unmatchedGroups:(data.import?.groups||[]).filter((g:any)=>!used.has(g.id)).map((g:any)=>g.id)});
  }
  if(!tail&&method==='DELETE'){
   if((await documents(db,b.id)).some(d=>d.status==='PROCESSING'&&d.lease_until>Date.now()))return fail(409,'Attendez la fin de la pièce en cours avant suppression.');
@@ -137,7 +138,7 @@ export async function stampingRoute(request:Request,env:Environment,reply:Reply)
   const directInvoice=normalizeDirectInvoice(await json(request,5000));delete directInvoice.amount;delete directInvoice.manualTotal;delete directInvoice.manualConfirmed;
   const next={...data,directInvoice,importConfirmed:true,import:{groups:[],errors:[]}};
   const changed=await db.prepare('UPDATE stamp_batches SET data=?,version=version+1 WHERE id=? AND version=? RETURNING id').bind(JSON.stringify(next),b.id,b.version).first();if(!changed)return fail(409,'Le lot a changé.');
-  await audit(db,b,'DIRECT_INVOICE_CONFIGURED',directInvoice);return reply(200,{ok:true});
+  await audit(db,{...b,owner:session.email},'DIRECT_INVOICE_CONFIGURED',directInvoice);return reply(200,{ok:true});
  }
  if(tail==='table/source'&&method==='GET'){
   if(!data.table?.key)return fail(404,'Document de paiement introuvable.');
@@ -153,10 +154,10 @@ export async function stampingRoute(request:Request,env:Environment,reply:Reply)
   // Queued jobs retain their old document version and cannot claim the reset rows.
   const rows=await db.batch([
    db.prepare("UPDATE stamp_batches SET data=?,version=version+1 WHERE id=? AND version=? AND NOT EXISTS (SELECT 1 FROM stamp_documents WHERE batch_id=? AND status IN ('PROCESSING','DELETING')) RETURNING id").bind(JSON.stringify(next),b.id,b.version,b.id),
-   db.prepare("UPDATE stamp_documents SET status='UPLOADED',version=version+1,data='{}',match_group=NULL,lease_until=0 WHERE batch_id=? AND EXISTS (SELECT 1 FROM stamp_batches WHERE id=? AND json_extract(data,'$.lastTableRemoval')=?) RETURNING id,version").bind(b.id,b.id,removal)
+   db.prepare("UPDATE stamp_documents SET status='UPLOADED',version=version+1,data=json_object('sourceUpload',json_extract(data,'$.sourceUpload')),match_group=NULL,lease_until=0 WHERE batch_id=? AND EXISTS (SELECT 1 FROM stamp_batches WHERE id=? AND json_extract(data,'$.lastTableRemoval')=?) RETURNING id,version").bind(b.id,b.id,removal)
   ]) as {results:{id:string;version:number}[]}[];
   if(!rows[0].results?.length)return fail(409,'Attendez la fin de la pièce en cours, puis actualisez le lot.');
-  await audit(db,b,'PAYMENT_DOCUMENT_REMOVED',{source:data.table.sha256,resetDocuments:rows[1].results.length});
+  await audit(db,{...b,owner:session.email},'PAYMENT_DOCUMENT_REMOVED',{source:data.table.sha256,resetDocuments:rows[1].results.length});
   await bucket(env).delete(data.table.key);
   for(const row of rows[1].results as {id:string;version:number}[])await removeDocumentFiles(env,b,row.id,row.version);
   return reply(200,{ok:true});
@@ -174,7 +175,7 @@ export async function stampingRoute(request:Request,env:Environment,reply:Reply)
   const next={...data,useAI:true,table:{name:file.name,key,...inspected},import:suggested||null,importConfirmed:false};
   if(new TextEncoder().encode(JSON.stringify(next)).length>1200000){await bucket(env).delete(key);return fail(413,'Tableau trop volumineux : répartissez les pièces en plusieurs lots.');}
   const updated=await db.prepare('UPDATE stamp_batches SET data=?,version=version+1 WHERE id=? AND version=? RETURNING id').bind(JSON.stringify(next),b.id,b.version).first();if(!updated){await bucket(env).delete(key);return fail(409,'Le lot a changé. Rechargez-le.');}
-  await audit(db,b,'TABLE_IMPORTED',{hash:inspected.sha256});if(data.table?.key)await bucket(env).delete(data.table.key);return reply(200,{ok:true});
+  await audit(db,{...b,owner:session.email},'TABLE_IMPORTED',{hash:inspected.sha256});if(data.table?.key)await bucket(env).delete(data.table.key);return reply(200,{ok:true});
  }
  if(tail==='review'&&method==='POST'){
   await unlocked(db,b,request);if(!data.import)return fail(422,'Lisez le document de paiement avant de confirmer.');const p=await json(request);
@@ -182,7 +183,7 @@ export async function stampingRoute(request:Request,env:Environment,reply:Reply)
   const next={...data,import:imported,importConfirmed:p.confirmed===true&&imported.groups.length>0&&!imported.errors.length&&!imported.groups.some((g:any)=>g.errors.length)};
   if(new TextEncoder().encode(JSON.stringify(next)).length>1200000)return fail(413,'Tableau trop volumineux : répartissez les pièces en plusieurs lots.');
   const updated=await db.prepare('UPDATE stamp_batches SET data=?,version=version+1 WHERE id=? AND version=? RETURNING id').bind(JSON.stringify(next),b.id,b.version).first();if(!updated)return fail(409,'Le lot a changé.');
-  await audit(db,b,next.importConfirmed?'READING_CONFIRMED':'READING_CORRECTED',{source:imported.source_sha256,changes:p.changes||[]});return reply(200,{ok:true});
+  await audit(db,{...b,owner:session.email},next.importConfirmed?'READING_CONFIRMED':'READING_CORRECTED',{source:imported.source_sha256,changes:p.changes||[]});return reply(200,{ok:true});
  }
  if(tail==='mapping'&&method==='POST'){
   await unlocked(db,b,request);if(!data.table)return fail(422,'Importez le document de paiement.');const p=await json(request,100000),raw=await object(env,data.table.key);
@@ -190,16 +191,37 @@ export async function stampingRoute(request:Request,env:Environment,reply:Reply)
   const next={...data,import:imported,importConfirmed:p.confirmed===true&&imported.groups.length>0&&!imported.errors.length&&!imported.groups.some((g:any)=>g.errors.length)};
   if(new TextEncoder().encode(JSON.stringify(next)).length>1200000)return fail(413,'Le tableau et sa traçabilité sont trop volumineux pour un lot. Répartissez-les en plusieurs fichiers.');
   const updated=await db.prepare('UPDATE stamp_batches SET data=?,version=version+1 WHERE id=? AND version=? RETURNING id').bind(JSON.stringify(next),b.id,b.version).first();if(!updated)return fail(409,'Le lot a changé.');
-  await audit(db,b,next.importConfirmed?'MAPPING_CONFIRMED':'MAPPING_PREVIEW',{mapping:p.mapping,source:imported.source_sha256});return reply(200,{ok:true});
+  await audit(db,{...b,owner:session.email},next.importConfirmed?'MAPPING_CONFIRMED':'MAPPING_PREVIEW',{mapping:p.mapping,source:imported.source_sha256});return reply(200,{ok:true});
  }
  if(tail==='documents'&&method==='POST'){
-  const docs=await documents(db,b.id);if(docs.length>=100||docs.reduce((n,d)=>n+d.size,0)>180*1024*1024)return fail(413,'Limite du lot : 100 PDF et 200 Mo.');
+  const docs=await documents(db,b.id);if(docs.length>=100)return fail(413,'Limite du lot : 100 PDF et 200 Mo.');
   const file=await upload(request,20*1024*1024);if(!/\.pdf$/i.test(file.name)||new TextDecoder().decode(file.bytes.slice(0,5))!=='%PDF-')return fail(415,'Un PDF valide est requis.');
-  if(docs.reduce((n,d)=>n+d.size,0)+file.bytes.length>200*1024*1024)return fail(413,'Lot limité à 200 Mo.');
   const sha=hash(file.bytes),duplicate=docs.find(d=>d.sha256===sha);if(duplicate)return reply(200,{id:duplicate.id,duplicate:true});
-  const d={id:crypto.randomUUID(),batch_id:b.id,name:file.name,sha256:sha,size:file.bytes.length} as Doc;const key=sourceKey(b,d);
-  await bucket(env).put(key,file.bytes);try{const inserted=await db.prepare('INSERT INTO stamp_documents(id,batch_id,name,sha256,size) SELECT ?,?,?,?,? WHERE EXISTS (SELECT 1 FROM stamp_batches WHERE id=? AND expires_at>?) RETURNING id').bind(d.id,b.id,d.name,sha,d.size,b.id,Date.now()).first();if(!inserted)throw new Error('expired');}catch{await bucket(env).delete(key);return fail(409,'Pièce déjà importée ou lot indisponible. Actualisez le lot.');}
-  await audit(db,b,'PDF_IMPORTED',{source:sha},d.id);return reply(201,{id:d.id});
+  const info=await service(env,file.bytes,{action:'document-info'});
+  // At most three OCR pages (3 × 25 seconds) per isolated request, within its 95s limit.
+  const scans=info.pages.length>1?info.pages.filter((p:any)=>p.needsOCR).map((p:any)=>p.page):[];
+  for(let i=0;i<scans.length;i+=3){const part=await service(env,file.bytes,{action:'document-page',page:scans.slice(i,i+3)});for(const page of part.pages)info.pages[page.page]=page;}
+  const split=await service(env,file.bytes,{action:'document-split',pages:info.pages});
+  const seen=new Set(docs.map(d=>d.sha256)),prepared:{d:Doc;raw:Uint8Array;key:string;metadata:string}[]=[];let duplicates=0;
+  const originalKey=prefix(b)+'imports/'+sha+'.pdf';
+  for(const part of split.parts){
+   const raw=part.original?file.bytes:new Uint8Array(Buffer.from(part.pdf,'base64')),partSha=hash(raw);
+   if(seen.has(partSha)){duplicates++;continue;}seen.add(partSha);
+   const name=split.parts.length===1?file.name:file.name.replace(/\.pdf$/i,'')+` · pages ${part.start+1}–${part.end+1}.pdf`;
+   const d={id:crypto.randomUUID(),batch_id:b.id,name,sha256:partSha,size:raw.length} as Doc;
+   prepared.push({d,raw,key:sourceKey(b,d),metadata:JSON.stringify({sourceUpload:{name:file.name,sha256:sha,pages:[part.start+1,part.end+1],...(split.parts.length>1?{key:originalKey}:{})}})});
+  }
+  if(docs.length+prepared.length>100||docs.reduce((n,d)=>n+d.size,0)+prepared.reduce((n,p)=>n+p.raw.length,0)>200*1024*1024)return fail(413,'Limite du lot : 100 pièces et 200 Mo après découpage.');
+  if(!prepared.length)return reply(200,{duplicate:true,added:0,duplicates});
+  const written:string[]=[];
+  try{
+   if(split.parts.length>1)await bucket(env).put(originalKey,file.bytes,{httpMetadata:{contentType:'application/pdf'}});
+   for(const p of prepared){await bucket(env).put(p.key,p.raw,{httpMetadata:{contentType:'application/pdf'}});written.push(p.key);}
+   const inserted=await db.batch(prepared.map(p=>db.prepare('INSERT INTO stamp_documents(id,batch_id,name,sha256,size,data) SELECT ?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM stamp_batches WHERE id=? AND expires_at>?) RETURNING id').bind(p.d.id,b.id,p.d.name,p.d.sha256,p.d.size,p.metadata,b.id,Date.now()))) as {results:{id:string}[]}[];
+   if(inserted.some(r=>!r.results?.length))throw new Error('expired');
+  }catch{if(written.length)await bucket(env).delete(written);return fail(409,'Import interrompu ou limite du lot atteinte. Actualisez le lot avant de réessayer.');}
+  await audit(db,{...b,owner:session.email},'PDF_IMPORTED',{source:sha,documents:prepared.map(p=>p.d.id),split:split.parts.length>1});
+  return reply(201,{id:prepared[0].d.id,added:prepared.length,duplicates});
  }
  if(tail==='export'&&method==='GET'){
   const docs=await documents(db,b.id),files:Record<string,Uint8Array>={};let totalBytes=0;
@@ -208,7 +230,7 @@ export async function stampingRoute(request:Request,env:Environment,reply:Reply)
   if(!Object.keys(files).length)return fail(422,'Aucune pièce tamponnée à télécharger.');
   return binary(reply,zipSync(files,{level:0}),'application/zip',stampedLotFilename(b.name));
  }
- const dr=tail.match(/^documents\/([^/]+)(?:\/(analyze|revise|approve|stamp|cancel|preview|source|output))?$/);if(!dr||!uuid(dr[1]))return reply(404,{error:'Action introuvable.'});
+ const dr=tail.match(/^documents\/([^/]+)(?:\/(analyze|confirm|revise|approve|stamp|cancel|preview|source|output))?$/);if(!dr||!uuid(dr[1]))return reply(404,{error:'Action introuvable.'});
  const d=await db.prepare('SELECT * FROM stamp_documents WHERE id=? AND batch_id=?').bind(dr[1],b.id).first<Doc>();if(!d)return reply(404,{error:'Pièce introuvable.'});const result=JSON.parse(d.data),action=dr[2];
  if(!action&&method==='DELETE'){
   if(request.headers.get('if-match')!==String(d.version))return fail(409,'La pièce a changé. Actualisez le lot.');
@@ -218,7 +240,7 @@ export async function stampingRoute(request:Request,env:Environment,reply:Reply)
   // prevents analysis, download or export of a partially removed document.
   await removeDocumentFiles(env,b,d.id);
   await db.prepare("DELETE FROM stamp_documents WHERE id=? AND version=? AND status='DELETING'").bind(d.id,removed.version).run();
-  await audit(db,b,'DOCUMENT_REMOVED',{name:d.name,source:d.sha256},d.id);return reply(200,{ok:true});
+  await audit(db,{...b,owner:session.email},'DOCUMENT_REMOVED',{name:d.name,source:d.sha256},d.id);return reply(200,{ok:true});
  }
  if(d.status==='DELETING')return fail(409,'Relancez la suppression de cette pièce pour la terminer.');
  if(['source','output','preview'].includes(action)&&method==='GET'){
@@ -231,6 +253,29 @@ export async function stampingRoute(request:Request,env:Environment,reply:Reply)
  }
  if(method!=='POST')return reply(405,{error:'Méthode non autorisée.'});
  if(request.headers.get('if-match')!==String(d.version))return fail(409,'La pièce a changé. Actualisez le lot.');
+ if(action==='confirm'){
+  if(!data.importConfirmed||!['UPLOADED','REVIEW_REQUIRED'].includes(d.status))return fail(409,'Confirmez la répartition et attendez la fin de l’analyse avant correction.');
+  const p=await json(request,50000),raw=await object(env,sourceKey(b,d));if(hash(raw)!==d.sha256)return fail(503,'Empreinte du fichier invalide.');
+  const directInvoice=data.directInvoice?normalizeDirectInvoice({...data.directInvoice,...result.directInvoice,...p.directInvoice},true):null;
+  const options={...data.options,fontSize:5,allowOverlap:true};
+  const confirmed=await service(env,raw,{action:'confirm',groups:data.import?.groups||[],choice:p.choice,directInvoice,options,overrides:p.overrides||[]});
+  const pdf=Buffer.from(confirmed.pdf||'','base64');delete confirmed.pdf;
+  if(!confirmed.checks||Object.values(confirmed.checks).some(v=>v!==true)||confirmed.source_sha256!==d.sha256||hash(pdf)!==confirmed.output_sha256)return fail(503,'Le PDF corrigé n’a pas passé les contrôles.');
+  const key=prefix(b)+d.id+`/candidate-${d.version+1}-${crypto.randomUUID()}.pdf`;
+  await bucket(env).put(key,pdf,{httpMetadata:{contentType:'application/pdf'}});
+  const confirmation=crypto.randomUUID();
+  const next={...result,...confirmed,candidateKey:key,options,directInvoice,error:undefined,progress:{stage:'complete',startedAt:Date.now()},confirmedBy:session.email};
+  try{
+   // Fence reference changes before writing a result based on that reference version.
+   const updated=await db.batch([
+    db.prepare("UPDATE stamp_batches SET data=json_set(data,'$.sealed',json('true'),'$.lastManualConfirmation',?),version=version+1 WHERE id=? AND version=? AND expires_at>? RETURNING id").bind(confirmation,b.id,b.version,Date.now()),
+    db.prepare("UPDATE stamp_documents SET status='APPROVED',version=version+1,data=?,match_group=? WHERE id=? AND version=? AND status=? AND EXISTS(SELECT 1 FROM stamp_batches WHERE id=? AND version=? AND json_extract(data,'$.lastManualConfirmation')=?) RETURNING id").bind(JSON.stringify(next),confirmed.groupId,d.id,d.version,d.status,b.id,b.version+1,confirmation)
+   ]) as {results:{id:string}[]}[];
+   if(updated.some(r=>!r.results?.length))throw new Error('changed');
+  }catch{await bucket(env).delete(key);return fail(409,'La pièce ou sa répartition a changé, ou ces imputations sont déjà utilisées. Actualisez le lot.');}
+  await audit(db,{...b,owner:session.email},'MANUALLY_CONFIRMED',{version:d.version+1,choice:p.choice,output:confirmed.output_sha256,withoutAnalysis:true},d.id);
+  return reply(200,{ok:true});
+ }
  if(action==='revise'){
   if(!['NEEDS_APPROVAL','APPROVED','VERIFIED'].includes(d.status)||!result.candidateKey)return fail(409,'Un aperçu contrôlé est requis avant modification.');
   const p=await json(request,70000);
@@ -252,7 +297,7 @@ export async function stampingRoute(request:Request,env:Environment,reply:Reply)
   try{updated=await db.prepare("UPDATE stamp_documents SET status='NEEDS_APPROVAL',version=version+1,data=? WHERE id=? AND version=? AND status=? AND EXISTS (SELECT 1 FROM stamp_batches WHERE id=? AND expires_at>?) RETURNING id").bind(JSON.stringify(next),d.id,d.version,d.status,b.id,Date.now()).first();}
   catch(error){await bucket(env).delete(key);throw error;}
   if(!updated){await bucket(env).delete(key);return fail(409,'La pièce a changé pendant la modification. Actualisez le lot.');}
-  await audit(db,b,'PREVIEW_REVISED',{version:d.version+1,previous:result.output_sha256,output:revised.output_sha256,placements:options.placements,overrides:p.overrides||[],additions:p.additions||[]},d.id);
+  await audit(db,{...b,owner:session.email},'PREVIEW_REVISED',{version:d.version+1,previous:result.output_sha256,output:revised.output_sha256,placements:options.placements,overrides:p.overrides||[],additions:p.additions||[]},d.id);
   return reply(200,{ok:true});
  }
  if(action==='analyze'){
@@ -260,26 +305,26 @@ export async function stampingRoute(request:Request,env:Environment,reply:Reply)
   if(!env.STAMPING_QUEUE)return fail(503,'La file de traitement doit être activée.');
   if(!data.sealed){const sealed=await db.prepare("UPDATE stamp_batches SET data=json_set(data,'$.sealed',json('true')),version=version+1 WHERE id=? AND version=? RETURNING id").bind(b.id,b.version).first();if(!sealed)return fail(409,'Le lot a changé. Relancez l’analyse.');}
   if(['PROCESSING','VERIFIED','APPROVED'].includes(d.status))return fail(409,'Pièce en cours ou déjà validée.');
-  const p=await json(request,50000);if(p.overrides!==undefined&&!Array.isArray(p.overrides))return fail(400,'Corrections invalides.');const next={...(data.directInvoice?{directInvoice:normalizeDirectInvoice({...data.directInvoice,...result.directInvoice,...p.directInvoice},true)}:{}),choice:p.choice||null,options:{...data.options,fontSize:5,allowOverlap:true,...p.options},overrides:p.overrides||[],cachedReading:result.cachedReading||null,progress:{startedAt:Date.now(),stage:'queued'}};
+  const p=await json(request,50000);if(p.overrides!==undefined&&!Array.isArray(p.overrides))return fail(400,'Corrections invalides.');const next={sourceUpload:result.sourceUpload,...(data.directInvoice?{directInvoice:normalizeDirectInvoice({...data.directInvoice,...result.directInvoice,...p.directInvoice},true)}:{}),choice:p.choice||null,options:{...data.options,fontSize:5,allowOverlap:true,...p.options},overrides:p.overrides||[],cachedReading:result.cachedReading||null,progress:{startedAt:Date.now(),stage:'queued'}};
   if(p.choice&&(typeof p.choice.reason!=='string'||p.choice.reason.trim().length<5))return fail(422,'Justifiez le rapprochement manuel.');
   const row=await db.prepare("UPDATE stamp_documents SET status='QUEUED',data=?,match_group=NULL,version=version+1 WHERE id=? AND version=? AND status NOT IN ('PROCESSING','VERIFIED','APPROVED') RETURNING version").bind(JSON.stringify(next),d.id,d.version).first<{version:number}>();if(!row)return fail(409,'La pièce a changé.');
   try{await (env.STAMPING_QUEUE as {send(body:Job):Promise<void>}).send({batchId:b.id,documentId:d.id,version:row.version,owner:b.owner});}
   catch{await db.prepare("UPDATE stamp_documents SET status='REVIEW_REQUIRED' WHERE id=? AND version=?").bind(d.id,row.version).run();return fail(503,'La file est indisponible. Relancez cette pièce.');}
-  await audit(db,b,'ANALYSIS_REQUESTED',{choice:next.choice,options:next.options,overrides:next.overrides},d.id);return reply(202,{ok:true});
+  await audit(db,{...b,owner:session.email},'ANALYSIS_REQUESTED',{choice:next.choice,options:next.options,overrides:next.overrides},d.id);return reply(202,{ok:true});
  }
  if(action==='cancel'){
   if(d.status==='PROCESSING')return fail(409,'La pièce en cours finit en sécurité. Les autres peuvent être annulées.');
-  const changed=await db.prepare("UPDATE stamp_documents SET status='UPLOADED',version=version+1,data='{}',match_group=NULL WHERE id=? AND version=? AND status NOT IN ('VERIFIED','PROCESSING') RETURNING id").bind(d.id,d.version).first();if(!changed)return fail(409,'La pièce est en cours ou déjà tamponnée.');return reply(200,{ok:true});
+  const changed=await db.prepare("UPDATE stamp_documents SET status='UPLOADED',version=version+1,data=json_object('sourceUpload',json_extract(data,'$.sourceUpload')),match_group=NULL WHERE id=? AND version=? AND status NOT IN ('VERIFIED','PROCESSING') RETURNING id").bind(d.id,d.version).first();if(!changed)return fail(409,'La pièce est en cours ou déjà tamponnée.');return reply(200,{ok:true});
  }
  if(action==='approve'){
   if(d.status!=='NEEDS_APPROVAL')return fail(409,'La pièce doit avoir un aperçu contrôlé.');const p=await json(request,2000);
   if(p.reviewed!==true||p.outputSha256!==result.output_sha256)return fail(422,'Confirmez l’aperçu courant et ses imputations.');
-  const changed=await db.prepare("UPDATE stamp_documents SET status='APPROVED' WHERE id=? AND version=? AND status='NEEDS_APPROVAL' RETURNING id").bind(d.id,d.version).first();if(!changed)return fail(409,'La pièce a changé.');await audit(db,b,'APPROVED',{version:d.version,output:result.output_sha256},d.id);return reply(200,{ok:true});
+  const changed=await db.prepare("UPDATE stamp_documents SET status='APPROVED' WHERE id=? AND version=? AND status='NEEDS_APPROVAL' RETURNING id").bind(d.id,d.version).first();if(!changed)return fail(409,'La pièce a changé.');await audit(db,{...b,owner:session.email},'APPROVED',{version:d.version,output:result.output_sha256},d.id);return reply(200,{ok:true});
  }
  if(action==='stamp'){
   if(d.status==='VERIFIED')return reply(200,{ok:true});if(d.status!=='APPROVED')return fail(409,'Validez l’aperçu avant tamponnage.');
   const raw=await object(env,result.candidateKey);if(hash(raw)!==result.output_sha256)return fail(503,'La copie validée a changé.');
-  const changed=await db.prepare("UPDATE stamp_documents SET status='VERIFIED' WHERE id=? AND version=? AND status='APPROVED' RETURNING id").bind(d.id,d.version).first();if(!changed)return fail(409,'La pièce a changé.');await audit(db,b,'VERIFIED',{output:result.output_sha256},d.id);return reply(200,{ok:true});
+  const changed=await db.prepare("UPDATE stamp_documents SET status='VERIFIED' WHERE id=? AND version=? AND status='APPROVED' RETURNING id").bind(d.id,d.version).first();if(!changed)return fail(409,'La pièce a changé.');await audit(db,{...b,owner:session.email},'VERIFIED',{output:result.output_sha256},d.id);return reply(200,{ok:true});
  }
  return reply(404,{error:'Action introuvable.'});
 }
