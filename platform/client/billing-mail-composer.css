@@ -18,7 +18,12 @@
 .bill-app .bill-cdi-mail .bill-mail-toolbar>.bill-button{flex:0 0 auto;width:auto;white-space:nowrap}
 .bill-app .bill-cdi-mail .bill-mail-secondary{display:flex;flex:1;align-items:center;gap:8px;min-width:0}
 .bill-app .bill-cdi-mail .bill-mail-secondary .bill-mail-draft{min-height:34px;border:0!important;background:transparent!important;font-size:12px!important;white-space:nowrap}
-.bill-mail-outlook-actions{display:flex;flex-wrap:wrap;align-items:center;gap:6px;min-width:0}.bill-app .bill-cdi-mail .bill-mail-outlook-actions .bill-mail-confirm{min-height:34px!important;padding:7px 10px!important;border-radius:10px;font-size:12px!important;line-height:1.3}.bill-mail-outlook-actions .bill-mail-confirm svg{flex:none}
+.bill-mail-outlook-actions{display:inline-flex;align-items:stretch;gap:0;min-width:0;border:1px solid var(--bill-line);border-radius:11px;background:var(--bill-bg);overflow:hidden}
+.bill-app .bill-cdi-mail .bill-mail-outlook-actions .bill-mail-draft{border-radius:0!important;color:var(--bill-ink)!important}
+.bill-app .bill-cdi-mail .bill-mail-outlook-actions .bill-mail-draft-menu-trigger{display:grid;place-items:center;flex:0 0 33px;width:33px;min-height:34px;padding:0!important;border:0!important;border-left:1px solid var(--bill-line)!important;border-radius:0;background:transparent;color:var(--bill-muted)}
+.bill-mail-draft-menu-trigger[data-state=open],.bill-mail-draft-menu-trigger:hover{background:color-mix(in srgb,#007aff 10%,transparent)!important;color:var(--bill-ink)!important}.bill-mail-outlook-actions>:focus-visible{outline:2px solid #007aff;outline-offset:-2px}
+.bill-mail-draft-menu{max-width:calc(100vw - 32px);transform-origin:var(--radix-dropdown-menu-content-transform-origin)}.bill-mail-draft-menu [role=menuitem]{color:#177444;white-space:normal}.bill-mail-draft-menu [role=menuitem] svg{flex:none}.bill-mail-draft-menu [role=menuitem][data-highlighted]{background:#e6f6ed;color:#126037}
+[data-theme=dark] .bill-mail-draft-menu [role=menuitem]{color:#8de0b1}[data-theme=dark] .bill-mail-draft-menu [role=menuitem][data-highlighted]{background:#193c2b;color:#a3edc2}
 .bill-app .bill-cdi-mail input[type=checkbox]{flex:0 0 17px;width:17px!important;min-width:17px!important;height:17px;padding:0!important;margin:0;accent-color:#007aff}
 .bill-app .bill-cdi-mail .bill-mail-signature textarea{min-height:100px}
 .bill-app .bill-cdi-mail .bill-mail-signature:not([open]) .bill-mail-signature-body{display:none}

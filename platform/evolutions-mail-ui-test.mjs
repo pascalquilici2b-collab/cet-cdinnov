@@ -27,14 +27,20 @@ try{
  browser=await chromium.launch({channel:'msedge',headless:true});page=await browser.newPage({viewport:{width:1500,height:1050},locale:'fr-FR',acceptDownloads:true});const errors=[];page.on('pageerror',e=>errors.push(e.message));page.setDefaultTimeout(25000);
  await page.goto(preview.base);await page.getByRole('navigation',{name:'Documents commerciaux'}).getByRole('button',{name:'Factures',exact:true}).click();await page.getByRole('button',{name:'Ouvrir '+d.title,exact:true}).click();await page.getByRole('button',{name:'Envoyer par e-mail',exact:true}).click();const dialog=page.getByRole('dialog',{name:'Envoyer par e-mail',exact:true});await expect(dialog.locator('.bill-mail-attachment')).toHaveCount(2,{timeout:30000});await expect(dialog.getByLabel('Copie (Cc)',{exact:true})).toHaveValue('cdi@cdinnov.com');await expect(dialog.getByLabel('Message',{exact:true})).toContainText('Le relevé d’intervention relatif à la facture '+issuance.number);
  await dialog.getByRole('button',{name:'Contacts',exact:true}).click();await expect(dialog.getByText('Aucun contact enregistré dans la fiche client.',{exact:true})).toBeVisible();await page.keyboard.press('Escape');
- await expect(dialog.getByRole('button',{name:'Envoyé dans Outlook',exact:true})).toBeEnabled();
+ const options=dialog.getByRole('button',{name:'Options du brouillon Outlook',exact:true}),sentItem=dialog.getByRole('menuitem',{name:'Marquer comme envoyé dans Outlook',exact:true}),sentMenu=dialog.getByRole('menu',{name:'Options du brouillon Outlook',exact:true});
+ await expect(sentItem).not.toBeVisible();await options.focus();await page.keyboard.press('ArrowDown');await expect(sentItem).toBeEnabled();await page.keyboard.press('Escape');await expect(options).toBeFocused();await expect(dialog).toBeVisible();
  await dialog.getByLabel('Joindre un certificat de dépôt Chorus',{exact:true}).check();
  for(const width of [1500,420,320]){
   await page.setViewportSize({width,height:1050});
   const box=dialog.locator('.bill-mail-certificate'),label=await box.locator('label').boundingBox(),button=await box.getByRole('button',{name:'Importer le certificat Chorus'}).boundingBox();
   assert.ok(Math.abs(label.y+label.height/2-button.y-button.height/2)<3,'Certificate label and import remain aligned');
   assert.ok(await dialog.evaluate(e=>e.scrollWidth<=e.clientWidth+1),'Composer must not overflow');
-  for(const theme of ['light','dark']){await page.evaluate(t=>CDITheme.set(t),theme);await box.screenshot({path:out+`/certificate-${width}-${theme}.png`});}
+  for(const theme of ['light','dark']){
+   await page.evaluate(t=>CDITheme.set(t),theme);await box.screenshot({path:out+`/certificate-${width}-${theme}.png`});
+   await options.click();await expect(sentMenu).toBeVisible();const menuBox=await sentMenu.boundingBox();assert.ok(menuBox.x>=0&&menuBox.x+menuBox.width<=width+1,'Draft submenu fits the viewport');
+   await sentMenu.screenshot({path:out+`/draft-menu-${width}-${theme}.png`});await page.keyboard.press('Escape');
+   const group=dialog.getByRole('group',{name:'Brouillon Outlook',exact:true}),mainBox=await group.locator('.bill-mail-draft').boundingBox(),arrowBox=await options.boundingBox();assert.ok(Math.abs(mainBox.x+mainBox.width-arrowBox.x)<2,'Draft and menu arrow form one joined control');
+  }
  }
  await page.setViewportSize({width:1500,height:1050});
  await dialog.locator('input[type=file][accept=".pdf"]').setInputFiles({name:'Chorus.pdf',mimeType:'application/pdf',buffer:bytes});await expect(dialog.locator('.bill-mail-attachment')).toHaveCount(3);await expect(dialog.getByLabel('Message',{exact:true})).toContainText('Vous trouverez également le certificat de dépôt Chorus.');
@@ -45,13 +51,13 @@ try{
  // A user may attach the certificate in Outlook: local preparation must not block their attestation.
  await dialog.getByLabel('Joindre un certificat de dépôt Chorus',{exact:true}).check();
  await dialog.locator('.bill-mail-toolbar').screenshot({path:out+'/manual-confirmation.png'});
- await dialog.getByRole('button',{name:'Envoyé dans Outlook',exact:true}).click();await expect(dialog.getByRole('button',{name:'Envoi confirmé',exact:true})).toBeDisabled();assert.ok((await(await call('/documents/'+id)).json()).sentAt);await dialog.getByRole('button',{name:'Fermer',exact:true}).click();await expect(page.getByRole('button',{name:'Statut du document',exact:true})).toContainText('Envoyée');
+ await options.click();await sentItem.click();await expect(sentMenu).not.toBeVisible();await expect(options).toBeEnabled();await options.click();await expect(dialog.getByRole('menuitem',{name:'Envoi confirmé',exact:true})).toBeDisabled();await page.keyboard.press('Escape');assert.ok((await(await call('/documents/'+id)).json()).sentAt);await dialog.getByRole('button',{name:'Fermer',exact:true}).click();await expect(page.getByRole('button',{name:'Statut du document',exact:true})).toContainText('Envoyée');
  const delivery=await preview.ctx.db.prepare('SELECT provider_id FROM billing_email_deliveries WHERE document_id=?').bind(id).first();assert.equal(delivery.provider_id,'outlook-manual-confirmation');
  const qid=randomUUID(),qd={...quoteFixture('Devis confirmation Outlook'),issueDate:'2026-10-26',validUntil:'2027-01-26'};qd.buyer.email='client@example.test';
  let qr=await call('/documents','POST',{id:qid,data:qd});assert.equal(qr.status,201);const q=await qr.json();const {quoteFixtureTools}=await import('./billing-quote-fixture.mjs'),qt=await quoteFixtureTools(preview.ctx,preview.sessions[0].token);await qt.finalize(q);
  await page.reload();await page.getByRole('navigation',{name:'Documents commerciaux'}).getByRole('button',{name:'Devis',exact:true}).click();await page.getByRole('button',{name:'Ouvrir '+qd.title,exact:true}).click();await page.getByRole('button',{name:'Envoyer par e-mail',exact:true}).click();await expect(dialog.locator('.bill-mail-attachment')).toHaveCount(1);
  // Also available after reopening, without creating a fresh local draft or contacting Microsoft.
- await expect(dialog.getByRole('button',{name:'Envoyé dans Outlook',exact:true})).toBeEnabled();await dialog.getByRole('button',{name:'Envoyé dans Outlook',exact:true}).click();await expect(dialog.getByRole('button',{name:'Envoi confirmé',exact:true})).toBeDisabled();assert.equal((await(await call('/documents/'+qid)).json()).quote.state,'sent');
- await dialog.getByRole('button',{name:'Fermer',exact:true}).click();await page.getByRole('button',{name:'Envoyer par e-mail',exact:true}).click();await expect(dialog.getByRole('button',{name:'Envoi confirmé',exact:true})).toBeDisabled();assert.equal((await preview.ctx.db.prepare('SELECT count(*) n FROM billing_email_deliveries WHERE document_id=?').bind(qid).first()).n,1);
+ await options.click();await expect(sentItem).toBeEnabled();await sentItem.click();await expect(sentMenu).not.toBeVisible();await expect(options).toBeEnabled();assert.equal((await(await call('/documents/'+qid)).json()).quote.state,'sent');
+ await dialog.getByRole('button',{name:'Fermer',exact:true}).click();await page.getByRole('button',{name:'Envoyer par e-mail',exact:true}).click();await options.click();await expect(dialog.getByRole('menuitem',{name:'Envoi confirmé',exact:true})).toBeDisabled();assert.equal((await preview.ctx.db.prepare('SELECT count(*) n FROM billing_email_deliveries WHERE document_id=?').bind(qid).first()).n,1);
  assert.deepEqual(errors,[]);console.log('Outlook : confirmation manuelle facture/devis sans envoi, statut conservé à la réouverture, Chorus aligné en clair/sombre et 320/420/1500 px, relevé et pièces vérifiés.');
 }catch(e){if(page){await page.screenshot({path:out+'/failure.png',fullPage:true}).catch(()=>{});await writeFile(out+'/failure.txt',await page.locator('body').innerText());}throw e;}finally{await browser?.close();await preview?.close();service.kill();}
