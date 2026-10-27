@@ -25,6 +25,15 @@ def main():
                 result={'pages':len(doc)}
         elif action=='review':result=review_import(request['original'],request.get('changes',[]))
         elif action=='import':result=normalize(raw,request['name'],options)
+        elif action in ('document-info','document-page'):
+            from .stamping_intake import inspect_documents
+            result=inspect_documents(raw,request.get('page') if action=='document-page' else None)
+        elif action=='document-split':
+            from .stamping_intake import split_documents
+            result=split_documents(raw,request['pages'])
+        elif action=='confirm':
+            from .stamping_manual import confirm
+            result=confirm(raw,request['groups'],request.get('choice'),request.get('directInvoice'),options,request.get('overrides'))
         elif action=='extract':result=extract(raw)
         elif action=='process':result=process(raw,request['groups'],options,request.get('choice'),request.get('suggestions'),request.get('overrides'))
         elif action=='analyze':result=analyze(raw,request['groups'],options,request.get('choice'),request.get('suggestions'),request.get('overrides'),request.get('cachedReading'),request.get('directInvoice'))

@@ -27,6 +27,20 @@ def verify():
     result=process(scan,groups)
     assert result['total_cents']==10000 and all(result['checks'].values())
     print(json.dumps({'stamping':'passed','ocr':'real local Tesseract','scan_identification':True,'source_preserved':True}))
+    from pypdf import PdfReader,PdfWriter
+    from cdi_facturx.stamping_intake import inspect_documents,split_documents
+    combined=PdfWriter();original=PdfReader(io.BytesIO(scan))
+    combined.add_page(original.pages[0]);combined.add_page(original.pages[0])
+    extra=io.BytesIO();c=canvas.Canvas(extra,pagesize=(595,842));c.setFont(FONT,14)
+    for n,line in enumerate(['Bulletin de paie','Matricule : DEMO-002','Période : 2026-02']):c.drawString(32,800-25*n,line)
+    c.save();combined.add_page(PdfReader(extra).pages[0]);out=io.BytesIO();combined.write(out);bundle=out.getvalue()
+    pages=inspect_documents(bundle)['pages']
+    request={'action':'document-page','page':[0,1],'file':base64.b64encode(bundle).decode()}
+    child=subprocess.run([sys.executable,'-m','cdi_facturx.stamping_job'],input=json.dumps(request).encode(),capture_output=True,timeout=95,check=True)
+    scanned=json.loads(child.stdout);assert scanned['ok'],scanned
+    pages[:2]=scanned['result']['pages'];parts=split_documents(bundle,pages)['parts']
+    assert [(p['start'],p['end']) for p in parts]==[(0,1),(2,2)]
+    print(json.dumps({'multipage_scan':'passed','documents':2,'first_document_pages':2,'bounded_subprocess':True}))
     # Exercise a dense scanned payment table through the same bounded child
     # process as production, including real Tesseract and the 384 MiB limit.
     from reportlab.platypus import SimpleDocTemplate,Table,TableStyle

@@ -40,15 +40,15 @@ class StampError(ValueError):
     def __init__(self, code, message):
         super().__init__(message); self.code = code
 
-def open_source(raw):
+def open_source(raw, max_pages=30):
     if len(raw)>20*1024*1024 or not raw.startswith(b'%PDF-'):
         raise StampError('INVALID_PDF','PDF invalide ou supérieur à 20 Mo.')
     try:
         reader = PdfReader(io.BytesIO(raw), strict=True)
         if reader.is_encrypted:
             raise StampError('SIGNED_OR_RESTRICTED_PDF','PDF chiffré : utiliser une source non verrouillée.')
-        if not 1 <= len(reader.pages) <= 30:
-            raise StampError('INVALID_PDF','PDF limité à 30 pages.')
+        if not 1 <= len(reader.pages) <= max_pages:
+            raise StampError('INVALID_PDF',f'PDF limité à {max_pages} pages.')
         root=reader.trailer['/Root']
         if root.get('/Perms') or any(v.get('/FT')=='/Sig' for v in (reader.get_fields() or {}).values()):
             raise StampError('SIGNED_OR_RESTRICTED_PDF','PDF signé ou champ de signature : aucune modification automatique.')
