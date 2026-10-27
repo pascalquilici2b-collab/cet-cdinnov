@@ -20,6 +20,7 @@ from pathlib import Path
 import pypdfium2 as pdfium
 from PIL import Image, ImageChops, ImageDraw
 from pypdf import PdfReader, PdfWriter
+from pypdf.errors import PdfReadError
 from reportlab.pdfgen import canvas
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
@@ -27,7 +28,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 from .stamping_import import cents, key, month
 from .stamping_payroll import employer_cost
 
-VERSION = 'stamping-2.3-20261025'
+VERSION = 'stamping-2.4-20261027'
 FONT = 'CDIStamp'
 BOLD = 'CDIStampBold'
 pdfmetrics.registerFont(TTFont(FONT, str(Path(__file__).parent/'assets/fonts/Montserrat-Regular.ttf')))
@@ -71,7 +72,28 @@ def open_source(raw, max_pages=30):
         raise StampError('INVALID_PDF','Le PDF ne peut pas être lu.') from exc
 
 def canonical(reader):
-    writer=PdfWriter(clone_from=reader)
+    try:
+        writer=PdfWriter(clone_from=reader)
+    except PdfReadError:
+        # Some exported payslips contain dangling bookmarks. Recover only the
+        # navigation tree; never discard page resources, annotations or forms.
+        root=reader.trailer['/Root']
+        if '/Outlines' not in root:raise
+        outlines=root.raw_get('/Outlines');del root['/Outlines']
+        try:writer=PdfWriter(clone_from=reader)
+        finally:
+            from pypdf.generic import NameObject
+            root[NameObject('/Outlines')]=outlines
+        before=reader.stream.tell();reader.stream.seek(0);original=reader.stream.read();reader.stream.seek(before)
+        check=io.BytesIO();writer.write(check)
+        with pdfium.PdfDocument(original) as a, pdfium.PdfDocument(check.getvalue()) as b:
+            if len(a)!=len(b):raise StampError('INVALID_PDF','La réparation du PDF modifie les pages.')
+            for pa,pb in zip(a,b):
+                ia,ib=render_page(pa,2),render_page(pb,2)
+                try:
+                    if ia.size!=ib.size or ImageChops.difference(ia,ib).getbbox():
+                        raise StampError('INVALID_PDF','La réparation du PDF modifie son apparence.')
+                finally:ia.close();ib.close();pa.close();pb.close()
     for page in writer.pages:
         if page.rotation: page.transfer_rotation_to_content()
     out=io.BytesIO();writer.write(out)
@@ -86,9 +108,12 @@ def local_ocr(image):
     binary=shutil.which('tesseract')
     if not binary: return '', 'OCR_UNAVAILABLE'
     with tempfile.TemporaryDirectory(prefix='cdi-stamp-') as folder:
-        source=Path(folder)/'page.png';image.save(source)
+        from .stamping_vision import prepare_ocr
+        source=Path(folder)/'page.png'
+        prepared=prepare_ocr(image)
+        prepared.save(source,dpi=(300,300));prepared.close()
         try:
-            done=subprocess.run([binary,str(source),'stdout','-l','fra+eng+ita','--psm','3'],capture_output=True,timeout=25,check=True)
+            done=subprocess.run([binary,str(source),'stdout','-l','fra+eng+ita','--psm','3','--dpi','300'],capture_output=True,timeout=25,check=True)
             return done.stdout.decode('utf-8',errors='replace'),''
         except (subprocess.TimeoutExpired,subprocess.CalledProcessError): return '', 'OCR_FAILED'
 
@@ -152,9 +177,13 @@ def extract(raw):
             textpage=page.get_textpage()
             text=textpage.get_text_range(); textpage.close()
             method='text'
-            if len(text.strip())<15:
-                image=render_page(page,2)
-                text,error=local_ocr(image);image.close();method='ocr'
+            from .stamping_vision import needs_ocr, render_ocr
+            if needs_ocr(page,text,extract_fields(text)):
+                image=render_ocr(page)
+                scanned,error=local_ocr(image);image.close();method='ocr'
+                # Preserve native evidence. Field parsers require a unique
+                # value, so a contradictory OCR amount stays a manual review.
+                if scanned.strip():text=text+'\n'+scanned
                 if error: warnings.append(f'Page {i+1} : {error}')
             pages.append({'width':page.get_width(),'height':page.get_height(),'method':method})
             texts.append(text);page.close()
@@ -257,16 +286,22 @@ def rect_overlap(a,b,margin=0):
     return a[0]<b[2]+margin and a[2]>b[0]-margin and a[1]<b[3]+margin and a[3]>b[1]-margin
 
 def occupancy(page,source_page,image):
-    w,h=image.size
-    # Any pixel that is not nearly white is occupied. Includes scans, logos and hairlines.
-    mask=ImageChops.difference(image,Image.new('RGB',(w,h),'white')).convert('L').point(lambda p:255 if p>5 else 0)
+    from .stamping_vision import foreground
+    mask=foreground(image)
+    target=(math.ceil(page.get_width()),math.ceil(page.get_height()))
+    if mask.size!=target:
+        # Preserve even a single dark high-resolution pixel in each PDF point.
+        reduced=mask.resize(target,Image.Resampling.BOX).point(lambda p:255 if p else 0)
+        mask.close();mask=reduced
     draw=ImageDraw.Draw(mask);left=float(source_page.cropbox.left);top=float(source_page.cropbox.top)
     bounds=[]
     for obj in page.get_objects(max_depth=8):
         l,b,r,t=obj.get_bounds();rect=(l-left,top-t,r-left,top-b)
         # A scan covering the page is segmented by its visible pixels; smaller images are protected as a whole.
-        fullimage=obj.type==pdfium.raw.FPDF_PAGEOBJ_IMAGE and (r-l)*(t-b)>page.get_width()*page.get_height()*.8
-        if not fullimage and r>l and t>b:
+        # Draw actual path ink, not the filled bounding box of an empty frame.
+        # Text, small logos and annotations remain protected as whole objects.
+        protect=obj.type==pdfium.raw.FPDF_PAGEOBJ_TEXT or (obj.type==pdfium.raw.FPDF_PAGEOBJ_IMAGE and (r-l)*(t-b)<page.get_width()*page.get_height()*.2)
+        if protect and r>l and t>b:
             bounds.append(rect);draw.rectangle(rect,fill=255)
     for ann in source_page.get('/Annots',[]):
         a=ann.get_object();r=a.get('/Rect')
@@ -281,10 +316,23 @@ def safe(mask,x,y,width,height,margin=7):
     return mask.crop(box).getbbox() is None
 
 def find_space(mask,l):
-    # A 6 pt lattice is conservative; failure is a review, never permission to overlap.
-    for y in range(12,max(12,int(mask.height-l['height']-10)),6):
-        for x in range(12,max(12,int(mask.width-l['width']-10)),6):
-            if safe(mask,x,y,l['width'],l['height']): return x,y
+    # Sliding column counts find narrow gaps missed by the previous 6 pt grid.
+    width,height=math.ceil(l['width'])+14,math.ceil(l['height'])+14
+    if width>mask.width-10 or height>mask.height-10:return None
+    pixels=mask.tobytes();stride=mask.width;columns=[0]*stride
+    for y in range(5,5+height):
+        for x,p in enumerate(pixels[y*stride:(y+1)*stride]):columns[x]+=bool(p)
+    for top in range(5,mask.height-height-4):
+        if top>5:
+            old=pixels[(top-1)*stride:top*stride]
+            new=pixels[(top+height-1)*stride:(top+height)*stride]
+            for x in range(stride):columns[x]+=bool(new[x])-bool(old[x])
+        run=0
+        for x in range(5,stride-5):
+            run=0 if columns[x] else run+1
+            if run>=width:
+                point=(x-width+8,top+7)
+                if safe(mask,*point,l['width'],l['height']):return point
     return None
 
 
@@ -379,7 +427,7 @@ def process(raw,groups,options=None,choice=None,suggestions=None,overrides=None,
     source=open_source(raw);writer,normal=canonical(source);blocks=[];occupied=[]
     with pdfium.PdfDocument(normal) as doc:
         for i,page in enumerate(doc):
-            image=render_page(page);mask,bounds=occupancy(page,writer.pages[i],image);image.close();page.close()
+            image=render_page(page,2);mask,bounds=occupancy(page,writer.pages[i],image);image.close();page.close()
             occupied.append((mask,bounds))
         widths=[float(options.get('width',180))];sizes=[float(options.get('fontSize',5))]
         if options.get('compact',True):widths+= [150,200,240];sizes += [5] if sizes[0]!=5 else []

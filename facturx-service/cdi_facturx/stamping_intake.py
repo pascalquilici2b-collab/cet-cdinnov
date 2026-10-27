@@ -5,6 +5,7 @@ import re
 from pypdf import PdfWriter
 from .stamping_pdf import (StampError, open_source, canonical, pdfium, extract_fields,
                            local_ocr, render_page, key, same_employee)
+from .stamping_vision import needs_ocr, render_ocr
 
 
 def descriptor(text, page, method='text', warning=''):
@@ -31,11 +32,16 @@ def inspect_documents(raw, page=None):
             p = pdf[i]
             if page is None:
                 tp = p.get_textpage(); text = tp.get_text_range(); tp.close()
-                result.append(descriptor(text, i))
+                item=descriptor(text, i)
+                item['needsOCR']=needs_ocr(p,text,extract_fields(text))
+                result.append(item)
             else:
-                image = render_page(p, 2)
+                image = render_ocr(p)
                 try: text, warning = local_ocr(image)
                 finally: image.close()
+                tp=p.get_textpage()
+                try:text=tp.get_text_range()+'\n'+text
+                finally:tp.close()
                 result.append(descriptor(text, i, 'ocr', warning))
             p.close()
     return {'pages': result}
