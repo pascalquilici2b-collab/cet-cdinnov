@@ -8,19 +8,23 @@ Point de départ : commit `531ea21`. Infrastructure observée : GitHub Pages (in
 
 | Domaine | Travail et preuve nécessaires | Responsable | État |
 |---|---|---|---|
-| Inventaire et modèle de menace | Routes, composants déployés, rôles, données sensibles, frontières de confiance | Coordination | En cours |
-| Authentification et sessions | Connexion, limitation, challenge/rejeu, expiration, révocation, mots de passe, récupération et changement de compte | Reviewer accès | En cours |
-| Autorisations | Matrice par rôle/application/action, accès directs, élévation et modifications concurrentes, pièces et exports | Reviewer accès + documents | En cours |
-| Entrées et injections | SQL, DOM/HTML/SVG, CSV, URL, XML, chemins, en-têtes, appels externes | Reviewers | En cours |
-| Documents et disponibilité | ZIP/PDF/OCR, tailles et limites, confinement, fichiers temporaires, traitement et accès privé | Solver documents | En cours |
-| Intégrations | Microsoft Graph/OAuth, destinataires et pièces jointes, API PDF, IA, secrets côté serveur | Tests frontend + documents | En cours |
-| Métier et intégrité | Écritures atomiques/versionnées, numérotation et facturation, paiement, sauvegarde/import/export | Coordination + accès | En cours |
-| Dépendances et livraison | Versions/verrouillage, vulnérabilités, images et outils système, dépendances téléchargées, scripts/CDN | Coordination | En cours |
-| Surface publique et infrastructure | HTTPS, CORS, CSP, cache, framing, secrets/archives publiques, séparation environnements et configuration effective | Coordination | En cours |
-| Vérification finale | Tests de sécurité et non-régression, revue indépendante des correctifs, preuves de déploiement et contrôles publics | Ensemble | À faire |
+| Inventaire et modèle de menace | Routes, composants déployés, rôles, données sensibles, frontières de confiance | Coordination | Terminé — rapports infrastructure, accès et documents |
+| Authentification et sessions | Connexion, limitation, challenge/rejeu, expiration, révocation, mots de passe, récupération et changement de compte | Reviewer accès | Terminé — corrections, tests dédiés et revue croisée |
+| Autorisations | Matrice par rôle/application/action, accès directs, élévation et modifications concurrentes, pièces et exports | Reviewer accès + documents | Terminé — scénarios locaux et routes publiques vérifiés |
+| Entrées et injections | SQL, DOM/HTML/SVG, CSV, URL, XML, chemins, en-têtes, appels externes | Reviewers | Terminé — corrections et tests avant/après |
+| Documents et disponibilité | ZIP/PDF/OCR, tailles et limites, confinement, fichiers temporaires, traitement et accès privé | Solver documents | Terminé — tests locaux et Linux réel ; limites explicitées |
+| Intégrations | Microsoft Graph/OAuth, destinataires et pièces jointes, API PDF, IA, secrets côté serveur | Tests frontend + documents | Terminé — tests simulés, aucun envoi réel |
+| Métier et intégrité | Écritures atomiques/versionnées, numérotation et facturation, paiement, sauvegarde/import/export | Coordination + accès | Terminé — suites d'intégrité et émission concurrente |
+| Dépendances et livraison | Versions/verrouillage, vulnérabilités, images et outils système, dépendances téléchargées, scripts/CDN | Coordination | Terminé — mises à jour, avis natifs qualifiés, image vérifiée |
+| Surface publique et infrastructure | HTTPS, CORS, CSP, cache, framing, secrets/archives publiques, séparation environnements et configuration effective | Coordination | Terminé — protections publiées ; limites Pages et comptes tiers documentées |
+| Vérification finale | Tests de sécurité et non-régression, revue indépendante des correctifs, preuves de déploiement et contrôles publics | Ensemble | Terminé — API, 62 actifs publics, Pages et Render vérifiés |
 
 ## Règles de clôture
 
 Chaque constat doit indiquer sa portée, sa preuve, sa gravité, son correctif et le test qui le couvre. Les écarts non reproduits restent des points à vérifier, pas des failles affirmées. Les tests emploient des comptes et documents fictifs dans une base isolée. Les vérifications de production sont en lecture seule et bornées ; les modifications de sécurité sont déployées après vérification et sauvegarde de l'état concerné.
 
 La clôture exige une matrice de couverture terminée, les correctifs requis publiés et vérifiés, une revue indépendante, et une liste claire des limites résiduelles. Une suite verte ne remplace pas la vérification des surfaces qu'elle ne couvre pas. Aucun statut « terminé » sur la seule base de l'absence d'erreur visible.
+
+## Clôture du 28 octobre 2026
+
+Correctifs applicatifs `bc4a9fe`, runtime natif `10718c1`. Render `dep-dbh1n94s728c73cjofc0` en ligne à 16:00:08 UTC après tous les contrôles Linux/PDF/A/OCR ; API et fichiers publics vérifiés. [Rapport final](RAPPORT.md) : résultats, preuves, limites et recommandations. « Terminé » désigne la revue dans ce périmètre et la correction des défauts confirmés ; cela ne signifie pas absence universelle de risque ni audit des politiques internes de tous les fournisseurs.

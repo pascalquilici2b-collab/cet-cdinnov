@@ -41,7 +41,16 @@ du dossier serveur.
 
 Le paquet est produit par `scripts/build_server_bundle.py` avec une liste explicite
 de fichiers autorisés. `Dockerfile` installe les versions verrouillées Python,
-Ghostscript, Java 17 et veraPDF 1.30.2 avec vérification SHA-256 de l'installateur.
+Ghostscript, Java 21 et veraPDF 1.30.2 avec vérification SHA-256 de l'installateur.
+La base est `python:3.12-slim-trixie` (Debian 13). Le build refuse une version
+Debian de Ghostscript/libgs10 inférieure à `10.05.1~dfsg-1+deb13u3`, Java 21
+inférieur à `21.0.13+9-1~deb13u2` ou Tesseract inférieur à `5.5.0-1`.
+Les révisions de sécurité plus récentes restent acceptées. Ce contrôle se fait
+sur les versions des paquets Debian : `gs --version` ne permet pas de distinguer
+les correctifs rétroportés. Pour contrôler l'image reconstruite sans document
+privé, exécuter `python -m deployment.verify_native_packages`.
+Les tests obligatoires de sécurité documentaire, conversion PDF/A-3b/Factur-X
+et OCR/tamponnage restent exécutés au build sous l'utilisateur non privilégié.
 
 
 ## Suivi de conversion

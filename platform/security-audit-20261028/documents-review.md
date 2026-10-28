@@ -1,6 +1,6 @@
 # Revue sécurité — pièces, facturation, PDF/OCR et IA — 28 octobre 2026
 
-Périmètre source : dépôt `billing-refonte-20261019`, base de revue `531ea21`, puis modifications locales de l'audit. Aucun document réel, secret, compte de production ou destinataire réel n'a été utilisé dans les essais. Les preuves sont des PDF, identifiants et archives fictifs créés en mémoire. Ce rapport constate les corrections du code ; il ne prouve pas leur déploiement sur app.cdinnov.eu ou Render.
+Périmètre source : dépôt `billing-refonte-20261019`, base de revue `531ea21`, puis modifications de l'audit. Aucun document réel, secret ou destinataire réel n'a été utilisé dans les essais. Les preuves sont des PDF, identifiants et archives fictifs créés en mémoire. La validation de l'image Render publiée est documentée ci-dessous à partir du relevé du parent ; les autres publications applicatives sont consignées dans son rapport global.
 
 ## Constats et corrections
 
@@ -11,6 +11,7 @@ Périmètre source : dépôt `billing-refonte-20261019`, base de revue `531ea21`
 | DOC-03 | P2 | Import, aperçu et contrôle de source de conversion utilisaient pypdf/PyMuPDF dans le processus du serveur web. Le plafond de 20 Mo ne borne pas la taille décompressée ni le temps de lecture d'un PDF hostile. Aucune charge destructive n'a été exécutée. | `pdf_import.py:21` exécute la lecture dans `pdf_read_worker.py`. Délai parent de 35 s, sortie temporaire plafonnée à 6 Mio, arrêt/récupération de l'enfant par `subprocess.run`. Sous Linux : espace d'adressage 384 Mio, CPU 25/30 s, fichier de sortie 6 Mio. Le contrôle du texte s'effectue progressivement. Les erreurs du parseur ne renvoient ni contenu extrait ni chemin interne. |
 | DOC-04 | P2 | Les imports ZIP des marchés et Office donnaient tout le flux compressé à fflate en un seul appel. Le contrôle du volume dans le callback arrivait après l'allocation de ce bloc décompressé, notamment avec des métadonnées de taille mensongères. | `marches/import-files.js:59` et `marches/reader.js:17` alimentent désormais la décompression par blocs de 4 Kio, comme le tamponnage. Les limites existantes de taille réelle sont vérifiées entre ces étapes. Essais sur archives compressées fictives de 6/17 Mio et import normal. |
 | DOC-05 | P1 pour mise à jour | Les versions verrouillées certifi 2026.7.22, Pillow 12.3.0 et pypdf 6.19.0 étaient signalées par l'audit OSV du parent. Cela constitue une exposition de dépendance ; aucun exploit de ces CVE n'a été lancé et toutes les fonctions des bibliothèques ne sont pas nécessairement accessibles depuis l'application. | Versions verrouillées et environnement local actualisés : certifi 2026.10.23, Pillow 13.0.0, pypdf 6.21.3. `pip check` ne détecte aucun conflit, notamment avec factur-x 6.8. |
+| DOC-06 | P1 pour mise à jour | Le relevé du parent sur l'image Render précédente contient Ghostscript `10.0.0~dfsg-11+deb12u8`. Le suivi Debian marque quatre avis importants comme non corrigés sur Bookworm et corrigés sur Trixie. Ce constat concerne le paquet installé ; aucun exploit natif n'a été exécuté. | Dockerfile passé à Debian Trixie et Java 21 ; contrôle obligatoire des révisions Debian corrigées de Ghostscript/libgs10 et Java, avant les trois tests natifs existants. Image Render publiée et tests Linux réussis, selon le relevé du parent détaillé ci-dessous. |
 
 Le parseur XMP du contrôle final d'assemblage utilise maintenant explicitement `resolve_entities=False, no_network=True`, comme le parseur du rapport veraPDF. Le XML concerné est produit par le service ; cette modification est un renforcement et non une preuve de XXE exploitable.
 
@@ -38,6 +39,7 @@ Environnement : Python 3.12.14 du venv local existant, après mise à jour des t
 - `node marches/import-test.mjs` : PASS, import, citations, valeurs manuelles et propositions.
 - `node marches/archive-security-test.mjs` : PASS, métadonnées de taille mensongères et import normal.
 - `python -m deployment.verify_document_security` : PASS sur Windows ; contrôle vrai sous-processus et refus SubmitForm. Le résultat indique explicitement `linux_resource_limits: false` sur Windows.
+- Complément runtime : `pytest -q tests/test_native_packages.py tests/test_document_security.py` : **35 tests réussis**, également repassés par le parent. Les commandes Debian sont simulées dans les quatre tests du contrôle des paquets ; seul le build Linux peut confirmer les révisions réellement installées.
 - `pip check` : aucun conflit ; `git diff --check` : aucune erreur sur les fichiers de ce périmètre.
 
 Commandes reproductibles depuis la racine du dépôt sous PowerShell :
@@ -54,24 +56,36 @@ node marches/import-test.mjs
 node marches/archive-security-test.mjs
 ```
 
-## Image Linux / validation Render restant à constater
+## Image Linux / validation Render
 
-Docker n'est pas disponible sur le poste : ni commande détectée, ni binaire dans l'emplacement standard. Aucune installation système ni construction d'image n'a été effectuée. Les limites Linux ne sont donc pas annoncées comme validées localement. `deployment/verify_document_security.py` est ajouté aux copies et tests obligatoires du Dockerfile, sous l'utilisateur non privilégié ; le prochain build vérifiera la lecture réelle et les limites AS/CPU/FSIZE de l'enfant.
+Docker n'est pas disponible sur le poste : ni commande détectée, ni binaire dans l'emplacement standard. Aucune installation système ni construction locale d'image n'a été effectuée. Les limites Linux n'ont pas été validées sur ce poste Windows. `deployment/verify_document_security.py` figure dans les copies et tests obligatoires du Dockerfile, sous l'utilisateur non privilégié ; le build Render a vérifié la lecture réelle et les limites AS/CPU/FSIZE de l'enfant.
 
-Le Dockerfile utilise `python:3.12-slim-bookworm` sans digest. Ghostscript, OpenJDK 17 et Tesseract sont installés depuis APT sans version fixée ; les versions effectives de l'image déployée ne peuvent pas être déduites du seul dépôt. Il faut réactualiser les couches de base/APT lors du rebuild de sécurité et relever les versions effectives, puis auditer l'image. veraPDF est verrouillé à 1.30.2 et son installateur à un SHA-256 vérifié avant extraction. Le service s'exécute avec UID/GID 10001, un seul traitement simultané, heap Java plafonnée à 192 Mio, et sans journal d'accès. Ces contrôles ne remplacent pas un audit de l'image effective.
+Le parent a confirmé le déploiement Render **LIVE** de la révision `10718c1`, identifiant `dep-dbh1n94s728c73cjofc0`, le **28 octobre 2026 à 16:00:08 UTC**. Son relevé de l'image effective établit :
 
-À exécuter dans le répertoire `/app` du shell Render après publication du code, sans afficher les variables secrètes :
+- Ghostscript et libgs10 : `10.05.1~dfsg-1+deb13u3` ; Java 21 : `21.0.13+9-1~deb13u2` ; Tesseract : `5.5.0-1+b1`.
+- `verify_document_security` réussi avec `linux_resource_limits: true`.
+- Conversions PDF/A et Factur-X, annotations et remises : réussies.
+- Tamponnage, scans multipages et partiels, document de paiement de 28 lignes : réussis.
+
+Cette preuve provient de la reconstruction et de la validation conduites par le parent, sans nouveau traitement de document client par cette sous-revue.
+
+Le Dockerfile corrigé utilise `python:3.12-slim-trixie` (sans digest), Ghostscript et OpenJDK 21 depuis les dépôts Debian stables. `deployment.verify_native_packages` bloque désormais le build sous la révision Debian corrigée de Ghostscript/libgs10 `10.05.1~dfsg-1+deb13u3`, Java 21 `21.0.13+9-1~deb13u2` et Tesseract `5.5.0-1`. Les futurs correctifs restent acceptés. La motivation, les sources officielles, la compatibilité Java et les limites restantes sont détaillées dans `ghostscript-runtime-update.md`. Chaque reconstruction doit conserver le relevé des versions effectives ; les versions ci-dessus décrivent celle validée le 28 octobre. veraPDF reste verrouillé à 1.30.2 avec vérification SHA-256 de l'installateur. Le service conserve UID/GID 10001, un seul traitement simultané, heap Java plafonnée à 192 Mio et absence de journal d'accès.
+
+Sources natives vérifiées le 28 octobre 2026 : [suivi Debian de Ghostscript](https://security-tracker.debian.org/tracker/source-package/ghostscript), [paquet corrigé Trixie](https://packages.debian.org/trixie/ghostscript) et [matrice officielle veraPDF 1.30.2 incluant Java 21](https://raw.githubusercontent.com/veraPDF/veraPDF-apps/v1.30.2/.github/workflows/test-pr.yml). Debian confirme également que le seuil Java retenu corrige [CVE-2026-101516](https://security-tracker.debian.org/tracker/CVE-2026-101516) et [CVE-2026-91403](https://security-tracker.debian.org/tracker/CVE-2026-91403). Les avis Ghostscript [CVE-2025-59800](https://security-tracker.debian.org/tracker/CVE-2025-59800) et [CVE-2025-59801](https://security-tracker.debian.org/tracker/CVE-2025-59801) restent signalés sur le paquet source, avec une note Debian indiquant que les composants concernés ne sont pas compilés dans son binaire. Le seuil Tesseract fixe la version attendue de Trixie ; il ne prouve pas que tous les avis du moteur OCR sont corrigés. Aucune conclusion « zéro CVE » n'est tirée de ce contrôle.
+
+Commandes de revalidation dans le répertoire `/app` du shell Render, sans afficher les variables secrètes :
 
 ```sh
 python -m deployment.verify_document_security
+python -m deployment.verify_native_packages
 python -c "import json,os,urllib.request; r=json.load(urllib.request.urlopen('http://127.0.0.1:'+os.environ.get('PORT','8080')+'/api/health',timeout=5)); assert r['ready']; print({'ready':r['ready'],'authentication_required':r['authentication_required']})"
 python -c "from importlib.metadata import version; print({p:version(p) for p in ('certifi','pillow','pypdf','factur-x')})"
-dpkg-query -W ghostscript openjdk-17-jre-headless tesseract-ocr ca-certificates
+dpkg-query -W ghostscript libgs10 openjdk-21-jre-headless tesseract-ocr ca-certificates
 ```
 
 Les tests natifs complets existants `python -m deployment.verify_runtime` et `python -m deployment.verify_stamping` emploient eux aussi des données fictives et sont déjà obligatoires au build Docker. Aucun fichier de client ne doit être utilisé pour ce contrôle. Les deux tests Python qui nécessitent explicitement ce runtime complet restent indiqués comme ignorés sur le poste Windows.
 
-Le parent doit reconstruire les actifs incluant `marches/reader.js` et `marches/import-files.js`, ainsi que le worker contenant `stamping-ai.ts`. Aucun bundle global, commit, migration ou déploiement n'a été effectué par cette sous-revue. Le pipeline Ghostscript/Java et l'image restent à vérifier dans leur environnement Linux réel ; la nouvelle isolation ne prétend pas cloisonner à elle seule chaque étape native de conversion.
+La publication des actifs incluant `marches/reader.js`, `marches/import-files.js` et du worker contenant `stamping-ai.ts` relève du rapport global du parent. Aucun bundle global, commit, migration ou déploiement n'a été effectué par cette sous-revue. Le pipeline Ghostscript/Java a passé les contrôles de l'image Linux réelle décrits ci-dessus ; la nouvelle isolation ne prétend pas cloisonner à elle seule chaque étape native de conversion.
 
 ## Complément — trois modèles publics
 
