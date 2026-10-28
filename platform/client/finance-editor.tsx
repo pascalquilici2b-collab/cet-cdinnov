@@ -30,7 +30,7 @@ function InvoiceEditor(p:EditorProps){const f=p.record as Invoice;return <><head
   <Field id="fvDate" label="Date de facture" type="date" initial={p.existing?f.dateFacture:p.today}/><Field id="fvNum" label="N° de facture" initial={f.number} placeholder="ex. 26 03 012"/>
   <Field id="fvCode" label="Code affaire" initial={f.code} list="fvCodeList" placeholder="ex. 23145"/><datalist id="fvCodeList">{p.codes.slice().sort((a,b)=>codeKey(a).localeCompare(codeKey(b))).map(c=><option key={c.id} value={codeKey(c)}>{codeLabel(c)} — {(c.label||'').slice(0,50)}</option>)}</datalist>
   <Field id="fvClient" label="Client" initial={f.client} list="cdiClientsList"/><Field id="fvHT" label="Montant HT (€)" type="number" step="0.01" initial={f.ht} onInput={()=>p.act('ttcAuto')}/><Field id="fvTTC" label="Montant TTC (€)" type="number" step="0.01" initial={f.ttc}/>
-  <Field id="fvPay" label="Date de paiement" type="date" initial={f.datePaiement}/><p className="finance-field-hint">Laissez vide tant que la facture n’est pas réglée.</p>
+  <Field id="fvSent" label="Envoyée le" type="date" initial={f.dateEnvoi} min={f.dateFacture||undefined} max={p.today}/><Field id="fvPay" label="Date de paiement" type="date" initial={f.datePaiement}/>
   </div></div><Buttons><button type="button" className="btn btn-ghost" onClick={()=>p.act('close')}>Annuler</button><button type="submit" className="btn btn-primary" id="fvSave">{p.existing?'Enregistrer':'Créer la facture'}</button></Buttons></>;}
 function ExpenseLineEditor({line:l,index:i,p}:{line:ExpenseLine;index:number;p:EditorProps}){
   const km=l.categorie==='Frais kilométriques',vehicle=l.vehicule||'voiture',cvs=Object.keys(p.vehicles[vehicle]?.cv||{});

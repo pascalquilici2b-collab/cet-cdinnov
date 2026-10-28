@@ -13,7 +13,7 @@ export function settlementJSON(){
   'version',coalesce(p.version,0),'receivedMinor',CAST(coalesce(p.received_minor,0) AS TEXT),'refundedMinor',CAST(coalesce(p.refunded_minor,0) AS TEXT),
   'netPaidMinor',CAST(${net} AS TEXT),'dueMinor',CAST(max(${gross}-${net},0) AS TEXT),'overpaidMinor',CAST(max(${net}-${gross},0) AS TEXT),
   'state',CASE WHEN ${net}>${gross} THEN 'overpaid' WHEN ${net}=${gross} THEN 'paid' WHEN ${net}=0 THEN 'unpaid' ELSE 'partial' END,
-  'overdue',json(CASE WHEN ${net}<${gross} AND coalesce(nullif(json_extract(billing_documents.data_json,'$.dueDate'),''),date(json_extract(billing_documents.data_json,'$.issueDate'),'+30 days'))<'${billingToday()}' THEN 'true' ELSE 'false' END)) ELSE NULL END
+  'overdue',json(CASE WHEN ${net}<${gross} AND EXISTS(SELECT 1 FROM billing_email_deliveries d WHERE d.document_id=billing_documents.id AND d.state='sent') AND coalesce(nullif(json_extract(billing_documents.data_json,'$.dueDate'),''),date(json_extract(billing_documents.data_json,'$.issueDate'),'+30 days'))<'${billingToday()}' THEN 'true' ELSE 'false' END)) ELSE NULL END
   FROM billing_issuances i JOIN billing_issue_jobs j ON j.issuance_id=i.id LEFT JOIN billing_payment_accounts p ON p.document_id=i.document_id WHERE i.document_id=billing_documents.id)`;
 }
 export async function billingPaymentRoute(request:Request,db:Database,record:BillingDocument,email:string,reply:Reply,read:()=>Promise<BillingDocument>):Promise<Response>{

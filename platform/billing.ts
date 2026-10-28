@@ -24,6 +24,7 @@ import {billingDirectoryRoute} from './billing-directory';
 import {billingQuoteRoute,quoteJSON} from './billing-quote';
 import {billingPaymentRoute,settlementJSON} from './billing-payments';
 import {confirmOutlookSent,sentAtSQL} from './billing-outlook-confirm';
+import {declareInvoiceSent} from './billing-sent';
 import {mailSignatureRoute} from './billing-mail-signature';
 import {billingEmail} from './billing-delivery';
 import {rectificationJSON,rectifyInvoice} from './billing-rectification';
@@ -230,7 +231,7 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
   }
   return reply(200,document(existing));
  }
- const match=path.match(/^\/api\/v1\/billing\/documents\/([^/]+)(\/engagement|\/intervention-report(?:\.pdf)?|\/rectify|\/restore|\/number|\/email|\/outlook-sent|\/payments|\/quote-versions|\/revise|\/abandon-revision|\/quote-events|\/convert|\/preview\.pdf|\/issue|\/finalize|\/files\/(?:pdf|xml|validation|verapdf))?$/);
+ const match=path.match(/^\/api\/v1\/billing\/documents\/([^/]+)(\/engagement|\/intervention-report(?:\.pdf)?|\/rectify|\/restore|\/number|\/email|\/outlook-sent|\/sent|\/payments|\/quote-versions|\/revise|\/abandon-revision|\/quote-events|\/convert|\/preview\.pdf|\/issue|\/finalize|\/files\/(?:pdf|xml|validation|verapdf))?$/);
  if(!match)return reply(404,{error:'Accès de facturation introuvable.'});
  if(!uuid(match[1]))return fail(400,'Identifiant de document invalide.');
  const id=match[1].toLowerCase();
@@ -265,6 +266,7 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
   await reserveDraftNumber(db,document(row),session.email);return reply(200,document((await get(db,id))!));
  }
  if(match[2]==='/outlook-sent'){const row=await get(db,id);if(!row)return reply(404,{error:'Facture introuvable.'});return confirmOutlookSent(request,db,document(row),session.email,reply,async()=>document((await get(db,id))!));}
+ if(match[2]==='/sent'){const row=await get(db,id);if(!row)return reply(404,{error:'Facture introuvable.'});return declareInvoiceSent(request,db,document(row),session.email,reply,async()=>document((await get(db,id))!));}
  if(match[2]==='/email'){
   const row=await get(db,id);if(!row)return reply(404,{error:'Document introuvable.'});
   if(request.method==='POST'&&document(row).rectification?.replacementId)return fail(409,'Ouvrez la rectification de cette facture.');

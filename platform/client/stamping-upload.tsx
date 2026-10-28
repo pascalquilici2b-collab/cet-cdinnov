@@ -27,10 +27,10 @@ export function StampUpload({payment=false,disabled=false,busy=false,onFiles}:{p
    onDragOver={e=>{e.preventDefault();e.dataTransfer.dropEffect=disabled?'none':'copy';}}
    onDragLeave={e=>{e.preventDefault();depth.current=Math.max(0,depth.current-1);if(!depth.current)setDragging(false);}}
    onDrop={e=>{e.preventDefault();depth.current=0;setDragging(false);commit(Array.from(e.dataTransfer.files));}}>
-   <span className={'stamp-upload-icons'+(payment?' has-excel':'')} aria-hidden="true"><span><StampFileIcon name="document.pdf"/></span><span><StampFileIcon name={payment?'document.xlsx':'piece.pdf'}/></span><span><StampFileIcon name="document.pdf"/></span></span>
+   <span className={'stamp-upload-icons'+(payment?' has-excel':' has-zip')} aria-hidden="true"><span><StampFileIcon name="document.pdf"/></span><span><StampFileIcon name={payment?'document.xlsx':'pieces.zip'}/></span><span><StampFileIcon name="document.pdf"/></span></span>
    <strong>{title}</strong><small>{payment?'Excel ou PDF · 5 Mo maximum':'PDF ou ZIP · 20 Mo par fichier · 100 pièces par lot'}</small>
    <span className="stamp-upload-cta">{busy?<LoaderCircle size={15}/>:<Upload size={15}/>}<span>{busy?'Import en cours…':active?'Relâchez pour importer':'Choisir ou glisser les fichiers'}</span></span>
-   <input ref={input} aria-label={payment?'Importer le document de paiement':'Importer les PDF'} type="file" accept={accept} multiple={!payment} disabled={disabled} hidden onChange={e=>{const files=Array.from(e.target.files||[]);e.target.value='';commit(files);}}/>
+   <input ref={input} aria-label={payment?'Importer le document de paiement':'Importer les PDF ou ZIP'} type="file" accept={accept} multiple={!payment} disabled={disabled} hidden onChange={e=>{const files=Array.from(e.target.files||[]);e.target.value='';commit(files);}}/>
   </div>
   {error&&<p role="alert" className="stamp-upload-error">{error}</p>}
  </div>;

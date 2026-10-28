@@ -16,6 +16,7 @@ export type BillingListRow=BillingDocument&{imported?:Invoice};
 const nameKey=(s:string)=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().replace(/\s+/g,' ').toLowerCase();
 const minor=(v:unknown)=>String(Math.round((Number(v)||0)*100));
 const date=(v:string)=>/^\d{4}-\d{2}-\d{2}$/.test(v)?v.split('-').reverse().join('/'):'—';
+export const importedInvoiceState=(f:Invoice)=>f.datePaiement?'paid':f.dateEnvoi?(invoiceIsLate(f.dateFacture||'')?'overdue':'sent'):'finalized';
 
 // Keep the historical invoice as the single source of truth, including its PDF
 // and converter metadata. No copy, renumbering or synthetic issuance is written.
@@ -39,7 +40,7 @@ export async function listWithImports(transport:BillingTransport,query:Parameter
   if(!projectOption&&project){projectOption={value:invoice.projectId?'id:'+invoice.projectId:'name:'+project,label:project};projects.push(projectOption);}
   if(query.client&&clientOption?.value!==query.client||query.project&&projectOption?.value!==query.project)continue;
   if(query.q&&!nameKey([invoice.number,client,invoice.code,project,invoice.dateFacture].join(' ')).includes(nameKey(query.q)))continue;
-  const state=invoice.datePaiement?'paid':invoiceIsLate(invoice.dateFacture||'')?'overdue':'finalized';
+  const state=importedInvoiceState(invoice);
   if(query.state&&!['all','issued',state,...(!invoice.datePaiement?['unpaid']:[])].includes(query.state))continue;
   const data=blankDraft('invoice');data.title='Facture '+(invoice.number||'importée');data.buyer.name=client;data.issueDate=invoice.dateFacture||'';data.references.businessCode=invoice.code||'';
   rows.push({id:'imported:'+invoice.id,imported:invoice,version:0,status:'issued',data,issuance:null,sourceDocumentId:null,createdAt:data.issueDate,updatedAt:data.issueDate+'T00:00:00.000Z',createdBy:'',updatedBy:'',totals:null,issues:[],quote:null,settlement:null});
@@ -50,13 +51,13 @@ export async function listWithImports(transport:BillingTransport,query:Parameter
 }
 
 export function ImportedInvoiceRow({invoice:f,act,label,report}:{report?:ReactNode;invoice:Invoice;act:ImportedInvoices['act'];label?:string}){
- const state=f.datePaiement?'paid':invoiceIsLate(f.dateFacture||'')?'overdue':'finalized';
+ const state=importedInvoiceState(f);
  return <tr data-imported-invoice={f.id} {...documentRow(()=>act('edit',f.id))}>
   <td data-column="document"><button className="bill-document-link" onClick={()=>act('edit',f.id)}><span><strong>{invoiceDisplayNumber(f.number)}</strong><small>Importée</small></span></button></td>
   <td data-column="label">{importedInvoiceLabel(f)||label||'—'}</td>
   <td data-column="client"><div className="bill-list-client"><ClientAvatar name={f.client||''}/><span>{f.client||'—'}</span></div></td>
   <td data-column="date">{date(f.dateFacture||'')}</td><td data-column="reference">{f.code||'—'}</td>
-  <td data-column="status"><span className="bill-badge" data-status={state}><BillingStateIcon state={state} size={15}/> {state==='paid'?'Réglée':state==='overdue'?'En retard d’encaissement':'Finalisé'}</span></td>
+  <td data-column="status"><span className="bill-badge" data-status={state}><BillingStateIcon state={state} size={15}/> {state==='paid'?'Réglée':state==='overdue'?'En retard d’encaissement':state==='sent'?'Envoyée':'Finalisé'}</span></td>
   <td data-column="amount" className="bill-amount">{formatMinor(minor(f.ttc))}</td>
   <td data-column="action"><div className="bill-import-actions">
    {f.pdfSource?<><button className="bill-button bill-button-pdf" aria-label={'Télécharger le PDF '+f.number} title="Télécharger le PDF" onClick={()=>act('pdf',f.id)}><PDFIcon/></button><button className="bill-button bill-button-primary" aria-label={(f.validFacturx?'Télécharger le Factur-X ':'Créer le Factur-X ')+f.number} title={f.validFacturx?'Télécharger le Factur-X':'Créer le Factur-X'} onClick={()=>act(f.validFacturx?'downloadFacturx':'facturx',f.id)}><FileCode2 size={16}/><span>Factur-X</span></button></>:<button className="bill-button" title="Joindre le PDF original" aria-label={'Joindre le PDF '+f.number} onClick={()=>act('upload',f.id)}><Upload size={16}/>PDF</button>}

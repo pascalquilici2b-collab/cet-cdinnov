@@ -6,7 +6,7 @@ await build({entryPoints:['platform/client/billing-imports.tsx'],outfile:'.build
 const {listWithImports}=await import('../.build/billing-imports-test.mjs');
 const native=Array.from({length:145},(_,i)=>({id:'native-'+i,data:blankDraft('invoice'),updatedAt:new Date(Date.UTC(2026,9,30,0,0,-i)).toISOString()}));
 const calls=[],transport={list:async q=>{calls.push(q);return {documents:native.slice(q.offset,q.offset+q.limit),total:native.length,limit:q.limit,offset:q.offset,filters:{clients:[{value:'id:client',label:'Client principal'}],projects:[]}};}};
-const invoices=Array.from({length:87},(_,i)=>({id:'import-'+i,number:'OLD-'+i,client:i%2?'Client principal':'Autre',dateFacture:'2020-09-22',datePaiement:i%3?'':'2020-09-25',ttc:1200}));
+const invoices=Array.from({length:87},(_,i)=>({id:'import-'+i,number:'OLD-'+i,client:i%2?'Client principal':'Autre',dateFacture:'2020-09-22',dateEnvoi:'2020-09-23',datePaiement:i%3?'':'2020-09-25',ttc:1200}));
 invoices.push(invoices[0]);const imported={invoices,act:()=>{}};
 const all=[];
 for(let offset=0;offset<232;offset+=20){const p=await listWithImports(transport,{kind:'invoice',q:'',state:'all',offset,limit:20},imported);assert.equal(p.total,232);all.push(...p.documents.map(d=>d.id));assert.ok(p.filters.clients.some(c=>c.value==='id:client'));assert.equal(p.filters.clients.filter(c=>c.label==='Client principal').length,1);}
@@ -14,9 +14,12 @@ assert.equal(new Set(all).size,232);assert.equal(all.length,232);assert.ok(calls
 const empty={list:async q=>({documents:[],total:0,offset:q.offset,limit:q.limit,filters:{clients:[{value:'id:client',label:'Client principal'}],projects:[]}})};
 for(const state of ['draft','finalizing','issue_failed','partial','finalized'])assert.equal((await listWithImports(empty,{kind:'invoice',q:'',state,offset:0,limit:20},imported)).total,0);
 assert.equal((await listWithImports(empty,{kind:'invoice',q:'',state:'overdue',offset:0,limit:20},imported)).total,58);
-const recent={...imported,invoices:[{...invoices[1],dateFacture:billingToday()}]};
+const recent={...imported,invoices:[{...invoices[1],dateFacture:billingToday(),dateEnvoi:null}]};
 assert.equal((await listWithImports(empty,{kind:'invoice',q:'',state:'finalized',offset:0,limit:20},recent)).total,1);
 assert.equal((await listWithImports(empty,{kind:'invoice',q:'',state:'overdue',offset:0,limit:20},recent)).total,0);
+const unconfirmed={...imported,invoices:[{...invoices[1],dateEnvoi:null}]};
+assert.equal((await listWithImports(empty,{kind:'invoice',q:'',state:'overdue',offset:0,limit:20},unconfirmed)).total,0);
+assert.equal((await listWithImports(empty,{kind:'invoice',q:'',state:'finalized',offset:0,limit:20},unconfirmed)).total,1);
 assert.equal((await listWithImports(empty,{kind:'invoice',q:'OLD-10',state:'all',offset:0,limit:20},imported)).total,1);
 assert.equal((await listWithImports(empty,{kind:'invoice',q:'',state:'all',client:'id:client',offset:0,limit:20},imported)).total,43);
 assert.equal((await listWithImports(empty,{kind:'invoice',q:'',state:'paid',offset:0,limit:20},imported)).total,29);

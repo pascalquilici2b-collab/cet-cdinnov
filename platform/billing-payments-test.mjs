@@ -19,7 +19,7 @@ await test('règlements : écritures atomiques, concurrence et historique',async
   const ok=async(res,status=201)=>{assert.equal(res.status,status,await res.clone().text());return res.json();};
   let doc=await create();const original=structuredClone(doc),files={};for(const kind of doc.issuance.files)files[kind]=await (await call('/documents/'+doc.id+'/files/'+kind)).text();
   await t.test('migration rejouable et projection initiale, devis/brouillon exclus',async()=>{
-   await migrateBilling(ctx.db);assert.deepEqual(await read(doc),doc);assert.deepEqual(doc.settlement,{version:0,receivedMinor:'0',refundedMinor:'0',netPaidMinor:'0',dueMinor:'270000',overpaidMinor:'0',state:'unpaid',overdue:true});
+   await migrateBilling(ctx.db);assert.deepEqual(await read(doc),doc);assert.deepEqual(doc.settlement,{version:0,receivedMinor:'0',refundedMinor:'0',netPaidMinor:'0',dueMinor:'270000',overpaidMinor:'0',state:'unpaid',overdue:false});
    const draft=await create(undefined,false),quote=await f.quoteCreate();assert.equal(draft.settlement,null);assert.equal(quote.settlement,null);assert.equal((await send(draft,input(draft))).status,409);assert.equal((await send(quote,input(quote))).status,400);
   });
   let first;
@@ -69,6 +69,7 @@ await test('règlements : écritures atomiques, concurrence et historique',async
    const page=await history(d),page2=await ok(await call('/documents/'+d.id+'/payments?before='+page.nextBefore),200);assert.equal(page.entries.length,50);assert.equal(page2.entries.length,42);assert.equal(page2.nextBefore,null);assert.equal(new Set([...page.entries,...page2.entries].map(e=>e.id)).size,92);
   });
   await t.test('filtres de règlement, zéro TTC et échéance future',async()=>{
+   const old=await create();await ok(await call('/documents/'+old.id+'/sent','POST',{sentOn:'2020-01-02',confirmed:true},{'If-Match':String(old.version)}),200);
    const zero=invoiceFixture();zero.lines[0].unitPrice='0';const z=await create(zero);assert.equal(z.settlement.state,'paid');assert.equal(z.settlement.overdue,false);
    const future=invoiceFixture();future.dueDate='2099-01-01';const f=await create(future);assert.equal(f.settlement.overdue,false);
    for(const state of ['unpaid','partial','paid','overpaid','overdue']){const page=await ok(await call('/documents?kind=invoice&state='+state),200);assert.ok(page.total>0);for(const d of page.documents)assert.ok(state==='overdue'?d.settlement.overdue:d.settlement.state===state);}

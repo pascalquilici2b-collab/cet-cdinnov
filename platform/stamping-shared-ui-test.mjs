@@ -46,7 +46,7 @@ try{
  await page.evaluate(()=>document.documentElement.dataset.theme='dark');await page.screenshot({path:out+'/corrections-validees.png',fullPage:true});
  await page.getByRole('button',{name:'Fermer la fiche',exact:true}).click();await page.getByRole('button',{name:'Tous les lots',exact:true}).click();await page.getByRole('button',{name:'Types de pièces',exact:true}).click();
  await page.getByRole('button',{name:/Prestations de services/}).click();await page.getByLabel('Nom du lot',{exact:true}).fill('Factures ZIP · essai');await page.getByRole('button',{name:'Créer le lot',exact:true}).click();
- await page.getByLabel('Importer les PDF',{exact:true}).setInputFiles({name:'factures.zip',mimeType:'application/zip',buffer:Buffer.from(zipSync({'factures/facture.pdf':Buffer.from(f.invoice,'base64')}))});
+ await page.getByLabel('Importer les PDF ou ZIP',{exact:true}).setInputFiles({name:'factures.zip',mimeType:'application/zip',buffer:Buffer.from(zipSync({'factures/facture.pdf':Buffer.from(f.invoice,'base64')}))});
  await page.getByRole('button',{name:'facture.pdf',exact:true}).waitFor();assert.equal(await page.locator('.stamp-documents tbody tr').count(),1);
  assert.deepEqual(errors,[]);console.log('UI: ZIP imports in RH and Services, 4-page bundle -> 3 pieces, explicit manual confirmation -> green Ready with no analysis/AI: PASS');
 }catch(e){console.error(e);for(const p of browser.contexts().flatMap(c=>c.pages())){console.log((await p.locator('body').innerText()).slice(-5000));await p.screenshot({path:out+'/failure.png',fullPage:true});}throw e;}finally{await browser.close();server.closeAllConnections();await new Promise(r=>server.close(r));await ctx.worker.dispose();}

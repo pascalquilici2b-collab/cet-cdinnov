@@ -2,7 +2,7 @@ export type Numeric = number|string|null;
 export interface Employee {matricule:string;nom:string;prenom:string;photo?:string|null;}
 export interface Client {name:string;aliases?:string[];logo?:string;}
 export interface BusinessCode {id:string;code1:Numeric;code2:Numeric;pilote?:string;label?:string;client?:string;montantHT?:Numeric;progress?:Numeric;[field:string]:unknown;}
-export interface Invoice {id:string;number?:string;code?:string;client?:string;ht?:Numeric;ttc?:Numeric;dateFacture?:string|null;datePaiement?:string|null;pdfSource?:{name:string;[field:string]:unknown};validFacturx?:boolean;[field:string]:unknown;}
+export interface Invoice {id:string;number?:string;code?:string;client?:string;ht?:Numeric;ttc?:Numeric;dateFacture?:string|null;dateEnvoi?:string|null;datePaiement?:string|null;pdfSource?:{name:string;[field:string]:unknown};validFacturx?:boolean;[field:string]:unknown;}
 export interface ExpenseLine {id:string;date?:string;categorie:string;description?:string;montant?:Numeric;vehicule?:string;cv?:string;km?:Numeric;elec?:boolean;depart?:string;arrivee?:string;allerRetour?:boolean;justificatif?:string;justName?:string;justType?:string;[field:string]:unknown;}
 export interface Expense {id:string;numero:Numeric;matricule:string;projectId?:string;projectName?:string;objet?:string;affaire?:string;codeAffaire?:string;codeCompta?:string;lieu?:string;dateDepart?:string;dateRetour?:string;duree?:Numeric;dateNote?:string;statut?:string;avance?:Numeric;faitA?:string;signature?:string|null;lignes:ExpenseLine[];[field:string]:unknown;}
 export interface Filters {tab:'codes'|'factures';codeQ:string;factQ:string;year:string;month:string;codePage:number;codePer:number;factPage:number;factPer:number;expenseQ:string;expensePerson:string;expenseStatus:string;expensePage:number;expensePer:number;}
@@ -37,7 +37,7 @@ export function codeInput(form:HTMLFormElement){
 }
 export function invoiceInput(form:HTMLFormElement){
   const fields=new FormData(form),get=(key:string)=>String(fields.get(key)||'').trim();
-  const d={dateFacture:get('fvDate'),number:get('fvNum'),code:get('fvCode'),client:get('fvClient'),ht:number(get('fvHT')),ttc:number(get('fvTTC')),datePaiement:get('fvPay')||null};
+  const d={dateFacture:get('fvDate'),number:get('fvNum'),code:get('fvCode'),client:get('fvClient'),ht:number(get('fvHT')),ttc:number(get('fvTTC')),dateEnvoi:get('fvSent')||null,datePaiement:get('fvPay')||null};
   if(!d.dateFacture&&!d.number)throw new Error('Date ou numéro de facture requis.');return d;
 }
 export type Command='section'|'clients'|'clientsRetry'|'newCode'|'editCode'|'deleteCode'|'newInvoice'|'editInvoice'|'deleteInvoice'|'uploadPdf'|'originalPdf'|'createFacturx'|'finalFacturx'|'removePdf'|'removeFacturx'|'importSql'|'exportCodes'|'exportInvoices'|'newExpense'|'editExpense'|'deleteExpense'|'duplicateExpense'|'expensePdf';

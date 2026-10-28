@@ -87,7 +87,7 @@ function validatePortalFields(document:Document,previous:Document){
     // unrelated private record. Newly supplied machine values are always checked.
     for(const field of ['id','matricule','code'])if(record[field]!==undefined&&!same(record[field],before?.[field])&&!machine(record[field]))fail(400,'Identifiant invalide : '+key);
     if(statuses[key]&&record.statut!==undefined&&!same(record.statut,before?.statut)&&!statuses[key].includes(record.statut))fail(400,'Statut invalide : '+key);
-    for(const field of ['date','dateDebut','dateFin','dateNote','dateDepart','dateRetour','dateFacture'])if(!same(record[field],before?.[field])&&!date(record[field]))fail(400,'Date invalide : '+key);
+    for(const field of ['date','dateDebut','dateFin','dateNote','dateDepart','dateRetour','dateFacture','dateEnvoi'])if(!same(record[field],before?.[field])&&!date(record[field]))fail(400,'Date invalide : '+key);
     if(key==='notesFrais'){
       if(record.lignes!==undefined&&!Array.isArray(record.lignes))fail(400,'Lignes de frais invalides.');
       for(const [index,line]of (record.lignes||[]).entries()){

@@ -36,6 +36,7 @@ export function createBillingTransport(options:{baseUrl:string;getToken:()=>Prom
     rectify:(id,version,input)=>numbered(request<BillingDocument>('/documents/'+encodeURIComponent(id)+'/rectify','POST',input,version)),
     session:()=>request('/api/v1/session'),
     confirmSent:(id,version,input)=>request('/documents/'+encodeURIComponent(id)+'/outlook-sent','POST',input,version),
+    declareSent:(id,version,input)=>request('/documents/'+encodeURIComponent(id)+'/sent','POST',input,version),
     emailHistory:id=>request('/documents/'+encodeURIComponent(id)+'/email'),
     email:(id,version,input)=>request('/documents/'+encodeURIComponent(id)+'/email','POST',input,version),
     projects:()=>request('/api/v1/projects'),

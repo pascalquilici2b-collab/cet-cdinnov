@@ -1,4 +1,6 @@
 /* Shared document states: one palette in the list, header, summary and menu. */
+.bill-app :is(.bill-status-trigger,.bill-document-state,.bill-badge,.bill-payment-state)[data-status=sent]{--state-ink:#793bb5;--state-bg:#f5edff;--state-line:#dcc4f3}
+[data-theme=dark] .bill-app :is(.bill-status-trigger,.bill-document-state,.bill-badge,.bill-payment-state)[data-status=sent]{--state-ink:#d2adff;--state-bg:#342343;--state-line:#674889}
 .bill-app [data-status=draft],.bill-state-menu [data-status=draft]{--state-ink:#a44507;--state-bg:#fff2e4;--state-line:#f3c391}
 .bill-app [data-status=finalized],.bill-state-menu [data-status=finalized]{--state-ink:#0668c7;--state-bg:#edf5ff;--state-line:#bdd9f7}
 .bill-app [data-status=overdue],.bill-state-menu [data-status=overdue]{--state-ink:#a44507;--state-bg:#fff2e4;--state-line:#f3c391}

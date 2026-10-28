@@ -12,14 +12,15 @@ import {billingToday} from './billing-quote-domain.ts';
 test('échéance calendaire J+30 et états avant/après échéance, sans écriture',()=>{
  assert.equal(addBillingDays('2026-10-23',30),'2026-11-22');assert.equal(addBillingDays('2028-02-01',30),'2028-03-02');assert.equal(addBillingDays('2026-12-20',30),'2027-01-19');assert.equal(addBillingDays('bad',30),'');assert.equal(blankDraft('invoice','2026-10-23').dueDate,'2026-11-22');
  const doc={data:{...invoiceFixture(),issueDate:'2026-10-23',dueDate:'2026-11-22'},issuance:{state:'ready',number:'F-20261023-001'},settlement:{state:'unpaid',dueMinor:'100',overdue:false}};
- assert.equal(billingDisplayState(doc,'2026-11-21'),'finalized');assert.equal(billingDisplayState(doc,'2026-11-22'),'finalized');assert.equal(billingDisplayState(doc,'2026-11-23'),'overdue');
+ assert.equal(billingDisplayState(doc,'2026-11-21'),'finalized');assert.equal(billingDisplayState(doc,'2026-11-22'),'finalized');assert.equal(billingDisplayState(doc,'2026-11-23'),'finalized');
+ doc.sentAt='2026-10-24T12:00:00Z';assert.equal(billingDisplayState(doc,'2026-11-22'),'sent');assert.equal(billingDisplayState(doc,'2026-11-23'),'overdue');
  assert.equal(billingDisplayLabels.overdue,'En retard d’encaissement');assert.equal(billingDisplayState({...doc,settlement:{state:'paid',dueMinor:'0'}},'2026-11-24'),'paid');assert.equal(billingDisplayState({...doc,settlement:{state:'partial',dueMinor:'50'}},'2026-11-23'),'overdue');
- doc.data.references.project='PROTERINA';doc.data.details={period:'S8'};assert.equal(defaultBillingEmail(doc),'Bonjour,\n\nJe vous prie de bien vouloir trouver ci-joint la facture F-20261023-001 relative au projet PROTERINA pour la période Semestre 8.\n\nLa facture électronique vous sera également adressée sur votre plateforme agréée.\n\nVous en souhaitant bonne réception,\nConseil Développement Innovation');
+ doc.data.references.project='PROTERINA';doc.data.details={period:'S8'};assert.equal(defaultBillingEmail(doc),'Bonjour,\n\nJe vous prie de bien vouloir trouver ci-joint la facture F-20261023-001 relative au projet PROTERINA pour la période Semestre 8.\n\nLa facture électronique vous sera également adressée sur votre plateforme agréée.\n\nVous en souhaitant bonne réception,');
 });
 test('API : échéance, filtres et rectification avant transmission avec archive immuable',async()=>{
  const ctx=await testEnvironment();try{await migrateBilling(ctx.db);const token=(await ctx.login(users[0])).token,f=await paymentFixtureTools(ctx,token),{call,create,input,send}=f;
  const ok=async(r,status)=>{assert.equal(r.status,status,await r.clone().text());return r.json();},get=async id=>ok(await call('/documents/'+id),200),headers=d=>({'If-Match':String(d.version)});
- const old=await create(invoiceFixture('Facture ancienne'));assert.equal(old.settlement.overdue,true);
+ let old=await create(invoiceFixture('Facture ancienne'));assert.equal(old.settlement.overdue,false);old=await ok(await call('/documents/'+old.id+'/sent','POST',{sentOn:billingToday(),confirmed:true},headers(old)),200);assert.equal(old.settlement.overdue,true);
  const future={...invoiceFixture('Facture future'),issueDate:billingToday(),dueDate:''},doc=await create(future),original=structuredClone(doc);assert.equal(doc.data.dueDate,addBillingDays(billingToday(),30));assert.equal(doc.settlement.overdue,false);
  const finalized=await ok(await call('/documents?kind=invoice&state=finalized'),200),late=await ok(await call('/documents?kind=invoice&state=overdue'),200);assert.ok(finalized.documents.some(d=>d.id===doc.id));assert.ok(!finalized.documents.some(d=>d.id===old.id));assert.ok(late.documents.some(d=>d.id===old.id));
  const pdf=await(await call('/documents/'+doc.id+'/files/pdf')).arrayBuffer(),id=randomUUID();

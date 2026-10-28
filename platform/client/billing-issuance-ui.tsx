@@ -3,7 +3,8 @@ import {QuoteTransition} from './billing-quote-transition';
 import {Send,CheckCheck} from 'lucide-react';
 import {forwardRef,useEffect,useImperativeHandle,useRef,useState} from 'react';
 import {CheckCircle2,ChevronDown,FilePenLine,LoaderCircle,Check,Banknote,Clock3} from 'lucide-react';
-import {billingStateLabel,billingDisplayState,invoiceIsLate} from '../billing-display-state';
+import {billingStateLabel,billingDisplayState,sentInvoiceIsLate} from '../billing-display-state';
+import {InvoiceSent} from './billing-invoice-sent';
 export {billingStateLabel} from '../billing-display-state';
 import {BillingStateIcon} from './billing-state-icon';
 import {StatusPaymentDialog} from './billing-status-payment';
@@ -18,6 +19,7 @@ type Props={capacityBlocked?:boolean;serviceConfigured:boolean;record:BillingDoc
 
 export const DocumentStatus=forwardRef<DocumentStatusHandle,Props>(function DocumentStatus({record,saved,busy,transport,onDocument,onBusy,onNotice,onSave,draftIssues,onReview,serviceConfigured,capacityBlocked=false},ref){
  const [quoteAction,setQuoteAction]=useState<'sent'|'accepted'|null>(null);
+ const [invoiceSent,setInvoiceSent]=useState(false);
  const [error,setError]=useState(''),[paymentMode,setPaymentMode]=useState<'paid'|'unpaid'|null>(null),{confirm,dialog}=useConfirmation();
  const live=useRef(true),running=useRef(false),attempt=useRef<{key:string;id:string}|null>(null);
  useEffect(()=>{live.current=true;return()=>{live.current=false;};},[]);
@@ -47,14 +49,15 @@ export const DocumentStatus=forwardRef<DocumentStatusHandle,Props>(function Docu
    <BillingStateIcon state={billingDisplayState(record)}/><span>{billingStateLabel(record)}</span><ChevronDown size={14}/>
   </button></DropdownMenu.Trigger><DropdownMenu.Portal><DropdownMenu.Content className="cdi-action-menu bill-state-menu" align="start" sideOffset={6}>
    <DropdownMenu.Item data-status="draft" disabled={!!issue} onSelect={()=>setError('')}><FilePenLine size={17}/>Brouillon{!issue&&<Check className="cdi-menu-check" size={15}/>}</DropdownMenu.Item>
-   <DropdownMenu.Item data-status="finalized" disabled={capacityBlocked||!serviceConfigured||(ready&&(!record?.settlement||record.settlement.netPaidMinor==='0'||invoiceIsLate(record.data.issueDate,record.data.dueDate)))} onSelect={()=>{if(ready)setPaymentMode('unpaid');else void finish();}}><CheckCircle2 className="bill-finalized-icon" size={17}/>{issue&&!ready?'Reprendre la finalisation':'Finalisé'}{billingDisplayState(record)==='finalized'&&<Check className="cdi-menu-check" size={15}/>}</DropdownMenu.Item>
+   <DropdownMenu.Item data-status="finalized" disabled={capacityBlocked||!serviceConfigured||(ready&&(!!record?.sentAt||!record?.settlement||record.settlement.netPaidMinor==='0'||sentInvoiceIsLate(record)))} onSelect={()=>{if(ready)setPaymentMode('unpaid');else void finish();}}><CheckCircle2 className="bill-finalized-icon" size={17}/>{issue&&!ready?'Reprendre la finalisation':'Finalisé'}{billingDisplayState(record)==='finalized'&&<Check className="cdi-menu-check" size={15}/>}</DropdownMenu.Item>
    {record?.data.kind==='quote'&&<><DropdownMenu.Item data-status="sent" disabled={!ready||!!record.quote?.version||!!record.quote?.invoice} onSelect={()=>setQuoteAction('sent')}><Send size={17}/>Envoyé{record.quote?.state==='sent'&&<Check size={15}/>}</DropdownMenu.Item><DropdownMenu.Item data-status="accepted" disabled={!ready||!!record.quote?.invoice||['accepted','refused'].includes(record.quote?.state||'')} onSelect={()=>setQuoteAction('accepted')}><CheckCheck size={17}/>Accepté{record.quote?.state==='accepted'&&<Check size={15}/>}</DropdownMenu.Item></>}
-   {record?.data.kind==='invoice'&&<><DropdownMenu.Separator className="cdi-menu-separator"/><DropdownMenu.Item data-status="overdue" title="Automatique après l’échéance, tant qu’un montant reste à encaisser" disabled={!ready||!invoiceIsLate(record.data.issueDate,record.data.dueDate)||record.settlement?.netPaidMinor==='0'} onSelect={()=>setPaymentMode('unpaid')}><Clock3 size={17}/>En retard d’encaissement{billingDisplayState(record)==='overdue'&&<Check className="cdi-menu-check" size={15}/>}</DropdownMenu.Item><DropdownMenu.Item data-status="paid" disabled={!ready||!record.settlement||record.settlement.dueMinor==='0'} onSelect={()=>setPaymentMode('paid')}><Banknote size={17}/>Réglée{record.settlement?.state==='paid'&&<Check className="cdi-menu-check" size={15}/>}</DropdownMenu.Item></>}
+   {record?.data.kind==='invoice'&&<><DropdownMenu.Item data-status="sent" disabled={!ready||!!record.sentAt} onSelect={()=>setInvoiceSent(true)}><Send size={17}/>Envoyée{record.sentAt&&<Check className="cdi-menu-check" size={15}/>}</DropdownMenu.Item><DropdownMenu.Separator className="cdi-menu-separator"/><DropdownMenu.Item data-status="overdue" title="Automatique après l’envoi et le dépassement de l’échéance, tant qu’un montant reste à encaisser" disabled={!ready||!sentInvoiceIsLate(record)||record.settlement?.netPaidMinor==='0'} onSelect={()=>setPaymentMode('unpaid')}><Clock3 size={17}/>En retard d’encaissement{billingDisplayState(record)==='overdue'&&<Check className="cdi-menu-check" size={15}/>}</DropdownMenu.Item><DropdownMenu.Item data-status="paid" disabled={!ready||!record.settlement||record.settlement.dueMinor==='0'} onSelect={()=>setPaymentMode('paid')}><Banknote size={17}/>Réglée{record.settlement?.state==='paid'&&<Check className="cdi-menu-check" size={15}/>}</DropdownMenu.Item></>}
   </DropdownMenu.Content></DropdownMenu.Portal></DropdownMenu.Root>
   <Help label="Statut du document" text={ready?'Le document définitif est archivé. Pour corriger un devis, créez une nouvelle version.':!serviceConfigured?'Le moteur PDF est indisponible.':'Choisissez Finalisé pour figer le document et générer ses fichiers définitifs. Le numéro déjà réservé est conservé.'}/>
   {issue&&!ready&&<button className="bill-button" disabled={busy} onClick={()=>{void finish();}}>Reprendre</button>}
   {error&&<span className="bill-status-error" role="alert">{error}</span>}
   {dialog}{quoteAction&&record&&<QuoteTransition action={quoteAction} record={record} transport={transport} onDocument={onDocument} onBusy={onBusy} onClose={()=>setQuoteAction(null)}/>}
+  {invoiceSent&&record&&<InvoiceSent record={record} transport={transport} onDocument={onDocument} onBusy={onBusy} onClose={()=>setInvoiceSent(false)}/>}
   {paymentMode&&record&&<StatusPaymentDialog record={record} mode={paymentMode} transport={transport} onDocument={onDocument} onBusy={onBusy} onClose={()=>setPaymentMode(null)}/>}
  </div>;
 });

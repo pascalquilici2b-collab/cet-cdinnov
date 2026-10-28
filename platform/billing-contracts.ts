@@ -135,6 +135,7 @@ export interface BillingTransport {
   mailSignature():Promise<import('./billing-mail-content').MailSignatureRecord>;
   saveMailSignature(version:number,data:import('./billing-mail-content').MailSignature):Promise<import('./billing-mail-content').MailSignatureRecord>;
   confirmSent(id:string,version:number,input:{recipient:string;subject:string;message:string;graph?:{accessToken:string;messageId:string}}):Promise<BillingDocument>;
+  declareSent(id:string,version:number,input:{sentOn:string;confirmed:true}):Promise<BillingDocument>;
   emailHistory(id:string):Promise<{deliveries:import('./billing-delivery').EmailDelivery[]}>;
   email(id:string,version:number,input:import('./billing-delivery').EmailInput):Promise<{delivery:import('./billing-delivery').EmailDelivery}>;
   projects():Promise<{projects:import('./projects').SharedProject[];clients?:{id:string;name:string}[]}>;
