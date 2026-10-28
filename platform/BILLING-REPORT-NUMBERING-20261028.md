@@ -17,3 +17,11 @@
 - Sauvegarde privée des données et du serveur avant intervention.
 - Migration additive et serveur publiés sans changement des paramètres d'hébergement.
 - Aucun envoi de facture ou de courriel effectué.
+
+## Alignement du devis lié
+
+À la demande de l'utilisateur, le devis 20261028-001 est devenu DEV-2610067. Son statut accepté, son engagement et ses données sont conservés. Le PDF a été régénéré et comparé à l'original : seul le numéro a changé. Le document original, son ancien numéro et son manifeste restent dans les archives et dans la table de correction.
+
+La référence du brouillon FAC-2610067 est mise à jour. Le lien depuis le devis suit désormais la dernière rectification de facture et affiche aussi son numéro réservé. Le prochain devis sera DEV-2610068.
+
+La correction de données est réservée à la maintenance, sauvegardée et atomique ; les protections d'immutabilité sont rétablies dans la même transaction. Test de régression et contrôle du téléchargement avec le nouveau numéro réussis.

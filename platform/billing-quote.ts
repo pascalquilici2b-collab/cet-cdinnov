@@ -18,9 +18,11 @@ export function quoteJSON(){
   'state',CASE WHEN ${last('action')} IN ('accepted','refused') THEN ${last('action')}
    WHEN coalesce(json_extract(data_json,'$.validUntil'),'')<>'' AND json_extract(data_json,'$.validUntil')<'${billingToday()}' THEN 'expired'
    WHEN ${last('action')} IN ('sent','reopened') THEN 'sent' ELSE 'prepared' END,'occurredOn',${last('occurred_on')},
-  'invoice',json((SELECT json_object('id',d.id,'number',i.number,'state',CASE WHEN j.state='ready' THEN 'issued' WHEN j.state='failed' THEN 'issue_failed' WHEN i.id IS NOT NULL THEN 'finalizing' ELSE 'draft' END)
-   FROM billing_documents d LEFT JOIN billing_issuances i ON i.document_id=d.id LEFT JOIN billing_issue_jobs j ON j.issuance_id=i.id
-   WHERE d.source_document_id=${quoteFamilyRoot('billing_documents.id')} OR d.source_document_id IN (SELECT document_id FROM billing_quote_revisions WHERE root_document_id=${quoteFamilyRoot('billing_documents.id')}))),
+  'invoice',json((WITH RECURSIVE linked(id,depth) AS (
+   SELECT d.id,0 FROM billing_documents d WHERE d.source_document_id=${quoteFamilyRoot('billing_documents.id')} OR d.source_document_id IN (SELECT document_id FROM billing_quote_revisions WHERE root_document_id=${quoteFamilyRoot('billing_documents.id')})
+   UNION ALL SELECT r.replacement_id,l.depth+1 FROM linked l JOIN billing_invoice_rectifications r ON r.original_id=l.id WHERE l.depth<32 AND NOT EXISTS(SELECT 1 FROM billing_document_trash t WHERE t.document_id=r.replacement_id))
+   SELECT json_object('id',d.id,'number',coalesce(i.number,n.number),'state',CASE WHEN j.state='ready' THEN 'issued' WHEN j.state='failed' THEN 'issue_failed' WHEN i.id IS NOT NULL THEN 'finalizing' ELSE 'draft' END)
+   FROM linked l JOIN billing_documents d ON d.id=l.id LEFT JOIN billing_issuances i ON i.document_id=d.id LEFT JOIN billing_issue_jobs j ON j.issuance_id=i.id LEFT JOIN billing_draft_numbers n ON n.document_id=d.id ORDER BY l.depth DESC LIMIT 1)),
   'engagement',json((SELECT json_object('kind',kind,'filename',filename,'createdAt',created_at,'details',json(metadata_json)) FROM billing_quote_engagements WHERE document_id=billing_documents.id)),
   'revision',json(${revisionJSON()})) ELSE NULL END`;
 }
