@@ -78,7 +78,8 @@ export const billingSchema = [
  `CREATE TRIGGER IF NOT EXISTS billing_history_no_delete BEFORE DELETE ON billing_document_versions BEGIN SELECT RAISE(ABORT,'BILLING_HISTORY_IMMUTABLE'); END`
 ];
 import {billingDraftNumberSchema} from './billing-draft-number-schema.mjs';
+import {billingSeriesPolicySchema} from './billing-series-policy-schema.mjs';
 export async function migrateBilling(db) {
  // D1 batch is transactional: failure leaves neither half a schema nor a lost history trigger.
- await db.batch([...billingSchema,...billingIssuanceSchema,...billingNumberingSchema,...billingDraftNumberSchema,...billingDirectorySchema,...billingQuoteSchema,...billingRevisionSchema,...billingPaymentSchema,...projectsSchema,...billingDeliverySchema,...billingTrashSchema,...billingRectificationSchema,...billingSupportSchema,...billingOrderBudgetSchema,...clientEmployeesSchema].map(sql=>db.prepare(sql)));
+ await db.batch([...billingSchema,...billingIssuanceSchema,...billingNumberingSchema,...billingDraftNumberSchema,...billingSeriesPolicySchema,...billingDirectorySchema,...billingQuoteSchema,...billingRevisionSchema,...billingPaymentSchema,...projectsSchema,...billingDeliverySchema,...billingTrashSchema,...billingRectificationSchema,...billingSupportSchema,...billingOrderBudgetSchema,...clientEmployeesSchema].map(sql=>db.prepare(sql)));
 }

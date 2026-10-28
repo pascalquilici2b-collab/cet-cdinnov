@@ -101,6 +101,8 @@ export interface BillingDirectoryPage {records:BillingDirectoryRecord[];total:nu
 export interface BillingFilterOption {value:string;label:string;}
 export interface BillingPage {documents:BillingDocument[]; total:number; limit:number; offset:number; filters?:{clients:BillingFilterOption[];projects:BillingFilterOption[]};}
 export interface BillingContext {
+  interventionReports?:Record<string,number>;
+  numbering?:{kind:BillingKind;prefix:string;width:number;nextValue:number}[];
   people?:{id:string;name:string;photo?:string}[];
   clientLogos?:{id:string;name:string;siren:string;siret:string;logoKey?:string;logoData?:string}[];
   documentService:{configured:boolean};

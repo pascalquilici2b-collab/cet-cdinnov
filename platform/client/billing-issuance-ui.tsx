@@ -63,7 +63,11 @@ export function IssuanceFiles({record,busy,onDownload}:{record:BillingDocument;b
  const files=record.issuance?.files.filter(f=>f!=='pdf')||[];
  return files.length?<details className="bill-archive-tools"><summary>Fichiers techniques et contrôles</summary><div className="bill-issuance-actions">{files.map(kind=><button type="button" className="bill-button" key={kind} disabled={busy} onClick={()=>onDownload(kind)}>{({xml:'Télécharger le XML',validation:'Rapport de validation',verapdf:'Rapport PDF/A'} as Record<string,string>)[kind]||kind}</button>)}</div></details>:null;
 }
-export function NumberingPanel({onDirty}:{transport:BillingTransport;sellerSiren:string;busy:boolean;onBusy:(value:string)=>void;onDirty:(value:boolean)=>void}){
+export function NumberingPanel({onDirty,transport}:{transport:BillingTransport;sellerSiren:string;busy:boolean;onBusy:(value:string)=>void;onDirty:(value:boolean)=>void}){
+ const [numbers,setNumbers]=useState<{kind:string;prefix:string;width:number;nextValue:number}[]>([]);
+ useEffect(()=>{let active=true;transport.context().then(c=>{if(active)setNumbers(c.numbering||[]);}).catch(()=>{});return()=>{active=false;};},[transport]);
  useEffect(()=>{onDirty(false);},[onDirty]);
- return <section className="bill-issuance bill-numbering" aria-label="Numérotation"><h2 className="bill-title-help">Numérotation automatique <Help label="Numérotation" text="Le numéro est réservé à la création et ne sera pas réutilisé. Le compteur des devis est quotidien ; celui des factures est continu. La référence du devis reste visible sur sa facture."/></h2><div className="bill-fields"><p><strong>Devis</strong><br/>AAAAMMJJ-001</p><p><strong>Factures</strong><br/>F-AAAAMMJJ-001</p></div></section>;
+ const continuous=numbers.length>0;
+ const next=(kind:string,fallback:string)=>{const s=numbers.find(s=>s.kind===kind);return s?s.prefix+String(s.nextValue).padStart(s.width,'0'):fallback;};
+ return <section className="bill-issuance bill-numbering" aria-label="Numérotation"><h2 className="bill-title-help">Numérotation automatique <Help label="Numérotation" text={continuous?'Le numéro est réservé à la création. Devis et factures ont leurs propres compteurs continus. La référence du devis reste visible sur sa facture.':'Le numéro est réservé à la création. Le compteur des devis est quotidien ; celui des factures est continu. La référence du devis reste visible sur sa facture.'}/></h2><div className="bill-fields"><p><strong>Devis</strong><br/>{next('quote','AAAAMMJJ-001')}</p><p><strong>Factures</strong><br/>{next('invoice','F-AAAAMMJJ-001')}</p></div></section>;
 }

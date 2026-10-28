@@ -109,10 +109,12 @@ async function context(db:Database,env:Environment):Promise<BillingContext> {
  ]);
  const parsedMarkets=markets.results.map(r=>({...r,market:JSON.parse(r.payload)}));
  const projectOwners=parsedMarkets.map(r=>({id:r.id,projects:r.market.projects||[]}));
- const [engagements,annualQuotes]=await Promise.all([linkedEngagements(db),readAnnualQuotes(db)]);
+ const [engagements,annualQuotes,reports,numbering]=await Promise.all([linkedEngagements(db),readAnnualQuotes(db),db.prepare('SELECT document_key,version FROM billing_intervention_reports').all<{document_key:string;version:number}>(),db.prepare('SELECT s.kind,s.prefix,s.width,s.next_value AS nextValue FROM billing_default_series p JOIN billing_number_series s ON s.id=p.series_id WHERE p.issuer_siren=?').bind(settings.data.seller.siren||settings.data.seller.siret.slice(0,9)).all<{kind:'invoice'|'quote';prefix:string;width:number;nextValue:number}>()]);
  const marketProjects=(id:string)=>projectsForMarket(id,projectOwners).map(p=>{const orders=[...p.orders,...(parsedMarkets.find(m=>m.id===id)?.market.orders||[])];return {...p,orders:[...orders,...engagements.filter(e=>e.kind==='order'&&e.marketId===id&&e.projectId===p.id&&!orders.some(o=>o.id===e.orderId)).map(e=>({id:e.orderId,reference:e.reference,date:e.date,amountMinor:e.amountMinor,documentId:'',notes:'',archived:false}))]};});
  return {
   documentService:{configured:documentServiceConfigured(env)},
+  interventionReports:Object.fromEntries(reports.results.map(r=>[r.document_key,r.version])),
+  numbering:numbering.results,
   people:people.results.map(r=>JSON.parse(r.data_json)).map(p=>({id:text(p.matricule),name:[text(p.prenom),text(p.nom)].filter(Boolean).join(' '),photo:text(p.photo)})).filter(p=>p.id&&p.name),
   clientLogos:logos.results.map(r=>{const p=JSON.parse(r.data_json);return {id:r.id,name:text(p.party?.name),siren:text(p.party?.siren),siret:text(p.party?.siret),logoKey:text(p.logoKey),logoData:text(p.logoData)};}),
   clients:clients.results.map(r=>JSON.parse(r.data_json)).filter(object).map(r=>({id:text(r.id),name:text(r.name)})).filter(r=>r.id&&r.name),
