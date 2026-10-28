@@ -1,10 +1,16 @@
-import {mkdir,readFile,writeFile,copyFile,readdir} from 'node:fs/promises';
+import {mkdir,readFile,writeFile,copyFile,readdir,cp} from 'node:fs/promises';
 import path from 'node:path';
 import {createRequire} from 'node:module';
 import {fileURLToPath} from 'node:url';
 const root=path.dirname(fileURLToPath(import.meta.url));
 const require=createRequire(process.env.MARCHES_AI_PACKAGE||process.env.MARCHES_BUILD_PACKAGE||path.join(root,'package.json'));
 const {build}=require('esbuild'),modules=path.dirname(path.dirname(path.dirname(require.resolve('fflate'))));
+// Always refresh the PDF reader from the locked dependency, also when keeping
+// the existing OCR language assets. Do not revive an older global runtime copy.
+const pdfRoot=path.dirname(require.resolve('pdfjs-dist/package.json'));
+await mkdir(path.join(root,'vendor'),{recursive:true});
+for(const [source,target] of [['build/pdf.mjs','pdf.mjs'],['build/pdf.worker.mjs','pdf.worker.mjs'],['LICENSE','PDFJS-LICENSE']])await copyFile(path.join(pdfRoot,source),path.join(root,'vendor',target));
+for(const dir of ['wasm','standard_fonts'])await cp(path.join(pdfRoot,dir),path.join(root,'vendor',dir),{recursive:true});
 if(!process.argv.includes('--bundle-only')){
 const tesseract=path.dirname(require.resolve('tesseract.js/package.json')),core=path.dirname(require.resolve('tesseract.js-core/package.json'));
 const dest=path.join(root,'vendor/ocr');await mkdir(path.join(dest,'core'),{recursive:true});await mkdir(path.join(dest,'lang'),{recursive:true});

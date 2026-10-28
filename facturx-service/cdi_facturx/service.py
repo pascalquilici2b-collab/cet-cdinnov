@@ -115,7 +115,7 @@ def verify_attachment(data: bytes, xml: bytes, profile: str):
         af = af.get_object()
     if len(af) != 1 or af[0].get_object().get('/AFRelationship') != relation:
         raise ConversionError('embedding', 'Association PDF/XML incorrecte.')
-    xmp = etree.fromstring(reader.trailer['/Root']['/Metadata'].get_data())
+    xmp = etree.fromstring(reader.trailer['/Root']['/Metadata'].get_data(), etree.XMLParser(resolve_entities=False, no_network=True))
     ns = {'fx': 'urn:factur-x:pdfa:CrossIndustryDocument:invoice:1p0#'}
     expected_level = {'basicwl': 'BASIC WL', 'basic': 'BASIC', 'en16931': 'EN 16931'}[profile]
     for field, expected in [('ConformanceLevel', expected_level), ('DocumentFileName', 'factur-x.xml'), ('DocumentType', 'INVOICE')]:

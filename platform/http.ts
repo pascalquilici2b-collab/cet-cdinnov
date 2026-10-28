@@ -2,7 +2,8 @@ import type {Environment} from './contracts';
 
 export function responseHeaders(request: Request, env: Environment): Headers {
   const headers = new Headers({'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store',
-    'Vary':'Origin','X-Content-Type-Options':'nosniff'});
+    'Vary':'Origin','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer',
+    'Strict-Transport-Security':'max-age=31536000','Content-Security-Policy':"default-src 'none'; frame-ancestors 'none'"});
   const origin = request.headers.get('origin');
   const allowed = (env.BUDGETS_ALLOWED_ORIGINS || 'https://app.cdinnov.eu').split(',').map(x => x.trim());
   if (origin && !allowed.includes(origin)) throw Object.assign(new Error('Origine non autorisée.'), {status:403});

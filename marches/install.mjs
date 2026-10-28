@@ -31,7 +31,7 @@ const jsBlock='/* CDI_MARKETS_START */\n'+js.replace(/<\/script/gi,'<\\/script')
 html=html.includes('/* CDI_MARKETS_START */')?html.replace(/\/\* CDI_MARKETS_START \*\/[\s\S]*?\/\* CDI_MARKETS_END \*\//,()=>jsBlock):html.replace('/* ===================== boot ===================== */',jsBlock+'\n/* ===================== boot ===================== */');
 if(!html.includes('/* CDI_MARKETS_START */'))throw new Error('Point d’intégration de démarrage introuvable.');
 await writeFile(file,html,'utf8');
-const deps='C:/Users/quili/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/pdfjs-dist';
+const deps=path.dirname(createRequire(new URL('./package.json',import.meta.url)).resolve('pdfjs-dist/package.json'));
 await mkdir(path.join(root,'marches/vendor'),{recursive:true});
 for(const [a,b] of [['build/pdf.mjs','pdf.mjs'],['build/pdf.worker.mjs','pdf.worker.mjs'],['LICENSE','PDFJS-LICENSE']])await copyFile(path.join(deps,a),path.join(root,'marches/vendor',b));
 await build({entryPoints:[path.join(root,'server/budget-service-source.mjs')],bundle:true,format:'esm',platform:'node',outfile:path.join(root,'server/budget-service.mjs')});

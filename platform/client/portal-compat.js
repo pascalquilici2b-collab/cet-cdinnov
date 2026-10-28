@@ -110,8 +110,15 @@ function notify(subject,html,to){
   cloudPush().then(ok=>{if(ok&&AUTH_USER===user)return portalFetch(CLOUD_ENDPOINT.replace(/\/+$/,'')+'/notify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({subject,html,...(to?{to}:{})})});}).catch(()=>toast('Notification non envoyée. Les données restent enregistrées.'));
 }
 function isRemoteFileURL(src){try{const url=new URL(src);return url.origin===new URL(CLOUD_ENDPOINT).origin&&url.pathname.startsWith('/files/');}catch{return false;}}
-async function privateFileFetch(src){return isRemoteFileURL(src)?portalFetch(src):fetch(src);}
+function safePrivateFileURL(src){
+  if(typeof src!=='string'||!src)throw new Error('Adresse de pièce jointe non autorisée.');
+  if(isRemoteFileURL(src)){const url=new URL(src);if(!url.username&&!url.password)return src;}
+  if(/^data:(?:application\/pdf|image\/(?:png|jpeg|webp|gif));base64,[A-Za-z0-9+/]+={0,2}$/.test(src))return src;
+  throw new Error('Adresse de pièce jointe non autorisée.');
+}
+async function privateFileFetch(src){safePrivateFileURL(src);return isRemoteFileURL(src)?portalFetch(src):fetch(src);}
 async function privateFileURL(src){
+  safePrivateFileURL(src);
   if(!isRemoteFileURL(src))return src;
   if(portalBlobs.has(src))return portalBlobs.get(src);
   const user=AUTH_USER,epoch=portalEpoch,response=await privateFileFetch(src),blob=await response.blob();

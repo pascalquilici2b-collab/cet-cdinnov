@@ -9,6 +9,8 @@ process.env.MARCHES_TEST_COMPATIBILITY_DATE='2026-06-09';
 const ctx=await testEnvironment();let checks=0;
 const check=async(name,fn)=>{await fn();console.log('OK '+name);checks++;};
 const external='employee@example.invalid',accounting='boulanger.albert@cdinnov.com';
+const adminAccess={dashboard:true,mouvements:true,salaries:true,notesfrais:true,agenda:true,tamponnage:true,facturier:true,budgetsprojets:true,sheets:true};
+const collaboratorAccess={dashboard:true,mouvements:true,salaries:false,notesfrais:true,agenda:true,tamponnage:false,facturier:false,budgetsprojets:true,sheets:true};
 const accounts={...ctx.accounts,[external]:{...ctx.accounts[users[1]],name:'External test'},[accounting]:{...ctx.accounts[users[0]],name:'Accounting test'}};
 const portal={auth:{accounts,allowed:[...users,external,accounting]},salaries:[{matricule:'004',nom:'Private employee',salaire:4000}],privateUnknown:{preserved:true}};
 const call=(path='/api/v1/session',options={})=>ctx.worker.dispatchFetch('https://test'+path,{...options,headers:{Origin:'https://app.cdinnov.eu','Content-Type':'application/json','cf-connecting-ip':'192.0.2.1',...options.headers}});
@@ -49,10 +51,10 @@ try {
     for(const [session,email,admin] of [[adminSession,users[0],true],[employeeSession,users[1],false]]) {
       const response=await get(session.token),data=await response.json();
       assert.equal(response.status,200);assert.equal(response.headers.get('Cache-Control'),'no-store');
-      assert.deepEqual(data,{email,name:accounts[email].name,expiresAt:session.expiresAt,admin});
+      assert.deepEqual(data,{email,name:accounts[email].name,expiresAt:session.expiresAt,admin,access:admin?adminAccess:collaboratorAccess});
       assert.ok(!JSON.stringify(data).includes(accounts[email].hash));
     }
-    const data=await(await get((await ctx.login(accounting)).token)).json();assert.equal(data.admin,true);
+    const data=await(await get((await ctx.login(accounting)).token)).json();assert.equal(data.admin,true);assert.deepEqual(data.access,adminAccess);
   });
   await check('Tokens issued before migration remain accepted by every existing authenticated module',async()=>{
     const token=signed(oldClaims(users[0]));

@@ -5,8 +5,10 @@ export interface MicrosoftDraft {id:string;webLink:string;isDraft:boolean;hasAtt
 type Fetcher=(url:string,init?:RequestInit)=>Promise<Response>;
 export const microsoftOwnerMatches=(email:string,profile:MicrosoftProfile)=>!!profile.id&&[profile.mail,profile.userPrincipalName].some(v=>v?.trim().toLowerCase()===email.trim().toLowerCase());
 export async function graph<T>(token:string,path:string,method='GET',body?:unknown,fetcher:Fetcher=fetch,bodyType:'text'|'html'='text'):Promise<T>{
- if(!path.startsWith('/me'))throw Error('Accès Outlook non autorisé.');
- const response=await fetcher('https://graph.microsoft.com/v1.0'+path,{method,cache:'no-store',signal:AbortSignal.timeout(45000),headers:{Authorization:'Bearer '+token,Accept:'application/json',Prefer:'IdType="ImmutableId", outlook.body-content-type="'+bodyType+'"',...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})});
+ if(!/^\/me(?:\/|\?|$)/.test(path))throw Error('Accès Outlook non autorisé.');
+ const url=new URL('https://graph.microsoft.com/v1.0'+path);
+ if(!/^\/v1\.0\/me(?:\/|$)/.test(url.pathname))throw Error('Accès Outlook non autorisé.');
+ const response=await fetcher(url.href,{method,cache:'no-store',signal:AbortSignal.timeout(45000),headers:{Authorization:'Bearer '+token,Accept:'application/json',Prefer:'IdType="ImmutableId", outlook.body-content-type="'+bodyType+'"',...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})});
  if(!response.ok)throw Object.assign(Error(response.status===401?'Reconnectez votre compte Outlook.':response.status===403?'Microsoft n’a pas autorisé la création de brouillons pour ce compte.':response.status===429?'Outlook est momentanément occupé. Réessayez dans quelques instants.':'Outlook n’a pas confirmé l’opération.'),{status:response.status});
  return response.json() as Promise<T>;
 }

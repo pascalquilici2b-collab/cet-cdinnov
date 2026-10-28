@@ -1,6 +1,7 @@
 import {build} from 'vite';
 import {readFile,writeFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
+import {secureHtml} from '../platform/security-policy.mjs';
 await build({configFile:fileURLToPath(new URL('./budgets/vite.config.mjs',import.meta.url))});
 const output=new URL('../budgets-projets/index.html',import.meta.url);
 let html=await readFile(output,'utf8');
@@ -8,5 +9,5 @@ const links=html.match(/<link rel="stylesheet" href="\/design\/[^>]+>/g)||[];
 for(const link of links)html=html.replace(link,'');
 html=html.replace('</head>',links.join('\n')+'\n<link rel="stylesheet" href="/design/apple.css?v=apple1">\n<link rel="stylesheet" href="/design/interactions.css?v=editor-motion-20261020">\n</head>');
 html=html.replace('<head>','<head>\n<script src="/platform/theme.js?v=apple-motion-20261020"></script>');
-await writeFile(output,html);
+await writeFile(output,secureHtml(html,'budgets'));
 console.log('Budget React/TypeScript sources built; historical assets retained.');

@@ -27,8 +27,9 @@ from reportlab.pdfbase.ttfonts import TTFont
 
 from .stamping_import import cents, key, month
 from .stamping_payroll import employer_cost
+from .pdf_safety import ensure_static_pdf
 
-VERSION = 'stamping-2.4-20261027'
+VERSION = 'stamping-2.5-security-20261028'
 FONT = 'CDIStamp'
 BOLD = 'CDIStampBold'
 pdfmetrics.registerFont(TTFont(FONT, str(Path(__file__).parent/'assets/fonts/Montserrat-Regular.ttf')))
@@ -57,6 +58,10 @@ def open_source(raw, max_pages=30):
             raise StampError('ACTIVE_PDF','Actions actives dans le PDF : fournir une copie statique.')
         if (reader.metadata or {}).get('/CDIStampVersion'):
             raise StampError('ALREADY_STAMPED','Cette copie a déjà été tamponnée. Utilisez son original.')
+        try:
+            ensure_static_pdf(reader)
+        except ValueError as exc:
+            raise StampError('ACTIVE_PDF','Actions actives ou structure PDF non prise en charge : fournir une copie statique.') from exc
         for page in reader.pages:
             if page.get('/AA') or float(page.get('/UserUnit',1))!=1:
                 raise StampError('UNSUPPORTED_PDF','Géométrie ou actions PDF non prises en charge.')
@@ -122,7 +127,10 @@ def evidence_lines(text):
     result=[]
     for n,line in enumerate(text.splitlines()):
         if re.search(r'\b(?:NIR|IBAN|BIC|sécurité sociale|securite sociale|adresse)\b',line,re.I): continue
-        line=re.sub(r'(?<!\d)[12]\s?\d{2}\s?\d{2}\s?\d{2}\s?\d{3}\s?\d{3}(?:\s?\d{2})?(?!\d)','[identifiant retiré]',line)
+        # Sensitive identifiers may share an OCR line with a supplier/name and
+        # have no label. Reject those lines before they leave the local reader.
+        if re.search(r'(?<![A-Z0-9])[A-Z]{2}[ \t\u00a0\u202f]?\d{2}(?:[ \t\u00a0\u202f]?[A-Z0-9]){11,30}(?![A-Z0-9])',line,re.I): continue
+        line=re.sub(r'(?<!\d)[12][\s./-]?\d{2}[\s./-]?\d{2}[\s./-]?(?:\d{2}|2[AB])[\s./-]?\d{3}[\s./-]?\d{3}(?:[\s./-]?\d{2})?(?!\d)','[identifiant retiré]',line,flags=re.I)
         if re.search(r'\b(?:Madame|Monsieur|Mme|Mlle)\b|nom.*pr[ée]nom|bulletin|paie|période|periode|matricule|salari[ée]|facture|fournisseur|siret|total.*(?:employeur|HT|TTC)|coût employeur|cout employeur|r[ée]f[ée]rence|\bdate\b',line,re.I):
             result.append({'line':n,'text':line[:220]})
     return result[:60]

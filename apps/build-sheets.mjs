@@ -1,9 +1,10 @@
 import {build} from 'vite';
 import {readFile,writeFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
+import {secureHtml} from '../platform/security-policy.mjs';
 await build({configFile:fileURLToPath(new URL('./sheets/vite.config.mjs',import.meta.url))});
 const output=new URL('../feuilles/index.html',import.meta.url);
 let html=(await readFile(output,'utf8')).replace(/\r/g,'');
 html=html.replace('</head>','<link rel="stylesheet" href="/feuilles/navigation.css?v=sheets-workflow-20261023c">\n<link rel="stylesheet" href="/design/sheets.css?v=sheets-workflow-20261023c">\n<link rel="stylesheet" href="/design/apple.css?v=sheets-workflow-20261023c">\n<link rel="stylesheet" href="/design/interactions.css?v=editor-motion-20261020">\n</head>');
-await writeFile(output,html);
+await writeFile(output,secureHtml(html,'sheets'));
 console.log('CDInnovSheets built entirely from recovered React/TypeScript sources.');

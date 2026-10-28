@@ -1,5 +1,5 @@
-import './action-feedback';
-export {accountAccess,accessModules} from '../access';
+import './action-feedback.ts';
+export {accountAccess,accessModules} from '../access.ts';
 type Snapshot = {workspace: Record<string, unknown>;version: number;updatedAt?: string;updatedBy?: string};
 type Session = {email: string;token: string};
 import {recordChanges} from '../record-changes.ts';

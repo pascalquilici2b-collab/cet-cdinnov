@@ -11,7 +11,11 @@ function unpack(bytes){
   if(!/^(word\/document\.xml|xl\/(workbook\.xml|_rels\/workbook\.xml.rels|sharedStrings\.xml|styles\.xml|worksheets\/sheet\d+\.xml))$/.test(file.name))return;
   if(++count>200)throw new Error('Trop de feuilles dans ce document.');
   const chunks=[];file.ondata=(error,data,final)=>{if(error)throw error;total+=data.length;if(total>16000000){file.terminate();throw new Error('Document Office décompressé trop volumineux (16 Mo).');}chunks.push(data);if(final){const all=new Uint8Array(chunks.reduce((n,c)=>n+c.length,0));let off=0;for(const c of chunks){all.set(c,off);off+=c.length;}files[file.name]=strFromU8(all);}};file.start();
- });unzip.register(UnzipInflate);unzip.push(bytes,true);return files;
+ });unzip.register(UnzipInflate);
+ // Apply the expanded-size check between small inflation steps, even when the
+ // ZIP's declared uncompressed sizes are absent or forged.
+ for(let offset=0;offset<bytes.length;offset+=4096)unzip.push(bytes.subarray(offset,offset+4096),offset+4096>=bytes.length);
+ return files;
 }
 function office(bytes,name){
  const files=unpack(bytes);const warnings=[];if(files.skippedParts.length)warnings.push('Le texte et les tableaux ont été lus. Vérifiez aussi les images, notes, en-têtes et objets intégrés dans l’original.');let text='',pages=1;
@@ -59,7 +63,7 @@ export async function readDocument(file,progress=()=>{},cancelled=()=>false){
   if(/\.(png|jpe?g)$/i.test(file.name)){progress('Reconnaissance du scan');const data=await ocr(file);if(data.confidence<50||!data.text.trim())warnings.push('Scan peu lisible : vérifier le texte et les montants.');return {text:'[Page 1]\n'+data.text,method:'ocr',complete:!warnings.length,pages:1,warnings};}
   if(!/\.pdf$/i.test(file.name))throw new Error('Format non pris en charge.');
   const pdf=await import('./vendor/pdf.mjs');pdf.GlobalWorkerOptions.workerSrc=asset('pdf.worker.mjs');
-  const document=await pdf.getDocument({data:new Uint8Array(await file.arrayBuffer()),isEvalSupported:false,useSystemFonts:true}).promise;
+  const document=await pdf.getDocument({data:new Uint8Array(await file.arrayBuffer()),isEvalSupported:false,enableXfa:false,useSystemFonts:true,wasmUrl:asset('wasm/'),standardFontDataUrl:asset('standard_fonts/')}).promise;
   try{
    if(document.numPages>MAX_PAGES)throw new Error('Maximum 150 pages par pièce ; découpez le PDF en plusieurs pièces.');
    let text='';for(let i=1;i<=document.numPages;i++){

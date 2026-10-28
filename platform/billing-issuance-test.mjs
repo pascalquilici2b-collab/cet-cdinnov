@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {randomUUID,createHash} from 'node:crypto';
 import {test} from 'node:test';
 import {testEnvironment,users} from '../marches/test.mjs';
-import {billingSchema,migrateBilling} from './billing-schema.mjs';
+import {migrateBilling} from './billing-schema.mjs';
 import {blankDraft} from './billing-domain.ts';
 import {createNumberSeries,reserveIssuance,readIssuance,readIssuanceJob,claimIssuanceJob,failIssuanceJob,completeIssuanceJob} from './billing-issuance.ts';
 
@@ -20,6 +20,8 @@ const manifest=issue=>({schemaVersion:1,envelopeSha256:issue.envelopeSha256,gene
  artifacts:(issue.snapshot.kind==='quote'?['pdf']:['pdf','xml','validation','verapdf']).map(kind=>{const sha256=digest(kind+'-synthetic');return {kind,key:`billing/${issue.id}/${kind}/${sha256}`,sha256,size:200,contentType:{pdf:'application/pdf',xml:'application/xml',validation:'application/json',verapdf:'application/xml'}[kind]};})});
 
 await test('registre D1 : numérotation, gel et reprise après échec',async t=>{
+ // Exercise the current source Worker and its complete local billing schema.
+ delete process.env.MARCHES_TEST_WORKER;
  const ctx=await testEnvironment();const user=users[0],numbering=series();let header,first,firstInput;
  const call=(path,options={})=>ctx.worker.dispatchFetch('https://preview.example/api/v1/billing'+path,{...options,headers:{Origin:'http://127.0.0.1:5196','Content-Type':'application/json',...header,...options.headers}});
  const create=async(data=fixture())=>{const id=randomUUID();const r=await call('/documents',{method:'POST',body:JSON.stringify({id,data})});assert.equal(r.status,201,await r.clone().text());return r.json();};
@@ -29,7 +31,7 @@ await test('registre D1 : numérotation, gel et reprise après échec',async t=>
  try{
   header={Authorization:'Bearer '+(await ctx.login(user)).token};
   await t.test('migration rejouable : brouillons et historique antérieurs conservés, aucune série créée',async()=>{
-   await ctx.db.batch(billingSchema.map(sql=>ctx.db.prepare(sql)));
+   await migrateBilling(ctx.db);
    const before=await create();const history=await ctx.db.prepare('SELECT * FROM billing_document_versions WHERE document_id=?').bind(before.id).all();
    await migrateBilling(ctx.db);await migrateBilling(ctx.db);
    assert.deepEqual(await (await call('/documents/'+before.id)).json(),before);

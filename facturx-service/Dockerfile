@@ -26,9 +26,11 @@ COPY cdi_facturx ./cdi_facturx
 COPY deployment/start_server.py ./deployment/start_server.py
 COPY deployment/verify_runtime.py ./deployment/verify_runtime.py
 COPY deployment/verify_stamping.py ./deployment/verify_stamping.py
+COPY deployment/verify_document_security.py ./deployment/verify_document_security.py
 RUN groupadd --gid 10001 facturx \
     && useradd --uid 10001 --gid facturx --no-create-home --shell /usr/sbin/nologin facturx
 USER 10001:10001
+RUN python -m deployment.verify_document_security
 RUN python -m deployment.verify_runtime
 RUN python -m deployment.verify_stamping
 EXPOSE 8080

@@ -72,6 +72,51 @@ async function writePortal(env:Environment,p:Document,expected:number,email:stri
   if(saved===null)fail(409,'Une autre personne a modifié le portail. Vos modifications locales sont conservées.');
   return saved!;
 }
+// These values become identifiers, date selections or status choices in clients.
+// Keep descriptive text unrestricted, but do not accept executable syntax in
+// machine fields through a full replacement, a patch or a business restore.
+function validatePortalFields(document:Document,previous:Document){
+  const machine=(value:unknown)=>typeof value==='string'&&/^[\p{L}\p{N}_.:@/ -]{1,200}$/u.test(value);
+  const date=(value:unknown)=>value===undefined||value===null||value===''||typeof value==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(value)&&Number.isFinite(Date.parse(value+'T12:00:00Z'))&&new Date(value+'T12:00:00Z').toISOString().slice(0,10)===value;
+  const statuses:Record<string,string[]>={conges:['En attente','Validé','Refusé','Annulé'],mouvements:['En attente','Validé'],notesFrais:['Brouillon','Envoyé','Payée','Soumis','Soumise','Validé','Validée']};
+  for(const key of ['salaries','types','mouvements','conges','notesFrais','codesAffaires','factures'])for(const record of document[key]||[]){
+    if(!object(record))fail(400,'Enregistrement invalide : '+key);
+    const identity=['id','matricule','code'].find(field=>record[field]!==undefined);
+    const before=identity?(previous[key]||[]).find((r:Document)=>object(r)&&r[identity]===record[identity]):undefined;
+    // Keep old imports editable without forcing a collaborator to repair an
+    // unrelated private record. Newly supplied machine values are always checked.
+    for(const field of ['id','matricule','code'])if(record[field]!==undefined&&!same(record[field],before?.[field])&&!machine(record[field]))fail(400,'Identifiant invalide : '+key);
+    if(statuses[key]&&record.statut!==undefined&&!same(record.statut,before?.statut)&&!statuses[key].includes(record.statut))fail(400,'Statut invalide : '+key);
+    for(const field of ['date','dateDebut','dateFin','dateNote','dateDepart','dateRetour','dateFacture'])if(!same(record[field],before?.[field])&&!date(record[field]))fail(400,'Date invalide : '+key);
+    if(key==='notesFrais'){
+      if(record.lignes!==undefined&&!Array.isArray(record.lignes))fail(400,'Lignes de frais invalides.');
+      for(const [index,line]of (record.lignes||[]).entries()){
+        const oldLine=Array.isArray(before?.lignes)?line?.id!==undefined?before.lignes.find((r:Document)=>object(r)&&r.id===line.id):before.lignes[index]:undefined;
+        if(!object(line)||line.id!==undefined&&!same(line.id,oldLine?.id)&&!machine(line.id)||!same(line.date,oldLine?.date)&&!date(line.date))fail(400,'Ligne de frais invalide.');
+      }
+    }
+  }
+  const fileFields=new Set(['justificatif','payslip','pdfUrl','photo','signature','logo','fileUrl','dataUrl','url']);
+  const safeFile=(value:string)=>{
+    if(!value)return true;
+    if(/^data:(?:application\/pdf|image\/(?:png|jpeg|webp|gif));base64,[a-z0-9+/=\r\n]+$/i.test(value))return true;
+    try {return ['https:','http:'].includes(new URL(value).protocol);}catch{return false;}
+  };
+  const files=(value:any,before:any):void=>{
+    if(Array.isArray(value)){
+      for(let i=0;i<value.length;i++){
+        const item=value[i],key=object(item)?['id','matricule','code'].find(k=>item[k]!==undefined):undefined;
+        files(item,Array.isArray(before)?key?before.find((r:any)=>object(r)&&r[key]===item[key]):before[i]:undefined);
+      }
+    }else if(object(value))for(const [key,item]of Object.entries(value)){
+      // Historical records are not silently rewritten. Every newly supplied URL
+      // is checked; clients also validate on read to protect existing imports.
+      if(fileFields.has(key)&&typeof item==='string'&&!same(item,before?.[key])&&!safeFile(item))fail(400,'Lien de pièce jointe invalide.');
+      files(item,before?.[key]);
+    }
+  };
+  files(document,previous);
+}
 function merge(p:Document,next:Document,email:string){
   for(const key of ['salaries','types','mouvements','conges','notesFrais','codesAffaires','factures'])if(!Array.isArray(next[key]))fail(400,'Collection invalide : '+key);
   if(!object(next.params))fail(400,'Paramètres invalides.');
@@ -102,6 +147,7 @@ function merge(p:Document,next:Document,email:string){
     for(const r of result.notesFrais){const before=old.get(r.id) as Document|undefined;if(r.statut==='Payée'&&before?.statut!=='Payée')fail(403,'Seule la comptabilité peut marquer une note comme payée.');if(before?.statut==='Payée'&&!same(r,before))fail(403,'Une note payée est verrouillée.');}
     for(const r of p.notesFrais||[])if(r.statut==='Payée'&&!result.notesFrais.some((x:Document)=>x.id===r.id))fail(403,'Une note payée est verrouillée.');
   }
+  validatePortalFields(result,p);
   result.majAt=new Date().toISOString();result.majBy=email;return result;
 }
 

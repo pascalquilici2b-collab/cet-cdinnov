@@ -2,6 +2,7 @@ import {createRequire} from 'node:module';
 import {mkdir,readFile,writeFile,copyFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
+import {secureHtml,secureHtmlFile} from './security-policy.mjs';
 const root=fileURLToPath(new URL('../',import.meta.url));
 const require=createRequire(process.env.MARCHES_BUILD_PACKAGE||new URL('../package.json',import.meta.url));
 const {build}=require('esbuild');
@@ -50,5 +51,6 @@ portal=portal.replace(/const CDI_FACTURX_DOCUMENT = ("(?:[^"\\]|\\.)*");/,(_matc
  doc=doc.replace('</head>','<style id="cdi-converter-apple">'+converterStyle+'</style><script id="cdi-converter-theme">'+converterTheme+'</script></head>');
  return 'const CDI_FACTURX_DOCUMENT = '+JSON.stringify(doc).replaceAll('<','\\u003c')+';';
 });
-await writeFile(portalPath,portal);
+await writeFile(portalPath,secureHtml(portal));
+await secureHtmlFile(path.join(root,'platform/outlook-callback.html'),'callback');
 console.log('Application Worker, typed transport, shared React modules and market controller built.');

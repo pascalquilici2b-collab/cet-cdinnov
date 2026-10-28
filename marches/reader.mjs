@@ -76,13 +76,13 @@ var fdeb = new u8([
 var clim = new u8([16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15]);
 var freb = function(eb, start) {
   var b = new u16(31);
-  for (var i = 0; i < 31; ++i) {
-    b[i] = start += 1 << eb[i - 1];
+  for (var i2 = 0; i2 < 31; ++i2) {
+    b[i2] = start += 1 << eb[i2 - 1];
   }
   var r = new i32(b[30]);
-  for (var i = 1; i < 30; ++i) {
-    for (var j = b[i]; j < b[i + 1]; ++j) {
-      r[j] = j - b[i] << 5 | i;
+  for (var i2 = 1; i2 < 30; ++i2) {
+    for (var j = b[i2]; j < b[i2 + 1]; ++j) {
+      r[j] = j - b[i2] << 5 | i2;
     }
   }
   return { b, r };
@@ -105,25 +105,25 @@ var x;
 var i;
 var hMap = (function(cd, mb, r) {
   var s = cd.length;
-  var i = 0;
+  var i2 = 0;
   var l = new u16(mb);
-  for (; i < s; ++i) {
-    if (cd[i])
-      ++l[cd[i] - 1];
+  for (; i2 < s; ++i2) {
+    if (cd[i2])
+      ++l[cd[i2] - 1];
   }
   var le = new u16(mb);
-  for (i = 1; i < mb; ++i) {
-    le[i] = le[i - 1] + l[i - 1] << 1;
+  for (i2 = 1; i2 < mb; ++i2) {
+    le[i2] = le[i2 - 1] + l[i2 - 1] << 1;
   }
   var co;
   if (r) {
     co = new u16(1 << mb);
     var rvb = 15 - mb;
-    for (i = 0; i < s; ++i) {
-      if (cd[i]) {
-        var sv = i << 4 | cd[i];
-        var r_1 = mb - cd[i];
-        var v = le[cd[i] - 1]++ << r_1;
+    for (i2 = 0; i2 < s; ++i2) {
+      if (cd[i2]) {
+        var sv = i2 << 4 | cd[i2];
+        var r_1 = mb - cd[i2];
+        var v = le[cd[i2] - 1]++ << r_1;
         for (var m = v | (1 << r_1) - 1; v <= m; ++v) {
           co[rev[v] >> rvb] = sv;
         }
@@ -131,9 +131,9 @@ var hMap = (function(cd, mb, r) {
     }
   } else {
     co = new u16(s);
-    for (i = 0; i < s; ++i) {
-      if (cd[i]) {
-        co[i] = rev[le[cd[i] - 1]++] >> 15 - cd[i];
+    for (i2 = 0; i2 < s; ++i2) {
+      if (cd[i2]) {
+        co[i2] = rev[le[cd[i2] - 1]++] >> 15 - cd[i2];
       }
     }
   }
@@ -160,9 +160,9 @@ var flrm = /* @__PURE__ */ hMap(flt, 9, 1);
 var fdrm = /* @__PURE__ */ hMap(fdt, 5, 1);
 var max = function(a) {
   var m = a[0];
-  for (var i = 1; i < a.length; ++i) {
-    if (a[i] > m)
-      m = a[i];
+  for (var i2 = 1; i2 < a.length; ++i2) {
+    if (a[i2] > m)
+      m = a[i2];
   }
   return m;
 };
@@ -255,28 +255,28 @@ var inflt = function(dat, st, buf, dict) {
         pos += 14;
         var ldt = new u8(tl);
         var clt = new u8(19);
-        for (var i = 0; i < hcLen; ++i) {
-          clt[clim[i]] = bits(dat, pos + i * 3, 7);
+        for (var i2 = 0; i2 < hcLen; ++i2) {
+          clt[clim[i2]] = bits(dat, pos + i2 * 3, 7);
         }
         pos += hcLen * 3;
         var clb = max(clt), clbmsk = (1 << clb) - 1;
         var clm = hMap(clt, clb, 1);
-        for (var i = 0; i < tl; ) {
+        for (var i2 = 0; i2 < tl; ) {
           var r = clm[bits(dat, pos, clbmsk)];
           pos += r & 15;
           var s = r >> 4;
           if (s < 16) {
-            ldt[i++] = s;
+            ldt[i2++] = s;
           } else {
             var c = 0, n = 0;
             if (s == 16)
-              n = 3 + bits(dat, pos, 3), pos += 2, c = ldt[i - 1];
+              n = 3 + bits(dat, pos, 3), pos += 2, c = ldt[i2 - 1];
             else if (s == 17)
               n = 3 + bits(dat, pos, 7), pos += 3;
             else if (s == 18)
               n = 11 + bits(dat, pos, 127), pos += 7;
             while (n--)
-              ldt[i++] = c;
+              ldt[i2++] = c;
           }
         }
         var lt = ldt.subarray(0, hLit), dt = ldt.subarray(hLit);
@@ -314,8 +314,8 @@ var inflt = function(dat, st, buf, dict) {
       } else {
         var add = sym - 254;
         if (sym > 264) {
-          var i = sym - 257, b = fleb[i];
-          add = bits(dat, pos, (1 << b) - 1) + fl[i];
+          var i2 = sym - 257, b = fleb[i2];
+          add = bits(dat, pos, (1 << b) - 1) + fl[i2];
           pos += b;
         }
         var d = dm[bits16(dat, pos) & dms], dsym = d >> 4;
@@ -407,26 +407,26 @@ try {
 } catch (e) {
 }
 var dutf8 = function(d) {
-  for (var r = "", i = 0; ; ) {
-    var c = d[i++];
+  for (var r = "", i2 = 0; ; ) {
+    var c = d[i2++];
     var eb = (c > 127) + (c > 223) + (c > 239);
-    if (i + eb > d.length)
-      return { s: r, r: slc(d, i - 1) };
+    if (i2 + eb > d.length)
+      return { s: r, r: slc(d, i2 - 1) };
     if (!eb)
       r += String.fromCharCode(c);
     else if (eb == 3) {
-      c = ((c & 15) << 18 | (d[i++] & 63) << 12 | (d[i++] & 63) << 6 | d[i++] & 63) - 65536, r += String.fromCharCode(55296 | c >> 10, 56320 | c & 1023);
+      c = ((c & 15) << 18 | (d[i2++] & 63) << 12 | (d[i2++] & 63) << 6 | d[i2++] & 63) - 65536, r += String.fromCharCode(55296 | c >> 10, 56320 | c & 1023);
     } else if (eb & 1)
-      r += String.fromCharCode((c & 31) << 6 | d[i++] & 63);
+      r += String.fromCharCode((c & 31) << 6 | d[i2++] & 63);
     else
-      r += String.fromCharCode((c & 15) << 12 | (d[i++] & 63) << 6 | d[i++] & 63);
+      r += String.fromCharCode((c & 15) << 12 | (d[i2++] & 63) << 6 | d[i2++] & 63);
   }
 };
 function strFromU8(dat, latin1) {
   if (latin1) {
     var r = "";
-    for (var i = 0; i < dat.length; i += 16384)
-      r += String.fromCharCode.apply(null, dat.subarray(i, i + 16384));
+    for (var i2 = 0; i2 < dat.length; i2 += 16384)
+      r += String.fromCharCode.apply(null, dat.subarray(i2, i2 + 16384));
     return r;
   } else if (td) {
     return td.decode(dat);
@@ -509,7 +509,7 @@ var Unzip = /* @__PURE__ */ (function() {
       if (chunk.length)
         return this.push(chunk, final);
     } else {
-      var f = 0, i = 0, is = void 0, buf = void 0;
+      var f = 0, i2 = 0, is = void 0, buf = void 0;
       if (!this.p.length)
         buf = chunk;
       else if (!chunk.length)
@@ -520,22 +520,22 @@ var Unzip = /* @__PURE__ */ (function() {
       }
       var l = buf.length, oc = this.c, add = oc && this.d;
       var _loop_2 = function() {
-        var sig = b4(buf, i);
+        var sig = b4(buf, i2);
         if (sig == 67324752) {
-          f = 1, is = i;
+          f = 1, is = i2;
           this_1.d = null;
           this_1.c = 0;
-          var bf = b2(buf, i + 6), cmp_1 = b2(buf, i + 8), u = bf & 2048, dd = bf & 8, fnl = b2(buf, i + 26), es = b2(buf, i + 28);
-          if (l > i + 30 + fnl + es) {
+          var bf = b2(buf, i2 + 6), cmp_1 = b2(buf, i2 + 8), u = bf & 2048, dd = bf & 8, fnl = b2(buf, i2 + 26), es = b2(buf, i2 + 28);
+          if (l > i2 + 30 + fnl + es) {
             var chks_3 = [];
             this_1.k.unshift(chks_3);
             f = 2;
-            var lsc = b4(buf, i + 18), lsu = b4(buf, i + 22);
-            var fn_1 = strFromU8(buf.subarray(i + 30, i += 30 + fnl), !u);
-            var _a2 = z64hs(buf, i, es, 2, lsc, lsu, 0), sc_1 = _a2[0], su_1 = _a2[1], z64 = _a2[3];
+            var lsc = b4(buf, i2 + 18), lsu = b4(buf, i2 + 22);
+            var fn_1 = strFromU8(buf.subarray(i2 + 30, i2 += 30 + fnl), !u);
+            var _a2 = z64hs(buf, i2, es, 2, lsc, lsu, 0), sc_1 = _a2[0], su_1 = _a2[1], z64 = _a2[3];
             if (dd)
               sc_1 = -1 - z64;
-            i += es;
+            i2 += es;
             this_1.c = sc_1;
             var d_1;
             var file_1 = {
@@ -576,31 +576,31 @@ var Unzip = /* @__PURE__ */ (function() {
           return "break";
         } else if (oc) {
           if (sig == 134695760) {
-            is = i += 12 + (oc == -2 && 8), f = 3, this_1.c = 0;
+            is = i2 += 12 + (oc == -2 && 8), f = 3, this_1.c = 0;
             return "break";
           } else if (sig == 33639248) {
-            is = i -= 4, f = 3, this_1.c = 0;
+            is = i2 -= 4, f = 3, this_1.c = 0;
             return "break";
           }
         }
       };
       var this_1 = this;
-      for (; i < l - 4; ++i) {
+      for (; i2 < l - 4; ++i2) {
         var state_1 = _loop_2();
         if (state_1 === "break")
           break;
       }
       this.p = et;
       if (oc < 0) {
-        var dat = f ? buf.subarray(0, is - 12 - (oc == -2 && 8) - (b4(buf, is - 16) == 134695760 && 4)) : buf.subarray(0, i);
+        var dat = f ? buf.subarray(0, is - 12 - (oc == -2 && 8) - (b4(buf, is - 16) == 134695760 && 4)) : buf.subarray(0, i2);
         if (add)
           add.push(dat, !!f);
         else
           this.k[+(f == 2)].push(dat);
       }
       if (f & 2)
-        return this.push(buf.subarray(i), final);
-      this.p = buf.subarray(i);
+        return this.push(buf.subarray(i2), final);
+      this.p = buf.subarray(i2);
     }
     if (final) {
       if (this.c)
@@ -625,19 +625,19 @@ function needsPdfOcr(text) {
 function joinPriceTableRows(text) {
   if (!/bordereau|\bBPU\b|\bDQE\b|prix unitaire/i.test(text)) return text;
   const lines = text.split("\n"), out = [];
-  for (let i = 0; i < lines.length; i++) {
-    const row = lines[i].match(/^(\d{1,3}\s+.+?)\s+\|?\s*(\d[\d .,|]*\d)\s*$/);
-    const continuation = lines[i + 1]?.trim();
+  for (let i2 = 0; i2 < lines.length; i2++) {
+    const row = lines[i2].match(/^(\d{1,3}\s+.+?)\s+\|?\s*(\d[\d .,|]*\d)\s*$/);
+    const continuation = lines[i2 + 1]?.trim();
     if (row && /^(?:consultant\s+)?(?:s[ée]nior|junior)$/i.test(continuation || "")) {
       out.push(row[1].replace(/\s*\|\s*$/, "") + " " + continuation + " | " + row[2]);
-      i++;
-    } else out.push(lines[i]);
+      i2++;
+    } else out.push(lines[i2]);
   }
   return out.join("\n");
 }
 function pdfTextRows(items) {
-  const text = items.filter((x) => typeof x.str === "string" && x.str.trim());
-  if (text.some((x) => !Number.isFinite(x.transform?.[4]) || !Number.isFinite(x.transform?.[5]))) return text.map((x) => x.str + (x.hasEOL ? "\n" : " ")).join("");
+  const text = items.filter((x2) => typeof x2.str === "string" && x2.str.trim());
+  if (text.some((x2) => !Number.isFinite(x2.transform?.[4]) || !Number.isFinite(x2.transform?.[5]))) return text.map((x2) => x2.str + (x2.hasEOL ? "\n" : " ")).join("");
   const rows = [];
   for (const item of text.sort((a, b) => b.transform[5] - a.transform[5] || a.transform[4] - b.transform[4])) {
     const y = item.transform[5], h = Math.max(1, Math.abs(item.height || item.transform[3] || 10));
@@ -648,9 +648,9 @@ function pdfTextRows(items) {
     }
     row.items.push(item);
   }
-  return rows.map((row) => row.items.sort((a, b) => a.transform[4] - b.transform[4]).map((item, i, arr) => {
-    const prev = arr[i - 1], gap = prev ? item.transform[4] - (prev.transform[4] + (prev.width || 0)) : 0;
-    return (i ? gap > 18 ? " | " : " " : "") + item.str;
+  return rows.map((row) => row.items.sort((a, b) => a.transform[4] - b.transform[4]).map((item, i2, arr) => {
+    const prev = arr[i2 - 1], gap = prev ? item.transform[4] - (prev.transform[4] + (prev.width || 0)) : 0;
+    return (i2 ? gap > 18 ? " | " : " " : "") + item.str;
   }).join("")).join("\n");
 }
 
@@ -695,7 +695,7 @@ function unpack(bytes) {
     file.start();
   });
   unzip.register(UnzipInflate);
-  unzip.push(bytes, true);
+  for (let offset = 0; offset < bytes.length; offset += 4096) unzip.push(bytes.subarray(offset, offset + 4096), offset + 4096 >= bytes.length);
   return files;
 }
 function office(bytes, name) {
@@ -708,7 +708,7 @@ function office(bytes, name) {
     const body = elements(doc, "body")[0];
     if (!body) throw new Error("Texte Word absent.");
     for (const node of body.children) {
-      if (node.localName === "p") text += elements(node, "t").map((x) => x.textContent).join("") + "\n";
+      if (node.localName === "p") text += elements(node, "t").map((x2) => x2.textContent).join("") + "\n";
       else if (node.localName === "tbl") for (const row of elements(node, "tr")) text += elements(row, "tc").map((c) => elements(c, "t").map((t) => t.textContent).join(" ")).join(" | ") + "\n";
     }
     text = "[Document Word \u2014 paragraphes et tableaux]\n" + text;
@@ -800,17 +800,17 @@ async function readDocument(file, progress = () => {
     if (!/\.pdf$/i.test(file.name)) throw new Error("Format non pris en charge.");
     const pdf = await import("./vendor/pdf.mjs");
     pdf.GlobalWorkerOptions.workerSrc = asset("pdf.worker.mjs");
-    const document = await pdf.getDocument({ data: new Uint8Array(await file.arrayBuffer()), isEvalSupported: false, useSystemFonts: true }).promise;
+    const document = await pdf.getDocument({ data: new Uint8Array(await file.arrayBuffer()), isEvalSupported: false, enableXfa: false, useSystemFonts: true, wasmUrl: asset("wasm/"), standardFontDataUrl: asset("standard_fonts/") }).promise;
     try {
       if (document.numPages > MAX_PAGES) throw new Error("Maximum 150 pages par pi\xE8ce ; d\xE9coupez le PDF en plusieurs pi\xE8ces.");
       let text = "";
-      for (let i = 1; i <= document.numPages; i++) {
+      for (let i2 = 1; i2 <= document.numPages; i2++) {
         check();
-        progress("Page " + i + " / " + document.numPages);
-        const page = await document.getPage(i), data = await page.getTextContent();
+        progress("Page " + i2 + " / " + document.numPages);
+        const page = await document.getPage(i2), data = await page.getTextContent();
         let content = pdfTextRows(data.items);
         if (needsPdfOcr(content)) {
-          progress("Reconnaissance du scan \xB7 page " + i + " / " + document.numPages);
+          progress("Reconnaissance du scan \xB7 page " + i2 + " / " + document.numPages);
           const viewport = page.getViewport({ scale: 3 }), canvas = documentGlobalCanvas();
           const scale = Math.min(1, 3e3 / Math.max(viewport.width, viewport.height)), vp = page.getViewport({ scale: 3 * scale });
           canvas.width = Math.ceil(vp.width);
@@ -819,10 +819,10 @@ async function readDocument(file, progress = () => {
           const result = await ocr(canvas);
           content = result.text;
           canvas.width = canvas.height = 1;
-          if (result.confidence < 45 && content.trim()) warnings.push("Page " + i + " : reconnaissance incertaine, v\xE9rifier l\u2019original.");
-          if (!content.trim()) warnings.push("Page " + i + " : reconnaissance incertaine, aucun texte lu dans le scan.");
+          if (result.confidence < 45 && content.trim()) warnings.push("Page " + i2 + " : reconnaissance incertaine, v\xE9rifier l\u2019original.");
+          if (!content.trim()) warnings.push("Page " + i2 + " : reconnaissance incertaine, aucun texte lu dans le scan.");
         }
-        text += "[Page " + i + "]\n" + content + "\n";
+        text += "[Page " + i2 + "]\n" + content + "\n";
         page.cleanup();
         if (text.length > MAX_TEXT) throw new Error("PDF trop long : maximum 500 000 caract\xE8res par pi\xE8ce.");
       }

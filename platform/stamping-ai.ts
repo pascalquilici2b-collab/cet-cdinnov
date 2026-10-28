@@ -1,7 +1,13 @@
 import {MODEL,DAILY_BUDGET,INPUT_NEURONS_PER_TOKEN,OUTPUT_NEURONS_PER_TOKEN} from '../marches/ai-domain.mjs';
 import type {Database,Environment} from './contracts';
-export const STAMP_PROMPT_VERSION='stamp-identification-v2';
+export const STAMP_PROMPT_VERSION='stamp-identification-v3';
+export function safeStampingEvidence(evidence:{line:number;text:string}[]){
+ // Apply the privacy boundary again at egress, including readings cached by an
+ // older documentary service. Keep quotations relative to the filtered text.
+ return evidence.slice(0,60).filter(e=>typeof e?.text==='string'&&!/\b(?:NIR|IBAN|BIC|sécurité sociale|securite sociale|adresse)\b/i.test(e.text)&&!/(?<![A-Z0-9])[A-Z]{2}[ \t\u00a0\u202f]?\d{2}(?:[ \t\u00a0\u202f]?[A-Z0-9]){11,30}(?![A-Z0-9])/i.test(e.text)).map(e=>({...e,text:e.text.replace(/(?<!\d)[12][\s./-]?\d{2}[\s./-]?\d{2}[\s./-]?(?:\d{2}|2[AB])[\s./-]?\d{3}[\s./-]?\d{3}(?:[\s./-]?\d{2})?(?!\d)/gi,'[identifiant retiré]').slice(0,220)}));
+}
 export async function stampingSuggestions(db:Database,env:Environment,evidence:{line:number;text:string}[]){
+ evidence=safeStampingEvidence(evidence);
  if(!env.MARKETS_AI||!evidence.length)return {suggestions:[],status:'unavailable',model:MODEL,prompt:STAMP_PROMPT_VERSION};
  const text=evidence.map(e=>e.text).join('\n').slice(0,8000),day=new Date().toISOString().slice(0,10);
  const reserved=Math.ceil(((new TextEncoder().encode(text).length+1000)*INPUT_NEURONS_PER_TOKEN+1200*OUTPUT_NEURONS_PER_TOKEN)*1.2);

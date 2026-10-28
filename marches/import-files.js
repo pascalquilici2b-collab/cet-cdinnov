@@ -53,7 +53,10 @@ export async function expandImportFiles(selected,progress=()=>{}){
    entry.start();
   });
   unzip.register(UnzipInflate);
-  unzip.push(new Uint8Array(await file.arrayBuffer()),true);
+  // Limit each inflation step before the output-size callback can reject it.
+  // A forged originalSize must not allocate the full expanded archive first.
+  const raw=new Uint8Array(await file.arrayBuffer());
+  for(let offset=0;offset<raw.length;offset+=4096)unzip.push(raw.subarray(offset,offset+4096),offset+4096>=raw.length);
  }
  return {files,warnings:[...new Set(warnings)].slice(0,50)};
 }

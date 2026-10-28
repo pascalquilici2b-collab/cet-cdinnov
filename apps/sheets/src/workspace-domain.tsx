@@ -1,3 +1,4 @@
+import {csvCell} from '../../../platform/csv-export';
 import type {
   CellValue,
   Column,
@@ -185,20 +186,14 @@ export function importCSV(
   );
 }
 export function exportCSV(sheet: Sheet, options?: unknown) {
-  const h = (o: unknown) => '"' + String(o ?? "").replaceAll('"', '""') + '"';
+  const h = csvCell;
   return (
     "﻿" +
     [
       sheet.columns.map((o) => h(o.title)).join(";"),
       ...sheet.rows.map((o) =>
         sheet.columns
-          .map((f) => {
-            let v = o.cells[f.id];
-            return (
-              typeof v == "string" && /^[=+@-]/.test(v) && (v = "'" + v),
-              h(v)
-            );
-          })
+          .map((f) => h(o.cells[f.id]))
           .join(";"),
       ),
     ].join(`\r

@@ -1,6 +1,6 @@
 import {createHash, createHmac, randomBytes, timingSafeEqual} from 'node:crypto';
 import {Buffer} from 'node:buffer';
-import {accountAccess,hasAccess} from './access';
+import {accountAccess,hasAccess} from './access.ts';
 export {hasAccess};
 import type {ModuleAccess} from './access';
 import type {Database, Environment, Reply} from './contracts';
@@ -26,6 +26,10 @@ const object = (value:unknown):ObjectValue|null => value !== null && typeof valu
 const normalize = (value:unknown) => typeof value==='string' ? value.trim().toLowerCase() : '';
 const validEmail = (value:string) => value.length<=254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 const fingerprint = (account:Account) => createHash('sha256').update(JSON.stringify([account.salt,account.iter,account.hash])).digest('hex');
+// A challenge is public. Its binding must not be an offline password verifier:
+// SHA256([salt, iterations, PBKDF2(password)]) would reveal a guessable oracle.
+const challengeFingerprint = (current:Account|null,email:string,key:string) => createHmac('sha256',key).update('login-challenge:'+email+':'+(current?fingerprint(current):'unknown')).digest('hex');
+const unknownSalt = (email:string,key:string) => createHmac('sha256',key).update('login-unknown-salt:'+email).digest('hex').slice(0,32);
 
 function secret(env:Environment):string {
   if(typeof env.BUDGETS_SESSION_SECRET!=='string' || env.BUDGETS_SESSION_SECRET.length<32) {
@@ -122,13 +126,13 @@ export async function login(request:Request,env:Environment,db:Database,reply:Re
   }
   const current=await account(env,email);
   if(input.action==='challenge')return reply(200,{
-    challenge:encode({aud:challengeAudience,email,exp:now+60000,fingerprint:current?fingerprint(current):randomBytes(32).toString('hex'),nonce:randomBytes(24).toString('hex')},key),
-    salt:current?.salt || randomBytes(16).toString('hex'),iter:current?.iter || 150000
+    challenge:encode({aud:challengeAudience,email,exp:now+60000,fingerprint:challengeFingerprint(current,email,key),nonce:randomBytes(24).toString('hex')},key),
+    salt:current?.salt || unknownSalt(email,key),iter:current?.iter || 150000
   });
   const denied=()=>reply(401,{error:'Connexion CDInnov invalide ou expirée. Reconnectez-vous.'});
   if(typeof input.proof!=='string' || !/^[a-f0-9]{64}$/.test(input.proof))return denied();
   const challenge=decode(input.challenge,key,challengeAudience,now);
-  if(!challenge || challenge.email!==email || !current || !equal(challenge.fingerprint,fingerprint(current)))return denied();
+  if(!challenge || challenge.email!==email || !current || !equal(challenge.fingerprint,challengeFingerprint(current,email,key)))return denied();
   // Consume even a failed proof, so a challenge cannot be retried or used concurrently.
   const consumed=await db.prepare('INSERT INTO budgets_login_challenges (nonce,expires_at) VALUES (?,?) ON CONFLICT(nonce) DO NOTHING RETURNING nonce').bind(challenge.nonce,challenge.exp).first();
   if(!consumed)return denied();

@@ -1,10 +1,13 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<style id="cdi-startup-guard">body:not(.authed)>.app{visibility:hidden}.theme-toggle>svg{width:18px;height:18px;fill:none;stroke:currentColor}.theme-toggle .theme-sun{display:none}[data-theme="dark"] .theme-toggle .theme-moon{display:none}[data-theme="dark"] .theme-toggle .theme-sun{display:block}</style>
+<meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' blob: data: https://cet-data.pascalquilici2b.workers.dev https://cdinnov-facturx.onrender.com https://login.microsoftonline.com https://graph.microsoft.com https://nominatim.openstreetmap.org https://router.project-osrm.org https://api-adresse.data.gouv.fr https://photon.komoot.io https://recherche-entreprises.api.gouv.fr; worker-src 'self' blob:; frame-src 'self' blob: data: https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self' https://login.microsoftonline.com">
+<meta name="referrer" content="no-referrer">
+<style id="cdi-frame-guard">html{visibility:hidden}</style><script src="/platform/frame-guard.js"></script><style id="cdi-startup-guard">body:not(.authed)>.app{visibility:hidden}.theme-toggle>svg{width:18px;height:18px;fill:none;stroke:currentColor}.theme-toggle .theme-sun{display:none}[data-theme="dark"] .theme-toggle .theme-moon{display:none}[data-theme="dark"] .theme-toggle .theme-sun{display:block}</style>
 <link rel="stylesheet" href="/platform/loading.css?v=access-design-20261025">
 <script src="./platform/theme.js?v=apple-motion-20261020"></script>
-<meta charset="UTF-8" />
+
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>CDInnov - Gestion interne</title>
 <link rel="icon" href="/icons/favicon.svg?v=20261026" type="image/svg+xml"/>
@@ -882,12 +885,13 @@ const $ = (s,r=document)=>r.querySelector(s);
 const $$ = (s,r=document)=>[...r.querySelectorAll(s)];
 const uid = ()=> 'm'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const esc = s => (s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function inlineArg(value){return esc(JSON.stringify(String(value??'')));}
 const yearOf = d => d ? Number(String(d).slice(0,4)) : null;
 function ymd(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function nbJours(n){ if(n==null||n==='') return '—'; return Number(n).toLocaleString('fr-FR',{maximumFractionDigits:2}); }
 function eur(n){ if(n==null||n==='') return '—'; return Number(n).toLocaleString('fr-FR',{maximumFractionDigits:0})+' €'; }
 function eur2(n){ if(n==null||n==='') return '—'; return Number(n).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'; }
-function dateFR(d){ if(!d) return '—'; const [y,m,da]=String(d).split('-'); return `${da}/${m}/${y}`; }
+function dateFR(d){ if(!/^\d{4}-\d{2}-\d{2}$/.test(String(d||''))) return '—'; const [y,m,da]=String(d).split('-'); return `${da}/${m}/${y}`; }
 function initials(s){ return (s.nom?.[0]||'')+(s.prenom?.[0]||''); }
 function avInner(s){ const photo=photoURL(s?.photo);return photo?'<img src="'+esc(photo)+'" alt="" style="width:100%;height:100%;object-fit:cover;display:block">':esc(initials(s||{})); }
 function typeByCode(c){ return state.types.find(t=>t.code===c); }
@@ -1242,10 +1246,10 @@ function congesShiftMonth(delta){ let m=congesMonth+delta, y=currentYear; if(m<0
 
 function halfCell(rec,mat,date,half){
   const lib = half==='AM'?'Matin':'Après-midi';
-  if(!rec) return `<div class="hf" title="${lib} — libre (cliquer pour poser)" onclick="toggleHalf('${mat}','${date}','${half}')"></div>`;
+  if(!rec) return `<div class="hf" title="${lib} — libre (cliquer pour poser)" onclick="toggleHalf(${inlineArg(mat)},${inlineArg(date)},${inlineArg(half)})"></div>`;
   const col=CONGES_TYPE_COLOR[rec.type]||'#1786c9';
   const pend=rec.statut!=='Validé';
-  const click = pend ? `congeCellMenu('${mat}','${date}','${half}')` : `toggleHalf('${mat}','${date}','${half}')`;
+  const click = pend ? `congeCellMenu(${inlineArg(mat)},${inlineArg(date)},${inlineArg(half)})` : `toggleHalf(${inlineArg(mat)},${inlineArg(date)},${inlineArg(half)})`;
   const tt = pend ? (esc(rec.type)+' · en attente · '+lib+(congesAdmin()?' (cliquer : valider / rejeter)':' (cliquer pour retirer)')) : (esc(rec.type)+' · validé · '+lib+' (cliquer pour retirer)');
   return `<div class="hf on ${pend?'pend':''}" style="background:${col}" title="${tt}" onclick="${click}"></div>`;
 }
@@ -1261,7 +1265,7 @@ function calendarHTML(mat,Y,M){
     let halves, dnClick='', dnTitle='';
     if(isSun){ halves='<div class="hf we"></div><div class="hf we"></div>'; }
     else if(isSat){ const auto=autoSamediInfo(mat,date); if(auto){ halves=autoSatHalf(auto)+autoSatHalf(auto); dnTitle='Samedi décompté (vendredi en congés payés)'; } else { halves='<div class="hf we"></div><div class="hf we"></div>'; } }
-    else { halves=halfCell(congeAt(mat,date,'AM'),mat,date,'AM')+halfCell(congeAt(mat,date,'PM'),mat,date,'PM'); dnClick=`onclick="toggleDay('${mat}','${date}')"`; dnTitle='Cliquer le numéro = journée entière'; }
+    else { halves=halfCell(congeAt(mat,date,'AM'),mat,date,'AM')+halfCell(congeAt(mat,date,'PM'),mat,date,'PM'); dnClick=`onclick="toggleDay(${inlineArg(mat)},${inlineArg(date)})"`; dnTitle='Cliquer le numéro = journée entière'; }
     cells += `<div class="day ${we?'we':''}"><div class="dn" ${dnClick} title="${dnTitle}">${day}</div><div class="halves">${halves}</div></div>`;
   }
   return `<div class="cal">${heads}${cells}</div>`;
@@ -1310,7 +1314,7 @@ function renderConges(){
       <div class="card-head">
         <h2>Calendrier des congés — équipe</h2><div class="grow"></div>
         <button class="btn btn-ghost btn-sm no-print" onclick="exportCongesCSV()">${ic('download')} Export (CSV)</button>
-        <button class="btn btn-primary btn-sm no-print" onclick="openConge('${mm||''}')">${ic('plus')} Poser une période</button>
+        <button class="btn btn-primary btn-sm no-print" onclick="openConge(${inlineArg(mm||'')})">${ic('plus')} Poser une période</button>
       </div>
       <div class="card-pad">
         <div class="cal-wrap">
@@ -1364,7 +1368,7 @@ function calendarGlobalHTML(Y,M){
     const date=`${Y}-${String(M+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
     const dow=new Date(Y,M,day).getDay(); const we=dow===0||dow===6;
     const chips=congesDayAgents(date).map(a=>agAvatar(a.s,a.pending,(!a.autoSat && a.halves && a.halves.length===1)?a.halves[0].half:null)).join('');
-    cells+=`<div class="gday ${we?'we':''}" onclick="congeDayMenu('${date}')"><div class="gdn">${day}</div><div class="agwrap">${chips}</div></div>`;
+    cells+=`<div class="gday ${we?'we':''}" onclick="congeDayMenu(${inlineArg(date)})"><div class="gdn">${day}</div><div class="agwrap">${chips}</div></div>`;
   }
   return `<div class="gcal">${heads}${cells}</div>`;
 }
@@ -1376,7 +1380,7 @@ function congeHalfChip(mat,date,half,rec,can){
   const style= on ? base+`background:${col};border-color:${col};color:#fff;${pend?'opacity:.55;':''}` : base+'background:var(--panel);color:var(--muted-2)';
   const cur = can?'cursor:pointer;':'cursor:default;';
   const tt = lib+(on?(pend?' — en attente (cliquer pour retirer)':' — validé (cliquer pour retirer)'):(' — libre'+(can?' (cliquer pour poser)':'')));
-  return `<span style="${style}${cur}" title="${esc(tt)}" ${can?`onclick="congeToggleHalfDay('${mat}','${date}','${half}')"`:''}>${lib}</span>`;
+  return `<span style="${style}${cur}" title="${esc(tt)}" ${can?`onclick="congeToggleHalfDay(${inlineArg(mat)},${inlineArg(date)},${inlineArg(half)})"`:''}>${lib}</span>`;
 }
 /* Période (demande) à laquelle appartient le congé d'un salarié un jour donné */
 function periodeDuJour(mat,date){
@@ -1396,26 +1400,26 @@ function congeDayMenu(date){
       : `<div style="font-size:12px;color:var(--muted);margin-bottom:5px">${esc(a.type||'')} · ${st}${multi?` · période ${esc(periodeLabel(per))} (${nbJours(per.jours)} j)`:''}</div>
          <div style="display:flex;gap:6px">${congeHalfChip(a.s.matricule,date,'AM',congeAt(a.s.matricule,date,'AM'),can)}${congeHalfChip(a.s.matricule,date,'PM',congeAt(a.s.matricule,date,'PM'),can)}</div>
          ${multi?`<div style="display:flex;gap:6px;margin-top:7px;flex-wrap:wrap">
-            ${(admin && a.pending)?`<button class="btn btn-primary btn-sm" style="padding:5px 10px;font-size:11.5px" onclick="validerPeriode('${a.s.matricule}','${per.from}','${per.to}')">${ic('check')} Valider toute la période</button>`:''}
-            ${(admin || mm===a.s.matricule)?`<button class="btn btn-ghost btn-sm" style="padding:5px 10px;font-size:11.5px" onclick="rejeterPeriode('${a.s.matricule}','${per.from}','${per.to}')">${ic('trash')} Retirer toute la période</button>`:''}
+            ${(admin && a.pending)?`<button class="btn btn-primary btn-sm" style="padding:5px 10px;font-size:11.5px" onclick="validerPeriode(${inlineArg(a.s.matricule)},${inlineArg(per.from)},${inlineArg(per.to)})">${ic('check')} Valider toute la période</button>`:''}
+            ${(admin || mm===a.s.matricule)?`<button class="btn btn-ghost btn-sm" style="padding:5px 10px;font-size:11.5px" onclick="rejeterPeriode(${inlineArg(a.s.matricule)},${inlineArg(per.from)},${inlineArg(per.to)})">${ic('trash')} Retirer toute la période</button>`:''}
          </div>`:''}`;
-    return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)">${agAvatar(a.s,a.pending)}<div style="flex:1"><b>${esc(a.s.nom)} ${esc(a.s.prenom)}</b>${detail}</div>${(admin && a.pending && !a.autoSat)?`<button class="btn btn-primary btn-sm" title="Valider la journée" onclick="validerCongeDay('${a.s.matricule}','${date}')">${ic('check')}</button>`:''}${((admin || mm===a.s.matricule) && !a.autoSat)?`<button class="icon-btn" title="${a.pending?'Rejeter le congé':'Retirer ce congé'}" onclick="rejeterCongeDay('${a.s.matricule}','${date}')">${ic('trash')}</button>`:''}</div>`;
+    return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)">${agAvatar(a.s,a.pending)}<div style="flex:1"><b>${esc(a.s.nom)} ${esc(a.s.prenom)}</b>${detail}</div>${(admin && a.pending && !a.autoSat)?`<button class="btn btn-primary btn-sm" title="Valider la journée" onclick="validerCongeDay(${inlineArg(a.s.matricule)},${inlineArg(date)})">${ic('check')}</button>`:''}${((admin || mm===a.s.matricule) && !a.autoSat)?`<button class="icon-btn" title="${a.pending?'Rejeter le congé':'Retirer ce congé'}" onclick="rejeterCongeDay(${inlineArg(a.s.matricule)},${inlineArg(date)})">${ic('trash')}</button>`:''}</div>`;
   }).join('') : '<div style="font-size:13px;color:var(--muted);padding:6px 0">Aucun congé posé ce jour.</div>';
   const posteurs = admin ? state.salaries : state.salaries.filter(s=>s.matricule===mm);
   const poser = (!we && posteurs.length) ? `
     <div style="margin-top:16px;padding-top:14px;border-top:2px solid var(--line-strong)">
       <div style="font-size:12.5px;font-weight:700;color:var(--ink);margin-bottom:9px">Poser ce jour</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
-        <select class="inp slim" id="cgdMat" style="flex:1;min-width:150px" ${admin?'':'disabled'}>${posteurs.map(s=>`<option value="${s.matricule}" ${s.matricule===mm?'selected':''}>${esc(s.nom)} ${esc(s.prenom)}</option>`).join('')}</select>
+        <select class="inp slim" id="cgdMat" style="flex:1;min-width:150px" ${admin?'':'disabled'}>${posteurs.map(s=>`<option value="${esc(s.matricule)}" ${s.matricule===mm?'selected':''}>${esc(s.nom)} ${esc(s.prenom)}</option>`).join('')}</select>
         <select class="inp slim" id="cgdType" style="flex:1;min-width:130px">${CONGES_TYPES.map(t=>`<option>${t}</option>`).join('')}</select>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-primary btn-sm" style="flex:1" onclick="congePostDay('${date}','FULL')">Journée entière</button>
-        <button class="btn btn-ghost btn-sm" style="flex:1" onclick="congePostDay('${date}','AM')">Matin</button>
-        <button class="btn btn-ghost btn-sm" style="flex:1" onclick="congePostDay('${date}','PM')">Après-midi</button>
+        <button class="btn btn-primary btn-sm" style="flex:1" onclick="congePostDay(${inlineArg(date)},'FULL')">Journée entière</button>
+        <button class="btn btn-ghost btn-sm" style="flex:1" onclick="congePostDay(${inlineArg(date)},'AM')">Matin</button>
+        <button class="btn btn-ghost btn-sm" style="flex:1" onclick="congePostDay(${inlineArg(date)},'PM')">Après-midi</button>
       </div>
     </div>` : '';
-  modal(`<div class="modal-head"><h3>${dateFR(date)}</h3></div><div class="modal-body">${rows}${poser}</div><div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal()">Fermer</button>${mm?`<button class="btn btn-primary" onclick="closeModal();openConge('${mm}')">${ic('plus')} Poser une période</button>`:''}</div>`);
+  modal(`<div class="modal-head"><h3>${dateFR(date)}</h3></div><div class="modal-body">${rows}${poser}</div><div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal()">Fermer</button>${mm?`<button class="btn btn-primary" onclick="closeModal();openConge(${inlineArg(mm)})">${ic('plus')} Poser une période</button>`:''}</div>`);
 }
 function congePostDay(date, period){
   const selMat=$('#cgdMat'), selType=$('#cgdType');
@@ -1508,8 +1512,8 @@ function congesPendingSide(Y){
           <div style="color:var(--ink)">${esc(periodeLabel(p))}</div>
           <div style="color:var(--pending);font-weight:600">${nbJours(p.jours)} j · ${esc(p.type||'')}</div>
         </div>
-        <button class="btn btn-primary btn-sm" style="padding:6px 9px" title="Valider toute la période" onclick="validerPeriode('${p.matricule}','${p.from}','${p.to}')">${ic('check')}</button>
-        <button class="icon-btn" title="Rejeter toute la période" onclick="rejeterPeriode('${p.matricule}','${p.from}','${p.to}')">${ic('trash')}</button>
+        <button class="btn btn-primary btn-sm" style="padding:6px 9px" title="Valider toute la période" onclick="validerPeriode(${inlineArg(p.matricule)},${inlineArg(p.from)},${inlineArg(p.to)})">${ic('check')}</button>
+        <button class="icon-btn" title="Rejeter toute la période" onclick="rejeterPeriode(${inlineArg(p.matricule)},${inlineArg(p.from)},${inlineArg(p.to)})">${ic('trash')}</button>
       </div>`;
     }).join('') + `<div style="font-size:12px;color:#6b520b;padding-top:10px;font-weight:600">${per.length} période(s) — ${nbJours(totJ)} j au total</div>
       <button class="btn btn-ghost btn-sm no-print" style="width:100%;justify-content:center;margin-top:8px" onclick="validerCongesAll(${Y})">${ic('check')} Tout valider</button>` : `<div style="font-size:12.5px;color:var(--muted);padding-top:10px">Aucun congé en attente.</div>`}
@@ -1528,8 +1532,8 @@ function congeCellMenu(mat,date,half){
     </div>
     <div class="modal-foot" style="flex-wrap:wrap;gap:8px">
       <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>
-      <button class="btn btn-danger" onclick="rejeterCongeHalf('${mat}','${date}','${half}')">${ic('trash')} Rejeter</button>
-      <button class="btn btn-primary" onclick="validerCongeHalf('${mat}','${date}','${half}')">${ic('check')} Valider</button>
+      <button class="btn btn-danger" onclick="rejeterCongeHalf(${inlineArg(mat)},${inlineArg(date)},${inlineArg(half)})">${ic('trash')} Rejeter</button>
+      <button class="btn btn-primary" onclick="validerCongeHalf(${inlineArg(mat)},${inlineArg(date)},${inlineArg(half)})">${ic('check')} Valider</button>
     </div>`);
 }
 function validerCongeHalf(mat,date,half){ const rec=congeAt(mat,date,half); if(rec){ rec.statut='Validé'; save(); const em=salEmail(mat); const s=salByMat(mat)||{}; if(em) notify('Un congé a été validé', '<p>Bonjour '+esc(s.prenom)+',</p><p>Votre congé du <b>'+dateFR(date)+'</b> ('+(half==='AM'?'matin':'après-midi')+') a été <b>validé</b>.</p>', em); } closeModal(); renderConges(); }
@@ -1623,23 +1627,15 @@ function joursOuvresAnnee(Y){
 
 let _pdfjs=null;
 function loadPdfJs(){
-  if(_pdfjs) return Promise.resolve(_pdfjs);
-  const set=()=>{ window.pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; _pdfjs=window.pdfjsLib; return _pdfjs; };
-  if(window.pdfjsLib) return Promise.resolve(set());
-  return new Promise((res,rej)=>{
-    const s=document.createElement('script');
-    s.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-    s.onload=()=>res(set());
-    s.onerror=()=>rej(new Error('Lecture PDF indisponible (connexion internet requise pour charger pdf.js).'));
-    document.head.appendChild(s);
-  });
+  if(!_pdfjs)_pdfjs=import('./marches/vendor/pdf.mjs').then(pdfjs=>{pdfjs.GlobalWorkerOptions.workerSrc='./marches/vendor/pdf.worker.mjs';return pdfjs;}).catch(error=>{_pdfjs=null;throw error;});
+  return _pdfjs;
 }
 async function pdfTextFromData(data){
-  const pdfjs=await loadPdfJs();
-  const doc=await pdfjs.getDocument({data}).promise;
-  let txt='';
-  for(let p=1;p<=doc.numPages;p++){ const page=await doc.getPage(p); const c=await page.getTextContent(); txt+=' '+c.items.map(i=>i.str).join(' '); }
-  return txt;
+  const pdfjs=await loadPdfJs(),task=pdfjs.getDocument({data,isEvalSupported:false,enableXfa:false});
+  try{const doc=await task.promise;if(doc.numPages>300)throw new Error('Ce PDF dépasse la limite de 300 pages.');let txt='';
+    for(let p=1;p<=doc.numPages;p++){const page=await doc.getPage(p);const c=await page.getTextContent();txt+=' '+c.items.map(i=>i.str).join(' ');if(txt.length>2000000)throw new Error('Le texte de ce PDF est trop volumineux.');}
+    return txt;
+  }finally{await task.destroy();}
 }
 async function pdfText(file){ return pdfTextFromData(await file.arrayBuffer()); }
 function fileToDataURL(f){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=()=>rej(r.error||new Error('Lecture fichier impossible')); r.readAsDataURL(f); }); }
@@ -1738,10 +1734,10 @@ async function previewPayslip(mat){
       <div id="psThumb" style="display:flex;justify-content:center;align-items:center;min-height:120px"><div class="hint">Aperçu en cours…</div></div>
     </div>
     <div class="modal-foot">
-      <button class="btn btn-danger" onclick="removePayslip('${mat}')">${ic('trash')} Retirer la pièce jointe</button>
+      <button class="btn btn-danger" onclick="removePayslip(${inlineArg(mat)})">${ic('trash')} Retirer la pièce jointe</button>
       <div class="grow"></div>
       <button class="btn btn-ghost" onclick="closeModal()">Fermer</button>
-      <button class="btn btn-primary" onclick="recalcPayslip('${mat}')">${ic('refresh')} Recalculer le coût/jour</button>
+      <button class="btn btn-primary" onclick="recalcPayslip(${inlineArg(mat)})">${ic('refresh')} Recalculer le coût/jour</button>
     </div>`);
   renderPayslipThumb(s);
 }
@@ -1781,9 +1777,9 @@ function loadXLSX(){
   if(window.XLSX) return Promise.resolve(window.XLSX);
   return new Promise((res,rej)=>{
     const s=document.createElement('script');
-    s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    s.src='./platform/vendor/xlsx-0.20.3.min.js';
     s.onload=()=>res(window.XLSX);
-    s.onerror=()=>rej(new Error('Lecteur Excel indisponible (connexion internet requise).'));
+    s.onerror=()=>rej(new Error('Lecteur Excel indisponible. Rechargez la page.'));
     document.head.appendChild(s);
   });
 }
@@ -1857,7 +1853,7 @@ function openSuiviConfirm(p){
     </div>
     <div class="modal-foot">
       <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>
-      <button class="btn btn-primary" ${delta>0?'':'disabled'} onclick="applySuiviCET('${p.matricule}',${delta},${p.total})">${ic('check')} ${delta>0?'Créditer +'+delta+' j':'Rien à créditer'}</button>
+      <button class="btn btn-primary" ${delta>0?'':'disabled'} onclick="applySuiviCET(${inlineArg(p.matricule)},${delta},${p.total})">${ic('check')} ${delta>0?'Créditer +'+delta+' j':'Rien à créditer'}</button>
     </div>`);
 }
 function applySuiviCET(mat, delta, total){
@@ -1891,7 +1887,7 @@ function openCoutCalc(mat, brut, via){
     </div>
     <div class="modal-foot">
       <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>
-      <button class="btn btn-primary" onclick="applyCoutCalc('${mat}')">${ic('check')} Appliquer ce coût/jour</button>
+      <button class="btn btn-primary" onclick="applyCoutCalc(${inlineArg(mat)})">${ic('check')} Appliquer ce coût/jour</button>
     </div>`);
   ['#ccY','#ccBrut'].forEach(id=>$(id).addEventListener('input',coutCalcRefresh));
   coutCalcRefresh();
@@ -2034,7 +2030,7 @@ function salPickerHTML(curMat, lock){
   return `<div class="salpick" id="salpick">
     <button type="button" class="salpick-btn" ${lock?'disabled':''} onclick="salPickToggle(event)"><span class="avatar salpick-av">${avInner(cur)}</span><span class="salpick-name">${esc(cur.nom||'')} ${esc(cur.prenom||'')}</span>${lock?'':ic('chevR')}</button>
     <input type="hidden" id="nfSal" value="${esc(cur.matricule||'')}">
-    <div class="salpick-list" id="salpickList" style="display:none">${list.map(s=>`<div class="salpick-item" onclick="salPickSelect('${s.matricule}')"><span class="avatar salpick-av">${avInner(s)}</span><span>${esc(s.nom)} ${esc(s.prenom)}</span></div>`).join('')}</div>
+    <div class="salpick-list" id="salpickList" style="display:none">${list.map(s=>`<div class="salpick-item" onclick="salPickSelect(${inlineArg(s.matricule)})"><span class="avatar salpick-av">${avInner(s)}</span><span>${esc(s.nom)} ${esc(s.prenom)}</span></div>`).join('')}</div>
   </div>`;
 }
 function salPickToggle(e){ e.stopPropagation(); const l=$('#salpickList'); if(l) l.style.display=l.style.display==='none'?'block':'none'; }
@@ -2043,7 +2039,7 @@ function nfStatutPickerHTML(cur){ cur=nfStatutNorm(cur); const opts=nfStatutOpti
   return `<div class="salpick" id="stpick">
     <button type="button" class="salpick-btn" ${locked?'disabled':''} onclick="stPickToggle(event)">${nfStatutBadge(cur)}<span style="flex:1"></span>${locked?'':ic('chevR')}</button>
     <input type="hidden" id="nfStatut" value="${esc(cur)}">
-    <div class="salpick-list" id="stpickList" style="display:none">${opts.map(st=>`<div class="salpick-item" onclick="stPickSelect('${st}')">${nfStatutBadge(st)}</div>`).join('')}</div>
+    <div class="salpick-list" id="stpickList" style="display:none">${opts.map(st=>`<div class="salpick-item" onclick="stPickSelect(${inlineArg(st)})">${nfStatutBadge(st)}</div>`).join('')}</div>
   </div>`;
 }
 function stPickToggle(e){ e.stopPropagation(); const l=$('#stpickList'); if(l) l.style.display=l.style.display==='none'?'block':'none'; }
@@ -2267,7 +2263,7 @@ function caCodeKey(c){ return String(c.code1==null?'':c.code1)+String(c.code2==n
 function eurHT(n){ return (Number(n)||0).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'; }
 function moisAnnee(d){ if(!d) return '—'; const dd=new Date(String(d).slice(0,10)+'T00:00:00'); if(isNaN(dd)) return '—'; return MOIS_FR[dd.getMonth()]+' '+dd.getFullYear(); }
 function billingNavigation(active){
-  return '<nav class="billing-nav no-print" aria-label="Rubriques du logiciel de facturation">'+[['modern','Factures et devis','file'],['codes','Codes affaires','tag'],['marches','Marchés et contrats','folders']].map(([id,label,icon])=>`<button type="button" class="btn btn-ghost" onclick="setBillingSection('${id}')" ${active===id?'aria-current="page"':''}>${ic(icon)}${label}</button>`).join('')+'</nav>';
+  return '<nav class="billing-nav no-print" aria-label="Rubriques du logiciel de facturation">'+[['modern','Factures et devis','file'],['codes','Codes affaires','tag'],['marches','Marchés et contrats','folders']].map(([id,label,icon])=>`<button type="button" class="btn btn-ghost" onclick="setBillingSection(${inlineArg(id)})" ${active===id?'aria-current="page"':''}>${ic(icon)}${label}</button>`).join('')+'</nav>';
 }
 function setBillingSection(section){
   if(section==='factures')section='modern';
@@ -2717,7 +2713,7 @@ function dl(name,content,mime){
   const blob=new Blob([content],{type:mime}); const url=URL.createObjectURL(blob);
   const a=document.createElement('a'); a.href=url; a.download=name; a.click(); URL.revokeObjectURL(url);
 }
-function csvCell(v){ if(v==null) v=''; v=String(v).replace(/"/g,'""'); return `"${v}"`; }
+function csvCell(v){let text=String(v??'');if(typeof v!=='number'&&(/^[\s\u0000-\u001f\u007f]*[=+@-]/u.test(text)||/^[\t\r\n]/.test(text)))text="'"+text;return '"'+text.replaceAll('"','""')+'"';}
 function exportCSV(){
   const rows=computeYear(currentYear);
   const head=['Matricule','Nom','Prénom','Solde début','Crédits année','Débits année','Solde fin','CP affectés','Alerte CP','Alerte plafond','Valorisation €','PEI jours','PEI €','PERECOLI jours','PERECOLI €'];
@@ -3134,11 +3130,11 @@ function facturxFileIcon(pdf=false){
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"${pdf?' style="color:#bd3530;width:20px;height:20px"':''}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>${pdf?'<text x="12" y="17" fill="currentColor" stroke="none" font-family="Arial,sans-serif" font-size="6" font-weight="700" text-anchor="middle">PDF</text>':'<path d="M8 12h8M8 16h8"/>'}</svg>`;
 }
 function facturxRowActions(f){
-  const id=esc(f.id);
-  if(!f.pdfSource)return `<span class="facturx-actions"><button class="btn btn-ghost btn-sm" title="Téléverser un PDF dans cette facture" onclick="openFacturePdf('${id}')">Téléverser</button></span>`;
-  return `<span class="facturx-actions"><span class="facturx-file"><button class="btn btn-ghost btn-sm" title="Visualiser le PDF original" onclick="facturxOriginal('${id}')">${facturxFileIcon(true)}PDF</button><button type="button" class="facturx-file-remove" aria-label="Supprimer le PDF" title="${f.facturx?'Supprimer le PDF et son Factur-X associé':'Supprimer le PDF'}" onclick="event.stopPropagation();facturxRemovePdf('${id}')"><span aria-hidden="true">×</span></button></span>`+
-    `<button class="btn btn-primary btn-sm" style="--accent:#1d4ed8;--accent-strong:#1e40af" title="Créer un Factur-X à partir du PDF" onclick="openFacturX('${id}')">Créer Factur-X</button>`+
-    (facturxSnapshotMatches(f)?`<span class="facturx-file"><button class="btn btn-ghost btn-sm" title="Télécharger le Factur-X validé" onclick="facturxFinal('${id}')">${facturxFileIcon()}Factur-X</button><button type="button" class="facturx-file-remove" aria-label="Supprimer le Factur-X" title="Supprimer le Factur-X uniquement" onclick="event.stopPropagation();facturxRemoveFinal('${id}')"><span aria-hidden="true">×</span></button></span>`:'')+'</span>';
+  const id=f.id;
+  if(!f.pdfSource)return `<span class="facturx-actions"><button class="btn btn-ghost btn-sm" title="Téléverser un PDF dans cette facture" onclick="openFacturePdf(${inlineArg(id)})">Téléverser</button></span>`;
+  return `<span class="facturx-actions"><span class="facturx-file"><button class="btn btn-ghost btn-sm" title="Visualiser le PDF original" onclick="facturxOriginal(${inlineArg(id)})">${facturxFileIcon(true)}PDF</button><button type="button" class="facturx-file-remove" aria-label="Supprimer le PDF" title="${f.facturx?'Supprimer le PDF et son Factur-X associé':'Supprimer le PDF'}" onclick="event.stopPropagation();facturxRemovePdf(${inlineArg(id)})"><span aria-hidden="true">×</span></button></span>`+
+    `<button class="btn btn-primary btn-sm" style="--accent:#1d4ed8;--accent-strong:#1e40af" title="Créer un Factur-X à partir du PDF" onclick="openFacturX(${inlineArg(id)})">Créer Factur-X</button>`+
+    (facturxSnapshotMatches(f)?`<span class="facturx-file"><button class="btn btn-ghost btn-sm" title="Télécharger le Factur-X validé" onclick="facturxFinal(${inlineArg(id)})">${facturxFileIcon()}Factur-X</button><button type="button" class="facturx-file-remove" aria-label="Supprimer le Factur-X" title="Supprimer le Factur-X uniquement" onclick="event.stopPropagation();facturxRemoveFinal(${inlineArg(id)})"><span aria-hidden="true">×</span></button></span>`:'')+'</span>';
 }
 function facturxRemoveFinal(id){
   if(!facturierAdmin())return;
@@ -3209,7 +3205,7 @@ async function openFacturX(id){
   if(!facturierAdmin()){toast('Accès réservé à la direction.');return;}
   const f=facturxRecord(id);if(!f)return;
   if(!f.pdfSource){openFacture(id);toast('Joignez le PDF original, enregistrez puis cliquez sur Factur-X.');return;}
-  modal(`<div class="modal-head"><h3>Factur-X · ${esc(f.number||'Facture')}</h3><div class="grow"></div>${facturxSnapshotMatches(f)?'<button type="button" class="btn btn-primary" onclick="facturxFinal(\''+esc(f.id)+'\')">Télécharger le Factur-X</button>':''}<button class="icon-btn" title="Fermer" onclick="closeModal()">${ic('close')}</button></div><div class="modal-body"><div id="facturxLoading" class="hint" role="status">${loadingMarkup('Chargement du PDF…',true)}</div><iframe id="facturxFrame" title="Conversion de la facture en Factur-X" style="width:100%;height:76vh;border:0" hidden></iframe></div>`,true);
+  modal(`<div class="modal-head"><h3>Factur-X · ${esc(f.number||'Facture')}</h3><div class="grow"></div>${facturxSnapshotMatches(f)?'<button type="button" class="btn btn-primary" onclick="facturxFinal('+inlineArg(f.id)+')">Télécharger le Factur-X</button>':''}<button class="icon-btn" title="Fermer" onclick="closeModal()">${ic('close')}</button></div><div class="modal-body"><div id="facturxLoading" class="hint" role="status">${loadingMarkup('Chargement du PDF…',true)}</div><iframe id="facturxFrame" title="Conversion de la facture en Factur-X" style="width:100%;height:76vh;border:0" hidden></iframe></div>`,true);
   document.querySelector('#overlay .modal').style.maxWidth='1260px';
   const frame=document.getElementById('facturxFrame');const session=crypto.randomUUID();
   try{
@@ -3841,11 +3837,11 @@ function agendaNotificationHTML(t){
   var __getOwnPropNames = Object.getOwnPropertyNames;
   var __getProtoOf = Object.getPrototypeOf;
   var __hasOwnProp = Object.prototype.hasOwnProperty;
-  var __require = /* @__PURE__ */ ((x) => typeof require !== "undefined" ? require : typeof Proxy !== "undefined" ? new Proxy(x, {
+  var __require = /* @__PURE__ */ ((x2) => typeof require !== "undefined" ? require : typeof Proxy !== "undefined" ? new Proxy(x2, {
     get: (a, b) => (typeof require !== "undefined" ? require : a)[b]
-  }) : x)(function(x) {
+  }) : x2)(function(x2) {
     if (typeof require !== "undefined") return require.apply(this, arguments);
-    throw Error('Dynamic require of "' + x + '" is not supported');
+    throw Error('Dynamic require of "' + x2 + '" is not supported');
   });
   var __copyProps = (to, from, except, desc) => {
     if (from && typeof from === "object" || typeof from === "function") {
@@ -3981,7 +3977,7 @@ function agendaNotificationHTML(t){
     if (m.noMinimum && m.minimumMinor !== null) throw new Error("Le march\xE9 sans minimum ne peut pas avoir un montant minimum.");
     for (const list of ["prices", "ceilings", "periods", "issues"]) {
       if (!Array.isArray(input[list]) || input[list].length > 150) throw new Error("Liste " + list + " invalide ou trop longue.");
-      if (new Set(input[list].map((x) => x?.id)).size !== input[list].length) throw new Error("Identifiants en double dans " + list + ".");
+      if (new Set(input[list].map((x2) => x2?.id)).size !== input[list].length) throw new Error("Identifiants en double dans " + list + ".");
     }
     m.periods = input.periods.map((v) => {
       const r = { ...common(v, ids, false), label: text(v.label, "P\xE9riode", 180, true), startDate: date(v.startDate, "D\xE9but de p\xE9riode"), endDate: date(v.endDate, "Fin de p\xE9riode"), decision: text(v.decision, "D\xE9cision de p\xE9riode", 1500) };
@@ -3989,8 +3985,8 @@ function agendaNotificationHTML(t){
       if (r.status === "validated" && (!r.startDate || !r.endDate || !r.decision)) throw new Error("Une p\xE9riode valid\xE9e exige ses deux dates et la justification de sa prise d\u2019effet.");
       return r;
     });
-    for (let i = 0; i < m.periods.length; i++) for (let j = i + 1; j < m.periods.length; j++) {
-      if (m.periods[i].status === "validated" && m.periods[j].status === "validated" && overlaps(m.periods[i], m.periods[j])) throw new Error("Deux p\xE9riodes contractuelles valid\xE9es se chevauchent.");
+    for (let i2 = 0; i2 < m.periods.length; i2++) for (let j = i2 + 1; j < m.periods.length; j++) {
+      if (m.periods[i2].status === "validated" && m.periods[j].status === "validated" && overlaps(m.periods[i2], m.periods[j])) throw new Error("Deux p\xE9riodes contractuelles valid\xE9es se chevauchent.");
     }
     m.prices = input.prices.map((v) => {
       const r = { ...common(v, ids), label: text(v.label, "Prestation", 240, true), profile: text(v.profile, "Profil", 120), location: text(v.location, "Lieu / modalit\xE9", 120), unit: choice(v.unit, Object.keys(UNITS), "Unit\xE9"), amountMinor: amount(v.amountMinor, "Tarif"), startDate: date(v.startDate, "D\xE9but du tarif"), endDate: date(v.endDate, "Fin du tarif"), notes: text(v.notes, "Note tarif", 1500) };
@@ -4002,8 +3998,8 @@ function agendaNotificationHTML(t){
       if (r.status === "validated" && r.amountMinor === null) throw new Error("Un tarif valid\xE9 doit avoir un montant.");
       return r;
     });
-    for (let i = 0; i < m.prices.length; i++) for (let j = i + 1; j < m.prices.length; j++) {
-      const a = m.prices[i], b = m.prices[j];
+    for (let i2 = 0; i2 < m.prices.length; i2++) for (let j = i2 + 1; j < m.prices.length; j++) {
+      const a = m.prices[i2], b = m.prices[j];
       if (a.status === "validated" && b.status === "validated" && ["label", "profile", "location", "unit"].every((k) => key(a[k]) === key(b[k])) && overlaps(a, b)) throw new Error("Deux tarifs valid\xE9s sont applicables \xE0 la m\xEAme prestation, au m\xEAme profil et au m\xEAme lieu.");
     }
     m.ceilings = input.ceilings.map((v) => {
@@ -4080,7 +4076,7 @@ function agendaNotificationHTML(t){
     const unidentified = ["", "March\xE9 \xE0 identifier"].includes(m.title) && ["", "Client \xE0 identifier"].includes(m.clientName);
     for (const section of ["prices", "ceilings", "periods", "conditions", "issues"]) m[section] ??= [];
     const addIssue = (r) => {
-      if (!m.issues.some((i) => normalize(i.title) === normalize(r.title))) m.issues.push(r);
+      if (!m.issues.some((i2) => normalize(i2.title) === normalize(r.title))) m.issues.push(r);
     };
     for (const f of result.facts || []) {
       if (f.conflict) continue;
@@ -4094,7 +4090,7 @@ function agendaNotificationHTML(t){
         continue;
       }
       for (const r of result[section] || []) {
-        const existing = m[section].find((x) => listKey(section, x) === listKey(section, r));
+        const existing = m[section].find((x2) => listKey(section, x2) === listKey(section, r));
         if (!existing) m[section].push(structuredClone(r));
         else if (!sameRule(section, existing, r)) addIssue(issue("V\xE9rifier : " + r.label, "La r\xE8gle d\xE9j\xE0 saisie a \xE9t\xE9 conserv\xE9e. Proposition IA : " + JSON.stringify(r).slice(0, 1800), r.source));
         else enrichPriceTax(section, existing, r);
@@ -4214,13 +4210,13 @@ function agendaNotificationHTML(t){
   var clim = new u8([16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15]);
   var freb = function(eb, start) {
     var b = new u16(31);
-    for (var i = 0; i < 31; ++i) {
-      b[i] = start += 1 << eb[i - 1];
+    for (var i2 = 0; i2 < 31; ++i2) {
+      b[i2] = start += 1 << eb[i2 - 1];
     }
     var r = new i32(b[30]);
-    for (var i = 1; i < 30; ++i) {
-      for (var j = b[i]; j < b[i + 1]; ++j) {
-        r[j] = j - b[i] << 5 | i;
+    for (var i2 = 1; i2 < 30; ++i2) {
+      for (var j = b[i2]; j < b[i2 + 1]; ++j) {
+        r[j] = j - b[i2] << 5 | i2;
       }
     }
     return { b, r };
@@ -4243,25 +4239,25 @@ function agendaNotificationHTML(t){
   var i;
   var hMap = (function(cd, mb, r) {
     var s2 = cd.length;
-    var i = 0;
+    var i2 = 0;
     var l = new u16(mb);
-    for (; i < s2; ++i) {
-      if (cd[i])
-        ++l[cd[i] - 1];
+    for (; i2 < s2; ++i2) {
+      if (cd[i2])
+        ++l[cd[i2] - 1];
     }
     var le = new u16(mb);
-    for (i = 1; i < mb; ++i) {
-      le[i] = le[i - 1] + l[i - 1] << 1;
+    for (i2 = 1; i2 < mb; ++i2) {
+      le[i2] = le[i2 - 1] + l[i2 - 1] << 1;
     }
     var co;
     if (r) {
       co = new u16(1 << mb);
       var rvb = 15 - mb;
-      for (i = 0; i < s2; ++i) {
-        if (cd[i]) {
-          var sv = i << 4 | cd[i];
-          var r_1 = mb - cd[i];
-          var v = le[cd[i] - 1]++ << r_1;
+      for (i2 = 0; i2 < s2; ++i2) {
+        if (cd[i2]) {
+          var sv = i2 << 4 | cd[i2];
+          var r_1 = mb - cd[i2];
+          var v = le[cd[i2] - 1]++ << r_1;
           for (var m = v | (1 << r_1) - 1; v <= m; ++v) {
             co[rev[v] >> rvb] = sv;
           }
@@ -4269,9 +4265,9 @@ function agendaNotificationHTML(t){
       }
     } else {
       co = new u16(s2);
-      for (i = 0; i < s2; ++i) {
-        if (cd[i]) {
-          co[i] = rev[le[cd[i] - 1]++] >> 15 - cd[i];
+      for (i2 = 0; i2 < s2; ++i2) {
+        if (cd[i2]) {
+          co[i2] = rev[le[cd[i2] - 1]++] >> 15 - cd[i2];
         }
       }
     }
@@ -4298,9 +4294,9 @@ function agendaNotificationHTML(t){
   var fdrm = /* @__PURE__ */ hMap(fdt, 5, 1);
   var max = function(a) {
     var m = a[0];
-    for (var i = 1; i < a.length; ++i) {
-      if (a[i] > m)
-        m = a[i];
+    for (var i2 = 1; i2 < a.length; ++i2) {
+      if (a[i2] > m)
+        m = a[i2];
     }
     return m;
   };
@@ -4393,28 +4389,28 @@ function agendaNotificationHTML(t){
           pos += 14;
           var ldt = new u8(tl);
           var clt = new u8(19);
-          for (var i = 0; i < hcLen; ++i) {
-            clt[clim[i]] = bits(dat, pos + i * 3, 7);
+          for (var i2 = 0; i2 < hcLen; ++i2) {
+            clt[clim[i2]] = bits(dat, pos + i2 * 3, 7);
           }
           pos += hcLen * 3;
           var clb = max(clt), clbmsk = (1 << clb) - 1;
           var clm = hMap(clt, clb, 1);
-          for (var i = 0; i < tl; ) {
+          for (var i2 = 0; i2 < tl; ) {
             var r = clm[bits(dat, pos, clbmsk)];
             pos += r & 15;
             var s2 = r >> 4;
             if (s2 < 16) {
-              ldt[i++] = s2;
+              ldt[i2++] = s2;
             } else {
               var c = 0, n = 0;
               if (s2 == 16)
-                n = 3 + bits(dat, pos, 3), pos += 2, c = ldt[i - 1];
+                n = 3 + bits(dat, pos, 3), pos += 2, c = ldt[i2 - 1];
               else if (s2 == 17)
                 n = 3 + bits(dat, pos, 7), pos += 3;
               else if (s2 == 18)
                 n = 11 + bits(dat, pos, 127), pos += 7;
               while (n--)
-                ldt[i++] = c;
+                ldt[i2++] = c;
             }
           }
           var lt = ldt.subarray(0, hLit), dt = ldt.subarray(hLit);
@@ -4452,8 +4448,8 @@ function agendaNotificationHTML(t){
         } else {
           var add2 = sym - 254;
           if (sym > 264) {
-            var i = sym - 257, b = fleb[i];
-            add2 = bits(dat, pos, (1 << b) - 1) + fl[i];
+            var i2 = sym - 257, b = fleb[i2];
+            add2 = bits(dat, pos, (1 << b) - 1) + fl[i2];
             pos += b;
           }
           var d = dm[bits16(dat, pos) & dms], dsym = d >> 4;
@@ -4545,26 +4541,26 @@ function agendaNotificationHTML(t){
   } catch (e) {
   }
   var dutf8 = function(d) {
-    for (var r = "", i = 0; ; ) {
-      var c = d[i++];
+    for (var r = "", i2 = 0; ; ) {
+      var c = d[i2++];
       var eb = (c > 127) + (c > 223) + (c > 239);
-      if (i + eb > d.length)
-        return { s: r, r: slc(d, i - 1) };
+      if (i2 + eb > d.length)
+        return { s: r, r: slc(d, i2 - 1) };
       if (!eb)
         r += String.fromCharCode(c);
       else if (eb == 3) {
-        c = ((c & 15) << 18 | (d[i++] & 63) << 12 | (d[i++] & 63) << 6 | d[i++] & 63) - 65536, r += String.fromCharCode(55296 | c >> 10, 56320 | c & 1023);
+        c = ((c & 15) << 18 | (d[i2++] & 63) << 12 | (d[i2++] & 63) << 6 | d[i2++] & 63) - 65536, r += String.fromCharCode(55296 | c >> 10, 56320 | c & 1023);
       } else if (eb & 1)
-        r += String.fromCharCode((c & 31) << 6 | d[i++] & 63);
+        r += String.fromCharCode((c & 31) << 6 | d[i2++] & 63);
       else
-        r += String.fromCharCode((c & 15) << 12 | (d[i++] & 63) << 6 | d[i++] & 63);
+        r += String.fromCharCode((c & 15) << 12 | (d[i2++] & 63) << 6 | d[i2++] & 63);
     }
   };
   function strFromU8(dat, latin1) {
     if (latin1) {
       var r = "";
-      for (var i = 0; i < dat.length; i += 16384)
-        r += String.fromCharCode.apply(null, dat.subarray(i, i + 16384));
+      for (var i2 = 0; i2 < dat.length; i2 += 16384)
+        r += String.fromCharCode.apply(null, dat.subarray(i2, i2 + 16384));
       return r;
     } else if (td) {
       return td.decode(dat);
@@ -4647,7 +4643,7 @@ function agendaNotificationHTML(t){
         if (chunk.length)
           return this.push(chunk, final);
       } else {
-        var f = 0, i = 0, is = void 0, buf = void 0;
+        var f = 0, i2 = 0, is = void 0, buf = void 0;
         if (!this.p.length)
           buf = chunk;
         else if (!chunk.length)
@@ -4658,22 +4654,22 @@ function agendaNotificationHTML(t){
         }
         var l = buf.length, oc = this.c, add2 = oc && this.d;
         var _loop_2 = function() {
-          var sig = b4(buf, i);
+          var sig = b4(buf, i2);
           if (sig == 67324752) {
-            f = 1, is = i;
+            f = 1, is = i2;
             this_1.d = null;
             this_1.c = 0;
-            var bf = b2(buf, i + 6), cmp_1 = b2(buf, i + 8), u = bf & 2048, dd = bf & 8, fnl = b2(buf, i + 26), es = b2(buf, i + 28);
-            if (l > i + 30 + fnl + es) {
+            var bf = b2(buf, i2 + 6), cmp_1 = b2(buf, i2 + 8), u = bf & 2048, dd = bf & 8, fnl = b2(buf, i2 + 26), es = b2(buf, i2 + 28);
+            if (l > i2 + 30 + fnl + es) {
               var chks_3 = [];
               this_1.k.unshift(chks_3);
               f = 2;
-              var lsc = b4(buf, i + 18), lsu = b4(buf, i + 22);
-              var fn_1 = strFromU8(buf.subarray(i + 30, i += 30 + fnl), !u);
-              var _a2 = z64hs(buf, i, es, 2, lsc, lsu, 0), sc_1 = _a2[0], su_1 = _a2[1], z64 = _a2[3];
+              var lsc = b4(buf, i2 + 18), lsu = b4(buf, i2 + 22);
+              var fn_1 = strFromU8(buf.subarray(i2 + 30, i2 += 30 + fnl), !u);
+              var _a2 = z64hs(buf, i2, es, 2, lsc, lsu, 0), sc_1 = _a2[0], su_1 = _a2[1], z64 = _a2[3];
               if (dd)
                 sc_1 = -1 - z64;
-              i += es;
+              i2 += es;
               this_1.c = sc_1;
               var d_1;
               var file_1 = {
@@ -4714,31 +4710,31 @@ function agendaNotificationHTML(t){
             return "break";
           } else if (oc) {
             if (sig == 134695760) {
-              is = i += 12 + (oc == -2 && 8), f = 3, this_1.c = 0;
+              is = i2 += 12 + (oc == -2 && 8), f = 3, this_1.c = 0;
               return "break";
             } else if (sig == 33639248) {
-              is = i -= 4, f = 3, this_1.c = 0;
+              is = i2 -= 4, f = 3, this_1.c = 0;
               return "break";
             }
           }
         };
         var this_1 = this;
-        for (; i < l - 4; ++i) {
+        for (; i2 < l - 4; ++i2) {
           var state_1 = _loop_2();
           if (state_1 === "break")
             break;
         }
         this.p = et;
         if (oc < 0) {
-          var dat = f ? buf.subarray(0, is - 12 - (oc == -2 && 8) - (b4(buf, is - 16) == 134695760 && 4)) : buf.subarray(0, i);
+          var dat = f ? buf.subarray(0, is - 12 - (oc == -2 && 8) - (b4(buf, is - 16) == 134695760 && 4)) : buf.subarray(0, i2);
           if (add2)
             add2.push(dat, !!f);
           else
             this.k[+(f == 2)].push(dat);
         }
         if (f & 2)
-          return this.push(buf.subarray(i), final);
-        this.p = buf.subarray(i);
+          return this.push(buf.subarray(i2), final);
+        this.p = buf.subarray(i2);
       }
       if (final) {
         if (this.c)
@@ -4827,7 +4823,8 @@ function agendaNotificationHTML(t){
         entry.start();
       });
       unzip.register(UnzipInflate);
-      unzip.push(new Uint8Array(await file.arrayBuffer()), true);
+      const raw = new Uint8Array(await file.arrayBuffer());
+      for (let offset = 0; offset < raw.length; offset += 4096) unzip.push(raw.subarray(offset, offset + 4096), offset + 4096 >= raw.length);
     }
     return { files, warnings: [...new Set(warnings)].slice(0, 50) };
   }
@@ -4843,13 +4840,13 @@ function agendaNotificationHTML(t){
   function joinPriceTableRows(text2) {
     if (!/bordereau|\bBPU\b|\bDQE\b|prix unitaire/i.test(text2)) return text2;
     const lines = text2.split("\n"), out = [];
-    for (let i = 0; i < lines.length; i++) {
-      const row = lines[i].match(/^(\d{1,3}\s+.+?)\s+\|?\s*(\d[\d .,|]*\d)\s*$/);
-      const continuation = lines[i + 1]?.trim();
+    for (let i2 = 0; i2 < lines.length; i2++) {
+      const row = lines[i2].match(/^(\d{1,3}\s+.+?)\s+\|?\s*(\d[\d .,|]*\d)\s*$/);
+      const continuation = lines[i2 + 1]?.trim();
       if (row && /^(?:consultant\s+)?(?:s[ée]nior|junior)$/i.test(continuation || "")) {
         out.push(row[1].replace(/\s*\|\s*$/, "") + " " + continuation + " | " + row[2]);
-        i++;
-      } else out.push(lines[i]);
+        i2++;
+      } else out.push(lines[i2]);
     }
     return out.join("\n");
   }
@@ -5105,8 +5102,8 @@ function agendaNotificationHTML(t){
       s.error = "";
       s.notice = "";
       window.CDIActionFeedback?.success("March\xE9 enregistr\xE9");
-      const i = s.rows.findIndex((x) => x.id === s.current.id);
-      if (i >= 0) s.rows[i] = s.current;
+      const i2 = s.rows.findIndex((x2) => x2.id === s.current.id);
+      if (i2 >= 0) s.rows[i2] = s.current;
       else s.rows.unshift(s.current);
       s.busy = false;
       render();
@@ -5302,7 +5299,7 @@ function agendaNotificationHTML(t){
           if (!r.ok) throw new Error("La pi\xE8ce ne peut pas \xEAtre charg\xE9e.");
           const blob = await r.blob(), url = URL.createObjectURL(blob), a = document.createElement("a");
           a.href = url;
-          a.download = s.current.linkedEngagements?.find((x) => x.documentId === b.dataset.engagementFile)?.filename || "engagement.pdf";
+          a.download = s.current.linkedEngagements?.find((x2) => x2.documentId === b.dataset.engagementFile)?.filename || "engagement.pdf";
           a.click();
           setTimeout(() => URL.revokeObjectURL(url), 6e4);
         } catch (e2) {
@@ -5354,7 +5351,7 @@ function agendaNotificationHTML(t){
         return;
       }
       if (b.dataset.toggleOrder !== void 0) {
-        const [i, j] = b.dataset.toggleOrder.split(".").map(Number), order = s.current.projects?.[i]?.orders[j];
+        const [i2, j] = b.dataset.toggleOrder.split(".").map(Number), order = s.current.projects?.[i2]?.orders[j];
         if (order) {
           order.archived = !order.archived;
           dirty();
@@ -5470,7 +5467,7 @@ function agendaNotificationHTML(t){
       }
       if (b.dataset.version) {
         exportFile(
-          s.history.find((x) => x.version === Number(b.dataset.version)),
+          s.history.find((x2) => x2.version === Number(b.dataset.version)),
           "marche-version-" + b.dataset.version + ".json"
         );
         return;
@@ -5894,8 +5891,15 @@ function notify(subject,html,to){
   cloudPush().then(ok=>{if(ok&&AUTH_USER===user)return portalFetch(CLOUD_ENDPOINT.replace(/\/+$/,'')+'/notify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({subject,html,...(to?{to}:{})})});}).catch(()=>toast('Notification non envoyée. Les données restent enregistrées.'));
 }
 function isRemoteFileURL(src){try{const url=new URL(src);return url.origin===new URL(CLOUD_ENDPOINT).origin&&url.pathname.startsWith('/files/');}catch{return false;}}
-async function privateFileFetch(src){return isRemoteFileURL(src)?portalFetch(src):fetch(src);}
+function safePrivateFileURL(src){
+  if(typeof src!=='string'||!src)throw new Error('Adresse de pièce jointe non autorisée.');
+  if(isRemoteFileURL(src)){const url=new URL(src);if(!url.username&&!url.password)return src;}
+  if(/^data:(?:application\/pdf|image\/(?:png|jpeg|webp|gif));base64,[A-Za-z0-9+/]+={0,2}$/.test(src))return src;
+  throw new Error('Adresse de pièce jointe non autorisée.');
+}
+async function privateFileFetch(src){safePrivateFileURL(src);return isRemoteFileURL(src)?portalFetch(src):fetch(src);}
 async function privateFileURL(src){
+  safePrivateFileURL(src);
   if(!isRemoteFileURL(src))return src;
   if(portalBlobs.has(src))return portalBlobs.get(src);
   const user=AUTH_USER,epoch=portalEpoch,response=await privateFileFetch(src),blob=await response.blob();
