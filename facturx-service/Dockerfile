@@ -1,4 +1,4 @@
-FROM python:3.12-slim-bookworm
+FROM python:3.12-slim-trixie
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -13,7 +13,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PORT=8080
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ghostscript openjdk-17-jre-headless fonts-dejavu-core ca-certificates tesseract-ocr tesseract-ocr-fra tesseract-ocr-eng tesseract-ocr-ita \
+    && apt-get install -y --no-install-recommends ghostscript openjdk-21-jre-headless fonts-dejavu-core ca-certificates tesseract-ocr tesseract-ocr-fra tesseract-ocr-eng tesseract-ocr-ita \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -27,9 +27,11 @@ COPY deployment/start_server.py ./deployment/start_server.py
 COPY deployment/verify_runtime.py ./deployment/verify_runtime.py
 COPY deployment/verify_stamping.py ./deployment/verify_stamping.py
 COPY deployment/verify_document_security.py ./deployment/verify_document_security.py
+COPY deployment/verify_native_packages.py ./deployment/verify_native_packages.py
 RUN groupadd --gid 10001 facturx \
     && useradd --uid 10001 --gid facturx --no-create-home --shell /usr/sbin/nologin facturx
 USER 10001:10001
+RUN python -m deployment.verify_native_packages
 RUN python -m deployment.verify_document_security
 RUN python -m deployment.verify_runtime
 RUN python -m deployment.verify_stamping
