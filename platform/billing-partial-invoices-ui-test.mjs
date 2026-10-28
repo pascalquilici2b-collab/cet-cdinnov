@@ -1,0 +1,33 @@
+import assert from 'node:assert/strict';
+import {randomUUID} from 'node:crypto';
+import {createRequire} from 'node:module';
+import {mkdir} from 'node:fs/promises';
+import {resolve} from 'node:path';
+import {billingPreview} from './billing-preview.mjs';
+import {quoteFixture,quoteFixtureTools,samplePDF} from './billing-quote-fixture.mjs';
+import {blankDocumentDetails} from './billing-domain.ts';
+import {createNumberSeries} from './billing-issuance.ts';
+const require=createRequire('C:/Users/quili/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright/package.json'),{chromium,expect}=require('playwright/test');
+const out=resolve('platform/.private/partial-invoices-20261028/ui');await mkdir(out,{recursive:true});
+let p,browser,page;
+try{
+ p=await billingPreview({outboundService:async()=>new Response(samplePDF(),{headers:{'Content-Type':'application/pdf'}})});const q=await quoteFixtureTools(p.ctx,p.sessions[0].token),db=p.ctx.db;
+ const series=await createNumberSeries(db,{id:randomUUID(),issuerSiren:'732829320',kind:'invoice',prefix:'FAC-AAAAMM',width:3,firstValue:68,startDate:'1970-01-01',endDate:'9999-12-31'},'test');
+ await db.prepare('INSERT INTO billing_monthly_series VALUES(?)').bind(series.id).run();await db.prepare('INSERT INTO billing_default_series VALUES(?,?,?)').bind(series.issuer_siren,series.kind,series.id).run();
+ const data=quoteFixture('DEVELOP · Semestres 5 et 6');data.details={...blankDocumentDetails(),periods:['S5','S6']};data.lines[0].quantity='20';let quote=await q.create(data);quote=await(await q.send(quote)).json();
+ const r=await p.ctx.worker.dispatchFetch('https://local/api/v1/billing/documents/'+quote.id+'/engagement?kind=signed_quote',{method:'PUT',headers:{Origin:'https://app.cdinnov.eu',Authorization:'Bearer '+p.sessions[0].token,'If-Match':String(quote.version),'X-Filename':'Accord.pdf','Content-Type':'application/pdf'},body:samplePDF()});assert.equal(r.status,201,await r.clone().text());
+ browser=await chromium.launch({channel:'msedge',headless:true});const context=await browser.newContext({viewport:{width:1450,height:1050},locale:'fr-FR'});
+ await context.route('**/*',route=>route.request().url().startsWith(p.base+'/')||/^(blob:|data:)/.test(route.request().url())?route.continue():route.abort());page=await context.newPage();page.setDefaultTimeout(20000);const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto(p.base);
+ await page.getByRole('button',{name:'Créer la facture',exact:true}).click();let dialog=page.getByRole('dialog',{name:'Facturer le devis',exact:true});await expect(dialog).toBeVisible();
+ await dialog.getByRole('button',{name:'Périodes à facturer',exact:true}).click();await page.getByRole('menuitemcheckbox',{name:'Semestre 6',exact:true}).click();await page.keyboard.press('Escape');
+ await dialog.getByLabel('Quantité à facturer — '+data.lines[0].description,{exact:true}).fill('10');await expect(dialog.locator('.bill-invoice-selection-total')).toContainText('7');await dialog.getByRole('button',{name:'Créer la facture',exact:true}).click();await expect(dialog).not.toBeVisible();
+ await expect(page.locator('.bill-document-number')).toContainText('FAC-202610068');
+ await page.getByRole('navigation',{name:'Documents commerciaux'}).getByRole('button',{name:'Devis',exact:true}).click();await page.getByRole('button',{name:'Créer une autre facture',exact:true}).click();dialog=page.getByRole('dialog',{name:'Facturer le devis',exact:true});
+ await expect(dialog.locator('.bill-invoice-selection-existing')).toContainText('FAC-202610068');await expect(dialog.getByRole('button',{name:'Périodes à facturer',exact:true})).toContainText('Semestre 6');await expect(dialog.getByRole('button',{name:'Créer la facture',exact:true})).toBeDisabled();
+ await dialog.getByLabel('Quantité à facturer — '+data.lines[0].description,{exact:true}).fill('10');await page.evaluate(()=>CDITheme.set('dark'));await dialog.screenshot({path:out+'/partial-dark.png'});await page.evaluate(()=>CDITheme.set('light'));await dialog.screenshot({path:out+'/partial-light.png'});
+ await page.setViewportSize({width:390,height:844});await dialog.screenshot({path:out+'/partial-mobile.png'});assert.ok(await dialog.evaluate(el=>el.scrollWidth<=el.clientWidth+2));
+ await dialog.getByRole('button',{name:'Créer la facture',exact:true}).click();await expect(dialog).not.toBeVisible();await expect(page.locator('.bill-document-number')).toContainText('FAC-202610069');
+ const updated=await(await q.call('/documents/'+quote.id)).json();assert.equal(updated.quote.invoices.length,2);assert.deepEqual(updated.quote.invoices.map(i=>i.periods[0]).sort(),['S5','S6']);assert.ok(updated.quote.invoices.every(i=>i.netMinor==='750000'));
+ await page.getByRole('navigation',{name:'Documents commerciaux'}).getByRole('button',{name:'Devis',exact:true}).click();await page.getByRole('button',{name:'Ouvrir '+data.title,exact:true}).click();await page.getByRole('button',{name:'Résumé',exact:true}).click();await expect(page.getByRole('button',{name:/Ouvrir FAC-202610068/})).toBeVisible();await expect(page.getByRole('button',{name:/Ouvrir FAC-202610069/})).toBeVisible();assert.deepEqual(errors,[]);
+ console.log('OK Quote list and editor, partial S5/S6 selection, repeated invoice creation, sequential numbers, both invoice links, light/dark/mobile.');
+}catch(e){if(page)await page.screenshot({path:out+'/failure.png',fullPage:true}).catch(()=>{});throw e;}finally{await browser?.close();await p?.close();}

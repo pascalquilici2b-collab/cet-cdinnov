@@ -1,3 +1,4 @@
+import type {BillingInvoiceSelection} from '../billing-contracts';
 import {documentRow} from './billing-row-navigation';
 import {showSuccess} from './action-feedback';
 import {useOrderBudget,OrderBudgetNotice} from './billing-order-budget';
@@ -181,16 +182,16 @@ function Billing({props,handle}:{props:BillingProps;handle:Handle}){
   }catch(e){if(live.current&&ticket===action.current){setError(errorLabel(e));setConflict(isConflict(e));}}
   finally{if(live.current&&ticket===action.current)setBusy('');}
  }
- async function convert(approved?:BillingDocument){
+ async function convert(approved?:BillingDocument,selection?:BillingInvoiceSelection){
   const current=approved?{...editorRef.current!,id:approved.id,version:approved.version}:editorRef.current;if(!current||current.version===null||(!approved&&(currentDirty()||busyRef.current)))return;
-  const ticket=++action.current,key=current.id+':'+current.version;
+  const ticket=++action.current,key=JSON.stringify([current.id,current.version,selection]);
   if(!conversionIds.current.has(key))conversionIds.current.set(key,crypto.randomUUID());
   setBusy('convert');setError('');setNotice('');
   try{
-   const doc=await props.transport.convert(current.id,current.version,conversionIds.current.get(key)!);
+   const doc=await props.transport.convert(current.id,current.version,conversionIds.current.get(key)!,selection);
    if(!live.current||ticket!==action.current)return;
-   adopt(doc);setKind('invoice');resetFilters();setOffset(0);setQuery('');saved('Facture créée');setRevision(n=>n+1);
-  }catch(e){if(live.current&&ticket===action.current){setError(errorLabel(e));setConflict(isConflict(e));}}
+   conversionIds.current.delete(key);adopt(doc);setKind('invoice');resetFilters();setOffset(0);setQuery('');saved('Facture créée');setRevision(n=>n+1);
+  }catch(e){if(live.current&&ticket===action.current){setError(errorLabel(e));setConflict(isConflict(e));}if(selection)throw e;}
   finally{if(live.current&&ticket===action.current)setBusy('');}
  }
  async function downloadPDF(fileKind='pdf',finalized?:BillingDocument){

@@ -1,0 +1,8 @@
+.bill-app .bill-invoice-selection{width:min(680px,calc(100vw - 24px));padding:0;border-radius:20px;color:var(--bill-ink);background:var(--bill-surface);border:1px solid var(--bill-line)}
+.bill-invoice-selection::backdrop{background:#061c2b85;backdrop-filter:blur(4px)}
+.bill-invoice-selection>form{display:flex;flex-direction:column;min-height:0}.bill-invoice-selection .bill-support-body{max-height:65dvh}
+.bill-invoice-selection-existing{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px}.bill-invoice-selection-existing>span{display:flex;flex-direction:column;gap:4px;border:1px solid var(--bill-line);background:var(--bill-bg);border-radius:12px;padding:10px 12px;font-size:12px}.bill-invoice-selection-existing small{color:var(--bill-muted)}
+.bill-invoice-selection-lines{display:grid;gap:12px;margin:20px 0}.bill-invoice-selection-lines>div{display:grid;grid-template-columns:minmax(0,1fr) 150px;gap:16px;align-items:center;border-bottom:1px solid var(--bill-line);padding-bottom:12px}.bill-invoice-selection-lines>div>span{font-size:13px;line-height:1.5;white-space:pre-line}.bill-invoice-selection-lines small{display:block;color:var(--bill-muted);font-size:12px;margin-top:4px}
+.bill-invoice-selection-total{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:14px}.bill-invoice-selection-total strong{font-size:20px;color:var(--bill-accent)}
+.bill-quote-linked-invoices{display:flex;gap:8px;flex-wrap:wrap}.bill-quote-linked-invoices button{display:flex;flex-direction:column;align-items:flex-start}.bill-quote-linked-invoices small{color:var(--bill-muted);font-size:12px}
+@media(max-width:500px){.bill-invoice-selection-lines>div{grid-template-columns:minmax(0,1fr) 120px;gap:10px}}

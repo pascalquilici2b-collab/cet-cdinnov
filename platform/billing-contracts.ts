@@ -82,7 +82,9 @@ export type BillingQuoteState='prepared'|'sent'|'accepted'|'refused'|'expired';
 export type BillingListState='trash'|'all'|'draft'|'finalizing'|'issue_failed'|'issued'|'previous'|'abandoned'|'finalized'|'overdue'|BillingQuoteState|BillingSettlementState;
 export interface BillingQuoteRevisionSummary {rootId:string;familyVersion:number;ordinal:number;count:number;parentId:string|null;parentNumber:string|null;reason:string;abandoned:boolean;abandonReason:string|null;currentId:string;currentOrdinal:number;currentNumber:string|null;currentState:BillingDocument['status'];}
 export interface BillingQuoteRevisionItem {trashed?:boolean|0|1;id:string;ordinal:number;number:string|null;status:BillingDocument['status'];createdAt:string;reason:string;abandonedAt:string|null;abandonReason:string|null;grossMinor:string|null;}
-export interface BillingQuoteSummary {engagement?:BillingEngagement|null;version:number;state:BillingQuoteState;occurredOn:string|null;invoice:{id:string;number:string|null;state:BillingDocument['status']}|null;revision:BillingQuoteRevisionSummary;}
+export interface BillingInvoiceSelection {periods:BillingPeriod[];customPeriod:string;quantities:{id:string;quantity:string}[];}
+export interface BillingLinkedInvoice {id:string;number:string|null;state:BillingDocument['status'];netMinor?:string;periods?:BillingPeriod[];customPeriod?:string;}
+export interface BillingQuoteSummary {invoices?:BillingLinkedInvoice[];engagement?:BillingEngagement|null;version:number;state:BillingQuoteState;occurredOn:string|null;invoice:BillingLinkedInvoice|null;revision:BillingQuoteRevisionSummary;}
 export interface BillingQuoteEvent {id:string;version:number;action:BillingQuoteAction;occurredOn:string;note:string;recordedAt:string;recordedBy:string;}
 export interface BillingQuoteEventInput {id:string;documentVersion:number;action:BillingQuoteAction;occurredOn:string;note:string;}
 export interface BillingIssuanceSummary {id:string;number:string;state:'pending'|'rendering'|'failed'|'ready';attempts:number;errorCode:string|null;createdAt:string;updatedAt:string;files:string[];}
@@ -154,7 +156,7 @@ export interface BillingTransport {
   get(id:string):Promise<BillingDocument>;
   create(id:string,data:BillingDraft):Promise<BillingDocument>;
   save(id:string,version:number,data:BillingDraft):Promise<BillingDocument>;
-  convert(id:string,version:number,newId:string):Promise<BillingDocument>;
+  convert(id:string,version:number,newId:string,selection?:BillingInvoiceSelection):Promise<BillingDocument>;
   context():Promise<BillingContext>;
   settings():Promise<BillingSettings>;
   saveSettings(version:number,data:BillingSettingsData):Promise<BillingSettings>;

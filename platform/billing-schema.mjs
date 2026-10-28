@@ -48,7 +48,7 @@ export const billingSchema = [
   created_by TEXT NOT NULL, updated_by TEXT NOT NULL,
   CHECK((source_document_id IS NULL AND source_version IS NULL) OR (kind='invoice' AND source_document_id IS NOT NULL AND source_version>=1))
  )`,
- `CREATE UNIQUE INDEX IF NOT EXISTS billing_one_full_conversion ON billing_documents(source_document_id) WHERE source_document_id IS NOT NULL`,
+ `CREATE INDEX IF NOT EXISTS billing_quote_invoices ON billing_documents(source_document_id) WHERE source_document_id IS NOT NULL`,
  `CREATE INDEX IF NOT EXISTS billing_documents_kind_updated ON billing_documents(kind,updated_at DESC,id)`,
  `CREATE TABLE IF NOT EXISTS billing_document_versions (
   document_id TEXT NOT NULL REFERENCES billing_documents(id), version INTEGER NOT NULL,
@@ -78,8 +78,10 @@ export const billingSchema = [
  `CREATE TRIGGER IF NOT EXISTS billing_history_no_delete BEFORE DELETE ON billing_document_versions BEGIN SELECT RAISE(ABORT,'BILLING_HISTORY_IMMUTABLE'); END`
 ];
 import {billingDraftNumberSchema} from './billing-draft-number-schema.mjs';
+import {billingMonthlyNumberSchema} from './billing-monthly-number-schema.mjs';
+import {billingPartialInvoicesSchema} from './billing-partial-invoices-schema.mjs';
 import {billingSeriesPolicySchema} from './billing-series-policy-schema.mjs';
 export async function migrateBilling(db) {
  // D1 batch is transactional: failure leaves neither half a schema nor a lost history trigger.
- await db.batch([...billingSchema,...billingIssuanceSchema,...billingNumberingSchema,...billingDraftNumberSchema,...billingSeriesPolicySchema,...billingDirectorySchema,...billingQuoteSchema,...billingRevisionSchema,...billingPaymentSchema,...projectsSchema,...billingDeliverySchema,...billingTrashSchema,...billingRectificationSchema,...billingSupportSchema,...billingOrderBudgetSchema,...clientEmployeesSchema].map(sql=>db.prepare(sql)));
+ await db.batch([...billingSchema,...billingIssuanceSchema,...billingNumberingSchema,...billingDraftNumberSchema,...billingSeriesPolicySchema,...billingMonthlyNumberSchema,...billingDirectorySchema,...billingQuoteSchema,...billingRevisionSchema,...billingPartialInvoicesSchema,...billingPaymentSchema,...projectsSchema,...billingDeliverySchema,...billingTrashSchema,...billingRectificationSchema,...billingSupportSchema,...billingOrderBudgetSchema,...clientEmployeesSchema].map(sql=>db.prepare(sql)));
 }

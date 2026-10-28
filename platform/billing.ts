@@ -1,4 +1,5 @@
 import {readAnnualQuotes,consumptionForMarket} from '../marches/annual-consumption.mjs';
+import {invoiceSelection} from './billing-invoice-selection';
 import {budgetSQL,budgetBindings,checkOrderBudget,orderLimitMessage} from './billing-order-budget';
 import {projectsForMarket,projectMarketIds} from './project-links';
 import {marketActivity} from './project-activity';
@@ -346,20 +347,21 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
   return conflict();
  }
  if(match[2]==='/convert'&&request.method==='POST') {
-  const expected=expectedVersion(request),input=await body(request,['id']);
+  const expected=expectedVersion(request),input=await body(request,['id'],['selection']);
   if(!uuid(input.id)||input.id.toLowerCase()===id)return fail(400,'Identifiant de facture invalide.');
   const targetId=input.id.toLowerCase(),source=await get(db,id);
   if(!source)return reply(404,{error:'Devis introuvable.'});
   if(source.kind!=='quote')return fail(400,'Seul un devis peut être converti en facture.');
+  const selectionHash=input.selection===undefined?null:digest(JSON.stringify([id,expected,input.selection]));
   const retry=await get(db,targetId);
   if(retry) {
-   if(retry.source_document_id===id&&retry.source_version===expected)return reply(200,document(retry));
+   if(retry.source_document_id===id&&retry.source_version===expected&&(!selectionHash||retry.create_hash===selectionHash))return reply(200,document(retry));
    return conflict();
   }
   if(source.version!==expected)return conflict();
   const sourceRecord=document(source);
   if(sourceRecord.status!=='issued'||sourceRecord.quote?.state!=='accepted'||!sourceRecord.quote.engagement)return fail(409,'Acceptez le devis puis liez un bon de commande ou un devis signé avant de créer la facture.');
-  const sourceData=normalizeDraft(JSON.parse(source.data_json)),settings=await readSettings(db);
+  const sourceData=invoiceSelection(normalizeDraft(JSON.parse(source.data_json)),input.selection),settings=await readSettings(db);
   const commitment=sourceRecord.quote.engagement.details;
   if(commitment){sourceData.references={...sourceData.references,...(commitment.engagement?{engagement:commitment.engagement}:{}),...(commitment.serviceCode?{serviceCode:commitment.serviceCode}:{}),...(commitment.otherReference?{otherReference:commitment.otherReference}:{}),marketId:commitment.marketId,marketReference:commitment.marketReference,projectId:commitment.projectId,project:commitment.project,...(sourceRecord.quote.engagement.kind==='order'?{orderId:commitment.orderId,orderReference:commitment.reference}:{})};}
   const p=prepared({...sourceData,kind:'invoice',dueDate:'',issueDate:new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Paris'}).format(new Date()),paymentMeans:'30',paymentTerms:settings.data.paymentTerms,legalNotes:settings.data.legalNotes,vatDue:settings.data.vatDue,validUntil:'',references:{...sourceData.references,...(document(source).issuance?.number?{quoteNumber:document(source).issuance!.number}:{})},iban:settings.data.iban,bic:settings.data.bic,details:{...blankDocumentDetails(),...sourceData.details,validityMonths:'',returnEmail:settings.data.returnEmail??'cdi@cdinnov.com',interventions:[]}}),stamp=new Date().toISOString();
@@ -367,17 +369,17 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
   try {
    created=await db.prepare(`INSERT INTO billing_documents(id,kind,status,version,data_json,totals_json,issues_json,create_hash,source_document_id,source_version,created_at,updated_at,created_by,updated_by)
     SELECT ?,'invoice','draft',1,?,?,?,?,id,version,?,?,?,? FROM billing_documents WHERE id=? AND version=? AND kind='quote' AND status='draft' AND ${budgetSQL()}
-    ON CONFLICT DO NOTHING RETURNING *`).bind(targetId,p.dataJSON,p.totalsJSON,p.issuesJSON,digest(p.dataJSON),stamp,stamp,session.email,session.email,id,expected,...budgetBindings(targetId,p.data)).first<Row>();
+    ON CONFLICT DO NOTHING RETURNING *`).bind(targetId,p.dataJSON,p.totalsJSON,p.issuesJSON,selectionHash||digest(p.dataJSON),stamp,stamp,session.email,session.email,id,expected,...budgetBindings(targetId,p.data)).first<Row>();
   } catch(error) {
-   if(String(error).includes('BILLING_REVISION_INACTIVE'))return fail(409,'Utilisez la version en cours du devis. Une facture peut déjà être liée à cette proposition.');
+   if(String(error).includes('BILLING_REVISION_INACTIVE'))return fail(409,'Utilisez la version en cours du devis.');
    if(String(error).includes('BILLING_QUOTE_ACCEPTANCE_REQUIRED'))return fail(409,'Enregistrez l’accord du client avant de facturer ce devis émis.');
    if(String(error).includes('BILLING_SOURCE_VERSION'))return conflict();throw error;
   }
   if(created)return reply(201,document(created.kind==='quote'?(await get(db,created.id))!:created));
   const existing=await get(db,targetId);
-  if(existing?.source_document_id===id&&existing.source_version===expected)return reply(200,document(existing));
+  if(existing?.source_document_id===id&&existing.source_version===expected&&(!selectionHash||existing.create_hash===selectionHash))return reply(200,document(existing));
   const capacity=await checkOrderBudget(db,targetId,p.data);if(capacity.blocked)return fail(422,capacity.message||orderLimitMessage);
-  return fail(409,'Ce devis a changé ou a déjà été converti intégralement en facture.');
+  return fail(409,'Ce devis a changé. Actualisez-le avant de créer une nouvelle facture.');
  }
  return reply(405,{error:'Méthode non autorisée.'});
 }

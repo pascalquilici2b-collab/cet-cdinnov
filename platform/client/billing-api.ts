@@ -1,4 +1,4 @@
-import type {BillingTransport,BillingDraft,BillingDocument,BillingContext,BillingPage,BillingSettings,BillingNumberSeries,BillingDirectoryRecord,BillingDirectoryPage,BillingQuoteEvent,BillingQuoteRevisionItem,BillingPaymentEntry} from '../billing-contracts';
+import type {BillingTransport,BillingInvoiceSelection,BillingDraft,BillingDocument,BillingContext,BillingPage,BillingSettings,BillingNumberSeries,BillingDirectoryRecord,BillingDirectoryPage,BillingQuoteEvent,BillingQuoteRevisionItem,BillingPaymentEntry} from '../billing-contracts';
 export function createBillingTransport(options:{baseUrl:string;getToken:()=>Promise<string>;isActive:()=>boolean}):BillingTransport & {dispose:()=>void} {
   let disposed=false;const controllers=new Set<AbortController>();
   const active=()=>{if(disposed||!options.isActive())throw new Error('Votre session ou la page a changé.');};
@@ -57,7 +57,7 @@ export function createBillingTransport(options:{baseUrl:string;getToken:()=>Prom
     get:id=>numbered(request<BillingDocument>('/documents/'+encodeURIComponent(id))),
     create:(id:string,data:BillingDraft)=>numbered(request<BillingDocument>('/documents','POST',{id,data})),
     save:(id:string,version:number,data:BillingDraft)=>numbered(request<BillingDocument>('/documents/'+encodeURIComponent(id),'PUT',{data},version)),
-    convert:(id:string,version:number,newId:string)=>numbered(request<BillingDocument>('/documents/'+encodeURIComponent(id)+'/convert','POST',{id:newId},version)),
+    convert:(id:string,version:number,newId:string,selection?:BillingInvoiceSelection)=>numbered(request<BillingDocument>('/documents/'+encodeURIComponent(id)+'/convert','POST',{id:newId,...(selection?{selection}:{})},version)),
     context:()=>request<BillingContext>('/context'),
     settings:()=>request<BillingSettings>('/settings'),
     saveSettings:(version,data)=>request<BillingSettings>('/settings','PUT',{data},version),

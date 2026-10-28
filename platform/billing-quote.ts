@@ -11,6 +11,16 @@ const date=(v:unknown):v is string=>typeof v==='string'&&/^\d{4}-\d{2}-\d{2}$/.t
 const actions:BillingQuoteAction[]=['sent','accepted','refused','reopened'];
 type EventRow={id:string;document_id:string;document_version:number;version:number;action:BillingQuoteAction;occurred_on:string;note:string;request_hash:string;recorded_at:string;recorded_by:string};
 const event=(r:EventRow):BillingQuoteEvent=>({id:r.id,version:r.version,action:r.action,occurredOn:r.occurred_on,note:r.note,recordedAt:r.recorded_at,recordedBy:r.recorded_by});
+/** Follow each invoice's rectification chain and expose only its current leaf. */
+function linkedInvoiceRows(){return `WITH RECURSIVE linked(id,depth) AS (
+ SELECT d.id,0 FROM billing_documents d WHERE d.source_document_id=${quoteFamilyRoot('billing_documents.id')} OR d.source_document_id IN (SELECT document_id FROM billing_quote_revisions WHERE root_document_id=${quoteFamilyRoot('billing_documents.id')})
+ UNION ALL SELECT r.replacement_id,l.depth+1 FROM linked l JOIN billing_invoice_rectifications r ON r.original_id=l.id WHERE l.depth<32 AND NOT EXISTS(SELECT 1 FROM billing_document_trash t WHERE t.document_id=r.replacement_id))
+ SELECT DISTINCT d.id,coalesce(i.number,n.number) number,CASE WHEN j.state='ready' THEN 'issued' WHEN j.state='failed' THEN 'issue_failed' WHEN i.id IS NOT NULL THEN 'finalizing' ELSE 'draft' END state,
+ json_extract(d.totals_json,'$.netMinor') net_minor,coalesce(json_extract(d.data_json,'$.details.periods'),CASE WHEN coalesce(json_extract(d.data_json,'$.details.period'),'')<>'' THEN json_array(json_extract(d.data_json,'$.details.period')) ELSE '[]' END) periods,coalesce(json_extract(d.data_json,'$.details.customPeriod'),'') custom_period
+ FROM linked l JOIN billing_documents d ON d.id=l.id LEFT JOIN billing_issuances i ON i.document_id=d.id LEFT JOIN billing_issue_jobs j ON j.issuance_id=i.id LEFT JOIN billing_draft_numbers n ON n.document_id=d.id
+ WHERE NOT EXISTS(SELECT 1 FROM billing_invoice_rectifications r WHERE r.original_id=d.id AND NOT EXISTS(SELECT 1 FROM billing_document_trash t WHERE t.document_id=r.replacement_id))
+ ORDER BY d.created_at DESC,d.id DESC`;}
+
 /** Internal calendar value only, never an interpolated request parameter. */
 export function quoteJSON(){
  const last=(field:string)=>`(SELECT ${field} FROM billing_quote_events WHERE document_id=billing_documents.id ORDER BY version DESC LIMIT 1)`;
@@ -18,11 +28,8 @@ export function quoteJSON(){
   'state',CASE WHEN ${last('action')} IN ('accepted','refused') THEN ${last('action')}
    WHEN coalesce(json_extract(data_json,'$.validUntil'),'')<>'' AND json_extract(data_json,'$.validUntil')<'${billingToday()}' THEN 'expired'
    WHEN ${last('action')} IN ('sent','reopened') THEN 'sent' ELSE 'prepared' END,'occurredOn',${last('occurred_on')},
-  'invoice',json((WITH RECURSIVE linked(id,depth) AS (
-   SELECT d.id,0 FROM billing_documents d WHERE d.source_document_id=${quoteFamilyRoot('billing_documents.id')} OR d.source_document_id IN (SELECT document_id FROM billing_quote_revisions WHERE root_document_id=${quoteFamilyRoot('billing_documents.id')})
-   UNION ALL SELECT r.replacement_id,l.depth+1 FROM linked l JOIN billing_invoice_rectifications r ON r.original_id=l.id WHERE l.depth<32 AND NOT EXISTS(SELECT 1 FROM billing_document_trash t WHERE t.document_id=r.replacement_id))
-   SELECT json_object('id',d.id,'number',coalesce(i.number,n.number),'state',CASE WHEN j.state='ready' THEN 'issued' WHEN j.state='failed' THEN 'issue_failed' WHEN i.id IS NOT NULL THEN 'finalizing' ELSE 'draft' END)
-   FROM linked l JOIN billing_documents d ON d.id=l.id LEFT JOIN billing_issuances i ON i.document_id=d.id LEFT JOIN billing_issue_jobs j ON j.issuance_id=i.id LEFT JOIN billing_draft_numbers n ON n.document_id=d.id ORDER BY l.depth DESC LIMIT 1)),
+  'invoice',json((SELECT json_object('id',id,'number',number,'state',state) FROM (${linkedInvoiceRows()}) LIMIT 1)),
+  'invoices',json((SELECT json_group_array(json_object('id',id,'number',number,'state',state,'netMinor',net_minor,'periods',json(periods),'customPeriod',custom_period)) FROM (${linkedInvoiceRows()}))),
   'engagement',json((SELECT json_object('kind',kind,'filename',filename,'createdAt',created_at,'details',json(metadata_json)) FROM billing_quote_engagements WHERE document_id=billing_documents.id)),
   'revision',json(${revisionJSON()})) ELSE NULL END`;
 }
