@@ -113,7 +113,7 @@ async function context(db:Database,env:Environment):Promise<BillingContext> {
  const parsedMarkets=markets.results.map(r=>({...r,market:JSON.parse(r.payload)}));
  const projectOwners=parsedMarkets.map(r=>({id:r.id,projects:r.market.projects||[]}));
  const [engagements,annualQuotes,reports,numbering]=await Promise.all([linkedEngagements(db),readAnnualQuotes(db),db.prepare('SELECT document_key,version FROM billing_intervention_reports').all<{document_key:string;version:number}>(),db.prepare('SELECT s.kind,s.prefix,s.width,s.next_value AS nextValue FROM billing_default_series p JOIN billing_number_series s ON s.id=p.series_id WHERE p.issuer_siren=?').bind(settings.data.seller.siren||settings.data.seller.siret.slice(0,9)).all<{kind:'invoice'|'quote';prefix:string;width:number;nextValue:number}>()]);
- const marketProjects=(id:string)=>projectsForMarket(id,projectOwners).map(p=>{const orders=[...p.orders,...(parsedMarkets.find(m=>m.id===id)?.market.orders||[])];return {...p,orders:[...orders,...engagements.filter(e=>e.kind==='order'&&e.marketId===id&&e.projectId===p.id&&!orders.some(o=>o.id===e.orderId)).map(e=>({id:e.orderId,reference:e.reference,date:e.date,amountMinor:e.amountMinor,documentId:'',notes:'',archived:false}))]};});
+ const marketProjects=(id:string)=>projectsForMarket(id,projectOwners).map(p=>{const orders=[...p.orders,...(parsedMarkets.find(m=>m.id===id)?.market.orders||[])];return {...p,orders:[...orders,...engagements.filter(e=>e.kind==='order'&&e.marketId===id&&(!e.projectId||e.projectId===p.id)&&!orders.some(o=>o.id===e.orderId)).map(e=>({id:e.orderId,reference:e.reference,date:e.date,amountMinor:e.amountMinor,documentId:'',notes:'',archived:false}))]};});
  return {
   documentService:{configured:documentServiceConfigured(env)},
   interventionReports:Object.fromEntries(reports.results.map(r=>[r.document_key,r.version])),
@@ -130,7 +130,7 @@ async function checkProjectLinks(db:Database,draft:BillingDraft){
  const r=draft.references;if(!r.projectId&&!r.orderId)return;
  if(!r.marketId)return fail(422,'Rattachez la commande à son marché.');
  const market=await db.prepare('SELECT payload FROM markets WHERE id=?').bind(r.marketId).first<{payload:string}>();
- if(!r.projectId&&r.orderId&&market&&JSON.parse(market.payload).orders?.some((o:{id:string})=>o.id===r.orderId))return;
+ if(!r.projectId&&r.orderId&&market&&(JSON.parse(market.payload).orders?.some((o:{id:string})=>o.id===r.orderId)||(await linkedEngagements(db,r.marketId)).some(e=>e.kind==='order'&&!e.projectId&&e.orderId===r.orderId)))return;
  if(!r.projectId)return fail(422,'Rattachez la commande à un projet et à son marché.');
  let project=market?JSON.parse(market.payload).projects?.find((p:{id:string})=>p.id===r.projectId):null;
  if(!project&&market){
@@ -138,7 +138,7 @@ async function checkProjectLinks(db:Database,draft:BillingDraft){
   if(shared){const data=JSON.parse(shared.data_json);if(projectMarketIds(shared.market_id,data).includes(r.marketId))project={...data,orders:[]};}
  }
  if(!project)return fail(422,'Ce projet ne fait pas partie du marché sélectionné.');
- if(r.orderId&&!project.orders?.some((o:{id:string})=>o.id===r.orderId)&&!JSON.parse(market!.payload).orders?.some((o:{id:string})=>o.id===r.orderId)&&!(await linkedEngagements(db,r.marketId)).some(e=>e.kind==='order'&&e.projectId===r.projectId&&e.orderId===r.orderId))return fail(422,'Ce bon de commande ne fait pas partie du projet sélectionné.');
+ if(r.orderId&&!project.orders?.some((o:{id:string})=>o.id===r.orderId)&&!JSON.parse(market!.payload).orders?.some((o:{id:string})=>o.id===r.orderId)&&!(await linkedEngagements(db,r.marketId)).some(e=>e.kind==='order'&&(!e.projectId||e.projectId===r.projectId)&&e.orderId===r.orderId))return fail(422,'Ce bon de commande ne fait pas partie du projet sélectionné.');
 }
 function pageParameter(params:URLSearchParams,name:string,fallback:number,max:number,min=0) {
  const value=params.get(name);if(value===null)return fallback;
@@ -223,7 +223,7 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
   await checkProjectLinks(db,p.data);
   const created=await db.prepare(`INSERT INTO billing_documents(id,kind,status,version,data_json,totals_json,issues_json,create_hash,created_at,updated_at,created_by,updated_by)
    SELECT ?,?,'draft',1,?,?,?,?,?,?,?,? WHERE ${budgetSQL()} ON CONFLICT(id) DO NOTHING RETURNING *`).bind(id,p.data.kind,p.dataJSON,p.totalsJSON,p.issuesJSON,hash,stamp,stamp,session.email,session.email,...budgetBindings(id,p.data)).first<Row>();
-  if(created)return reply(201,document(created.kind==='quote'?(await get(db,created.id))!:created));
+  if(created)return reply(201,document((await get(db,created.id))!));
   const existing=await get(db,id);
   if(!existing){const capacity=await checkOrderBudget(db,id,p.data);if(capacity.blocked)return fail(422,capacity.message||orderLimitMessage);}
   if(await db.prepare('SELECT 1 FROM billing_document_trash WHERE document_id=?').bind(id).first())return fail(410,'Ce document est dans la corbeille. Restaurez-le depuis la liste des documents.');
@@ -369,7 +369,7 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
   if(sourceRecord.status!=='issued'||sourceRecord.quote?.state!=='accepted'||!sourceRecord.quote.engagement)return fail(409,'Acceptez le devis puis liez un bon de commande ou un devis signé avant de créer la facture.');
   const sourceData=invoiceSelection(normalizeDraft(JSON.parse(source.data_json)),input.selection),settings=await readSettings(db);
   const commitment=sourceRecord.followup?.link?{...sourceRecord.quote.engagement.details,...sourceRecord.followup.link}:sourceRecord.quote.engagement.details;
-  if(commitment){sourceData.references={...sourceData.references,...(commitment.engagement?{engagement:commitment.engagement}:{}),...(commitment.serviceCode?{serviceCode:commitment.serviceCode}:{}),...(commitment.otherReference?{otherReference:commitment.otherReference}:{}),marketId:commitment.marketId,marketReference:commitment.marketReference,projectId:commitment.projectId,project:commitment.project,...((sourceRecord.followup?.link?.kind||sourceRecord.quote.engagement.kind)==='order'?{orderId:commitment.orderId,orderReference:commitment.reference}:{})};}
+  if(commitment){sourceData.references={...sourceData.references,...(commitment.engagement?{engagement:commitment.engagement}:{}),...(commitment.serviceCode?{serviceCode:commitment.serviceCode}:{}),...(commitment.otherReference?{otherReference:commitment.otherReference}:{}),marketId:commitment.marketId,marketReference:commitment.marketReference,projectId:commitment.projectId||sourceData.references.projectId||'',project:commitment.projectId?commitment.project:sourceData.references.project,...((sourceRecord.followup?.link?.kind||sourceRecord.quote.engagement.kind)==='order'?{orderId:commitment.orderId,orderReference:commitment.reference}:{})};}
   const p=prepared({...sourceData,kind:'invoice',dueDate:'',issueDate:new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Paris'}).format(new Date()),paymentMeans:'30',paymentTerms:settings.data.paymentTerms,legalNotes:settings.data.legalNotes,vatDue:settings.data.vatDue,validUntil:'',references:{...sourceData.references,...(document(source).issuance?.number?{quoteNumber:document(source).issuance!.number}:{})},iban:settings.data.iban,bic:settings.data.bic,details:{...blankDocumentDetails(),...sourceData.details,validityMonths:'',returnEmail:settings.data.returnEmail??'cdi@cdinnov.com',interventions:[]}}),stamp=new Date().toISOString();
   let created:Row|null;
   try {
@@ -381,7 +381,7 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
    if(String(error).includes('BILLING_QUOTE_ACCEPTANCE_REQUIRED'))return fail(409,'Enregistrez l’accord du client avant de facturer ce devis émis.');
    if(String(error).includes('BILLING_SOURCE_VERSION'))return conflict();throw error;
   }
-  if(created)return reply(201,document(created.kind==='quote'?(await get(db,created.id))!:created));
+  if(created)return reply(201,document((await get(db,created.id))!));
   const existing=await get(db,targetId);
   if(existing?.source_document_id===id&&existing.source_version===expected&&(!selectionHash||existing.create_hash===selectionHash))return reply(200,document(existing));
   const capacity=await checkOrderBudget(db,targetId,p.data);if(capacity.blocked)return fail(422,capacity.message||orderLimitMessage);

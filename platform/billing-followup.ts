@@ -3,7 +3,11 @@ import type {BillingDocument} from './billing-contracts';
 import {boundedBody} from './portal';
 import {engagementTracking} from './billing-engagement-tracking';
 const fail=(status:number,message:string):never=>{throw Object.assign(new Error(message),{status});};
-export const followupJSON=`(SELECT json_object('version',f.version,'title',CASE WHEN billing_documents.kind='quote' THEN f.title ELSE NULL END,'link',json(f.link_json)) FROM billing_document_followup f WHERE f.document_id=(SELECT root_id FROM billing_link_roots WHERE id=billing_documents.id))`;
+// A converted invoice inherits the archived quote commitment until a shared tracking correction overrides it.
+export const followupJSON=`(SELECT json_object('version',coalesce(f.version,0),'title',CASE WHEN billing_documents.kind='quote' THEN f.title ELSE NULL END,
+ 'link',json(coalesce(f.link_json,CASE WHEN e.document_id IS NOT NULL THEN json_set(e.metadata_json,'$.kind',e.kind,'$.files',json_array(json_object('documentId',e.document_id,'filename',e.filename))) END)))
+ FROM billing_link_roots r LEFT JOIN billing_document_followup f ON f.document_id=r.root_id LEFT JOIN billing_quote_engagements e ON e.document_id=r.root_id
+ WHERE r.id=billing_documents.id AND (f.document_id IS NOT NULL OR e.document_id IS NOT NULL))`;
 export async function followupRoute(request:Request,db:Database,record:BillingDocument,email:string,reply:Reply,read:()=>Promise<BillingDocument>){
  if(request.method!=='PATCH')return reply(405,{error:'Méthode non autorisée.'});
  if(record.status==='finalizing')return fail(409,'Attendez la fin de la finalisation.');
@@ -19,7 +23,7 @@ export async function followupRoute(request:Request,db:Database,record:BillingDo
   if(typeof input.orderId!=='string'||typeof input.marketId!=='string')return fail(422,'Choisissez un engagement.');
   const tracking=await engagementTracking(db),order=tracking.orders.find(o=>o.id===input.orderId&&o.marketId===input.marketId);
   if(!order)return fail(422,'Cet engagement n’existe plus. Actualisez la liste.');
-  link=JSON.stringify({orderId:order.id,marketId:order.marketId,marketReference:order.market,projectId:order.projectId,project:order.project,reference:order.reference,date:order.date,amountMinor:order.amountMinor,kind:order.kind,files:order.files});
+  link=JSON.stringify({orderId:order.id,marketId:order.marketId,marketReference:order.market,projectId:order.projectId,project:order.project,reference:order.reference,date:order.date,amountMinor:order.amountMinor,kind:order.kind,files:order.files,serviceCode:order.serviceCode||'',engagement:order.engagement||'',otherReference:order.otherReference||''});
  }
  if(!Object.hasOwn(input,'title')&&!Object.hasOwn(input,'orderId'))return fail(400,'Aucune modification.');
  const stamp=new Date().toISOString();

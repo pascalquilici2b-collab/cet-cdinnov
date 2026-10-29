@@ -36,6 +36,7 @@ export async function engagementTracking(db:Database):Promise<BillingEngagementT
   const m=markets.find(m=>m.id===e.marketId),p=markets.flatMap(m=>m.projects||[]).find(p=>p.id===e.projectId);
   let o=orders.find(o=>e.kind==='order'&&o.marketId===e.marketId&&(!o.projectId||o.projectId===e.projectId)&&(o.id===e.orderId||key(o.reference)===key(e.reference)));
   if(!o){o={id:e.orderId||'engagement:'+e.documentId,kind:e.kind,reference:e.reference||e.quoteNumber,date:e.date,amountMinor:e.amountMinor,marketId:e.marketId,market:m?.reference||m?.title||'',client:e.client||m?.clientName||'',projectId:e.projectId,project:p?.name||e.project||'',quoteIds:[],files:[],invoicedMinor:0,invoices:[]};orders.push(o);}
+  for(const field of ['serviceCode','engagement','otherReference'] as const)if(e[field])o[field]=e[field];
   if(!o.quoteIds.includes(e.documentId))o.quoteIds.push(e.documentId);if(link)o.files.push(...link.files.filter((f:any)=>!o!.files.some(x=>x.documentId===f.documentId&&x.marketId===f.marketId)));else o.files.push({documentId:e.documentId,filename:e.filename});
  }
  const native=invoices.results.map(r=>{const d=JSON.parse(r.data_json);return {id:r.id,number:r.number,trashed:!!r.trashed,sourceId:roots.find(x=>x.id===r.id)?.root_id||r.source_document_id,refs:(()=>{const f=followups.find(f=>f.document_id===(roots.find(x=>x.id===r.id)?.root_id||r.id));if(!f)return d.references;const l=JSON.parse(f.link_json);return {...d.references,...l,orderReference:l.reference};})(),amountMinor:Number(JSON.parse(r.totals_json).netMinor)*(d.creditNote?-1:1)};});

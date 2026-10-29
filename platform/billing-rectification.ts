@@ -1,3 +1,4 @@
+import {referencesFromEngagement} from './billing-reference-selection';
 import {budgetSQL,budgetBindings,checkOrderBudget,orderLimitMessage} from './billing-order-budget';
 import {createHash,randomUUID} from 'node:crypto';
 import type {Database} from './contracts';
@@ -21,7 +22,7 @@ export async function rectifyInvoice(db:Database,record:BillingDocument,version:
  const existing=await db.prepare('SELECT replacement_id FROM billing_invoice_rectifications WHERE original_id=?').bind(record.id).first<{replacement_id:string}>();
  if(existing){try{await db.prepare('DELETE FROM billing_document_trash WHERE document_id=?').bind(existing.replacement_id).run();}catch(e){if(String(e).includes('BILLING_RECTIFICATION_CONFLICT'))return fail(409,'Un règlement ou un envoi empêche la reprise de cette rectification.');throw e;}return {id:existing.replacement_id,created:false};}
  const today=billingToday(),id=input.id.toLowerCase(),note='Remplace la facture '+record.issuance!.number+' non transmise au client.';
- const draft=normalizeDraft({...record.data,issueDate:today,dueDate:addBillingDays(today,30),lines:record.data.lines.map(l=>({...l,id:randomUUID()})),notes:[note,record.data.notes].filter(Boolean).join('\n\n')});
+ const draft=normalizeDraft({...record.data,references:referencesFromEngagement(record.data.references,record.followup?.link),issueDate:today,dueDate:addBillingDays(today,30),lines:record.data.lines.map(l=>({...l,id:randomUUID()})),notes:[note,record.data.notes].filter(Boolean).join('\n\n')});
  const data=JSON.stringify(draft),stamp=new Date().toISOString();
  try{await db.batch([
  db.prepare(`INSERT INTO billing_documents(id,kind,status,version,data_json,totals_json,issues_json,create_hash,created_at,updated_at,created_by,updated_by) SELECT ?,'invoice','draft',1,?,?,?,?,?,?,?,? WHERE ${budgetSQL()}`).bind(id,data,JSON.stringify(calculateBilling(draft)),JSON.stringify(inspectDraft(draft)),createHash('sha256').update(data).digest('hex'),stamp,stamp,email,email,...budgetBindings(id,draft,record.id)),

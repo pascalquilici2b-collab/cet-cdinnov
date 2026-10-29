@@ -34,7 +34,7 @@ export interface MarketConsumption {annual:boolean;resetDate:string|null;maximum
 export interface BillingEngagementTracking {
  reviews?:{id:string;number:string;client:string;reference:string;reason:string}[];
  markets:{id:string;reference:string;title:string;client:string;maximumMinor:number|null;quotedMinor:number;sentQuoteCount:number;consumption?:MarketConsumption}[];
- orders:{id:string;kind:'order'|'signed_quote';reference:string;date:string;amountMinor:number|null;marketId:string;market:string;client:string;projectId:string;project:string;quoteIds:string[];files:{documentId:string;filename:string;marketId?:string}[];notes?:string;historyPending?:boolean;reservedMinor?:number;invoicedMinor:number;invoices:{id:string;number:string;amountMinor:number;trashed:boolean}[]}[];
+ orders:{serviceCode?:string;engagement?:string;otherReference?:string;id:string;kind:'order'|'signed_quote';reference:string;date:string;amountMinor:number|null;marketId:string;market:string;client:string;projectId:string;project:string;quoteIds:string[];files:{documentId:string;filename:string;marketId?:string}[];notes?:string;historyPending?:boolean;reservedMinor?:number;invoicedMinor:number;invoices:{id:string;number:string;amountMinor:number;trashed:boolean}[]}[];
 }
 export interface BillingIntervention {id:string;priceId:string;label:string;description:string;days:string;}
 export type BillingPeriod='S1'|'S2'|'S3'|'S4'|'S5'|'S6'|'S7'|'S8';
@@ -115,7 +115,7 @@ export interface BillingContext {
   seller:BillingParty;
   settings:BillingSettings;
 }
-export interface BillingFollowupLink {orderId:string;marketId:string;marketReference:string;projectId:string;project:string;reference:string;date:string;amountMinor:number|null;kind:'order'|'signed_quote';files:{documentId:string;marketId?:string;filename:string}[];}
+export interface BillingFollowupLink {serviceCode?:string;engagement?:string;otherReference?:string;orderId:string;marketId:string;marketReference:string;projectId:string;project:string;reference:string;date:string;amountMinor:number|null;kind:'order'|'signed_quote';files:{documentId:string;marketId?:string;filename:string}[];}
 export interface BillingTransport {
   updateFollowup(id:string,version:number,input:{title?:string;orderId?:string;marketId?:string}):Promise<BillingDocument>;
   clientEmployees(id:string):Promise<import('./client-employees-domain').ClientEmployeeSpace>;
