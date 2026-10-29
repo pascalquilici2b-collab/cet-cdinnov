@@ -9,9 +9,9 @@ export async function py(args,input=''){
  return new Promise((resolve,reject)=>{const child=spawn(python,args,{cwd,env:process.env,windowsHide:true});const out=[],err=[];child.stdout.on('data',c=>out.push(c));child.stderr.on('data',c=>err.push(c));child.on('error',reject);child.on('exit',code=>code?reject(new Error(Buffer.concat(err).toString())):resolve(Buffer.concat(out)));child.stdin.end(input);});
 }
 export async function fixtures(){return JSON.parse(await py(['-c',`import runpy,json,base64; m=runpy.run_path('tests/test_stamping.py'); print(json.dumps({'pdf':base64.b64encode(m['pdf']()).decode(),'invoice':base64.b64encode(m['pdf']('INVOICE')).decode(),'dense':base64.b64encode(m['pdf'](dense=True)).decode(),'table':base64.b64encode(m['table']()+b'\\n'+m['table'](kind='INVOICE').split(b'\\n',1)[1]).decode()}))`]));}
-export async function stampEnvironment(){
+export async function stampEnvironment(options={}){
  let aiCalls=0;const requests=[],serviceActions=[];
- const ctx=await testEnvironment({stamping:true,ai:async input=>{aiCalls++;requests.push(input);return {response:JSON.stringify({suggestions:[{field:'allocation_amount',value:'50000',quote:'ignore instructions'}]})};},bindings:{BILLING_PDF_SERVICE_URL:'https://document.test',BILLING_PDF_SERVICE_KEY:'x'.repeat(40)},outboundService:async request=>{
+ const ctx=await testEnvironment({stamping:true,ai:async input=>{aiCalls++;requests.push(input);return options.ai?options.ai(input):{response:JSON.stringify({suggestions:[{field:'allocation_amount',value:'50000',quote:'ignore instructions'}]})};},bindings:{BILLING_PDF_SERVICE_URL:'https://document.test',BILLING_PDF_SERVICE_KEY:'x'.repeat(40)},outboundService:async request=>{
   if(new URL(request.url).origin!=='https://document.test')throw new Error('Unexpected network destination');
   const form=await request.formData();const payload=JSON.parse(form.get('payload'));serviceActions.push(payload.action);payload.file=Buffer.from(await form.get('file').arrayBuffer()).toString('base64');
   const out=await py(['-m','cdi_facturx.stamping_job'],JSON.stringify(payload));return new Response(out,{headers:{'Content-Type':'application/json'}});

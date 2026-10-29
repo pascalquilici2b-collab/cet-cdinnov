@@ -6,6 +6,7 @@ import {stampedLotFilename,stampedDocumentNames} from './stamping-filenames';
 import {hasAccess,sessionIdentity} from './identity';
 import {boundedBody} from './portal';
 import {stampingSuggestions} from './stamping-ai';
+import {paymentLayoutSuggestions} from './stamping-layout-ai';
 import type {Environment,Database,Reply} from './contracts';
 
 type Batch={id:string;owner:string;name:string;version:number;data:string;created_at:number;expires_at:number};
@@ -34,11 +35,29 @@ async function service(env:Environment,raw:Uint8Array,payload:unknown){
  return result.result;
 }
 async function object(env:Environment,key:string){const stored=await bucket(env).get(key);if(!stored)return fail(404,'Fichier introuvable.');return new Uint8Array(await stored.arrayBuffer());}
-async function inspectPaymentTable(env:Environment,file:{name:string;bytes:Uint8Array},category:string){
- if(!/\.pdf$/i.test(file.name))return service(env,file.bytes,{action:'inspect',name:file.name,options:{category}});
+async function inspectPaymentTable(db:Database,env:Environment,file:{name:string;bytes:Uint8Array},category:string){
+ const inspect=async(options:Record<string,unknown>)=>{
+  let result=await service(env,file.bytes,{action:'inspect',name:file.name,options});
+  const candidates=result.layoutCandidates||[];delete result.layoutCandidates;
+  if(candidates.length){
+   const ai=await paymentLayoutSuggestions(db,env,candidates,category);
+   if(ai.plans.length){
+    try{result=await service(env,file.bytes,{action:'resolve-layout',name:file.name,options,plans:ai.plans});}
+    catch{ai.status='failed';}
+   }
+   result.layoutAI={status:ai.status,model:ai.model,prompt:ai.prompt};
+   // A partially read workbook must never be silently treated as complete.
+   if(!ai.plans.length||ai.status==='failed'){
+    const issues=candidates.map((c:any)=>({sheet:c.sheet,row:0,message:'Organisation du tableau à préciser.'}));
+    result.layoutIssues=issues;if(result.suggestedImport)result.suggestedImport.errors.push(...issues);
+   }
+  }
+  return result;
+ };
+ if(!/\.pdf$/i.test(file.name))return inspect({category});
  const info=await service(env,file.bytes,{action:'table-info'}),parts=[];let mappingHint={};
  for(let page=0;page<info.pages;page++){
-  const part=await service(env,file.bytes,{action:'inspect',name:file.name,options:{page,mappingHint,category}});parts.push(part);
+  const part=await inspect({page,mappingHint,category});parts.push(part);
   const mapped=part.sheets?.find((s:any)=>s.mapping?.allocation_amount!==undefined&&(s.mapping?.employee_ref!==undefined||s.mapping?.supplier_ref!==undefined));if(mapped)mappingHint=mapped.mapping;
  }
  return service(env,new Uint8Array(),{action:'combine',parts});
@@ -176,7 +195,7 @@ export async function stampingRoute(request:Request,env:Environment,reply:Reply)
   if(data.importConfirmed)return fail(409,'Les répartitions ont déjà été confirmées. Elles sont conservées.');
   if(!data.table?.key)return fail(404,'Document de paiement introuvable.');
   const raw=await object(env,data.table.key);if(hash(raw)!==data.table.sha256)return fail(503,'Empreinte du document invalide.');
-  const inspected=await inspectPaymentTable(env,{name:data.table.name,bytes:raw},data.category||'RH');
+  const inspected=await inspectPaymentTable(db,env,{name:data.table.name,bytes:raw},data.category||'RH');
   if(inspected.sha256!==data.table.sha256)return fail(503,'Empreinte de lecture invalide.');
   const {suggestedImport,...table}=inspected;
   const next={...data,table:{...data.table,...table},import:suggestedImport||null,importConfirmed:false};
@@ -187,7 +206,7 @@ export async function stampingRoute(request:Request,env:Environment,reply:Reply)
  }
  if(tail==='table'&&method==='POST'){
   if(data.directInvoice)return fail(409,'Ce lot utilise les montants des factures. Créez un autre lot pour utiliser un document de paiement.');
-  await unlocked(db,b,request);const file=await upload(request,5*1024*1024),inspected=await inspectPaymentTable(env,file,data.category||'RH');
+  await unlocked(db,b,request);const file=await upload(request,5*1024*1024),inspected=await inspectPaymentTable(db,env,file,data.category||'RH');
   const key=prefix(b)+'table-'+crypto.randomUUID()+'-'+inspected.sha256;await bucket(env).put(key,file.bytes);
   const suggested=inspected.suggestedImport;delete inspected.suggestedImport;
   const next={...data,useAI:true,table:{name:file.name,key,...inspected},import:suggested||null,importConfirmed:false};

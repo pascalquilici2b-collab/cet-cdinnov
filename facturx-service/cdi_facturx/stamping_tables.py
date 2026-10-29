@@ -112,7 +112,7 @@ def pdf_tables(raw, only_page=None):
                     detected=page.find_tables()
                 for table in detected.tables:
                     data = table.extract()
-                    if not data or table.col_count < 4:
+                    if not data or table.col_count < 2:
                         continue
                     # A value is propagated only within its actual merged cell.
                     for r, row in enumerate(data):
@@ -135,7 +135,14 @@ def pdf_tables(raw, only_page=None):
                 data = scan_grid(page)
                 if data:
                     tables = [data]
+            # Explicit document context may sit outside the grid. Preserve its text
+            # so a single project/employee/month need not be repeated in a column.
+            page_text=page.get_text()
+            context=re.findall(r'\bprojet\s*[«“"][^»”"\n]{1,300}[»”"]',page_text,re.I)
+            context+=re.findall(r'^(?:projet|agent|salari[eé]|mois|p[eé]riode)\s*:\s*[^\n]{1,300}$',page_text,re.I|re.M)
+            context=list(dict.fromkeys(context))[:8]
             for t, data in enumerate(tables):
+                data=[[v]+['']*(len(data[0])-1) for v in context]+data
                 book[f'Page {p+1}'+(f' · tableau {t+1}' if t else '')] = [
                     [{'value': v or '', 'raw': v or '', 'format': '', 'cell': f'P{p+1}:L{r+1}:C{c+1}', 'pdf': True}
                      for c,v in enumerate(row)] for r,row in enumerate(data)]

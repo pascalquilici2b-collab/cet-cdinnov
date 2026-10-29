@@ -187,14 +187,15 @@ def single_project(rows, header):
     return next(iter(found.values())) if len(found) == 1 else None
 
 
-def inspect(raw, filename, options=None):
+def inspect(raw, filename, options=None, book=None):
     from collections import Counter
     options=options or {}
-    if filename.lower().endswith('.pdf') and isinstance(options.get('page'),int):
-        from .stamping_tables import pdf_tables
-        book=pdf_tables(raw,options['page'])
-    else:book=read_table(raw,filename)
-    sheets = []; results = []; unreadable = []
+    if book is None:
+        if filename.lower().endswith('.pdf') and isinstance(options.get('page'),int):
+            from .stamping_tables import pdf_tables
+            book=pdf_tables(raw,options['page'])
+        else:book=read_table(raw,filename)
+    sheets = []; results = []; unreadable = []; candidates = []
     required=['supplier_ref','invoice_number','project_name','allocation_amount'] if options.get('category')=='SERVICES' else ['employee_ref','period','project_name','allocation_amount']
     layouts=Counter(tuple(sorted(detect(rows)[1].items())) for rows in book.values() if all(f in detect(rows)[1] for f in required))
     common=dict(layouts.most_common(1)[0][0]) if layouts else options.get('mappingHint',{})
@@ -213,8 +214,13 @@ def inspect(raw, filename, options=None):
             config={'sheet':name,'header':best,'mapping':mapping,'documentType':'INVOICE' if invoice else 'PAYSLIP','baseType':base_type if invoice else 'EMPLOYER_COST','currency':'EUR','automatic':True,'grouped':not bool(project)}
             if project: config['singleProject']=project
             results.append(normalize(raw,filename,config,book))
-        elif filename.lower().endswith('.pdf') and len(mapping)>=2 and ('base_amount' in mapping or 'allocation_amount' in mapping):
-            unreadable.append({'row':best+1,'sheet':name,'message':'En-tête incomplet. Ajoutez la version Excel ou un PDF plus lisible pour inclure cette page.'})
+        else:
+            # Unknown layouts are interpreted semantically, not silently ignored.
+            if 'document_type' not in mapping and len(rows)>=2 and max(map(len,rows),default=0)>=2 and sum(c['value'] not in [None,''] for r in rows for c in r)>=6:
+                from .stamping_layout import layout_sample
+                candidates.append(layout_sample(name,rows))
+            if filename.lower().endswith('.pdf') and len(mapping)>=2 and ('base_amount' in mapping or 'allocation_amount' in mapping):
+                unreadable.append({'row':best+1,'sheet':name,'message':'En-tête incomplet : organisation du tableau à préciser.'})
     suggested = None
     if results or unreadable:
         groups = {}
@@ -230,7 +236,7 @@ def inspect(raw, filename, options=None):
         suggested={'groups':list(groups.values()),'errors':unreadable,
                    'warnings':list(dict.fromkeys(w for r in results for w in r['warnings'])),
                    'source_sha256':hashlib.sha256(raw).hexdigest(),'mapping':{'automatic':True}}
-    return {'sheets':sheets,'fields':FIELDS,'sha256':hashlib.sha256(raw).hexdigest(),'suggestedImport':suggested}
+    return {'sheets':sheets,'fields':FIELDS,'sha256':hashlib.sha256(raw).hexdigest(),'suggestedImport':suggested,'layoutCandidates':candidates}
 
 
 def combine_inspections(parts):
@@ -240,7 +246,9 @@ def combine_inspections(parts):
     for part in parts:
         if part['sha256']!=first['sha256']:raise ValueError('Les pages ne proviennent pas du même fichier.')
         result=part.get('suggestedImport')
-        if not result:continue
+        if not result:
+            errors.extend(part.get('layoutIssues',[]))
+            continue
         errors.extend(result['errors']);warnings.extend(result['warnings'])
         for g in result['groups']:
             if g['id'] not in groups:groups[g['id']]=g
@@ -319,7 +327,11 @@ def review_import(original, changes):
             if target['base_amount_cents']!=base:target['errors'].append('Assiettes différentes dans un même groupe.')
             target['allocations'].append(a)
     for g in rebuilt.values():update_group(g)
-    result.update(groups=list(rebuilt.values()),errors=list(original.get('errors',[]))+errors,excluded=excluded)
+    # Pending source rows have just been revalidated above (or explicitly excluded).
+    # Keep unread sheets/layout issues, but do not retain an already-corrected row error.
+    corrected_rows={(a.get('source',{}).get('sheet'),a.get('source',{}).get('row')) for g in original['groups'] for a in g['allocations'] if a.get('source',{}).get('rule')=='REVIEW_REQUIRED'}
+    remaining=[e for e in original.get('errors',[]) if (e.get('sheet'),e.get('row')) not in corrected_rows]
+    result.update(groups=list(rebuilt.values()),errors=remaining+errors,excluded=excluded)
     return result
 
 
@@ -367,7 +379,7 @@ def normalize(raw, filename, config, book=None):
                 else:
                     data[f] = prior.get(f)
                     if f in prior_cells: source_cells[f] = prior_cells[f]
-        if config.get('automatic'):
+        if config.get('automatic') and not config.get('keepIncomplete'):
             project_text=key(data['project_name'])
             if not project_text or project_text in ['projet','projets','total'] or project_text.startswith('total '): continue
         variants = wide or [None]

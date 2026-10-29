@@ -17,6 +17,9 @@ def main():
         raw=base64.b64decode(request.pop('file'),validate=True)
         action=request['action'];options=request.get('options',{})
         if action=='inspect':result=inspect(raw,request['name'],options)
+        elif action=='resolve-layout':
+            from .stamping_layout import resolve_layouts
+            result=resolve_layouts(raw,request['name'],request['plans'],options)
         elif action=='combine':result=combine_inspections(request['parts'])
         elif action=='table-info':
             import pymupdf
