@@ -46,3 +46,8 @@
 ## En attente utilisateur
 - Quatre bulletins Moovapps ne sont plus présents aux chemins temporaires fournis. Il faut des copies dans un dossier permanent pour Pascal, David, Albert et Paul-Michel. Le fichier initial nommé 012026 nécessite confirmation de la période.
 - Seul Matthieu a une base de septembre vérifiée et une prochaine acquisition configurée au 01/11/2026 (+2,5). Ne pas présenter les autres soldes comme mis à jour.
+
+## Correctif du libellé dans la liste (29/10/2026)
+- Cause : le CTE SQL calculait le suivi, mais la projection paginée omettait `followup_json`. Le libellé était bien enregistré et visible dans la fiche ; le retour à la liste recevait `followup: null`.
+- Correction : inclure le suivi dans les lignes de l’API de liste. Le PDF et les données initiales restent inchangés.
+- Régression reproduite puis corrigée : après renommage, lecture de la liste générale et recherche par le nouveau libellé ; contrôle du titre initial conservé. Tests de suivi et vérification TypeScript réussis.

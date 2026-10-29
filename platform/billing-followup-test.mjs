@@ -17,6 +17,13 @@ test('quote tracking title preserves issued snapshot; shared engagement checks c
   const q=await f.create(),original=(await ctx.db.prepare('SELECT data_json FROM billing_documents WHERE id=?').bind(q.id).first()).data_json;
   let response=await f.call('/documents/'+q.id+'/followup','PATCH',{title:'Nouveau libellé de suivi'},{'If-Match':'0'});assert.equal(response.status,200,await response.clone().text());
   let updated=await response.json();assert.equal(updated.followup.title,'Nouveau libellé de suivi');assert.equal(updated.data.title,q.data.title);assert.equal(updated.version,q.version);
+  // Returning to the homepage reloads the paginated list, not the document endpoint.
+  for(const query of ['kind=quote&limit=1&offset=0','kind=quote&q=Nouveau%20libell%C3%A9&limit=1&offset=0']){
+   const listed=await f.call('/documents?'+query);assert.equal(listed.status,200);
+   const page=await listed.json();assert.equal(page.total,1);assert.equal(page.documents[0].id,q.id);
+   assert.deepEqual(page.documents[0].followup,updated.followup,'The list must return the persisted tracking title');
+   assert.equal(page.documents[0].data.title,q.data.title,'The issued document title remains unchanged');
+  }
   assert.equal((await ctx.db.prepare('SELECT data_json FROM billing_documents WHERE id=?').bind(q.id).first()).data_json,original);
   assert.equal((await f.call('/documents/'+q.id+'/followup','PATCH',{title:'Écrasement'},{'If-Match':'0'})).status,409);
   const mId=randomUUID(),a=randomUUID(),b=randomUUID(),small=randomUUID();
