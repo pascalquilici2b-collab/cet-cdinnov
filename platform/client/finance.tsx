@@ -3,6 +3,7 @@ import {useResponsiveTables} from './responsive-table';
 import {createRoot} from 'react-dom/client';
 import {flushSync} from 'react-dom';
 import {useMemo} from 'react';
+import {ArrowLeft} from 'lucide-react';
 import type {BusinessCode,Invoice,Snapshot,Filters,Client,Command} from './finance-domain';
 import {codesFiltered,invoicesFiltered,expensesFiltered,paginate,codeLabel,expenseTotal,money,number,dateLabel,yearOf,monthNames} from './finance-domain';
 import './finance.css';
@@ -32,7 +33,7 @@ function Billing({snapshot:s,filter,act}:FinanceProps){
   const years=[...new Set(s.invoices.map(v=>yearOf(v.dateFacture)).filter(Boolean))].sort((a,b)=>b-a);
   if(!s.admin)return <Empty>Le logiciel de facturation est réservé à la direction.</Empty>;
   return <>
-    <nav className="billing-nav no-print" aria-label="Rubriques du logiciel de facturation">{[['modern','Factures et devis'],['codes','Codes affaires'],['marches','Marchés et contrats']].map(([id,label])=><button type="button" className="btn btn-ghost" key={id} aria-current={f.tab===id?'page':undefined} onClick={()=>act('section',id)}>{label}</button>)}</nav>
+    <nav className="billing-nav no-print" aria-label="Rubriques du logiciel de facturation">{[['modern','Retour vers factures et devis'],['codes','Codes affaires'],['marches','Marchés et contrats']].map(([id,label])=><button type="button" className="btn btn-ghost" key={id} aria-current={f.tab===id?'page':undefined} onClick={()=>act('section',id)}>{id==='modern'&&<ArrowLeft size={17} aria-hidden="true"/>}{label}</button>)}</nav>
     <div className="stat-grid"><div className="stat"><div className="k">Codes affaires</div><div className="v">{s.codes.length}</div><div className="sub">{money(s.codes.reduce((t,c)=>t+number(c.montantHT),0))} HT au total</div></div><div className="stat"><div className="k">Factures {f.year==='all'?'(toutes)':f.year}</div><div className="v">{invoices.length}</div><div className="sub">{invoices.filter(v=>!importedInvoicePaid(v)).length} non réglées</div></div><div className="stat"><div className="k">Total HT filtré</div><div className="v finance-total">{money(totals.ht)}</div><div className="sub">{money(totals.ttc)} TTC</div></div></div>
     <section className="card"><div className="card-head"><h2>{f.tab==='codes'?'Codes affaires':'Factures'}</h2></div><div className="card-pad">
       <div className="cdi-clients-toolbar"><button className="btn btn-ghost btn-sm" onClick={()=>act('clients')}>Clients et logos</button><span role="status">{s.clientStatus}</span>{s.clientError&&<button className="btn btn-ghost btn-sm" onClick={()=>act('clientsRetry')}>Réessayer</button>}</div>

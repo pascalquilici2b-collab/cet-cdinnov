@@ -2455,7 +2455,7 @@ let financeEditorDispose=null,financeEditorEpoch=0,financeClientStatus='',financ
 let nfPage=1,nfPer=20;
 function financeModule(){
   if(!$('#financeStyle')){const link=document.createElement('link');link.id='financeStyle';link.rel='stylesheet';link.href='platform/finance.css?v=stamping-allocation-20261025';document.head.append(link);}
-  return financeModulePromise ||= import('./platform/finance.js?v=stamping-allocation-20261025').catch(error=>{financeModulePromise=null;throw error;});
+  return financeModulePromise ||= import('./platform/finance.js?v=finance-back-20261029').catch(error=>{financeModulePromise=null;throw error;});
 }
 function financeForget(){financeEpoch++;financeMounted?.dispose();financeMounted=null;financeView=null;$('#financeRoot')?.remove();}
 function financeEditorForget(){financeEditorEpoch++;if(financeEditorDispose){financeEditorDispose();financeEditorDispose=null;}}
