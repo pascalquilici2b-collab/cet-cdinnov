@@ -33,3 +33,16 @@
 ## À vérifier après publication
 - Déploiements Pages/Worker/Render et correction des cinq aperçus Paul Michel encore sur annexes.
 - Interface marchés par client, modification du suivi et déplacement entre pages.
+
+## Publication vérifiée (29/10/2026)
+- Interface : commits `98ce837` puis `d4a7448`, Pages construit et Actions réussies. Contrôle des 13 premiers fichiers puis des 3 derniers fichiers : contenus publics identiques.
+- API Worker : version publiée, SHA256 `f6a0df364208e36136840f1b709369bd294eed0617e87c623a7708eb26232e4a` ; 21 instructions de migration réussies, historique et plafonds conservés.
+- Moteur PDF Render : commit `98ce837` affiché Live / Deploy succeeded. Aucun changement de forfait ou de région.
+- Production Paul Michel : les cinq aperçus sur annexes sont corrigés via le parcours normal de révision ; janvier, février, octobre et novembre sur page 1, décembre sur page 2. Mars était déjà sur l’unique page. Comparaison des allocations, bases et empreintes originales : inchangées. Les aperçus révisés sont à valider, jamais approuvés automatiquement.
+- Déplacement entre pages testé sur décembre : pages 1 et 2 accessibles, pages 3 à 6 marquées annexes et désactivées. Test annulé pour conserver le placement automatique contrôlé.
+- Formulaire du libellé de suivi d’un devis finalisé et sélecteur du rattachement de facture ouverts en production ; contrastes contrôlés, aucune modification des documents réels pendant ces vérifications.
+- Avatar testé avec session Pascal et filtre David : avatar Pascal conservé. Solde Matthieu vérifié dans l’écran des soldes : 0 / 8,5 jours.
+
+## En attente utilisateur
+- Quatre bulletins Moovapps ne sont plus présents aux chemins temporaires fournis. Il faut des copies dans un dossier permanent pour Pascal, David, Albert et Paul-Michel. Le fichier initial nommé 012026 nécessite confirmation de la période.
+- Seul Matthieu a une base de septembre vérifiée et une prochaine acquisition configurée au 01/11/2026 (+2,5). Ne pas présenter les autres soldes comme mis à jour.
