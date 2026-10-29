@@ -1,3 +1,4 @@
+import {importedInvoicePaid} from './imported-invoice-state.ts';
 import {accountAccess} from './access';
 import {portalAdmin} from './identity.ts';
 import {leavePeriods} from '../agenda/leave-periods.mjs';
@@ -66,7 +67,7 @@ export async function readDashboard(request:Request,env:Environment,db:Database,
     const rawAmount=kind==='invoice'?Number(p.ht):rows(p.lignes).reduce((sum,l)=>sum+(Number(l.montant)||0),0);
     return {id:text(p.id),number:String((kind==='invoice'?p.number:p.numero)??''),label:kind==='invoice'?text(p.client):[byId.get(String(p.matricule))?.name,text(p.objet)].filter(Boolean).join(' · '),
       date:hasCreated?created:documentDate,dateSource:hasCreated?'created':'document',amount:Number.isFinite(rawAmount)?Math.round(rawAmount*100)/100:0,
-      status:kind==='invoice'?(p.datePaiement?'Payée':'À encaisser'):['Soumis','Soumise','Validé','Validée'].includes(p.statut)?'Envoyé':text(p.statut)||'Brouillon'} as DocumentSummary;
+      status:kind==='invoice'?(importedInvoicePaid(p)?'Payée':'À encaisser'):['Soumis','Soumise','Validé','Validée'].includes(p.statut)?'Envoyé':text(p.statut)||'Brouillon'} as DocumentSummary;
   }).sort((a,b)=>b.date.localeCompare(a.date)||b.id.localeCompare(a.id)).slice(0,5);
   const ownIds=new Set(members.filter(m=>m.email===user).map(m=>m.id));
   return {generatedAt:now.toISOString(),weekStart:start,today,admin,members,

@@ -3,7 +3,7 @@ import {build} from 'esbuild';
 import {blankDraft} from './billing-domain.ts';
 import {billingToday} from './billing-quote-domain.ts';
 await build({entryPoints:['platform/client/billing-imports.tsx'],outfile:'.build/billing-imports-test.mjs',bundle:true,platform:'node',format:'esm',jsx:'automatic'});
-const {listWithImports}=await import('../.build/billing-imports-test.mjs');
+const {listWithImports,importedInvoiceState}=await import('../.build/billing-imports-test.mjs');
 const native=Array.from({length:145},(_,i)=>({id:'native-'+i,data:blankDraft('invoice'),updatedAt:new Date(Date.UTC(2026,9,30,0,0,-i)).toISOString()}));
 const calls=[],transport={list:async q=>{calls.push(q);return {documents:native.slice(q.offset,q.offset+q.limit),total:native.length,limit:q.limit,offset:q.offset,filters:{clients:[{value:'id:client',label:'Client principal'}],projects:[]}};}};
 const invoices=Array.from({length:87},(_,i)=>({id:'import-'+i,number:'OLD-'+i,client:i%2?'Client principal':'Autre',dateFacture:'2020-09-22',dateEnvoi:'2020-09-23',datePaiement:i%3?'':'2020-09-25',ttc:1200}));
@@ -24,4 +24,9 @@ assert.equal((await listWithImports(empty,{kind:'invoice',q:'OLD-10',state:'all'
 assert.equal((await listWithImports(empty,{kind:'invoice',q:'',state:'all',client:'id:client',offset:0,limit:20},imported)).total,43);
 assert.equal((await listWithImports(empty,{kind:'invoice',q:'',state:'paid',offset:0,limit:20},imported)).total,29);
 assert.equal((await listWithImports(empty,{kind:'quote',q:'',offset:0,limit:20},imported)).total,0);
+const confirmed={...imported,invoices:[{id:'confirmed-paid',dateFacture:'2020-09-22',paymentConfirmed:true,sentConfirmed:true},{id:'confirmed-sent',dateFacture:billingToday(),sentConfirmed:true},{id:'confirmed-overdue',dateFacture:'2020-09-22',sentConfirmed:true}]};
+assert.deepEqual(confirmed.invoices.map(importedInvoiceState),['paid','sent','overdue']);
+assert.equal((await listWithImports(empty,{kind:'invoice',q:'',state:'unpaid',offset:0,limit:20},confirmed)).total,2);
+assert.equal((await listWithImports(empty,{kind:'invoice',q:'',state:'paid',offset:0,limit:20},confirmed)).total,1);
+assert.ok(confirmed.invoices.every(i=>!i.datePaiement&&!i.dateEnvoi));
 console.log('OK unified list: 232 unique rows, stable pagination beyond 100, client/status/search filters and quote isolation.');

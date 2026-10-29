@@ -1,6 +1,7 @@
 import {documentRow} from './billing-row-navigation';
 import type {ReactNode} from 'react';
 import {invoiceIsLate} from '../billing-display-state';
+import {importedInvoicePaid,importedInvoiceSent} from '../imported-invoice-state';
 import {BillingStateIcon} from './billing-state-icon';
 import {invoiceDisplayNumber,importedInvoiceLabel} from './billing-invoice-label';
 import {FileCode2,Pencil,Trash2,Upload,Banknote,Clock3} from 'lucide-react';
@@ -16,7 +17,7 @@ export type BillingListRow=BillingDocument&{imported?:Invoice};
 const nameKey=(s:string)=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().replace(/\s+/g,' ').toLowerCase();
 const minor=(v:unknown)=>String(Math.round((Number(v)||0)*100));
 const date=(v:string)=>/^\d{4}-\d{2}-\d{2}$/.test(v)?v.split('-').reverse().join('/'):'—';
-export const importedInvoiceState=(f:Invoice)=>f.datePaiement?'paid':f.dateEnvoi?(invoiceIsLate(f.dateFacture||'')?'overdue':'sent'):'finalized';
+export const importedInvoiceState=(f:Invoice)=>importedInvoicePaid(f)?'paid':importedInvoiceSent(f)?(invoiceIsLate(f.dateFacture||'')?'overdue':'sent'):'finalized';
 
 // Keep the historical invoice as the single source of truth, including its PDF
 // and converter metadata. No copy, renumbering or synthetic issuance is written.
@@ -41,7 +42,7 @@ export async function listWithImports(transport:BillingTransport,query:Parameter
   if(query.client&&clientOption?.value!==query.client||query.project&&projectOption?.value!==query.project)continue;
   if(query.q&&!nameKey([invoice.number,client,invoice.code,project,invoice.dateFacture].join(' ')).includes(nameKey(query.q)))continue;
   const state=importedInvoiceState(invoice);
-  if(query.state&&!['all','issued',state,...(!invoice.datePaiement?['unpaid']:[])].includes(query.state))continue;
+  if(query.state&&!['all','issued',state,...(!importedInvoicePaid(invoice)?['unpaid']:[])].includes(query.state))continue;
   const data=blankDraft('invoice');data.title='Facture '+(invoice.number||'importée');data.buyer.name=client;data.issueDate=invoice.dateFacture||'';data.references.businessCode=invoice.code||'';
   rows.push({id:'imported:'+invoice.id,imported:invoice,version:0,status:'issued',data,issuance:null,sourceDocumentId:null,createdAt:data.issueDate,updatedAt:data.issueDate+'T00:00:00.000Z',createdBy:'',updatedBy:'',totals:null,issues:[],quote:null,settlement:null});
  }

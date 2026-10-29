@@ -34,6 +34,15 @@ async function service(env:Environment,raw:Uint8Array,payload:unknown){
  return result.result;
 }
 async function object(env:Environment,key:string){const stored=await bucket(env).get(key);if(!stored)return fail(404,'Fichier introuvable.');return new Uint8Array(await stored.arrayBuffer());}
+async function inspectPaymentTable(env:Environment,file:{name:string;bytes:Uint8Array},category:string){
+ if(!/\.pdf$/i.test(file.name))return service(env,file.bytes,{action:'inspect',name:file.name,options:{category}});
+ const info=await service(env,file.bytes,{action:'table-info'}),parts=[];let mappingHint={};
+ for(let page=0;page<info.pages;page++){
+  const part=await service(env,file.bytes,{action:'inspect',name:file.name,options:{page,mappingHint,category}});parts.push(part);
+  const mapped=part.sheets?.find((s:any)=>s.mapping?.allocation_amount!==undefined&&(s.mapping?.employee_ref!==undefined||s.mapping?.supplier_ref!==undefined));if(mapped)mappingHint=mapped.mapping;
+ }
+ return service(env,new Uint8Array(),{action:'combine',parts});
+}
 async function removeDocumentFiles(env:Environment,b:Batch,id:string,beforeVersion?:number){
  let cursor:string|undefined;const start=prefix(b)+id+'/';
  do{const listing=await bucket(env).list({prefix:start,cursor});const keys=listing.objects.map((o:any)=>o.key).filter((key:string)=>beforeVersion===undefined||Number(key.slice(start.length).match(/^candidate-(\d+)\.pdf$/)?.[1]??Infinity)<beforeVersion);if(keys.length)await bucket(env).delete(keys);cursor=listing.truncated?listing.cursor:undefined;}while(cursor);
@@ -162,14 +171,23 @@ export async function stampingRoute(request:Request,env:Environment,reply:Reply)
   for(const row of rows[1].results as {id:string;version:number}[])await removeDocumentFiles(env,b,row.id,row.version);
   return reply(200,{ok:true});
  }
+ if(tail==='table/reinspect'&&method==='POST'){
+  await unlocked(db,b,request);
+  if(data.importConfirmed)return fail(409,'Les répartitions ont déjà été confirmées. Elles sont conservées.');
+  if(!data.table?.key)return fail(404,'Document de paiement introuvable.');
+  const raw=await object(env,data.table.key);if(hash(raw)!==data.table.sha256)return fail(503,'Empreinte du document invalide.');
+  const inspected=await inspectPaymentTable(env,{name:data.table.name,bytes:raw},data.category||'RH');
+  if(inspected.sha256!==data.table.sha256)return fail(503,'Empreinte de lecture invalide.');
+  const {suggestedImport,...table}=inspected;
+  const next={...data,table:{...data.table,...table},import:suggestedImport||null,importConfirmed:false};
+  if(new TextEncoder().encode(JSON.stringify(next)).length>1200000)return fail(413,'Tableau trop volumineux : répartissez les pièces en plusieurs lots.');
+  const updated=await db.prepare("UPDATE stamp_batches SET data=?,version=version+1 WHERE id=? AND version=? AND expires_at>? AND NOT EXISTS (SELECT 1 FROM stamp_documents WHERE batch_id=? AND status IN ('QUEUED','PROCESSING','APPROVED','VERIFIED','DELETING')) RETURNING id").bind(JSON.stringify(next),b.id,b.version,Date.now(),b.id).first();
+  if(!updated)return fail(409,'Le lot a changé. Rechargez-le.');
+  await audit(db,{...b,owner:session.email},'TABLE_REINSPECTED',{hash:table.sha256});return reply(200,{ok:true});
+ }
  if(tail==='table'&&method==='POST'){
   if(data.directInvoice)return fail(409,'Ce lot utilise les montants des factures. Créez un autre lot pour utiliser un document de paiement.');
-  await unlocked(db,b,request);const file=await upload(request,5*1024*1024);let inspected;
-  if(/\.pdf$/i.test(file.name)){
-   const info=await service(env,file.bytes,{action:'table-info'}),parts=[];let mappingHint={};
-   for(let page=0;page<info.pages;page++){const part=await service(env,file.bytes,{action:'inspect',name:file.name,options:{page,mappingHint,category:JSON.parse(b.data).category||'RH'}});parts.push(part);const mapped=part.sheets?.find((s:any)=>s.mapping?.allocation_amount!==undefined&&(s.mapping?.employee_ref!==undefined||s.mapping?.supplier_ref!==undefined));if(mapped)mappingHint=mapped.mapping;}
-   inspected=await service(env,new Uint8Array(),{action:'combine',parts});
-  }else inspected=await service(env,file.bytes,{action:'inspect',name:file.name,options:{category:JSON.parse(b.data).category||'RH'}});
+  await unlocked(db,b,request);const file=await upload(request,5*1024*1024),inspected=await inspectPaymentTable(env,file,data.category||'RH');
   const key=prefix(b)+'table-'+crypto.randomUUID()+'-'+inspected.sha256;await bucket(env).put(key,file.bytes);
   const suggested=inspected.suggestedImport;delete inspected.suggestedImport;
   const next={...data,useAI:true,table:{name:file.name,key,...inspected},import:suggested||null,importConfirmed:false};

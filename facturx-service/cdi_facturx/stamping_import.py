@@ -167,6 +167,26 @@ def complete_layout(mapping, hint, columns):
     return mapping
 
 
+def single_project(rows, header):
+    """Use one explicit project in the preamble, never infer it from a filename."""
+    found = {}
+    for row in rows[:header]:
+        for index, cell in enumerate(row):
+            text = str(cell.get('value') or '').strip()
+            names = re.findall(r'\bprojet\s*[«“"]\s*([^»”"]{1,300})[»”"]', text, re.I)
+            labeled = re.fullmatch(r'(?:nom du |intitul[eé] du )?projet\s*:\s*(.{1,300})', text, re.I)
+            if labeled: names.append(labeled[1])
+            if key(text).rstrip(' :') in ['projet', 'nom du projet', 'intitule du projet']:
+                adjacent = next((str(c.get('value') or '').strip() for c in row[index+1:] if c.get('value')), '')
+                if adjacent and len(adjacent) <= 300: names.append(adjacent)
+            for name in names:
+                name = name.strip(); code = ''
+                coded = re.fullmatch(r'((?:IF\s*)?Marittimo\s*\d+)\s*[-–—]\s*(.+)', name, re.I)
+                if coded: code, name = coded[1].strip(), coded[2].strip()
+                found[key(name)] = {'name':name,'code':code,'source':{'cell':cell['cell'],'raw':text}}
+    return next(iter(found.values())) if len(found) == 1 else None
+
+
 def inspect(raw, filename, options=None):
     from collections import Counter
     options=options or {}
@@ -183,13 +203,15 @@ def inspect(raw, filename, options=None):
         if filename.lower().endswith('.pdf') and rows:
             mapping=complete_layout(mapping,common,len(rows[best]))
             mapping=complete_layout(mapping,options.get('mappingHint',{}),len(rows[best]))
+        project = single_project(rows,best) if 'project_name' not in mapping else None
         sheets.append({'name':name,'rows':len(rows),'header':best,'mapping':mapping,
                        'preview':[[str(c['value'] if c['value'] is not None else '')[:220] for c in r] for r in rows[:max(30,best+8)]]})
-        if all(f in mapping for f in required) and 'document_type' not in mapping:
+        if all(f in mapping or (f=='project_name' and project) for f in required) and 'document_type' not in mapping:
             invoice=options.get('category')=='SERVICES'
             base_header=key(rows[best][mapping['base_amount']]['value']) if 'base_amount' in mapping else ''
             base_type='TTC' if re.search(r'\bttc\b',base_header) else 'HT' if re.search(r'\bht\b',base_header) else 'ELIGIBLE_BASE'
-            config={'sheet':name,'header':best,'mapping':mapping,'documentType':'INVOICE' if invoice else 'PAYSLIP','baseType':base_type if invoice else 'EMPLOYER_COST','currency':'EUR','automatic':True,'grouped':True}
+            config={'sheet':name,'header':best,'mapping':mapping,'documentType':'INVOICE' if invoice else 'PAYSLIP','baseType':base_type if invoice else 'EMPLOYER_COST','currency':'EUR','automatic':True,'grouped':not bool(project)}
+            if project: config['singleProject']=project
             results.append(normalize(raw,filename,config,book))
         elif filename.lower().endswith('.pdf') and len(mapping)>=2 and ('base_amount' in mapping or 'allocation_amount' in mapping):
             unreadable.append({'row':best+1,'sheet':name,'message':'En-tête incomplet. Ajoutez la version Excel ou un PDF plus lisible pour inclure cette page.'})
@@ -326,6 +348,15 @@ def normalize(raw, filename, config, book=None):
             return None if isinstance(value,str) and not value.strip() else value
         data = {f: present(cell(f)['value']) for f in FIELDS}
         source_cells = {f:cell(f) for f in mapping}
+        if config.get('singleProject'):
+            # Empty payroll rows and the adjacent charges ledger are not allocations.
+            # Keep incomplete *populated* monetary rows for explicit correction.
+            if data['allocation_amount'] is None and data['base_amount'] is None: continue
+            if key(data['employee_ref']).startswith('total') or key(data['period']).startswith('total'): continue
+            project = config['singleProject']
+            data['project_name'] = data['project_name'] or project['name']
+            data['project_code'] = data['project_code'] or project.get('code','')
+            source_cells['project_name'] = {**project['source'], 'value':project['name']}
         if config.get('grouped'):
             identity_fields = ['document_type','document_ref','period','employee_ref','invoice_number','invoice_date','supplier_ref','base_amount','base_type','currency']
             # Any new identifier starts a block. No inheritance across an empty separator.
