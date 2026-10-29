@@ -95,6 +95,8 @@ export async function processStampJob(job:Job,env:Environment){
  try{
   const source=await object(env,sourceKey(b,d));if(hash(source)!==d.sha256)throw new Error('source hash');
   const batch=JSON.parse(b.data),data=JSON.parse(d.data);
+  // A transient failure belongs to the previous attempt, not its retry.
+  delete data.error;
   const startedAt=data.progress?.startedAt||Date.now(),payload={action:'analyze',groups:batch.import?.groups||[],directInvoice:data.directInvoice||null,options:data.options||batch.options||{},choice:data.choice,overrides:data.overrides||[],cachedReading:data.cachedReading||null};
   const progress=async(stage:string,extra:Record<string,unknown>={})=>db.prepare("UPDATE stamp_documents SET data=? WHERE id=? AND version=? AND status='PROCESSING'").bind(JSON.stringify({...data,...extra,progress:{startedAt,stage}}),d.id,d.version).run();
   await progress('reading');
