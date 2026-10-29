@@ -29,7 +29,7 @@ from .stamping_import import cents, key, month
 from .stamping_payroll import employer_cost
 from .pdf_safety import ensure_static_pdf
 
-VERSION = 'stamping-2.5-security-20261028'
+VERSION = 'stamping-2.6-payroll-summary-20261029'
 FONT = 'CDIStamp'
 BOLD = 'CDIStampBold'
 pdfmetrics.registerFont(TTFont(FONT, str(Path(__file__).parent/'assets/fonts/Montserrat-Regular.ttf')))
@@ -197,7 +197,10 @@ def extract(raw):
             texts.append(text);page.close()
     text='\n'.join(texts)
     fields=extract_fields(text)
-    if fields['fields'].get('document_type')=='PAYSLIP' and 'EMPLOYER_COST' not in fields['bases']:
+    if fields['fields'].get('document_type')=='PAYSLIP':
+        # A visually aligned monthly total takes priority over reconstruction.
+        # Reconcile it even when the plain-text parser already found a number.
+        fields['bases'].pop('EMPLOYER_COST',None)
         cost=employer_cost(text,normal)
         if cost:fields['bases']['EMPLOYER_COST']=cost
     return {**fields,'pages':pages,'warnings':warnings,'evidence':evidence_lines(text),'source_sha256':digest(raw),'algorithm':VERSION,'ocr':any(p['method']=='ocr' for p in pages)}

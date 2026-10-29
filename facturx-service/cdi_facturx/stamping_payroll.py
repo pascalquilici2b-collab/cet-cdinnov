@@ -15,7 +15,14 @@ EMPLOYER = r'(?:(?:total|montant)\s+(?:des\s+)?)?(?:(?:charges|cotisations)(?:\s
 
 
 def amounts(text):
-    return [(m, cents(m[1])) for m in re.finditer(AMOUNT, text) if not re.match(r'\s*%',text[m.end():])]
+    result=[]
+    for m in re.finditer(AMOUNT,text):
+        if re.match(r'\s*%',text[m.end():]):continue
+        value=cents(m[1])
+        # PDF word extraction can separate a minus sign from its number.
+        if value>0 and re.search(r'[-−]\s*$',text[:m.start()]):value=-value
+        result.append((m,value))
+    return result
 
 
 def labelled(text, pattern):
@@ -28,7 +35,7 @@ def labelled(text, pattern):
         match=re.search(r'\b(?:'+pattern+r')\b',normalized)
         if not match or annual_section or re.search(ANNUAL,normalized):continue
         # A base/rate/employee-deduction line is not an employer-cost total.
-        if re.search(r'\b(?:base|taux|imposable|net|salariales|salariale)\b',normalized[:match.start()]):continue
+        if re.search(r'\b(?:base|taux|imposable|net|salariales|salariale|exonerations?|allegements?|reductions?|regularisations?)\b',normalized[:match.start()]):continue
         tail=normalized[match.end():]
         if re.search(r'\b(?:base|taux|imposable|net|salariales|salariale)\b',tail):continue
         values=amounts(tail);evidence=line.strip()
@@ -62,6 +69,64 @@ def column_totals(text):
             for m,(_,value) in zip(matches,values):
                 if m.lastgroup in result and value>=0:result[m.lastgroup].append({'amount_cents':value,'evidence':line.strip()+' / '+raw.strip()})
     return result
+
+
+def word_rows(words):
+    """Reconstruct visual rows independently of PDF object/column order."""
+    rows=[]
+    for w in sorted(words,key=lambda w:(w[3],w[0])):
+        row=next((r for r in reversed(rows[-4:]) if abs(r['y']-w[3])<3),None)
+        if row is None:row={'y':w[3],'words':[]};rows.append(row)
+        # Some generators repeat the same text layer at the same coordinates.
+        if not any(w[4]==v[4] and abs(w[0]-v[0])<.5 for v in row['words']):row['words'].append(w)
+    for row in rows:row['words'].sort(key=lambda w:w[0])
+    return rows
+
+
+def summary_totals(raw):
+    """Read a labelled MONTHLY employer-cost cell, never the annual row.
+
+    Short labels such as 'Total versé' are meaningful only within a payroll
+    summary containing gross and employer-contribution columns. Positions,
+    not PDF stream order or a fixed column number, identify each cell.
+    """
+    import pymupdf
+    found=[]
+    labels=(r'(?P<paid>total\s+verse(?:\s+par\s+l[’\x27 ]?employeur)?)|'
+            r'(?P<cost>cout\s+global)|(?P<gross>salaire\s+brut|brut)|'
+            r'(?P<employer>ch\.\s*patronales|charges\s+patronales|cotisations\s+patronales)|'
+            r'(?P<other>heures(?:\s+suppl\.?)?|plafond(?:\s+s\.s\.)?|net\s+imposable|allegements)')
+    with pymupdf.open(stream=raw,filetype='pdf') as doc:
+        for page in doc:
+            rows=word_rows(page.get_text('words'))
+            for index,row in enumerate(rows):
+                text='';spans=[]
+                for w in row['words']:
+                    start=len(text);text+=key(w[4])+' ';spans.append((start,len(text)-1,w))
+                headers=[]
+                for m in re.finditer(labels,text):
+                    ws=[w for start,end,w in spans if start<m.end() and end>m.start()]
+                    headers.append({'kind':m.lastgroup,'left':ws[0][0],'right':ws[-1][2],'label':m[0]})
+                kinds={h['kind'] for h in headers}
+                if not {'gross','employer'}<=kinds or not kinds&{'paid','cost'}:continue
+                # Prefer the printed total paid, even if 'coût global' differs.
+                targets=[(i,h) for i,h in enumerate(headers) if h['kind']==('paid' if 'paid' in kinds else 'cost')]
+                if len(targets)!=1:continue
+                col,h=targets[0]
+                left=(headers[col-1]['right']+h['left'])/2 if col else h['left']-8
+                right=(h['right']+headers[col+1]['left'])/2 if col+1<len(headers) else page.rect.width
+                for values in rows[index+1:index+5]:
+                    if values['y']-row['y']>55:break
+                    label=key(' '.join(w[4] for w in values['words']))
+                    if re.search(ANNUAL,label):continue
+                    if not re.match(r'^(?:mensuel(?:le)?|mois|periode)\b',label):continue
+                    cell=' '.join(w[4] for w in values['words'] if left<=(w[0]+w[2])/2<right)
+                    parsed=amounts(cell)
+                    # Exact numeric cell: no extra amount, percentage or split minus.
+                    if not re.fullmatch(r'\s*'+AMOUNT+r'\s*(?:€|EUR)?\s*',cell,re.I):continue
+                    if len(parsed)==1 and parsed[0][1]>=0:
+                        found.append({'amount_cents':parsed[0][1],'evidence':h['label']+' / Mensuel : '+cell,'page':page.number+1})
+    return found
 
 
 def geometry_contributions(raw):
@@ -102,6 +167,7 @@ def geometry_contributions(raw):
 
 def employer_cost(text, raw=None):
     printed=labelled(text,TOTAL)
+    if raw:printed+=summary_totals(raw)
     if printed:
         if len({v['amount_cents'] for v in printed})==1:return {**printed[0],'method':'printed_total'}
         return None

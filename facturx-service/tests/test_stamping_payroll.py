@@ -76,3 +76,65 @@ def test_native_columns_and_stamping_with_computed_cost():
     g=groups();g[0]['base_amount_cents']=717711
     with pytest.raises(StampError) as e:process(raw,g)
     assert e.value.code=='BASE_MISMATCH'
+
+
+def summary_pdf(values=('5 000,00','2 177,10','7 190,00','7 177,10'),monthly=True,blank_first=False,extra=None):
+    """Anonymous payroll: headers/labels first, numbers emitted column by column."""
+    out=io.BytesIO();c=canvas.Canvas(out,pagesize=(595,842))
+    for blank in ([True,False] if blank_first else [False]):
+        c.setFont(FONT,9)
+        c.drawString(25,810,'Bulletin de salaire - DOCUMENT FICTIF')
+        c.drawString(25,790,'Matricule : SAL-TEST')
+        c.drawString(25,775,'Période : 2026-01')
+        c.drawString(25,750,'Salaire brut : 5 000,00')
+        c.drawString(25,730,'Exonérations de cotisations employeur - 125,00')
+        if extra:c.drawString(25,710,extra)
+        for x,label in [(100,'Brut'),(200,'Ch. patronales'),(335,'Coût Global'),(450,'Total versé')]:c.drawString(x,100,label)
+        if monthly:c.drawString(10,84,'Mensuel')
+        c.drawString(10,68,'Annuel')
+        if not blank:
+            for x,value in zip([150,280,415,530],values):
+                if monthly:c.drawRightString(x,84,value)
+                c.drawRightString(x,68,'70 000,00')
+        c.showPage()
+    c.save();return out.getvalue()
+
+
+@pytest.mark.parametrize('blank_first',[False,True])
+def test_visual_monthly_total_on_later_page_and_out_of_stream_order(blank_first):
+    reading=extract(summary_pdf(blank_first=blank_first));cost=reading['bases']['EMPLOYER_COST']
+    assert cost['amount_cents']==717710 and cost['method']=='printed_total'
+    assert cost['page']==(2 if blank_first else 1)
+    assert 'Mensuel' in cost['evidence']
+
+
+def test_short_total_label_without_payroll_summary_is_not_sufficient():
+    assert employer_cost('Total versé : 7 177,10') is None
+
+
+@pytest.mark.parametrize('line',[
+    'Exonérations de cotisations employeur - 125,00',
+    'Allègements de charges patronales 125,00',
+    'Réduction des cotisations patronales 125,00',
+    'Cotisations employeur - 125,00',
+])
+def test_exemptions_and_separated_minus_are_not_total_contributions(line):
+    assert employer_cost('Salaire brut : 5 000,00\n'+line) is None
+
+
+def test_annual_summary_is_not_used_when_monthly_row_is_missing():
+    assert 'EMPLOYER_COST' not in extract(summary_pdf(monthly=False))['bases']
+
+
+def test_conflicting_printed_total_and_monthly_cell_remain_for_review():
+    raw=summary_pdf(extra='Montant total versé par l’employeur : 7 180,00')
+    assert 'EMPLOYER_COST' not in extract(raw)['bases']
+
+
+def test_different_monthly_totals_on_two_pages_are_not_silently_chosen():
+    from pypdf import PdfReader,PdfWriter
+    writer=PdfWriter()
+    for raw in [summary_pdf(),summary_pdf(values=('5 000,00','2 177,10','7 190,00','7 178,10'))]:
+        writer.add_page(PdfReader(io.BytesIO(raw)).pages[0])
+    out=io.BytesIO();writer.write(out)
+    assert 'EMPLOYER_COST' not in extract(out.getvalue())['bases']
