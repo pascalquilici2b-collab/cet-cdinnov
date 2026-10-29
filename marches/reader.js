@@ -63,8 +63,9 @@ export async function readDocument(file,progress=()=>{},cancelled=()=>false){
   if(/\.(png|jpe?g)$/i.test(file.name)){progress('Reconnaissance du scan');const data=await ocr(file);if(data.confidence<50||!data.text.trim())warnings.push('Scan peu lisible : vérifier le texte et les montants.');return {text:'[Page 1]\n'+data.text,method:'ocr',complete:!warnings.length,pages:1,warnings};}
   if(!/\.pdf$/i.test(file.name))throw new Error('Format non pris en charge.');
   const pdf=await import('./vendor/pdf.mjs');pdf.GlobalWorkerOptions.workerSrc=asset('pdf.worker.mjs');
-  const document=await pdf.getDocument({data:new Uint8Array(await file.arrayBuffer()),isEvalSupported:false,enableXfa:false,useSystemFonts:true,wasmUrl:asset('wasm/'),standardFontDataUrl:asset('standard_fonts/')}).promise;
+  const task=pdf.getDocument({data:new Uint8Array(await file.arrayBuffer()),isEvalSupported:false,enableXfa:false,useSystemFonts:true,wasmUrl:asset('wasm/'),standardFontDataUrl:asset('standard_fonts/')});
   try{
+   const document=await task.promise;
    if(document.numPages>MAX_PAGES)throw new Error('Maximum 150 pages par pièce ; découpez le PDF en plusieurs pièces.');
    let text='';for(let i=1;i<=document.numPages;i++){
     check();progress('Page '+i+' / '+document.numPages);const page=await document.getPage(i),data=await page.getTextContent();let content=pdfTextRows(data.items);
@@ -79,7 +80,7 @@ export async function readDocument(file,progress=()=>{},cancelled=()=>false){
    if(!text.replace(/\[Page \d+\]/g,'').trim())warnings.push('Aucun texte exploitable dans cette pièce.');
    if(usedOcr)warnings.push('Les cases cochées, signatures et chiffres reconnus par OCR doivent être vérifiés dans l’original.');
    return {text,method:usedOcr?'ocr':'pdf',complete:!warnings.some(w=>/incertaine|Aucun texte/.test(w)),pages:document.numPages,warnings};
-  }finally{await document.destroy();}
+  }finally{await task.destroy();}
  }finally{if(worker)await worker.terminate();}
 }
 function documentGlobalCanvas(){return window.document.createElement('canvas');}

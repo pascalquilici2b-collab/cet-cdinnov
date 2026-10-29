@@ -1,5 +1,6 @@
 // Existing action pictograms plus the official CDInnov pictograms. No user-provided markup.
 const paths:Record<string,string>={
+    'arrow-left':'<path d="m12 19-7-7 7-7M5 12h14"/>',
     database:'<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v7c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12v7c0 1.7 3.6 3 8 3s8-1.3 8-3v-7"/>',
     cloud:'<path d="M20 16a4 4 0 0 0-2-7.5A6 6 0 0 0 6.4 7a5 5 0 0 0 .6 10h2"/>',
     'cloud-check':'<path d="M20 12a4 4 0 0 0-2-3.5A6 6 0 0 0 6.4 7a5 5 0 0 0 .6 10h3"/><path d="m14 17 3 3 5-6"/>',

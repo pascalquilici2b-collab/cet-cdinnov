@@ -1,19 +1,23 @@
 /** Atomic capacity checks shared by native invoices and imported invoices. Amounts are integer cents HT. */
 export const billingOrderBudgetSchema=[
-`CREATE VIEW IF NOT EXISTS billing_order_limits AS
+...['INSERT','UPDATE'].map(action=>`CREATE TRIGGER IF NOT EXISTS billing_followup_document_capacity_${action.toLowerCase()} AFTER ${action} ON billing_documents WHEN NEW.kind='invoice' AND EXISTS(SELECT 1 FROM billing_link_roots r JOIN billing_document_followup f ON f.document_id=r.root_id WHERE r.id=NEW.id AND f.link_json IS NOT NULL) BEGIN
+ SELECT CASE WHEN EXISTS(SELECT 1 FROM billing_order_allocations own JOIN billing_order_limits l ON l.market_id=own.market_id AND l.order_id=own.order_id WHERE own.document_id=NEW.id AND own.origin='native' AND l.limit_minor IS NOT NULL AND (SELECT sum(a.amount_minor) FROM billing_order_allocations a WHERE a.market_id=l.market_id AND a.order_id=l.order_id)>l.limit_minor) THEN RAISE(ABORT,'BILLING_ORDER_LIMIT') END; END`),
+`DROP VIEW IF EXISTS billing_order_limits`,
+`CREATE VIEW billing_order_limits AS
  WITH orders AS (
  SELECT m.id market_id,json_extract(o.value,'$.id') order_id,json_extract(o.value,'$.reference') reference,json_extract(o.value,'$.amountMinor') limit_minor
  FROM markets m,json_each(m.payload,'$.orders') o
  UNION ALL SELECT m.id,json_extract(o.value,'$.id'),json_extract(o.value,'$.reference'),json_extract(o.value,'$.amountMinor') FROM markets m,json_each(m.payload,'$.projects') p,json_each(p.value,'$.orders') o
  UNION ALL SELECT json_extract(metadata_json,'$.marketId'),json_extract(metadata_json,'$.orderId'),json_extract(metadata_json,'$.reference'),json_extract(metadata_json,'$.amountMinor') FROM billing_quote_engagements WHERE kind='order'
+ UNION ALL SELECT json_extract(link_json,'$.marketId'),json_extract(link_json,'$.orderId'),json_extract(link_json,'$.reference'),json_extract(link_json,'$.amountMinor') FROM billing_document_followup WHERE json_extract(link_json,'$.kind')='order'
  ) SELECT market_id,order_id,max(reference) reference,min(limit_minor) limit_minor FROM orders WHERE coalesce(order_id,'')<>'' GROUP BY market_id,order_id`,
 `DROP VIEW IF EXISTS billing_order_allocations`,
 `CREATE VIEW billing_order_allocations AS
  WITH native AS (
- SELECT d.id document_id,'native' origin,json_extract(d.data_json,'$.references.marketId') market_id,json_extract(d.data_json,'$.references.orderId') order_id,json_extract(d.data_json,'$.references.orderReference') reference,
+ SELECT d.id document_id,'native' origin,coalesce(json_extract(f.link_json,'$.marketId'),json_extract(d.data_json,'$.references.marketId')) market_id,coalesce(json_extract(f.link_json,'$.orderId'),json_extract(d.data_json,'$.references.orderId')) order_id,coalesce(json_extract(f.link_json,'$.reference'),json_extract(d.data_json,'$.references.orderReference')) reference,
  CAST(json_extract(d.totals_json,'$.netMinor') AS INTEGER) * CASE WHEN json_extract(d.data_json,'$.creditNote') IS NOT NULL THEN CASE WHEN j.state='ready' THEN -1 ELSE 0 END ELSE 1 END amount_minor,
  CASE WHEN j.state='ready' THEN 1 ELSE 0 END issued
- FROM billing_documents d LEFT JOIN billing_issuances i ON i.document_id=d.id LEFT JOIN billing_issue_jobs j ON j.issuance_id=i.id
+ FROM billing_documents d LEFT JOIN billing_link_roots roots ON roots.id=d.id LEFT JOIN billing_document_followup f ON f.document_id=roots.root_id LEFT JOIN billing_issuances i ON i.document_id=d.id LEFT JOIN billing_issue_jobs j ON j.issuance_id=i.id
  WHERE d.kind='invoice' AND (i.id IS NOT NULL OR NOT EXISTS(SELECT 1 FROM billing_document_trash t WHERE t.document_id=d.id))
  AND NOT EXISTS(SELECT 1 FROM billing_invoice_rectifications r WHERE r.original_id=d.id AND (EXISTS(SELECT 1 FROM billing_issuances ri WHERE ri.document_id=r.replacement_id) OR NOT EXISTS(SELECT 1 FROM billing_document_trash t WHERE t.document_id=r.replacement_id)))
  ), imported AS (

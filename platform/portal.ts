@@ -1,3 +1,4 @@
+import {accrueLeave} from './leave-accrual';
 import {accountAccess,validAccess} from './access';
 import {createHash,randomBytes} from 'node:crypto';
 import {Buffer} from 'node:buffer';
@@ -20,6 +21,7 @@ const pick=(o:Document,keys:string[])=>Object.fromEntries(keys.filter(k=>Object.
 
 export async function readPortal(env:Environment):Promise<WorkspaceRow>{
   const db=env.BUDGETS_DB.withSession('first-primary');
+  await accrueLeave(db);
   const row=await db.prepare("SELECT * FROM app_portal_workspace WHERE id='shared'").first<WorkspaceRow>();
   if(row)return row;
   // Seed explicitly after the former writer is closed. Never silently resurrect

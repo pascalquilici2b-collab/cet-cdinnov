@@ -1,3 +1,4 @@
+import {billingFollowupSchema} from './billing-followup-schema.mjs';
 import {clientEmployeesSchema} from './client-employees-schema.mjs';
 import {billingOrderBudgetSchema} from './billing-order-budget-schema.mjs';
 import {billingSupportSchema} from './billing-support-schema.mjs';
@@ -83,5 +84,5 @@ import {billingPartialInvoicesSchema} from './billing-partial-invoices-schema.mj
 import {billingSeriesPolicySchema} from './billing-series-policy-schema.mjs';
 export async function migrateBilling(db) {
  // D1 batch is transactional: failure leaves neither half a schema nor a lost history trigger.
- await db.batch([...billingSchema,...billingIssuanceSchema,...billingNumberingSchema,...billingDraftNumberSchema,...billingSeriesPolicySchema,...billingMonthlyNumberSchema,...billingDirectorySchema,...billingQuoteSchema,...billingRevisionSchema,...billingPartialInvoicesSchema,...billingPaymentSchema,...projectsSchema,...billingDeliverySchema,...billingTrashSchema,...billingRectificationSchema,...billingSupportSchema,...billingOrderBudgetSchema,...clientEmployeesSchema].map(sql=>db.prepare(sql)));
+ await db.batch([...billingSchema,...billingIssuanceSchema,...billingNumberingSchema,...billingDraftNumberSchema,...billingSeriesPolicySchema,...billingMonthlyNumberSchema,...billingDirectorySchema,...billingQuoteSchema,...billingRevisionSchema,...billingPartialInvoicesSchema,...billingPaymentSchema,...projectsSchema,...billingDeliverySchema,...billingTrashSchema,...billingRectificationSchema,...billingSupportSchema,...billingFollowupSchema,...billingOrderBudgetSchema,...clientEmployeesSchema].map(sql=>db.prepare(sql)));
 }

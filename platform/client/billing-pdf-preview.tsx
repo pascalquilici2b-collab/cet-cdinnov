@@ -1,4 +1,5 @@
 import {usePDFAnnotations} from './billing-pdf-annotations';
+import {viewportRectangle} from './pdf-viewport';
 import {BrandMark} from './loading';
 import {useEffect,useRef,useState} from 'react';
 import type {BillingDocument,BillingDraft,BillingTransport} from '../billing-contracts';
@@ -6,7 +7,7 @@ import {Pencil,Printer} from 'lucide-react';
 import {printPDF} from './billing-print';
 import {blankDocumentDetails,addBillingMonths} from '../billing-domain';
 
-type Viewport={width:number;height:number;convertToViewportRectangle:(r:number[])=>number[]};
+type Viewport={width:number;height:number;transform:number[]};
 type RenderTask={promise:Promise<void>;cancel:()=>void};
 type PDFPage={getViewport:(options:{scale:number})=>Viewport;render:(options:Record<string,unknown>)=>RenderTask;getTextContent:()=>Promise<{items:{str?:string}[]}>;getAnnotations:()=>Promise<{url?:string;rect:number[]}[]>};
 type PDFDocument={numPages:number;getPage:(n:number)=>Promise<PDFPage>};
@@ -61,7 +62,7 @@ export function PDFPreview({record,transport,draft,onChange,file}:{record:Billin
    const context=element.getContext('2d');if(!context)throw new Error('L’aperçu ne peut pas être affiché dans ce navigateur.');
    task=source.render({canvasContext:context,viewport:view,transform:[ratio,0,0,ratio,0,0],annotationMode:0});await task.promise;
    const content=await source.getTextContent(),annotations=draft?await source.getAnnotations():[];
-   if(active){setText(content.items.map(item=>item.str||'').join(' '));setRendering(false);setAreas(annotations.filter(a=>a.url?.startsWith('https://editor.cdinnov.invalid/field/')).map(a=>({path:a.url!.slice('https://editor.cdinnov.invalid/field/'.length),rect:view.convertToViewportRectangle(a.rect)})).filter(a=>editablePath(a.path)));}
+   if(active){setText(content.items.map(item=>item.str||'').join(' '));setRendering(false);setAreas(annotations.filter(a=>a.url?.startsWith('https://editor.cdinnov.invalid/field/')).map(a=>({path:a.url!.slice('https://editor.cdinnov.invalid/field/'.length),rect:viewportRectangle(view.transform,a.rect)})).filter(a=>editablePath(a.path)));}
   })().catch(e=>{if(active){setRendering(false);setError(e instanceof Error?e.message:'Cette page ne peut pas être affichée.');}});
   return()=>{active=false;task?.cancel();};
  },[pdf,page,zoom,pending,error]);

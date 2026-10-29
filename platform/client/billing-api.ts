@@ -29,6 +29,7 @@ export function createBillingTransport(options:{baseUrl:string;getToken:()=>Prom
     saveReport:(id,version,data)=>request(reportPath(id),'PUT',data,version),
     reportPDF:id=>request(reportPath(id)+'.pdf','GET',undefined,undefined,true),
     previewReport:(id,data)=>request(reportPath(id)+'.pdf','POST',data,undefined,true),
+    updateFollowup:(id,version,input)=>request('/documents/'+encodeURIComponent(id)+'/followup','PATCH',input,version),
     uploadEngagement:(id,version,kind,file,details)=>request('/documents/'+encodeURIComponent(id)+'/engagement?'+new URLSearchParams({kind,...(details?{reference:details.reference,date:details.date,amountMinor:details.amountMinor===null?'':String(details.amountMinor),marketId:details.marketId,projectId:details.projectId,marketReference:details.marketReference,engagement:details.engagement||'',serviceCode:details.serviceCode||'',otherReference:details.otherReference||''}:{})}),'PUT',file,version,false,{'X-Filename':encodeURIComponent(file.name),'Content-Type':file.type||'application/octet-stream'}),
     analyzeEngagement:text=>request('/engagement-analysis','POST',{text}),
     engagementFile:id=>request('/documents/'+encodeURIComponent(id)+'/engagement','GET',undefined,undefined,true),

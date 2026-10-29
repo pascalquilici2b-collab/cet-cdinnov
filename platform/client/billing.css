@@ -340,3 +340,5 @@ select.bill-status-filter{background:var(--bill-surface,#fff);color:var(--bill-i
 .bill-project-client-chip button{display:inline-flex;padding:2px;border:0;background:transparent;color:inherit;border-radius:5px}
 .cdi-select-trigger .bill-project-avatar,.cdi-select-option .bill-project-avatar{width:30px;height:30px;flex-basis:30px}
 @media(max-width:560px){.bill-project-link{flex-wrap:wrap}.bill-project-link>span:first-child{flex-basis:calc(100% - 36px)}.bill-project-link .cdi-activity{margin-right:auto}}
+
+.bill-linked-order{display:flex;align-items:center;gap:10px;padding:12px 0}.bill-linked-order>span{display:grid;gap:4px;min-width:0;flex:1}.bill-linked-order small{opacity:.65;font-size:11px}.bill-linked-order strong{font-size:13px;overflow-wrap:anywhere}.bill-tracking-edit{margin:6px 0 14px}.bill-tracking-saved{display:inline-flex;align-items:center;gap:6px;color:#1b9b60;animation:bill-saved-pop .25s ease-out}.bill-tracking-edit dialog input,.bill-tracking-edit dialog select{width:100%;padding:10px;background:var(--bill-surface,#fff);color:var(--bill-ink);border:1px solid var(--bill-line);border-radius:10px}

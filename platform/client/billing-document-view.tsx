@@ -1,3 +1,4 @@
+import {TrackingEdit} from './billing-tracking-edit';
 import type {ReactNode} from 'react';
 import {useEffect,useState} from 'react';
 import type {BillingDocument,BillingTransport} from '../billing-contracts';
@@ -8,7 +9,7 @@ import {BillingStateIcon} from './billing-state-icon';
 import {Help} from './billing-help';
 
 const date=(value:string)=>value?value.split('-').reverse().join('/'):'À préciser';
-export function IssuedDocument({record,transport,children,fallback}:{record:BillingDocument;transport:BillingTransport;children:ReactNode;fallback:ReactNode}){
+export function IssuedDocument({record,transport,children,fallback,onDocument}:{onDocument:(d:BillingDocument)=>void;record:BillingDocument;transport:BillingTransport;children:ReactNode;fallback:ReactNode}){
  const d=record.data,ready=record.status==='issued',identity=record.issuance?.number||'Devis · version '+(record.quote?.revision.ordinal||1);
  const [view,setView]=useState<'summary'|'document'>(ready?'document':'summary');
  useEffect(()=>{if(ready)setView('document');},[ready]);
@@ -16,8 +17,8 @@ export function IssuedDocument({record,transport,children,fallback}:{record:Bill
   <div className="bill-issued-mobile-heading"><strong>{identity}</strong><span>{record.totals?formatMinor(record.totals.grossMinor):'—'}</span></div>
   <div className="bill-issued-mobile-tabs" role="group" aria-label="Affichage du document"><button type="button" aria-pressed={view==='summary'} onClick={()=>setView('summary')}>Résumé</button><button type="button" aria-pressed={view==='document'} onClick={()=>setView('document')}>{ready?'Document PDF':'Aperçu'}</button></div>
   <aside className="bill-document-summary">
-   <div className="bill-document-identity"><span className="bill-document-state" data-status={billingDisplayState(record)}><BillingStateIcon state={billingDisplayState(record)}/>{billingStateLabel(record)}</span><p>{d.kind==='invoice'?'Facture':'Devis'}</p><h2>{identity}</h2><h3>{d.title||'Sans objet'}</h3></div>
-   <div className="bill-document-amount"><span>Total TTC</span><strong>{record.totals?formatMinor(record.totals.grossMinor):'—'}</strong><small>{record.totals?formatMinor(record.totals.netMinor)+' HT · '+formatMinor(record.totals.taxMinor)+' de TVA':''}</small></div>
+   <div className="bill-document-identity"><span className="bill-document-state" data-status={billingDisplayState(record)}><BillingStateIcon state={billingDisplayState(record)}/>{billingStateLabel(record)}</span><p>{d.kind==='invoice'?'Facture':'Devis'}</p><h2>{identity}</h2><h3>{record.followup?.title||d.title||'Sans objet'}</h3></div>
+   <TrackingEdit record={record} transport={transport} onDocument={onDocument}/><div className="bill-document-amount"><span>Total TTC</span><strong>{record.totals?formatMinor(record.totals.grossMinor):'—'}</strong><small>{record.totals?formatMinor(record.totals.netMinor)+' HT · '+formatMinor(record.totals.taxMinor)+' de TVA':''}</small></div>
    {d.kind==='invoice'&&children}
    <div className="bill-document-customer"><span>CLIENT</span><h3>{d.buyer.name}</h3><p>{d.buyer.addressLine1}<br/>{d.buyer.postalCode} {d.buyer.city}</p>{d.buyer.email&&<p>{d.buyer.email}</p>}</div>
    <dl className="bill-document-dates"><div><dt>Date du document</dt><dd>{date(d.issueDate)}</dd></div><div><dt>{d.kind==='quote'?'Valable jusqu’au':'Échéance'}</dt><dd>{date(d.kind==='quote'?d.validUntil:invoiceDueDate(d.issueDate,d.dueDate))}</dd></div></dl>

@@ -800,8 +800,9 @@ async function readDocument(file, progress = () => {
     if (!/\.pdf$/i.test(file.name)) throw new Error("Format non pris en charge.");
     const pdf = await import("./vendor/pdf.mjs");
     pdf.GlobalWorkerOptions.workerSrc = asset("pdf.worker.mjs");
-    const document = await pdf.getDocument({ data: new Uint8Array(await file.arrayBuffer()), isEvalSupported: false, enableXfa: false, useSystemFonts: true, wasmUrl: asset("wasm/"), standardFontDataUrl: asset("standard_fonts/") }).promise;
+    const task = pdf.getDocument({ data: new Uint8Array(await file.arrayBuffer()), isEvalSupported: false, enableXfa: false, useSystemFonts: true, wasmUrl: asset("wasm/"), standardFontDataUrl: asset("standard_fonts/") });
     try {
+      const document = await task.promise;
       if (document.numPages > MAX_PAGES) throw new Error("Maximum 150 pages par pi\xE8ce ; d\xE9coupez le PDF en plusieurs pi\xE8ces.");
       let text = "";
       for (let i2 = 1; i2 <= document.numPages; i2++) {
@@ -830,7 +831,7 @@ async function readDocument(file, progress = () => {
       if (usedOcr) warnings.push("Les cases coch\xE9es, signatures et chiffres reconnus par OCR doivent \xEAtre v\xE9rifi\xE9s dans l\u2019original.");
       return { text, method: usedOcr ? "ocr" : "pdf", complete: !warnings.some((w) => /incertaine|Aucun texte/.test(w)), pages: document.numPages, warnings };
     } finally {
-      await document.destroy();
+      await task.destroy();
     }
   } finally {
     if (worker) await worker.terminate();

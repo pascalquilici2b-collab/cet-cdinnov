@@ -29,7 +29,7 @@ from .stamping_import import cents, key, month
 from .stamping_payroll import employer_cost
 from .pdf_safety import ensure_static_pdf
 
-VERSION = 'stamping-2.6-payroll-summary-20261029'
+VERSION = 'stamping-2.7-payroll-pages-20261029'
 FONT = 'CDIStamp'
 BOLD = 'CDIStampBold'
 pdfmetrics.registerFont(TTFont(FONT, str(Path(__file__).parent/'assets/fonts/Montserrat-Regular.ttf')))
@@ -178,6 +178,15 @@ def extract_fields(text):
         if cost:bases['EMPLOYER_COST']=cost
     return {'fields':fields,'proofs':proofs,'bases':bases}
 
+def payroll_page_kind(text):
+    """The repeated employee header is not evidence of a payslip body."""
+    t=key(text)
+    if re.search(r'annexe\s+(?:au|du|a[u]?)\s+bulletin|bulanx|detail\s+des?\s+calculs',t):return 'annex'
+    header=bool(re.search(r'bulletin\s+(?:de\s+)?(?:paie|salaire)|fiche\s+de\s+paie',t))
+    body=bool(re.search(r'elements?\s+de\s+paie|net\s+(?:a\s+payer|paye)|total\s+(?:verse|paye)|charges\s+patronales|salaire\s+brut',t))
+    return 'payslip' if header and body else 'unknown'
+
+
 def extract(raw):
     reader=open_source(raw); _,normal=canonical(reader); pages=[];texts=[]; warnings=[]
     with pdfium.PdfDocument(normal) as pdf:
@@ -193,7 +202,7 @@ def extract(raw):
                 # value, so a contradictory OCR amount stays a manual review.
                 if scanned.strip():text=text+'\n'+scanned
                 if error: warnings.append(f'Page {i+1} : {error}')
-            pages.append({'width':page.get_width(),'height':page.get_height(),'method':method})
+            pages.append({'width':page.get_width(),'height':page.get_height(),'method':method,'kind':payroll_page_kind(text)})
             texts.append(text);page.close()
     text='\n'.join(texts)
     fields=extract_fields(text)
@@ -436,13 +445,20 @@ def process(raw,groups,options=None,choice=None,suggestions=None,overrides=None,
         if not known or all('maritime' in key(p) or 'marittimo' in key(p) for p in known):header='Dépense soutenue avec les fonds du PC Italie-France Maritime 2021-2027'
         elif len(known)==1 and all(a.get('programme','').strip() for a in allocations):header='Dépense soutenue avec les fonds du programme '+next(iter(known))
     source=open_source(raw);writer,normal=canonical(source);blocks=[];occupied=[]
+    payroll=reading['fields'].get('document_type')=='PAYSLIP'
+    # Old approved readings may lack page roles. Reclassify native text only;
+    # manual amounts and the signed original reading are not re-analysed.
+    page_kinds=[(reading.get('pages',[])[i].get('kind') if i<len(reading.get('pages',[])) else None) or payroll_page_kind(page.extract_text() or '') for i,page in enumerate(source.pages)]
+    allowed=[i for i in range(len(source.pages)) if not payroll or (i<len(page_kinds) and page_kinds[i]=='payslip')]
+    if not allowed:raise StampError('NO_PAYSLIP_PAGE','Aucune page de bulletin identifiée avec certitude. Les annexes ne peuvent pas être tamponnées.')
+    options={**options,'allowAppendix':bool(options.get('allowAppendix')) and not payroll}
     with pdfium.PdfDocument(normal) as doc:
         for i,page in enumerate(doc):
             image=render_page(page,2);mask,bounds=occupancy(page,writer.pages[i],image);image.close();page.close()
             occupied.append((mask,bounds))
         widths=[float(options.get('width',180))];sizes=[float(options.get('fontSize',5))]
         if options.get('compact',True):widths+= [150,200,240];sizes += [5] if sizes[0]!=5 else []
-        order=list(range(len(doc)))
+        order=allowed.copy()
         if options.get('pagePreference')=='last':order.reverse()
         manual=options.get('placement');placements=options.get('placements')
         if placements is not None:
@@ -455,6 +471,7 @@ def process(raw,groups,options=None,choice=None,suggestions=None,overrides=None,
                 scale=p.get('scale',1);i=p.get('page');x=p.get('x');y=p.get('y')
                 if not isinstance(scale,(int,float)) or not math.isfinite(scale) or not .5<=scale<=3:raise StampError('INVALID_LAYOUT','Taille du tampon invalide.')
                 if not isinstance(i,int) or not 0<=i<len(doc)+25 or (i>=len(doc) and not options.get('allowAppendix')):raise StampError('INVALID_LAYOUT','Page du tampon invalide.')
+                if payroll and i not in allowed:raise StampError('INVALID_LAYOUT','Le tampon doit être placé sur le bulletin de salaire, pas sur une annexe.')
                 while i>=len(writer.pages):writer.add_blank_page(width=595,height=842)
                 mask=occupied[i][0] if i<len(doc) else Image.new('L',(595,842))
                 w=l['width']*scale;h=l['height']*scale
@@ -467,6 +484,7 @@ def process(raw,groups,options=None,choice=None,suggestions=None,overrides=None,
             if Counter(ids)!=Counter(a['id'] for a in allocations):raise StampError('INVALID_LAYOUT','Chaque projet doit figurer une fois sur le tampon.')
         elif manual:
             i=manual.get('page');x=manual.get('x');y=manual.get('y')
+            if payroll and i not in allowed:raise StampError('INVALID_LAYOUT','Le tampon doit être placé sur le bulletin de salaire, pas sur une annexe.')
             l=layout(allocations,widths[0],sizes[0],header)
             if not isinstance(i,int) or not 0<=i<len(doc) or not isinstance(x,(int,float)) or not isinstance(y,(int,float)) or not inside(occupied[i][0],x,y,l['width'],l['height']) or (not options.get('allowOverlap') and not safe(occupied[i][0],x,y,l['width'],l['height'])):
                 raise StampError('COLLISION','Le tampon dépasse la page ou recouvre du contenu.')
@@ -506,7 +524,7 @@ def process(raw,groups,options=None,choice=None,suggestions=None,overrides=None,
                     l=layout(allocations,width,5,header);point=least_occupied(occupied[i][0],l)
                     if point:candidates.append((point[0],{'page':i,'x':point[1],'y':point[2],'layout':l,'overlap':True}))
             if candidates:blocks=[min(candidates,key=lambda c:c[0])[1]]
-        if not blocks:raise StampError('NO_SAFE_AREA','Aucune zone libre. Choisissez une autre disposition ou autorisez une annexe.')
+        if not blocks:raise StampError('NO_SAFE_AREA','Aucune zone libre sur le bulletin. Déplacez le tampon dans l’aperçu.' if payroll else 'Aucune zone libre. Choisissez une autre disposition ou autorisez une annexe.')
         for i,page in enumerate(writer.pages):
             selected_blocks=[b for b in blocks if b['page']==i]
             if not selected_blocks:continue
@@ -543,7 +561,7 @@ def process(raw,groups,options=None,choice=None,suggestions=None,overrides=None,
                 before.close();after.close();diff.close()
         for mask,_ in occupied:mask.close()
     total=sum(a['amount_cents'] for a in allocations)
-    return {'reading':reading,'groupId':selected['id'],'base_cents':base,'total_cents':total,'remainder_cents':base-total,'rounding_cents':None if overrides else selected.get('rounding_cents'),
+    return {'reading':reading,'allowedPages':allowed,'pageKinds':page_kinds,'groupId':selected['id'],'base_cents':base,'total_cents':total,'remainder_cents':base-total,'rounding_cents':None if overrides else selected.get('rounding_cents'),
             'allocations':selected['allocations'],'manual':bool(choice),'conflicts':conflicts,'blocks':[{'page':b['page'],'x':b['x'],'y':b['y'],'width':b['layout']['width']*b.get('scale',1),'height':b['layout']['height']*b.get('scale',1),'layoutWidth':b['layout']['width'],'scale':b.get('scale',1),'fontSize':b['layout']['size']*b.get('scale',1),'allocationIds':[r['allocation']['id'] for r in b['layout']['rows']],'image':stamp_image(b),'overlap':bool(b.get('overlap'))} for b in blocks],
             'source_sha256':digest(raw),'output_sha256':digest(result),'algorithm':VERSION,'overridden':bool(overrides),'checks':{'geometry':True,'source_text':True,'source_visual':True,'allocations':True,'annotations':True},'pdf':base64.b64encode(result).decode()}
 
@@ -565,6 +583,14 @@ def revise(raw,previous,options=None,overrides=None,additions=None):
         allocations.append({'id':aid,'project':project,'amount_cents':amount,'programme':'','percent':None,'calculated':False,'source':{'rule':'MANUAL','file':'','sheet':'','cell':'','row':None},'manual':True})
     selected={'id':previous['groupId'],'allocations':allocations,'rounding_cents':previous.get('rounding_cents')}
     options=deepcopy(options or {})
+    if reading['fields'].get('document_type')=='PAYSLIP':
+        pages=open_source(raw).pages
+        allowed=[i for i,page in enumerate(pages) if ((reading.get('pages',[])[i].get('kind') if i<len(reading.get('pages',[])) else None) or payroll_page_kind(page.extract_text() or ''))=='payslip']
+        old=[{**{k:b[k] for k in ['page','x','y']},'layoutWidth':b.get('layoutWidth',b['width']),'scale':b.get('scale',1),'allocationIds':b.get('allocationIds',[])} for b in previous.get('blocks',[])]
+        if any(b['page'] not in allowed for b in old):
+            if options.get('placements')==old:options.pop('placements')
+            # Redraw old misplaced previews automatically; never reuse annex coordinates.
+            previous={**previous,'blocks':[]}
     if 'placements' not in options and len(previous.get('blocks',[]))==1:
         b=previous['blocks'][0]
         options['placements']=[{**{k:b[k] for k in ['page','x','y']},'layoutWidth':b.get('layoutWidth',b['width']),'scale':b.get('scale',1),'allocationIds':[a['id'] for a in previous['allocations'] if a['amount_cents']>0]}]

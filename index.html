@@ -2264,7 +2264,7 @@ function caCodeKey(c){ return String(c.code1==null?'':c.code1)+String(c.code2==n
 function eurHT(n){ return (Number(n)||0).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'; }
 function moisAnnee(d){ if(!d) return '—'; const dd=new Date(String(d).slice(0,10)+'T00:00:00'); if(isNaN(dd)) return '—'; return MOIS_FR[dd.getMonth()]+' '+dd.getFullYear(); }
 function billingNavigation(active){
-  return '<nav class="billing-nav no-print" aria-label="Rubriques du logiciel de facturation">'+[['modern','Factures et devis','file'],['codes','Codes affaires','tag'],['marches','Marchés et contrats','folders']].map(([id,label,icon])=>`<button type="button" class="btn btn-ghost" onclick="setBillingSection(${inlineArg(id)})" ${active===id?'aria-current="page"':''}>${ic(icon)}${label}</button>`).join('')+'</nav>';
+  return '<nav class="billing-nav no-print" aria-label="Rubriques du logiciel de facturation">'+[['modern','Retour vers factures et devis','arrow-left'],['codes','Codes affaires','tag'],['marches','Marchés et contrats','folders']].map(([id,label,icon])=>`<button type="button" class="btn btn-ghost" onclick="setBillingSection(${inlineArg(id)})" ${active===id?'aria-current="page"':''}>${ic(icon)}${label}</button>`).join('')+'</nav>';
 }
 function setBillingSection(section){
   if(section==='factures')section='modern';

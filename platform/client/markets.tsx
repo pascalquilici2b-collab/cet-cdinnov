@@ -1086,31 +1086,18 @@ function Setup({ s, m }: { s: MarketsSnapshot; m: Market }) {
     </>
   );
 }
-function MarketList({ state: s, onQuery }: MarketsProps) {
-  const [query,setQuery]=useState(s.query),[client,setClient]=useState('');
-  const q=query.toLocaleLowerCase('fr'),clients=[...new Set(s.rows.map(m=>m.clientName).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'fr'));
-  const rows=s.rows.filter(m=>(!client||m.clientName===client)&&[m.title,m.reference,m.clientName].some(v=>v.toLocaleLowerCase('fr').includes(q)));
-  return <>
-    <div className="mk-heading"><h1>Marchés et contrats</h1><Button className="mk-primary" data-action="new"><Plus size={17}/>Nouveau marché</Button></div>
-    <div className="mk-overview">
-      <div><span>Marchés suivis</span><strong>{s.rows.filter(m=>m.status!=='archived').length}</strong></div>
-      <div><span>En cours de validité</span><strong>{s.rows.filter(m=>marketActivity(m).state==='active').length}</strong></div>
-      <div><span>Devis envoyés HT</span><strong>{money(s.rows.reduce((n,m)=>n+(m.tracking?.quotedMinor||0),0))}</strong></div>
-    </div>
-    <div className="mk-list-tools">
-      <label className="mk-search" htmlFor="mkSearch"><Search size={17}/><input id="mkSearch" type="search" aria-label="Rechercher un marché" value={query} onChange={e=>{setQuery(e.target.value);onQuery(e.target.value);}} placeholder="Client, référence ou objet…" disabled={s.busy}/></label>
-      <select aria-label="Filtrer les marchés par client" value={client} onChange={e=>setClient(e.target.value)}><option value="">Tous les clients</option>{clients.map(c=><option key={c}>{c}</option>)}</select>
-      <Button className="mk-icon-button" aria-label="Actualiser les marchés" title="Actualiser" data-action="refresh"><RefreshCw size={17}/></Button>
-    </div>
-    <div id="mkMarketList">{s.busy?<Loading label="Chargement des marchés…"/>:!rows.length?<div className="mk-empty">{query||client?'Aucun marché ne correspond à ces filtres.':'Aucun marché pour le moment.'}</div>:<div className="mk-market-cards">{rows.map(m=>{const maximum=marketTracking(m).maximumMinor,consumed=m.tracking?.quotedMinor||0;return <article className="mk-market-card" key={m.id}>
-      <div className="mk-card-client"><ClientAvatar name={m.clientName}/><span className="mk-card-client-name">{m.clientName||'À renseigner'}</span><ActivityBadge activity={marketActivity(m)}/></div>
-      <Button className="mk-card-title" data-open={m.id}><span>{m.reference||'Marché'}</span><strong>{m.title||'Nouveau marché'}</strong></Button>
-      <EngagementMeter used={consumed} maximum={maximum} label={'Consommation du marché '+(m.reference||m.title)}/>
-      <footer><span>{marketTracking(m).orderCount} bon{marketTracking(m).orderCount>1?'s':''} de commande{s.rows.length&&m.status==='draft'?' · En préparation':''}</span><Button className="mk-icon-button" data-open={m.id} aria-label={'Ouvrir le marché '+(m.reference||m.title)}><ChevronRight size={18}/></Button></footer>
-      </article>;})}</div>}</div>
-  </>;
+function MarketList({state:s,onQuery,client,onClient}:MarketsProps&{client:string;onClient:(value:string)=>void}){
+ const [query,setQuery]=useState(s.query),q=query.toLocaleLowerCase('fr');
+ const matches=s.rows.filter(m=>[m.title,m.reference,m.clientName].some(v=>v.toLocaleLowerCase('fr').includes(q))),rows=matches.filter(m=>!client||(m.clientName||'Client à renseigner')===client);
+ const clients=[...new Set(matches.map(m=>m.clientName||'Client à renseigner'))].sort((a,b)=>a.localeCompare(b,'fr'));
+ return <>
+  <div className="mk-heading"><div>{client&&<Button className="mk-link" onClick={()=>onClient('')}><ArrowLeft size={16}/>Tous les clients</Button>}<h1>{client||'Marchés et contrats'}</h1></div><Button className="mk-primary" data-action="new"><Plus size={17}/>Nouveau marché</Button></div>
+  <div className="mk-list-tools"><label className="mk-search" htmlFor="mkSearch"><Search size={17}/><input id="mkSearch" type="search" aria-label="Rechercher un marché" value={query} onChange={e=>{setQuery(e.target.value);onQuery(e.target.value);}} placeholder="Client, référence ou objet…" disabled={s.busy}/></label><Button className="mk-icon-button" aria-label="Actualiser les marchés" data-action="refresh"><RefreshCw size={17}/></Button></div>
+  <div id="mkMarketList">{s.busy?<Loading label="Chargement des marchés…"/>:!matches.length?<div className="mk-empty">Aucun marché trouvé.</div>:!client?<div className="mk-client-list">{clients.map(name=>{const contracts=matches.filter(m=>(m.clientName||'Client à renseigner')===name);return <button type="button" className="mk-client-row" key={name} onClick={()=>onClient(name)}><ClientAvatar name={name}/><span><strong>{name}</strong><small>{contracts.length} marché{contracts.length>1?'s':''} · {contracts.filter(m=>marketActivity(m).state==='active').length} en cours</small></span><ChevronRight size={18}/></button>;})}</div>:<div className="mk-contract-list">{rows.map(m=><article className="mk-contract-row" key={m.id}><div className="mk-contract-main"><Button className="mk-card-title" data-open={m.id}><span>{m.reference||'Marché'} · {TYPES[m.type as keyof typeof TYPES]||m.type}</span><strong>{m.title||'Nouveau marché'}</strong></Button><ActivityBadge activity={marketActivity(m)}/></div><div className="mk-contract-foot"><EngagementMeter used={m.tracking?.quotedMinor||0} maximum={marketTracking(m).maximumMinor} label={'Consommation du marché '+(m.reference||m.title)}/><Button className="mk-icon-button" data-open={m.id} aria-label={'Ouvrir le marché '+(m.reference||m.title)}><ChevronRight size={18}/></Button></div></article>)}</div>}</div>
+ </>;
 }
 function Markets(props: MarketsProps) {
+  const [client,setClient]=useState('');
   const s = props.state,
     m = s.current,
     blockers = m ? activationBlockers(m) : [],
@@ -1156,7 +1143,7 @@ function Markets(props: MarketsProps) {
             <div className="mk-heading">
               <div>
                 <Button className="mk-link" data-action="back">
-                  <ArrowLeft size={16}/> Tous les marchés
+                  <ArrowLeft size={16}/> {client||"Tous les clients"}
                 </Button>
                 <h1>{m.reference || m.title || "Nouveau marché"}</h1>{m.reference&&<p className="mk-market-title">{m.title}</p>}
                 <p>
@@ -1212,7 +1199,7 @@ function Markets(props: MarketsProps) {
             </div>
           </>
         ) : (
-          <MarketList {...props} />
+          <MarketList {...props} client={client} onClient={setClient} />
         )}
       </section>
     </Busy.Provider>

@@ -21,7 +21,7 @@ function Agenda(p:AgendaProps){const s=p.snapshot,entries=filterEntries(s.entrie
  const open=(e:AgendaEntry)=>p.open(e.kind,e.id);
  const move=(n:number)=>p.change({month:new Date(Date.UTC(Number(s.month.slice(0,4)),Number(s.month.slice(5,7))-1+n,1)).toISOString().slice(0,7)});
  return <section className="agenda-shell" data-react-agenda={s.panel} aria-label={s.panel==='balances'?'Soldes et gestion des congés':'Agenda partagé des déplacements et congés'}><style>{contrast}</style>
- {document.getElementById('agendaBalanceAction')&&createPortal(<button type="button" className="btn agenda-balances-button" id="agendaBalances" onClick={p.balances} aria-pressed={s.panel==='balances'}><Avatar key={s.person||s.viewer} person={s.people.find(person=>person.id===(s.person||s.viewer))}/><span>Soldes et gestion des congés</span><ArrowUpRight size={15} aria-hidden="true"/></button>,document.getElementById('agendaBalanceAction')!)}
+ {document.getElementById('agendaBalanceAction')&&createPortal(<button type="button" className="btn agenda-balances-button" id="agendaBalances" onClick={p.balances} aria-pressed={s.panel==='balances'}><Avatar key={s.viewer} person={s.people.find(person=>person.id===s.viewer)}/><span>Soldes et gestion des congés</span><ArrowUpRight size={15} aria-hidden="true"/></button>,document.getElementById('agendaBalanceAction')!)}
  {s.notice&&<div className="agenda-conflict" role="status">{s.notice}</div>}{s.error&&<div className="agenda-error" role="alert">{s.error}{s.loaded&&' Les dernières données chargées restent affichées.'}<button className="btn btn-ghost btn-sm" onClick={p.refresh}>Réessayer</button></div>}
  {s.panel==='balances'?<Balances {...p}/>:<>
 

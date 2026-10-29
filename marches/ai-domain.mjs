@@ -31,6 +31,7 @@ prices: {label: intitulé de prestation, amount: euros décimaux HT ou null, vat
 ceilings: {label: libellé, amount: euros décimaux ou null, basis: HT/TTC, scope: annual/contract, consumptionBasis: orders/invoices, notes: texte, quote: citation}
 periods: {label: libellé, startDate: date ISO ou vide, endDate: date ISO ou vide, decision: règle de calcul ou décision à prendre, quote: citation}
 conditions: {category: payment/billing/orders/revision/expenses/deliverables/report/tax/other, label: libellé, value: règle exacte résumée, quote: citation}
+Les objets de marchés, intitulés de prestations et accords-cadres ne sont pas des projets. Ne créer un projet que pour un projet nommé distinctement (acronyme ou nom propre).
 projects: {name: nom explicite du projet, code: identifiant explicite ou vide, programme: programme de financement ou vide, startDate: date ISO ou vide, endDate: date ISO ou vide, quote: citation du projet, orders: [{reference: référence du bon de commande effectivement émis, date: date ISO ou vide, amount: montant HT en euros ou null, quote: citation du bon}]}
 issues: {title: titre, detail: ambiguïté concrète, blocking: booléen, quote: citation}
 Champs facts : title, reference, clientName (acheteur, pas titulaire), type(framework/fixed/quote/mixed/consultation/direct), billingMode(actual/fixed/milestone/schedule/mixed), notificationDate(YYYY-MM-DD, uniquement réception établie), startBasis(notification/first_order/date), startDate(YYYY-MM-DD explicite de début d'exécution), initialDurationMonths(6/12/24/36), maximumMinor(maximum HT global du contrat en centimes, jamais plafond annuel ni estimation), periodBasis(unknown/notification/calendar/custom), renewalMode(unknown/none/tacit/express), renewalCount(entier), noMinimum(booléen), minimumMinor(centimes entiers), feesIncluded(booléen).
@@ -94,6 +95,7 @@ export function decode(output,part){
     }
     if(section==='projects'){
      if(!r.name||!normalize(r.quote).includes(normalize(r.name)))continue;
+     if(/^(?:accord.cadre|marche (?:de|d[’']))/i.test(r.name)||r.name.length>100&&/^assistance (?:technique|administrative)/i.test(r.name)&&/relative|conduite de projets/i.test(r.name)){result.warnings.push('Un intitulé de marché a été écarté des projets.');continue;}
      const dates={};for(const k of ['startDate','endDate'])dates[k]=dateInQuote(r[k],r.quote)?r[k]:'';
      const project={id:crypto.randomUUID(),name:r.name,code:normalize(r.quote).includes(normalize(r.code||'∅'))?r.code:'',programme:normalize(r.quote).includes(normalize(r.programme||'∅'))?r.programme:'',...dates,notes:source.locator+' — '+source.note,archived:false,orders:[]};
      for(const order of (Array.isArray(r.orders)?r.orders:[]).slice(0,100)){

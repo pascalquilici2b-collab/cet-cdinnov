@@ -32,7 +32,7 @@ def test_revision_overrun_invalid_placement_and_unchanged_source():
     assert first['total_cents']==40000
 
 def test_revision_preserves_appendix_and_split_blocks():
-    raw=pdf(dense=True);first=s.process(raw,groups(12),{'allowAppendix':True})
+    raw=pdf('INVOICE',dense=True);first=s.process(raw,groups(12,'INVOICE'),{'allowAppendix':True})
     assert len(first['blocks'])>1
     positions=[{**b,'x':35,'scale':.8} for b in first['blocks']]
     moved=s.revise(raw,first,{'allowAppendix':True,'placements':positions})

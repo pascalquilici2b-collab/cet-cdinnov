@@ -61,6 +61,7 @@ export interface BillingTotals {
 }
 export interface BillingInvoiceRectification {parentId:string|null;parentNumber:string|null;replacementId:string|null;replacementNumber:string|null;replacementState:'draft'|'issued'|null;}
 export interface BillingDocument {
+  followup?:{version:number;title:string|null;link:BillingFollowupLink|null}|null;
   sentAt?:string|null;
   rectification?:BillingInvoiceRectification;
   id:string; version:number; status:'draft'|'finalizing'|'issue_failed'|'issued'; data:BillingDraft;
@@ -114,7 +115,9 @@ export interface BillingContext {
   seller:BillingParty;
   settings:BillingSettings;
 }
+export interface BillingFollowupLink {orderId:string;marketId:string;marketReference:string;projectId:string;project:string;reference:string;date:string;amountMinor:number|null;kind:'order'|'signed_quote';files:{documentId:string;marketId?:string;filename:string}[];}
 export interface BillingTransport {
+  updateFollowup(id:string,version:number,input:{title?:string;orderId?:string;marketId?:string}):Promise<BillingDocument>;
   clientEmployees(id:string):Promise<import('./client-employees-domain').ClientEmployeeSpace>;
   saveClientEmployees(id:string,version:number,data:{agents:import('./client-employees-domain').ClientEmployee[];payments:import('./client-employees-domain').ClientPaymentMonth[]}):Promise<import('./client-employees-domain').ClientEmployeeSpace>;
   saveClientEmployeeDocument(id:string,version:number,kind:'mission'|'payment',employeeId:string,file:File):Promise<import('./client-employees-domain').ClientEmployeeSpace>;

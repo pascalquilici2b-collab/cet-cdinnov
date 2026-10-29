@@ -8,9 +8,9 @@ const key=(s:string)=>s.trim().toLocaleLowerCase('fr');
 export async function linkedEngagements(db:Database,marketId?:string){
  const exists=await db.prepare("SELECT name FROM sqlite_master WHERE name='billing_quote_engagements'").first();
  if(!exists)return [];
- const rows=await db.prepare(`SELECT e.document_id,e.kind,e.filename,e.metadata_json,i.number FROM billing_quote_engagements e
- JOIN billing_issuances i ON i.document_id=e.document_id ORDER BY e.created_at DESC`).all<{document_id:string;kind:'order'|'signed_quote';filename:string;metadata_json:string;number:string}>();
- return rows.results.map(r=>({documentId:r.document_id,kind:r.kind,filename:r.filename,quoteNumber:r.number,...JSON.parse(r.metadata_json) as BillingEngagementDetails})).filter(r=>!marketId||r.marketId===marketId);
+ const rows=await db.prepare(`SELECT e.document_id,e.kind,e.filename,e.metadata_json,f.link_json,i.number FROM billing_quote_engagements e
+ JOIN billing_issuances i ON i.document_id=e.document_id LEFT JOIN billing_document_followup f ON f.document_id=e.document_id ORDER BY e.created_at DESC`).all<{document_id:string;kind:'order'|'signed_quote';filename:string;metadata_json:string;link_json:string|null;number:string}>();
+ return rows.results.map(r=>({documentId:r.document_id,kind:r.kind,filename:r.filename,quoteNumber:r.number,...JSON.parse(r.metadata_json) as BillingEngagementDetails,...(r.link_json?JSON.parse(r.link_json):{})})).filter(r=>!marketId||r.marketId===marketId);
 }
 
 /** Read projections: files stay archived once, markets and the billing list share the same links. */
@@ -23,19 +23,22 @@ export async function engagementTracking(db:Database):Promise<BillingEngagementT
   db.prepare('SELECT id,market_id,name FROM market_documents').all<{id:string;market_id:string;name:string}>(),
   db.prepare('SELECT market_id,order_id,sum(amount_minor) AS total FROM billing_order_allocations GROUP BY market_id,order_id').all<{market_id:string;order_id:string;total:number}>()
  ]);
+ const followups=(await db.prepare('SELECT document_id,link_json FROM billing_document_followup WHERE link_json IS NOT NULL').all<{document_id:string;link_json:string}>()).results;
+ const roots=(await db.prepare('SELECT id,root_id FROM billing_link_roots').all<{id:string;root_id:string}>()).results;
  const markets=marketRows.results.map(r=>({...JSON.parse(r.payload),id:r.id} as Market));
  const orders:BillingEngagementTracking['orders']=[];
  for(const m of markets)for(const p of [...(m.projects||[]),{id:'',name:'Engagement global — tous les projets',orders:m.orders||[]}])for(const o of p.orders||[]){
   const source=documents.results.find(d=>d.id===o.documentId&&d.market_id===m.id);
   orders.push({id:o.id,kind:'order',reference:o.reference,date:o.date,amountMinor:o.amountMinor,marketId:m.id,market:m.reference||m.title,client:m.clientName,projectId:p.id,project:p.name,quoteIds:[],notes:o.notes,historyPending:o.historyPending,files:source?[{documentId:source.id,marketId:m.id,filename:source.name}]:[],invoicedMinor:0,invoices:[]});
  }
- for(const e of linked){
+ for(const original of linked){
+  const override=followups.find(f=>f.document_id===original.documentId),link=override?JSON.parse(override.link_json):null,e=link?{...original,...link,market:link.marketReference}:original;
   const m=markets.find(m=>m.id===e.marketId),p=markets.flatMap(m=>m.projects||[]).find(p=>p.id===e.projectId);
   let o=orders.find(o=>e.kind==='order'&&o.marketId===e.marketId&&(!o.projectId||o.projectId===e.projectId)&&(o.id===e.orderId||key(o.reference)===key(e.reference)));
   if(!o){o={id:e.orderId||'engagement:'+e.documentId,kind:e.kind,reference:e.reference||e.quoteNumber,date:e.date,amountMinor:e.amountMinor,marketId:e.marketId,market:m?.reference||m?.title||'',client:e.client||m?.clientName||'',projectId:e.projectId,project:p?.name||e.project||'',quoteIds:[],files:[],invoicedMinor:0,invoices:[]};orders.push(o);}
-  o.quoteIds.push(e.documentId);o.files.push({documentId:e.documentId,filename:e.filename});
+  if(!o.quoteIds.includes(e.documentId))o.quoteIds.push(e.documentId);if(link)o.files.push(...link.files.filter((f:any)=>!o!.files.some(x=>x.documentId===f.documentId&&x.marketId===f.marketId)));else o.files.push({documentId:e.documentId,filename:e.filename});
  }
- const native=invoices.results.map(r=>{const d=JSON.parse(r.data_json);return {id:r.id,number:r.number,trashed:!!r.trashed,sourceId:r.source_document_id,refs:d.references,amountMinor:Number(JSON.parse(r.totals_json).netMinor)*(d.creditNote?-1:1)};});
+ const native=invoices.results.map(r=>{const d=JSON.parse(r.data_json);return {id:r.id,number:r.number,trashed:!!r.trashed,sourceId:roots.find(x=>x.id===r.id)?.root_id||r.source_document_id,refs:(()=>{const f=followups.find(f=>f.document_id===(roots.find(x=>x.id===r.id)?.root_id||r.id));if(!f)return d.references;const l=JSON.parse(f.link_json);return {...d.references,...l,orderReference:l.reference};})(),amountMinor:Number(JSON.parse(r.totals_json).netMinor)*(d.creditNote?-1:1)};});
  const legacyRecords=JSON.parse(legacy?.invoices||'[]') as Record<string,unknown>[];
  const reviews=legacyRecords.filter(f=>!f.orderId&&f.orderLinkReview).map(f=>{const r=f.orderLinkReview as {reference?:string;reason?:string};return {id:String(f.id),number:String(f.number||''),client:String(f.client||''),reference:r.reference||'',reason:r.reason||''};});
  const imported=legacyRecords.map(f=>({id:'imported:'+f.id,number:String(f.number||''),trashed:false,sourceId:null,refs:{marketId:f.marketId,projectId:f.projectId,orderId:f.orderId,orderReference:f.orderReference},amountMinor:Math.round(Number(f.ht||0)*100)}));

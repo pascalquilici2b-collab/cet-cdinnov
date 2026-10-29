@@ -1,3 +1,4 @@
+import {accrueLeave} from './leave-accrual';
 import {hasAccess} from './access';
 import type {AccessKey} from './access';
 import {orderLimitMessage} from './billing-order-budget';
@@ -18,7 +19,7 @@ import {dataExport} from './data-export';
 /** One deployable entry; modern and compatibility routes share the typed identity module. */
 export default {
   queue: stampingQueue,
-  async scheduled(_event:unknown,env:Environment){await purgeStamping(env);},
+  async scheduled(_event:unknown,env:Environment){await accrueLeave(env.BUDGETS_DB.withSession('first-primary'));await purgeStamping(env);},
   async fetch(request: Request, env: Environment, ctx?: unknown): Promise<Response> {
     const path = new URL(request.url).pathname;
     let headers = new Headers({'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});
