@@ -103,6 +103,8 @@ export type BillingDirectoryRecord={id:string;version:number;updatedAt:string|nu
 export interface BillingDirectoryPage {records:BillingDirectoryRecord[];total:number;offset:number;limit:number;}
 export interface BillingFilterOption {value:string;label:string;}
 export interface BillingPage {documents:BillingDocument[]; total:number; limit:number; offset:number; filters?:{clients:BillingFilterOption[];projects:BillingFilterOption[]};}
+export type BillingContextOrder=import('./client/markets-contracts').MarketOrder & {serviceCode?:string;engagement?:string;otherReference?:string};
+export type BillingContextProject=Omit<import('./client/markets-contracts').MarketProject,'orders'> & {orders:BillingContextOrder[]};
 export interface BillingContext {
   interventionReports?:Record<string,number>;
   numbering?:{kind:BillingKind;prefix:string;width:number;nextValue:number}[];
@@ -111,7 +113,7 @@ export interface BillingContext {
   documentService:{configured:boolean};
   clients:{id:string; name:string}[];
   businessCodes:{id:string; code:string; label:string; client:string}[];
-  markets:{id:string;consumption?:MarketConsumption;version?:number; title:string; reference:string; clientName:string;clientId?:string;activity?:import('./project-activity').Activity;prices?:import('./client/markets-contracts').Price[];projects?:import('./client/markets-contracts').MarketProject[]}[];
+  markets:{id:string;consumption?:MarketConsumption;version?:number; title:string; reference:string; clientName:string;clientId?:string;activity?:import('./project-activity').Activity;prices?:import('./client/markets-contracts').Price[];projects?:BillingContextProject[];orders?:BillingContextOrder[]}[];
   seller:BillingParty;
   settings:BillingSettings;
 }

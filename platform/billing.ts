@@ -1,8 +1,10 @@
 import {followupRoute,followupJSON} from './billing-followup';
+import {selectedLink,syncLinkedDrafts,linkedReferences} from './billing-link-sync';
 import {readAnnualQuotes,consumptionForMarket} from '../marches/annual-consumption.mjs';
 import {invoiceSelection} from './billing-invoice-selection';
 import {budgetSQL,budgetBindings,checkOrderBudget,orderLimitMessage} from './billing-order-budget';
 import {projectsForMarket,projectMarketIds} from './project-links';
+import {clientDirectoryChoices} from './client-directory-projection';
 import {marketActivity} from './project-activity';
 import {createHash} from 'node:crypto';
 import type {Database,Environment,Reply} from './contracts';
@@ -113,16 +115,18 @@ async function context(db:Database,env:Environment):Promise<BillingContext> {
  const parsedMarkets=markets.results.map(r=>({...r,market:JSON.parse(r.payload)}));
  const projectOwners=parsedMarkets.map(r=>({id:r.id,projects:r.market.projects||[]}));
  const [engagements,annualQuotes,reports,numbering]=await Promise.all([linkedEngagements(db),readAnnualQuotes(db),db.prepare('SELECT document_key,version FROM billing_intervention_reports').all<{document_key:string;version:number}>(),db.prepare('SELECT s.kind,s.prefix,s.width,s.next_value AS nextValue FROM billing_default_series p JOIN billing_number_series s ON s.id=p.series_id WHERE p.issuer_siren=?').bind(settings.data.seller.siren||settings.data.seller.siret.slice(0,9)).all<{kind:'invoice'|'quote';prefix:string;width:number;nextValue:number}>()]);
- const marketProjects=(id:string)=>projectsForMarket(id,projectOwners).map(p=>{const orders=[...p.orders,...(parsedMarkets.find(m=>m.id===id)?.market.orders||[])];return {...p,orders:[...orders,...engagements.filter(e=>e.kind==='order'&&e.marketId===id&&(!e.projectId||e.projectId===p.id)&&!orders.some(o=>o.id===e.orderId)).map(e=>({id:e.orderId,reference:e.reference,date:e.date,amountMinor:e.amountMinor,documentId:'',notes:'',archived:false}))]};});
+ const ordersForContext=(id:string,orders:import('./client/markets-contracts').MarketOrder[],projectId='')=>{const linked=engagements.filter(e=>e.kind==='order'&&e.marketId===id&&(!e.projectId||e.projectId===projectId)),all=[...orders,...linked.filter(e=>!orders.some(o=>o.id===e.orderId)).map(e=>({id:e.orderId,reference:e.reference,date:e.date,amountMinor:e.amountMinor,documentId:'',notes:'',archived:false}))];return [...new Map(all.map(o=>{const e=linked.find(e=>e.orderId===o.id);return [o.id,{...o,serviceCode:e?.serviceCode||'',engagement:e?.engagement||'',otherReference:e?.otherReference||''}];})).values()];};
+ const marketOrders=(id:string)=>ordersForContext(id,parsedMarkets.find(m=>m.id===id)?.market.orders||[]);
+ const marketProjects=(id:string)=>projectsForMarket(id,projectOwners).map(p=>({...p,orders:ordersForContext(id,[...p.orders,...marketOrders(id)],p.id)}));
  return {
   documentService:{configured:documentServiceConfigured(env)},
   interventionReports:Object.fromEntries(reports.results.map(r=>[r.document_key,r.version])),
   numbering:numbering.results,
   people:people.results.map(r=>JSON.parse(r.data_json)).map(p=>({id:text(p.matricule),name:[text(p.prenom),text(p.nom)].filter(Boolean).join(' '),photo:text(p.photo)})).filter(p=>p.id&&p.name),
   clientLogos:logos.results.map(r=>{const p=JSON.parse(r.data_json);return {id:r.id,name:text(p.party?.name),siren:text(p.party?.siren),siret:text(p.party?.siret),logoKey:text(p.logoKey),logoData:text(p.logoData)};}),
-  clients:clients.results.map(r=>JSON.parse(r.data_json)).filter(object).map(r=>({id:text(r.id),name:text(r.name)})).filter(r=>r.id&&r.name),
+  clients:clientDirectoryChoices(clients.results,logos.results),
   businessCodes:codes.results.map(r=>JSON.parse(r.data_json)).filter(object).map(r=>({id:text(r.id),code:[r.code1,r.code2].filter(v=>typeof v==='number'||(typeof v==='string'&&v)).join(' '),label:text(r.label),client:text(r.client)})).filter(r=>r.id),
-  markets:parsedMarkets.filter(r=>r.market.status!=='archived').map(r=>{const p=r.market;return {id:r.id,consumption:consumptionForMarket({...p,id:r.id},annualQuotes),version:r.version,title:text(p.title),reference:text(p.reference),clientName:text(p.clientName),clientId:text(p.clientId),activity:marketActivity({...p,projects:marketProjects(r.id)}),prices:Array.isArray(p.prices)?p.prices:[],projects:marketProjects(r.id)};}),
+  markets:parsedMarkets.filter(r=>r.market.status!=='archived').map(r=>{const p=r.market;return {id:r.id,consumption:consumptionForMarket({...p,id:r.id},annualQuotes),version:r.version,title:text(p.title),reference:text(p.reference),clientName:text(p.clientName),clientId:text(p.clientId),activity:marketActivity({...p,projects:marketProjects(r.id)}),prices:Array.isArray(p.prices)?p.prices:[],projects:marketProjects(r.id),orders:marketOrders(r.id)};}),
   seller:settings.data.seller,settings
  };
 }
@@ -243,9 +247,33 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
   if(request.method!=='POST')return reply(405,{error:'Méthode non autorisée.'});
   const expected=expectedVersion(request);await body(request,[]);const row=await get(db,id);
   if(!row)return reply(404,{error:'Document introuvable.'});if(row.version!==expected)return conflict();
-  if(trashed)try{await db.prepare('DELETE FROM billing_document_trash WHERE document_id=? AND document_version=?').bind(id,expected).run();}
-  catch(error){if(String(error).includes('BILLING_RECTIFICATION_CONFLICT'))return fail(409,'La facture originale a été transmise ou possède un historique de paiement. Cette rectification ne peut plus être restaurée.');throw error;}
-  return reply(200,document(row));
+  if(trashed){
+   const record=document(row),root=await db.prepare('SELECT root_id FROM billing_link_roots WHERE id=?').bind(id).first<{root_id:string}>();
+   if(!root)return conflict();
+   const canRefresh=!record.issuance&&!record.quote?.revision.abandoned;
+   const references=canRefresh?await linkedReferences(db,record.data.references,record.followup?.link):record.data.references;
+   const refreshed=canRefresh&&JSON.stringify(references)!==JSON.stringify(record.data.references)?prepared({...record.data,references}):null;
+   if(refreshed)await checkProjectLinks(db,refreshed.data);
+   const stamp=new Date().toISOString();
+   // A deleted draft does not participate in family synchronization. Refresh it against
+   // the current shared link in the same transaction that makes it editable again.
+   const statements=[
+    db.prepare(`INSERT INTO billing_link_writes(root_id,valid) VALUES(?,
+     EXISTS(SELECT 1 FROM billing_documents WHERE id=? AND version=? AND data_json=? AND ${followupJSON} IS ?)
+     AND EXISTS(SELECT 1 FROM billing_document_trash WHERE document_id=? AND document_version=?)
+     AND EXISTS(SELECT 1 FROM billing_link_roots WHERE id=? AND root_id=?))`).bind(root.root_id,id,expected,row.data_json,row.followup_json??null,id,expected,id,root.root_id),
+    db.prepare('DELETE FROM billing_document_trash WHERE document_id=? AND document_version=?').bind(id,expected),
+    ...(refreshed?[db.prepare('UPDATE billing_documents SET version=version+1,data_json=?,totals_json=?,issues_json=?,updated_at=?,updated_by=? WHERE id=?').bind(refreshed.dataJSON,refreshed.totalsJSON,refreshed.issuesJSON,stamp,session.email,id)]:[]),
+    db.prepare('DELETE FROM billing_link_writes WHERE root_id=?').bind(root.root_id)
+   ];
+   try{await db.batch(statements);}catch(error){
+    if(String(error).includes('BILLING_ORDER_LIMIT'))return fail(422,'La restauration dépasserait le montant du bon de commande actuellement lié.');
+    if(String(error).includes('BILLING_RECTIFICATION_CONFLICT'))return fail(409,'La facture originale a été transmise ou possède un historique de paiement. Cette rectification ne peut plus être restaurée.');
+    if(/billing_link_writes|BILLING_LINK_WRITE_CONFLICT|BILLING_TRASH_CONFLICT|BILLING_DOCUMENT_RESERVED/.test(String(error)))return conflict();
+    throw error;
+   }
+  }
+  return reply(200,document((await get(db,id))!));
  }
  if(!match[2]&&request.method==='DELETE'){
   const expected=expectedVersion(request),row=await get(db,id);
@@ -339,8 +367,27 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
  }
  if(!match[2]&&request.method==='PUT') {
   const expected=expectedVersion(request),input=await body(request,['data']),p=prepared(input.data);
+  const before=await get(db,id);if(!before)return reply(404,{error:'Document introuvable.'});
+  if(before.version!==expected)return conflict();
+  const previous=document(before);
+  if(previous.issuance)return fail(409,'Ce document est figé et ne peut plus être modifié. Créez un document correctif.');
+  if(previous.data.kind!==p.data.kind)return fail(400,'Le type du document ne peut pas être modifié.');
+  if(previous.quote?.revision.abandoned)return fail(409,'Cette version a été abandonnée. Ouvrez la version en cours.');
   const numbered=await db.prepare('SELECT issuer_siren FROM billing_draft_numbers WHERE document_id=?').bind(id).first<{issuer_siren:string}>();
   if(numbered&&numbered.issuer_siren!==(p.data.seller.siren||p.data.seller.siret.slice(0,9)).replace(/\s/g,''))return fail(409,'Le numéro est réservé pour cet émetteur. Créez un nouveau document pour changer d’émetteur.');
+  const old=previous.data.references,refs=p.data.references;
+  const changedOrder=old.orderId!==refs.orderId||old.marketId!==refs.marketId;
+  const changedService=(['serviceCode','engagement','otherReference'] as const).some(k=>old[k]!==refs[k]);
+  if((changedOrder||changedService)&&(refs.orderId||previous.followup?.link)){
+   if(!refs.orderId&&changedOrder)return fail(422,'Choisissez un autre engagement pour modifier le rattachement partagé avec le devis.');
+   const link=changedOrder?await selectedLink(db,refs.marketId,refs.orderId||''):previous.followup?.link?{...previous.followup.link}:await selectedLink(db,refs.marketId,refs.orderId||'');
+   for(const key of ['serviceCode','engagement','otherReference'] as const)if(!changedOrder||refs[key]!==old[key])link[key]=refs[key]||'';
+   p.data.references=await linkedReferences(db,refs,link);
+   await checkProjectLinks(db,p.data);
+   const root=await db.prepare('SELECT root_id FROM billing_link_roots WHERE id=?').bind(id).first<{root_id:string}>();
+   await syncLinkedDrafts(db,root!.root_id,previous.followup?.version||0,previous.followup?.title??null,link,session.email,{id,version:expected,data:p.data});
+   return reply(200,document((await get(db,id))!));
+  }
   await checkProjectLinks(db,p.data);
   const saved=await db.prepare(`UPDATE billing_documents SET version=version+1,data_json=?,totals_json=?,issues_json=?,updated_at=?,updated_by=?
    WHERE id=? AND version=? AND kind=? AND status='draft' AND NOT EXISTS(SELECT 1 FROM billing_issuances WHERE document_id=billing_documents.id) AND NOT EXISTS(SELECT 1 FROM billing_quote_revisions WHERE document_id=billing_documents.id AND abandoned_at IS NOT NULL) AND ${budgetSQL()} RETURNING *`).bind(p.dataJSON,p.totalsJSON,p.issuesJSON,new Date().toISOString(),session.email,id,expected,p.data.kind,...budgetBindings(id,p.data)).first<Row>();
@@ -369,7 +416,7 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
   if(sourceRecord.status!=='issued'||sourceRecord.quote?.state!=='accepted'||!sourceRecord.quote.engagement)return fail(409,'Acceptez le devis puis liez un bon de commande ou un devis signé avant de créer la facture.');
   const sourceData=invoiceSelection(normalizeDraft(JSON.parse(source.data_json)),input.selection),settings=await readSettings(db);
   const commitment=sourceRecord.followup?.link?{...sourceRecord.quote.engagement.details,...sourceRecord.followup.link}:sourceRecord.quote.engagement.details;
-  if(commitment){sourceData.references={...sourceData.references,...(commitment.engagement?{engagement:commitment.engagement}:{}),...(commitment.serviceCode?{serviceCode:commitment.serviceCode}:{}),...(commitment.otherReference?{otherReference:commitment.otherReference}:{}),marketId:commitment.marketId,marketReference:commitment.marketReference,projectId:commitment.projectId||sourceData.references.projectId||'',project:commitment.projectId?commitment.project:sourceData.references.project,...((sourceRecord.followup?.link?.kind||sourceRecord.quote.engagement.kind)==='order'?{orderId:commitment.orderId,orderReference:commitment.reference}:{})};}
+  if(commitment)sourceData.references=await linkedReferences(db,sourceData.references,{...commitment,kind:sourceRecord.followup?.link?.kind||sourceRecord.quote.engagement.kind,files:sourceRecord.followup?.link?.files||[]});
   const p=prepared({...sourceData,kind:'invoice',dueDate:'',issueDate:new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Paris'}).format(new Date()),paymentMeans:'30',paymentTerms:settings.data.paymentTerms,legalNotes:settings.data.legalNotes,vatDue:settings.data.vatDue,validUntil:'',references:{...sourceData.references,...(document(source).issuance?.number?{quoteNumber:document(source).issuance!.number}:{})},iban:settings.data.iban,bic:settings.data.bic,details:{...blankDocumentDetails(),...sourceData.details,validityMonths:'',returnEmail:settings.data.returnEmail??'cdi@cdinnov.com',interventions:[]}}),stamp=new Date().toISOString();
   let created:Row|null;
   try {

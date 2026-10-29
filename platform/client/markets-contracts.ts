@@ -80,10 +80,12 @@ export interface Market {
   conditions: Condition[];
   issues: Issue[];
   projects?: MarketProject[];
+  linkedProjects?: LinkedMarketProject[];
   orders?: MarketOrder[];
 }
 export interface MarketOrder {id:string;reference:string;date:string;amountMinor:number|null;documentId:string;notes:string;archived:boolean;historyPending?:boolean;}
 export interface MarketProject {id:string;name:string;code:string;programme?:string;startDate?:string;endDate?:string;logoData?:string;marketIds?:string[];clientIds?:string[];notes:string;archived:boolean;orders:MarketOrder[];}
+export interface LinkedMarketProject extends Omit<MarketProject,'orders'> {ownerMarketId:string;ownerMarketReference:string;ownerMarketTitle:string;}
 export interface MarketDocument {
   id: string;
   name: string;

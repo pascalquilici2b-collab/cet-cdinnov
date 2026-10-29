@@ -4,6 +4,7 @@ import {boundedBody} from './portal';
 import {validateMarket} from '../marches/domain.mjs';
 import {validClientLogoData} from './billing-client-logo';
 import {projectMarketIds} from './project-links';
+import {clientDirectoryChoices} from './client-directory-projection';
 export interface SharedProject {id:string;marketId:string;marketVersion:number;marketIds?:string[];clientIds?:string[];clientNames?:string[];marketLabels?:string[];logoData?:string;name:string;code:string;programme?:string;startDate?:string;endDate?:string;notes:string;archived:boolean;marketTitle:string;marketReference:string;clientName:string;}
 export type ProjectInput=Pick<SharedProject,'id'|'marketId'|'marketVersion'|'marketIds'|'clientIds'|'logoData'|'name'|'code'|'programme'|'startDate'|'endDate'|'notes'|'archived'>;
 export async function projectsRoute(request:Request,env:Environment,reply:Reply){
@@ -19,9 +20,7 @@ export async function projectsRoute(request:Request,env:Environment,reply:Reply)
   db.prepare("SELECT id,data_json FROM billing_directory WHERE kind='clients'").all<{id:string;data_json:string}>()
  ]);
  const markets=new Map(allMarkets.results.map(r=>[r.id,JSON.parse(r.payload)]));
- const clients=new Map<string,string>();
- for(const row of budgetClients.results){const c=JSON.parse(row.data_json);if(c.id&&c.name)clients.set(c.id,c.name);}
- for(const row of directoryClients.results){const c=JSON.parse(row.data_json);if(c.party?.name)clients.set(row.id,c.party.name);}
+ const clients=new Map(clientDirectoryChoices(budgetClients.results,directoryClients.results,true).map(c=>[c.id,c.name]));
  const describe=(ownerId:string,d:any)=>{
   const owner=markets.get(ownerId),marketIds=projectMarketIds(ownerId,d),linkedMarkets=marketIds.map(id=>markets.get(id)).filter(Boolean);
   return {marketIds,clientIds:d.clientIds||[],logoData:d.logoData||'',marketTitle:owner?.title||'',marketReference:owner?.reference||'',clientName:owner?.clientName||'',
@@ -30,7 +29,7 @@ export async function projectsRoute(request:Request,env:Environment,reply:Reply)
  };
  if(request.method==='GET'){
   const rows=await db.prepare('SELECT * FROM commercial_projects ORDER BY name COLLATE NOCASE,id').all<{id:string;market_id:string;market_version:number;name:string;code:string;archived:number;data_json:string}>();
-  return reply(200,{clients:commercial?[...clients].map(([id,name])=>({id,name})).sort((a,b)=>a.name.localeCompare(b.name,'fr')):[],projects:rows.results.filter(p=>commercial||!p.archived).map(p=>{const d=JSON.parse(p.data_json);return {id:p.id,marketId:p.market_id,marketVersion:p.market_version,name:p.name,code:p.code,programme:d.programme||'',startDate:d.startDate||'',endDate:d.endDate||'',archived:!!p.archived,...(commercial?{notes:d.notes||''}:{}),...describe(p.market_id,d)};})});
+  return reply(200,{clients:commercial?clientDirectoryChoices(budgetClients.results,directoryClients.results):[],projects:rows.results.filter(p=>commercial||!p.archived).map(p=>{const d=JSON.parse(p.data_json);return {id:p.id,marketId:p.market_id,marketVersion:p.market_version,name:p.name,code:p.code,programme:d.programme||'',startDate:d.startDate||'',endDate:d.endDate||'',archived:!!p.archived,...(commercial?{notes:d.notes||''}:{}),...describe(p.market_id,d)};})});
  }
  if(!request.headers.get('content-type')?.startsWith('application/json'))return reply(415,{error:'Format JSON requis.'});
  let data:ProjectInput;try{data=JSON.parse(new TextDecoder().decode(await boundedBody(request,400000)));}catch{return reply(400,{error:'Projet invalide ou logo trop volumineux.'});}

@@ -1,7 +1,7 @@
 /** Atomic capacity checks shared by native invoices and imported invoices. Amounts are integer cents HT. */
 export const billingOrderBudgetSchema=[
 ...['insert','update'].map(action=>`DROP TRIGGER IF EXISTS billing_followup_document_capacity_${action}`),
-...['INSERT','UPDATE'].map(action=>`CREATE TRIGGER IF NOT EXISTS billing_followup_document_capacity_${action.toLowerCase()} AFTER ${action} ON billing_documents WHEN NEW.kind='invoice' AND EXISTS(SELECT 1 FROM billing_link_roots r LEFT JOIN billing_document_followup f ON f.document_id=r.root_id LEFT JOIN billing_quote_engagements e ON e.document_id=r.root_id WHERE r.id=NEW.id AND (f.link_json IS NOT NULL OR e.document_id IS NOT NULL)) BEGIN
+...['INSERT','UPDATE'].map(action=>`CREATE TRIGGER IF NOT EXISTS billing_followup_document_capacity_${action.toLowerCase()} AFTER ${action} ON billing_documents WHEN NEW.kind='invoice' AND NOT EXISTS(SELECT 1 FROM billing_link_roots r JOIN billing_link_writes w ON w.root_id=r.root_id WHERE r.id=NEW.id) AND EXISTS(SELECT 1 FROM billing_link_roots r LEFT JOIN billing_document_followup f ON f.document_id=r.root_id LEFT JOIN billing_quote_engagements e ON e.document_id=r.root_id WHERE r.id=NEW.id AND (f.link_json IS NOT NULL OR e.document_id IS NOT NULL)) BEGIN
  SELECT CASE WHEN EXISTS(SELECT 1 FROM billing_order_allocations own JOIN billing_order_limits l ON l.market_id=own.market_id AND l.order_id=own.order_id WHERE own.document_id=NEW.id AND own.origin='native' AND l.limit_minor IS NOT NULL AND (SELECT sum(a.amount_minor) FROM billing_order_allocations a WHERE a.market_id=l.market_id AND a.order_id=l.order_id)>l.limit_minor) THEN RAISE(ABORT,'BILLING_ORDER_LIMIT') END; END`),
 `DROP VIEW IF EXISTS billing_order_limits`,
 `CREATE VIEW billing_order_limits AS

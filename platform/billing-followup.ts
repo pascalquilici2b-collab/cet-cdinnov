@@ -1,7 +1,7 @@
 import type {Database,Reply} from './contracts';
 import type {BillingDocument} from './billing-contracts';
 import {boundedBody} from './portal';
-import {engagementTracking} from './billing-engagement-tracking';
+import {selectedLink,syncLinkedDrafts} from './billing-link-sync';
 const fail=(status:number,message:string):never=>{throw Object.assign(new Error(message),{status});};
 // A converted invoice inherits the archived quote commitment until a shared tracking correction overrides it.
 export const followupJSON=`(SELECT json_object('version',coalesce(f.version,0),'title',CASE WHEN billing_documents.kind='quote' THEN f.title ELSE NULL END,
@@ -21,9 +21,9 @@ export async function followupRoute(request:Request,db:Database,record:BillingDo
  if(Object.hasOwn(input,'title')){if(record.data.kind!=='quote'||typeof input.title!=='string'||!input.title.trim()||input.title.length>300)return fail(422,'Le libellé de suivi est réservé aux devis (300 caractères maximum).');title=input.title.trim();}
  if(Object.hasOwn(input,'orderId')){
   if(typeof input.orderId!=='string'||typeof input.marketId!=='string')return fail(422,'Choisissez un engagement.');
-  const tracking=await engagementTracking(db),order=tracking.orders.find(o=>o.id===input.orderId&&o.marketId===input.marketId);
-  if(!order)return fail(422,'Cet engagement n’existe plus. Actualisez la liste.');
-  link=JSON.stringify({orderId:order.id,marketId:order.marketId,marketReference:order.market,projectId:order.projectId,project:order.project,reference:order.reference,date:order.date,amountMinor:order.amountMinor,kind:order.kind,files:order.files,serviceCode:order.serviceCode||'',engagement:order.engagement||'',otherReference:order.otherReference||''});
+  const selected=await selectedLink(db,input.marketId,input.orderId);
+  await syncLinkedDrafts(db,root.root_id,Number(expected),title,selected,email);
+  return reply(200,await read());
  }
  if(!Object.hasOwn(input,'title')&&!Object.hasOwn(input,'orderId'))return fail(400,'Aucune modification.');
  const stamp=new Date().toISOString();

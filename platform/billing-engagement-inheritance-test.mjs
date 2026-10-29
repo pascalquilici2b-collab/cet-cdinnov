@@ -31,9 +31,9 @@ test('global quote engagement and service follow invoice, project selection, tra
   assert.equal((await ctx.db.prepare('SELECT order_id FROM billing_order_allocations WHERE document_id=?').bind(invoice.id).first()).order_id,orderId);
   await assert.rejects(ctx.db.prepare("UPDATE billing_documents SET totals_json=json_set(totals_json,'$.netMinor',600000),version=version+1 WHERE id=?").bind(invoice.id).run(),/BILLING_ORDER_LIMIT/);
   response=await q.call('/documents/'+invoice.id+'/followup','PATCH',{marketId,orderId},{'If-Match':'0'});assert.equal(response.status,200,await response.clone().text());invoice=await response.json();assert.equal(invoice.followup.link.serviceCode,refs.serviceCode);
-  // An older invoice could lose its raw reference when selecting a project. Resolve from its quote without changing the issued snapshot.
+  // An editor must not erase an inherited commitment while leaving the shared quote/allocation attached.
   const cleared={...invoice.data,references:{...invoice.data.references,orderId:'',orderReference:'',serviceCode:''}};
-  response=await q.call('/documents/'+invoice.id,'PUT',{data:cleared},{'If-Match':String(invoice.version)});assert.equal(response.status,200,await response.clone().text());invoice=await f.finalize(await response.json());
+  response=await q.call('/documents/'+invoice.id,'PUT',{data:cleared},{'If-Match':String(invoice.version)});assert.equal(response.status,422,await response.clone().text());invoice=await f.finalize(invoice);
   const before=(await ctx.db.prepare('SELECT data_json FROM billing_documents WHERE id=?').bind(invoice.id).first()).data_json;
   const list=await(await q.call('/documents?kind=invoice')).json();assert.equal(list.documents.find(d=>d.id===invoice.id).followup.link.orderId,orderId);
   const replacement=await q.call('/documents/'+invoice.id+'/rectify','POST',{id:randomUUID(),notTransmitted:true},{'If-Match':String(invoice.version)});assert.equal(replacement.status,201,await replacement.clone().text());

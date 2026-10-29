@@ -4,6 +4,8 @@ import {createHash} from 'node:crypto';
 import {validateMarket,suggestFromText} from './domain.mjs';
 import {linkedEngagements} from '../platform/billing-engagement-tracking.ts';
 import {quoteConsumption} from './tracking.mjs';
+import {readClientDirectoryChoices} from '../platform/client-directory-projection.ts';
+import {readLinkedMarketProjects} from '../platform/project-links.ts';
 
 const MAX_FILE=5*1024*1024;
 const MAX_MARKET=50*1024*1024;
@@ -34,10 +36,9 @@ export async function handleMarkets(request,db,email,admin,reply,jsonBody,env={}
   if(!id){
     if(request.method==='GET'){
       const result=await db.prepare('SELECT * FROM markets ORDER BY updated_at DESC LIMIT 500').all();
-      const directory=await db.prepare("SELECT record_id AS id,name FROM app_budget_records WHERE workspace_id='shared' AND collection='clients' ORDER BY position").all();
-      const clients=directory.results;
+      const [clients,projects]=await Promise.all([readClientDirectoryChoices(db),readLinkedMarketProjects(db)]);
       const consumption=await quoteConsumption(db),engagements=await linkedEngagements(db);
-      return reply(200,{markets:result.results.map(r=>({...unpack(r),linkedEngagements:engagements.filter(e=>e.marketId===r.id),tracking:consumption.get(r.id)||{sentQuoteCount:0,quotedMinor:0}})),clients});
+      return reply(200,{markets:result.results.map(r=>({...unpack(r),linkedProjects:projects.get(r.id)||[],linkedEngagements:engagements.filter(e=>e.marketId===r.id),tracking:consumption.get(r.id)||{sentQuoteCount:0,quotedMinor:0}})),clients});
     }
     if(request.method!=='POST')return reply(405,{error:'Méthode non autorisée.'});
     const data=await jsonBody(request,1500000);
@@ -57,7 +58,7 @@ export async function handleMarkets(request,db,email,admin,reply,jsonBody,env={}
   if(section==='reading'&&documentId)return await handleReading(request,db,email,current,documentId,reply,jsonBody);
   if(section==='analysis')return await handleAnalysis(request,db,email,current,documentId,reply,jsonBody,env);
   if(!section){
-    if(request.method==='GET')return reply(200,{market:{...unpack(current),linkedEngagements:await linkedEngagements(db,id),tracking:(await quoteConsumption(db)).get(id)||{sentQuoteCount:0,quotedMinor:0}},documents:(await getDocs(id)).map(doc)});
+    if(request.method==='GET')return reply(200,{market:{...unpack(current),linkedProjects:(await readLinkedMarketProjects(db,id)).get(id)||[],linkedEngagements:await linkedEngagements(db,id),tracking:(await quoteConsumption(db)).get(id)||{sentQuoteCount:0,quotedMinor:0}},documents:(await getDocs(id)).map(doc)});
     if(request.method!=='PUT')return reply(405,{error:'Méthode non autorisée.'});
     const raw=request.headers.get('if-match');
     if(!raw||!/^[1-9]\d*$/.test(raw)||!Number.isSafeInteger(Number(raw)))return reply(428,{error:'Version de la fiche requise.'});
@@ -75,7 +76,7 @@ export async function handleMarkets(request,db,email,admin,reply,jsonBody,env={}
     let market;try{market=validateMarket(input,await getDocs(id));}catch(e){return reply(400,{error:e.message});}
     const row=await db.prepare('UPDATE markets SET payload=?,version=version+1,updated_at=?,updated_by=? WHERE id=? AND version=? RETURNING *').bind(JSON.stringify(market),new Date().toISOString(),email,id,Number(raw)).first();
     if(!row)return reply(409,{error:'Un collègue a modifié ce marché. Votre saisie est conservée : exportez-la avant de recharger la fiche.'});
-    return reply(200,{market:{...unpack(row),linkedEngagements:await linkedEngagements(db,id),tracking:(await quoteConsumption(db)).get(id)||{sentQuoteCount:0,quotedMinor:0}},documents:(await getDocs(id)).map(doc)});
+    return reply(200,{market:{...unpack(row),linkedProjects:(await readLinkedMarketProjects(db,id)).get(id)||[],linkedEngagements:await linkedEngagements(db,id),tracking:(await quoteConsumption(db)).get(id)||{sentQuoteCount:0,quotedMinor:0}},documents:(await getDocs(id)).map(doc)});
   }
   if(section==='history'&&!documentId&&request.method==='GET'){
     const rows=await db.prepare('SELECT version,payload,updated_at,updated_by FROM market_versions WHERE market_id=? ORDER BY version DESC LIMIT 100').bind(id).all();

@@ -93,7 +93,7 @@ if(process.argv[1]&&fileURLToPath(import.meta.url)===process.argv[1]){
  assert.equal((await ctx.call('markets/'+id+'/documents/'+d.id,{headers})).status,503);count++;
  const portal={auth:{accounts:{...ctx.accounts},allowed:users}};portal.auth.accounts[users[0]].hash='a'.repeat(64);await ctx.setPortal(JSON.stringify(portal));
  assert.equal((await ctx.call('markets',{headers})).status,401);count++;
- const html=await readFile(new URL('../index.html',import.meta.url),'utf8');for(const script of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g))new vm.Script(script[1]);assert.equal((html.match(/data-view="facturier" role=/g)||[]).length,1);assert.ok(html.includes("['marches','Marchés et contrats']"));count++;
+ const html=await readFile(new URL('../index.html',import.meta.url),'utf8');for(const script of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g))new vm.Script(script[1]);assert.equal((html.match(/data-view="facturier" role=/g)||[]).length,1);assert.ok(html.includes("['marches','Marchés et contrats','folders']"));assert.ok(html.includes("if(section==='marches'){setView('marches');return;}"));count++;
  console.log(count+' contrôles réussis dans le moteur Cloudflare local.');
  }finally{await ctx.worker.dispose();}
 }

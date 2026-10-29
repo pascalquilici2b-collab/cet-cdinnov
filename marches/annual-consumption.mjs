@@ -34,9 +34,15 @@ export function consumptionForMarket(m,quotes,today){
  return {...windows,...values[0],periods:windows.periods.length?values:[]};
 }
 export async function readAnnualQuotes(db){
- const rows=await db.prepare(`SELECT d.id,d.data_json,d.totals_json,r.root_document_id,r.ordinal,r.abandoned_at,
+ // Tracking corrections move consumption without rewriting an issued quote or its PDF.
+ // Resolve each revision independently: its commercial root is not the quote revision family.
+ const rows=await db.prepare(`SELECT d.id,d.totals_json,r.root_document_id,r.ordinal,r.abandoned_at,
+ coalesce(json_extract(f.link_json,'$.marketId'),json_extract(commitment.metadata_json,'$.marketId'),json_extract(d.data_json,'$.references.marketId')) AS market_id,
  (SELECT json_group_array(json_object('version',e.version,'action',e.action,'occurredOn',e.occurred_on)) FROM billing_quote_events e WHERE e.document_id=d.id) AS events
  FROM billing_documents d LEFT JOIN billing_quote_revisions r ON r.document_id=d.id
+ LEFT JOIN billing_link_roots links ON links.id=d.id
+ LEFT JOIN billing_document_followup f ON f.document_id=links.root_id
+ LEFT JOIN billing_quote_engagements commitment ON commitment.document_id=links.root_id
  WHERE d.kind='quote' AND EXISTS(SELECT 1 FROM billing_issuances i JOIN billing_issue_jobs j ON j.issuance_id=i.id WHERE i.document_id=d.id AND j.state='ready')`).all();
- return rows.results.map(r=>({id:r.id,marketId:JSON.parse(r.data_json).references.marketId,netMinor:Number(JSON.parse(r.totals_json||'{}').netMinor||0),rootId:r.root_document_id||r.id,ordinal:r.ordinal||1,abandonedAt:r.abandoned_at,events:JSON.parse(r.events||'[]')}));
+ return rows.results.map(r=>({id:r.id,marketId:r.market_id,netMinor:Number(JSON.parse(r.totals_json||'{}').netMinor||0),rootId:r.root_document_id||r.id,ordinal:r.ordinal||1,abandonedAt:r.abandoned_at,events:JSON.parse(r.events||'[]')}));
 }
