@@ -1,0 +1,34 @@
+.bill-client-selection{--client-book-bg:var(--bill-surface,#fff);--client-book-hover:var(--bill-raised,#fafafc);--client-book-border:var(--bill-line,#e0e0e0);--client-book-text:var(--bill-ink,#1d1d1f);--client-book-muted:var(--bill-muted,#6e6e73);--client-book-accent:#2165b5;margin-bottom:18px}
+.bill-client-selection .bill-client-book{display:flex;align-items:center;gap:11px;width:100%;min-height:58px;padding:10px 13px;text-align:left;background:var(--client-book-bg);color:var(--client-book-text);border:1px solid var(--client-book-border);border-radius:12px;box-shadow:none;cursor:pointer;transition:background .16s,border-color .16s}
+.bill-client-selection .bill-client-book:hover:not(:disabled){background:var(--client-book-hover);border-color:var(--client-book-muted)}
+.bill-client-selection .bill-client-book:focus-visible{outline:3px solid #6ba5e54f;outline-offset:3px;border-color:var(--client-book-accent)}
+.bill-client-book-icon{display:flex;align-items:center;justify-content:center;width:34px;height:34px;flex:none;color:var(--client-book-accent);background:var(--client-book-hover);border-radius:9px}
+.bill-client-selection .bill-client-book>.bill-directory-monogram{width:34px;height:34px;min-width:34px;flex:none;border-radius:9px;font-size:12px}
+.bill-client-selection .bill-client-book>.bill-directory-monogram img{width:28px;height:28px;object-fit:contain}
+.bill-client-book-copy{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.bill-client-book-copy strong{font-size:12px;font-weight:650;letter-spacing:-.08px;line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bill-client-book-copy>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;font-size:11px;line-height:1.4;color:var(--client-book-muted)}
+.bill-client-book-chevron{flex:none;color:var(--client-book-muted)}
+.bill-app .bill-client-selection>.bill-company-lookup{margin-top:17px}
+.bill-client-enrollment{display:flex;align-items:center;flex-wrap:wrap;gap:8px 10px;margin-top:16px;min-height:20px}
+.bill-client-selection .bill-client-add{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:29px;padding:5px 9px;border:1px solid var(--client-book-border);border-radius:7px;background:var(--client-book-bg);color:var(--client-book-accent);font-size:10px;font-weight:650;line-height:1.4;cursor:pointer}
+.bill-client-selection .bill-client-add:hover:not(:disabled){background:var(--client-book-hover);border-color:var(--client-book-muted)}
+.bill-client-selection .bill-client-add:focus-visible{outline:3px solid #6ba5e54f;outline-offset:2px}
+.bill-client-selection .bill-client-add.is-added{color:#277047;border-color:#c5dfce;background:#edf7f0;opacity:1}
+.bill-client-enrollment-status{display:inline-flex;align-items:center;gap:5px;font-size:10px;line-height:1.5;color:var(--client-book-muted)}
+.bill-client-enrollment-status.is-success{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
+.bill-client-add.is-added>svg{animation:bill-client-confirm .28s ease-out both}
+.bill-client-success-check{width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:#d9f0e0;color:#267848}
+.bill-client-enrollment-error{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;flex-basis:100%;font-size:11px;line-height:1.6;color:#9a453c}
+.bill-client-enrollment-error>button{padding:3px 7px;border:1px solid currentColor;border-radius:5px;background:transparent;color:inherit;font-size:10px}
+.bill-client-selection .bill-client-review{display:inline-flex;align-items:center;gap:5px;padding:5px 2px;border:0;border-radius:4px;background:transparent;color:var(--client-book-muted);font-size:10px;line-height:1.4;text-decoration:underline;text-underline-offset:3px}
+.bill-client-selection .bill-client-review:hover:not(:disabled){color:var(--client-book-text)}
+.bill-client-saving{animation:bill-client-spin .8s linear infinite}
+[data-theme=dark] .bill-client-selection{--client-book-accent:#9cc8ff}
+[data-theme=dark] .bill-client-selection .bill-client-add.is-added{background:#213e2d;border-color:#466f55;color:#b6e2c2}
+[data-theme=dark] .bill-client-enrollment-status.is-success{color:#a4dfb8}
+[data-theme=dark] .bill-client-success-check{background:#315a3e;color:#c8eed3}
+[data-theme=dark] .bill-client-enrollment-error{color:#f0b5a7}
+@keyframes bill-client-confirm{from{opacity:0;transform:translateY(3px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes bill-client-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.bill-client-selection *{animation:none!important;transition:none!important}}

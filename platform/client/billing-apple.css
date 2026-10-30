@@ -236,7 +236,7 @@
   .bill-app .bill-section {padding:24px}
 }
 @media(max-width:600px) {
-  .bill-primary-tabs {width:100%;justify-content:space-between;gap:2px}
+  .bill-primary-tabs {width:100%;justify-content:flex-start;flex-wrap:wrap;gap:2px}
   .bill-primary-tabs>button {padding:10px 8px;font-size:13px;gap:5px}
   .bill-primary-tabs>button svg {display:none}
   .bill-nav-tools {width:100%;justify-content:space-between;gap:8px}

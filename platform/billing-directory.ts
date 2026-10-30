@@ -1,4 +1,4 @@
-import {sameClient} from './billing-client-match';
+import {sameClientForCreation} from './billing-client-creation-match';
 import {createHash} from 'node:crypto';
 import type {Database,Reply} from './contracts';
 import type {BillingDirectoryKind,BillingDirectoryRecord} from './billing-contracts';
@@ -63,7 +63,7 @@ export async function billingDirectoryRoute(request:Request,db:Database,user:str
    if(expected===null||expected===0){
     const previous=await stored(db,kind,id);
     if(previous){if(previous.create_hash!==hash)return conflict();return reply(200,record(previous));}
-    if(expected===null&&kind==='clients'&&'party' in data){const entries=await db.prepare(directorySQL+' SELECT * FROM entries').bind(...baseBindings(kind)).all<Row>();if(entries.results.some(row=>{const r=record(row);return r.kind==='clients'&&!r.data.archived&&sameClient(r.data,data.party);}))return fail(409,'Ce client existe déjà. Ouvrez sa fiche dans Clients pour compléter ses coordonnées.');}
+    if(expected===null&&kind==='clients'&&'party' in data){const entries=await db.prepare(directorySQL+' SELECT * FROM entries').bind(...baseBindings(kind)).all<Row>();if(entries.results.some(row=>{const r=record(row);return r.kind==='clients'&&!r.data.archived&&sameClientForCreation(r.data,data.party);}))return fail(409,'Ce client existe déjà. Ouvrez sa fiche dans Clients pour compléter ses coordonnées.');}
     if(expected===null&&await get(db,kind,id))return fail(409,'Ce client existe déjà dans le répertoire. Ouvrez sa fiche pour la compléter.');
     if(expected===0&&(kind!=='clients'||!await get(db,kind,id)))return fail(404,'Le client d’origine n’existe plus. Créez une nouvelle fiche.');
     const siret=kind==='clients'&&'party' in data?data.party.siret.replace(/\s/g,''):'';

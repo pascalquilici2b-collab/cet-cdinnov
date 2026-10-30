@@ -12,4 +12,5 @@
 @media(max-width:1500px){.topbar .bill-attention-label{display:none}.topbar .bill-attention button{padding:7px 8px}}
 @media(max-width:600px){.topbar:has(#billingAttention:not(:empty)){flex-wrap:wrap}.topbar #billingAttention{order:10;flex:1 1 100%}.topbar .bill-attention{justify-content:space-between}.topbar .bill-attention button{flex:1}.topbar .bill-attention-label{display:none}}
 @media(prefers-reduced-motion:reduce){.bill-attention button{transition:none}}
+@media(max-width:600px){.bill-app>.bill-attention{max-width:100%;box-sizing:border-box;justify-content:space-between}.bill-app>.bill-attention .bill-attention-label{display:none}.bill-app>.bill-attention button{flex:1;min-width:0}}
 @media print{.bill-attention{display:none}}
