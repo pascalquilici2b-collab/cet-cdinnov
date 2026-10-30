@@ -74,7 +74,7 @@ test('engagement folders retain market identity, commercial links, annual histor
   const orderCard=(group,reference)=>group.locator('.bill-engagement-order').filter({has:page.locator('.bill-engagement-order-identity strong').filter({hasText:reference})});
   async function openOrder(card){const trigger=card.getByRole('button',{name:/^(Voir|Masquer) les factures et pièces du bon /});if(await trigger.getAttribute('aria-expanded')!=='true')await trigger.click();}
   async function resetFilters(){await search.fill('');await client.selectOption('');}
-  async function capture(name){const path=join(output,name+'.png');await tracking.screenshot({path});captures.push(path);}
+  async function capture(name,locator=tracking){const path=join(output,name+'.png');await locator.screenshot({path});captures.push(path);}
 
   await scenario('same labels remain distinct market folders with all their own orders',async()=>{
    await expect(groups).toHaveCount(4);const a=groupFor(marketA.title),b=groupFor(marketB.title);await expect(a).toHaveCount(1);await expect(b).toHaveCount(1);await expect(a).toHaveAttribute('data-market-id',ids.a);await expect(b).toHaveAttribute('data-market-id',ids.b);
@@ -95,6 +95,12 @@ test('engagement folders retain market identity, commercial links, annual histor
    const importedButton=importedOrder.getByRole('button',{name:'FAC-IMP-042',exact:true});await importedButton.click();await expect(page.locator('#opened-document')).toHaveText('imported:engagement-imported');
    await expect(tracking).not.toContainText('FAC-FAC-');await expect(nativeOrder).not.toContainText(reserved.id);
   });
+  await scenario('a trashed issued invoice retains its badge link and counted amount',async()=>{
+   await read(await f.call('/documents/'+native.id,'DELETE',undefined,{'If-Match':String(native.version)}));await page.getByRole('button',{name:'Actualiser le suivi'}).click();
+   const card=orderCard(groupFor(marketA.title),'BC-COMMUN');await openOrder(card);const button=card.getByRole('button',{name:native.issuance.number+' Corbeille',exact:true});await expect(button).toBeVisible();await button.click();await expect(page.locator('#opened-document')).toHaveText(native.id);
+   const projected=(await read(await f.call('/engagements'))).orders.find(o=>o.id===ids.a1);assert.equal(projected.invoicedMinor,30000);assert.equal(projected.invoices[0].trashed,true);
+   await read(await f.call('/documents/'+native.id+'/restore','POST',{}, {'If-Match':String(native.version)}));await page.getByRole('button',{name:'Actualiser le suivi'}).click();await expect(card.locator('.bill-engagement-trash')).toHaveCount(0);
+  });
   await scenario('unknown ceilings reservations overruns and provisional history stay explicit',async()=>{
    const a=groupFor(marketA.title);
    const unknown=orderCard(a,'BC-SANS-MONTANT');await expect(unknown).toContainText('À renseigner');await expect(unknown).toContainText('Provisoire');await expect(unknown.getByRole('progressbar')).not.toHaveAttribute('aria-valuenow',/.+/);await expect(tracking.locator('.bill-engagement-summary')).toContainText('À compléter');
@@ -111,7 +117,7 @@ test('engagement folders retain market identity, commercial links, annual histor
   await scenario('PDF preview renders the private file and closing rejects a late response',async()=>{
    const previewButton=page.getByRole('button',{name:'Aperçu du bon BC-SANS-MONTANT',exact:true}),dialog=page.getByRole('dialog',{name:'Pièce jointe · bon-marche.pdf',exact:true});
    await previewButton.focus();await page.keyboard.press('Enter');await expect(dialog).toBeVisible();await expect(dialog.getByText('Page 1 / 1',{exact:true})).toBeVisible();await expect(dialog.locator('canvas')).toBeVisible();
-   assert.ok(await dialog.locator('canvas').evaluate(canvas=>canvas.width>0&&canvas.height>0));await page.keyboard.press('Escape');await expect(dialog).not.toBeVisible();await expect(previewButton).toBeFocused();
+   assert.ok(await dialog.locator('canvas').evaluate(canvas=>canvas.width>0&&canvas.height>0));await capture('engagement-private-pdf-preview',dialog);await page.keyboard.press('Escape');await expect(dialog).not.toBeVisible();await expect(previewButton).toBeFocused();
    const path='**/budgets/markets/'+ids.a+'/documents/'+attachment.id;let release;const held=new Promise(resolve=>{release=resolve;});const requested=page.waitForRequest(path);
    await page.route(path,async route=>{const response=await route.fetch();await held;await route.fulfill({response});});
    await previewButton.click();await requested;await expect(dialog).toBeVisible();await page.keyboard.press('Escape');await expect(dialog).not.toBeVisible();const response=page.waitForResponse(r=>r.url().endsWith('/markets/'+ids.a+'/documents/'+attachment.id));release();await response;await page.unroute(path);await expect(dialog).not.toBeVisible();await expect(previewButton).toBeFocused();
@@ -120,7 +126,7 @@ test('engagement folders retain market identity, commercial links, annual histor
    await page.getByRole('tab',{name:'Marchés globaux',exact:true}).click();const market=page.locator('.bill-engagement-market-card').filter({hasText:marketA.title});await expect(market).toHaveCount(1);
    const period=market.getByRole('combobox',{name:'Période du marché MAR-COMMUN'});await expect(market.locator('.bill-market-meter')).toContainText('200,00');await expect(market).toContainText('Réinitialisation le 01/01/'+(year+1));
    await period.selectOption((year-1)+'-01-01');await expect(market.locator('.bill-market-meter')).toContainText('800,00');await expect(market).toContainText('Réinitialisation le 01/01/'+year);
-   await market.locator('.bill-engagement-market-orders > summary').click();await expect(market).toContainText('BC-SANS-MONTANT');await expect(market).not.toContainText('BC-COMMUN');
+   await market.locator('.bill-engagement-market-orders > summary').click();await expect(market).toContainText('BC-SANS-MONTANT');await expect(market).not.toContainText('BC-COMMUN');await capture('engagement-annual-history',market);
    await period.selectOption('');await expect(market.locator('.bill-market-meter')).toContainText('200,00');await expect(market).toContainText('BC-COMMUN');await expect(market).not.toContainText('BC-SANS-MONTANT');await page.getByRole('tab',{name:'Bons de commande',exact:true}).click();
   });
   await scenario('refresh recovers an API failure without losing displayed market data',async()=>{
@@ -133,7 +139,7 @@ test('engagement folders retain market identity, commercial links, annual histor
     await page.evaluate(value=>document.documentElement.dataset.theme=value,theme);await resetFilters();await page.setViewportSize({width:1400,height:1050});
     const ordersTab=page.getByRole('tab',{name:'Bons de commande',exact:true}),marketsTab=page.getByRole('tab',{name:'Marchés globaux',exact:true});await ordersTab.focus();await page.keyboard.press('ArrowRight');await expect(marketsTab).toBeFocused();await expect(marketsTab).toHaveAttribute('aria-selected','true');await page.keyboard.press('Home');await expect(ordersTab).toBeFocused();await expect(ordersTab).toHaveAttribute('aria-selected','true');
     const a=groupFor(marketA.title),toggle=orderCard(a,'BC-COMMUN').getByRole('button',{name:/^(Voir|Masquer) les factures et pièces du bon /});await toggle.focus();const prior=await toggle.getAttribute('aria-expanded');await page.keyboard.press('Enter');assert.notEqual(await toggle.getAttribute('aria-expanded'),prior);await expect(toggle).toBeFocused();await page.keyboard.press('Enter');
-    backgrounds.push(await a.evaluate(el=>getComputedStyle(el).backgroundColor));await capture('engagement-folders-'+theme);
+    backgrounds.push(await a.evaluate(el=>getComputedStyle(el).backgroundColor));await capture('engagement-folders-'+theme);await capture('engagement-market-alpha-'+theme,a);
     await page.setViewportSize({width:390,height:844});await openOrder(orderCard(a,'BC-COMMUN'));await expect(search).toBeVisible();assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+1),'the entire tracking view must not overflow the mobile viewport');
     const interactive=await tracking.locator('button,input,select,summary').evaluateAll(elements=>elements.filter(el=>el.getClientRects().length).map(el=>({name:el.getAttribute('aria-label')||el.textContent,left:el.getBoundingClientRect().left,right:el.getBoundingClientRect().right})));assert.deepEqual(interactive.filter(el=>el.left<-.5||el.right>390.5),[],'visible actions fit the screen');await capture('engagement-folders-mobile-'+theme);
    }assert.notEqual(backgrounds[0],backgrounds[1]);
