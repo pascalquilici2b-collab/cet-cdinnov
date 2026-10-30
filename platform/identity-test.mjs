@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import {createHash,createHmac,pbkdf2Sync,randomBytes} from 'node:crypto';
-import {fileURLToPath} from 'node:url';
 import {testEnvironment,users} from '../marches/test.mjs';
 import {sessionIdentity} from './identity.ts';
 
-process.env.MARCHES_TEST_WORKER=fileURLToPath(new URL('../.build/entry.mjs',import.meta.url));
+// Exercise current sources, not a potentially stale deployment bundle.
+delete process.env.MARCHES_TEST_WORKER;
 process.env.MARCHES_TEST_COMPATIBILITY_DATE='2026-06-09';
 const ctx=await testEnvironment();let checks=0;
 const check=async(name,fn)=>{await fn();console.log('OK '+name);checks++;};
@@ -56,9 +56,9 @@ try {
     }
     const data=await(await get((await ctx.login(accounting)).token)).json();assert.equal(data.admin,true);assert.deepEqual(data.access,adminAccess);
   });
-  await check('Tokens issued before migration remain accepted by every existing authenticated module',async()=>{
+  await check('Old verifier-based session tokens require login again across every authenticated module',async()=>{
     const token=signed(oldClaims(users[0]));
-    for(const path of ['/api/v1/session','/budgets/workspace','/budgets/markets','/budgets/agenda','/sheets/session','/api/v1/dashboard','/api/v1/budget-records?collection=clients'])assert.equal((await get(token,path)).status,200,path);
+    for(const path of ['/api/v1/session','/budgets/workspace','/budgets/markets','/budgets/agenda','/sheets/session','/api/v1/dashboard','/api/v1/budget-records?collection=clients'])assert.equal((await get(token,path)).status,401,path);
     assert.equal((await get(employeeSession.token,'/budgets/markets')).status,403);
     assert.equal((await get(employeeSession.token,'/sheets/session')).status,200);
   });

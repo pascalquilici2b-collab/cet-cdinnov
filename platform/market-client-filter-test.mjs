@@ -45,3 +45,13 @@ test('Marchés : alias exact prouvé sans élargissement par préfixe ni fusion 
  assert.equal(groups.find(g=>g.value==='id:adec-client').markets.length,2);
  assert.equal(groups.find(g=>g.value==='name:adec partenaire independant').markets.length,1);
 });
+
+test('Marchés : deux anciennes fiches du même SIRET forment un dossier lisible, liens conservés',()=>{
+ const clients=[{id:'record-b',name:'Office régional',siret:'48227635900023'},{id:'record-a',name:'Office régional',siret:'48227635900023'}];
+ const rows=[market('market-b','record-b','Office régional historique'),market('market-a','record-a','Office régional')],before=structuredClone(rows);
+ const groups=marketClientGroups(clients,rows),html=render(state(clients,rows));
+ assert.equal(groups.length,1);assert.equal(groups[0].label,'Office régional');assert.equal(groups[0].markets.length,2);
+ assert.equal((html.match(/class="mk-client-row"/g)||[]).length,1);assert.doesNotMatch(html,/ — ID /);
+ assert.equal((render(state(clients,rows),groups[0].value).match(/class="mk-contract-row"/g)||[]).length,2);
+ assert.deepEqual(rows,before);
+});

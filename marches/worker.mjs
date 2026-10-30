@@ -36,7 +36,7 @@ export async function handleMarkets(request,db,email,admin,reply,jsonBody,env={}
   if(!id){
     if(request.method==='GET'){
       const result=await db.prepare('SELECT * FROM markets ORDER BY updated_at DESC LIMIT 500').all();
-      const [clients,projects]=await Promise.all([readClientDirectoryChoices(db),readLinkedMarketProjects(db)]);
+      const [clients,projects]=await Promise.all([readClientDirectoryChoices(db,true),readLinkedMarketProjects(db)]);
       const consumption=await quoteConsumption(db),engagements=await linkedEngagements(db);
       return reply(200,{markets:result.results.map(r=>({...unpack(r),linkedProjects:projects.get(r.id)||[],linkedEngagements:engagements.filter(e=>e.marketId===r.id),tracking:consumption.get(r.id)||{sentQuoteCount:0,quotedMinor:0}})),clients});
     }

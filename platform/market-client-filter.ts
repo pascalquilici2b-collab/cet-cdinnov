@@ -4,7 +4,7 @@ import {historicalClientFilterNames} from './billing-client-filter-aliases.ts';
 type MarketIdentity={id:string;clientId:string;clientName:string;title:string;reference:string};
 
 /** Current client groups for navigation only: every market keeps its stored name and identity. */
-export function marketClientGroups<T extends MarketIdentity>(clients:{id:string;name:string}[],markets:T[],query=''){
+export function marketClientGroups<T extends MarketIdentity>(clients:FilterClient[],markets:T[],query=''){
  const directory=new Map<string,FilterClient>();
  for(const client of clients)if(client.id)directory.set(client.id,{...client});
  // Archived directory entries remain navigable through their explicit market clientId.

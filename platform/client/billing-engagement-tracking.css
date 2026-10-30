@@ -12,3 +12,47 @@
 @media(max-width:800px){.bill-engagement-market-grid{grid-template-columns:minmax(0,1fr)}.bill-engagement-heading h2{font-size:23px}.bill-engagement-tools{flex-wrap:wrap}.bill-engagement-tools .bill-search{flex:1;min-width:200px}.bill-engagement-tools select{max-width:100%;min-width:150px}.bill-engagement-folder-head{flex-wrap:wrap;gap:16px}.bill-engagement-folder-identity{flex:1 1 280px}.bill-engagement-folder-meter{flex:1 1 240px}.bill-engagement-order-table,.bill-engagement-order-table tbody{display:block;width:100%}.bill-engagement-order-table thead{display:none}.bill-engagement-order-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px 22px;padding:18px;border-bottom:1px solid var(--bill-line);position:relative}.bill-engagement-order:last-child>.bill-engagement-order-row:last-child{border-bottom:0}.bill-engagement-order-row>td{display:block;width:auto;padding:0;border:0!important;min-width:0}.bill-engagement-order-row>td:first-child{grid-column:1/-1;padding-right:0}.bill-engagement-order-row>td:nth-child(2){grid-column:1/-1;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}.bill-engagement-order-row>td:nth-child(2):before{content:'Projet';font-size:10px;color:var(--bill-muted)}.bill-engagement-order-row>td:nth-child(2) .bill-engagement-order-market{display:none}.bill-engagement-order-row>td:nth-child(3):before,.bill-engagement-order-row>td:nth-child(4):before{content:attr(data-label);display:block;font-size:10px;color:var(--bill-muted);margin-bottom:8px}.bill-engagement-order-row>td:nth-child(5){grid-column:1/-1;border-top:1px solid var(--bill-line)!important;padding-top:8px;margin-top:-3px}.bill-engagement-order-identity strong{font-size:13px}.bill-engagement-docmark{width:32px;height:39px}.bill-engagement-row-actions{gap:8px}.bill-engagement-row-actions>.bill-icon-button,.bill-engagement-expand{min-height:36px}.bill-engagement-expand{margin-right:auto;gap:7px;padding:5px 0;font-size:12px!important}.bill-engagement-consumption-values{font-size:10px;gap:5px}.bill-engagement-consumption-values strong{font-size:12px}.bill-engagement-detail-row{display:block}.bill-engagement-detail-row>td{display:block;width:100%}.bill-engagement-order-details{padding:15px 18px;grid-template-columns:minmax(0,1fr);gap:17px}.bill-engagement-detail-invoices{grid-column:1/-1}.bill-engagement-folder-footer{padding:10px 18px;flex-wrap:wrap;gap:5px 14px}.bill-engagement-folder-footer>span:last-child{text-align:left}}
 @media(max-width:480px){.bill-engagement-tabs{display:flex;width:100%}.bill-engagement-tabs button{flex:1;min-width:0;padding:9px 8px;font-size:11px;gap:5px}.bill-engagement-summary{gap:10px 17px;padding:18px 0}.bill-engagement-summary>div{gap:6px}.bill-engagement-summary strong{font-size:13px}.bill-engagement-summary span{font-size:10px}.bill-engagement-tools .bill-search{flex-basis:100%;min-width:0}.bill-engagement-tools select{width:100%;flex:1;font-size:12px}.bill-engagement-folder-head{padding:16px}.bill-engagement-folder-head h3{font-size:14px}.bill-engagement-folder-head p{font-size:10px}.bill-engagement-folder-identity{gap:10px}.bill-engagement-folder-meter{flex-basis:100%}.bill-engagement-order-row{padding:16px;gap:14px 16px}.bill-engagement-order-identity small{font-size:10px}.bill-engagement-order-details{padding:14px 16px}.bill-engagement-order-details li{gap:8px}.bill-engagement-order-details li>strong{font-size:10px}.bill-engagement-folder-footer{font-size:9px;padding:10px 16px}.bill-engagement-market-card{padding:18px}.bill-engagement-market-card>header{gap:12px;align-items:flex-start}.bill-engagement-market-client{max-width:58%}.bill-engagement-market-card h3{font-size:19px}.bill-engagement-market-consumption .bill-market-meter>div:first-child{flex-direction:column}.bill-engagement-market-orders>summary{align-items:flex-start;gap:7px}.bill-engagement-market-orders>summary>strong{white-space:normal;justify-content:flex-end;text-align:right}.bill-engagement-preview{width:calc(100vw - 16px);max-height:calc(100dvh - 16px);border-radius:12px}.bill-engagement-preview>header{padding:10px;gap:8px}.bill-engagement-preview>header strong{font-size:11px}.bill-engagement-preview>header>div{gap:5px}.bill-engagement-preview .bill-pdf-viewport{height:calc(100dvh - 215px);min-height:200px}.bill-engagement-preview .bill-pdf-controls{flex-wrap:wrap}}
 @media(prefers-reduced-motion:reduce){.bill-engagement-consumption-track>*{transition:none}}
+
+/* Dossier B: stronger separation between the market and its purchase orders. */
+.bill-engagement-tracking{--bill-ink:#142132;--bill-muted:#4a5666;--bill-line:#c4ceda;--bill-surface:#fff;--bill-raised:#edf1f6;--eng-blue:#07549e;--eng-header:#124f86;--eng-header-ink:#fff;--eng-header-muted:#e0edfb}
+.bill-engagement-tracking .bill-engagement-tabs{gap:6px;padding:5px;border-color:#aab8c8;background:#e4eaf1;border-radius:12px}
+.bill-engagement-tracking .bill-engagement-tabs button{min-height:44px;padding:10px 17px;gap:9px;font-size:13px;font-weight:550;color:#263a50;border:1px solid transparent;border-radius:8px}
+.bill-engagement-tracking .bill-engagement-tabs button[aria-selected=true]{background:#07549e;color:#fff;border-color:#07549e;font-weight:650;box-shadow:0 1px 3px #00234a2b}
+.bill-engagement-tracking .bill-engagement-tabs button[aria-selected=true] svg{color:#fff}
+.bill-engagement-tracking .bill-engagement-tabs button:hover:not([aria-selected=true]){background:#fff;border-color:#8f9fb2}
+.bill-engagement-tracking .bill-engagement-tools .bill-search{background:var(--bill-surface);border:1px solid #8b9bad;border-radius:10px;color:var(--bill-muted)}
+.bill-engagement-tracking .bill-engagement-tools .bill-search input::placeholder{color:var(--bill-muted);opacity:1}
+.bill-engagement-tracking .bill-engagement-tools select{border-color:#8b9bad}
+.bill-engagement-folder{border-color:#97aabd;box-shadow:0 1px 3px #17314d0a}
+.bill-engagement-folder-head{background:var(--eng-header);color:var(--eng-header-ink);border-bottom-color:var(--eng-header)}
+.bill-engagement-folder-head h3{font-size:16px;font-weight:650}
+.bill-engagement-folder-identity>svg,.bill-engagement-folder-head h3{color:var(--eng-header-ink)}
+.bill-engagement-folder-head p,.bill-engagement-folder-meter>span{color:var(--eng-header-muted)}
+.bill-engagement-folder-meter .bill-market-meter>div:first-child>span:first-child{color:var(--eng-header-ink)}
+.bill-engagement-folder-meter .bill-market-track{background:#6688a8;height:5px}
+.bill-engagement-folder-meter .bill-market-track>i{background:#fff}
+.bill-engagement-folder-meter .bill-market-track>i[data-over=true]{background:#ffd074}
+.bill-engagement-folder.is-unassigned .bill-engagement-folder-head{background:var(--bill-raised);border-bottom-color:var(--bill-line);color:var(--bill-ink)}
+.bill-engagement-folder.is-unassigned .bill-engagement-folder-head h3{color:var(--bill-ink)}
+.bill-engagement-folder.is-unassigned .bill-engagement-folder-head p{color:var(--bill-muted)}
+.bill-engagement-order-table th{font-size:11px;font-weight:600;background:#e8eef5;color:#3b4c60;border-bottom-color:#a6b7ca}
+.bill-engagement-order-identity small,.bill-engagement-order-market{font-size:11px}
+.bill-engagement-consumption-caption{font-size:10px}
+.bill-engagement-order-project{font-size:12px}
+.bill-engagement-consumption-track{height:5px;background:#cad4df}
+.bill-engagement-folder-footer{font-size:11px;background:var(--bill-raised)}
+.bill-engagement-row-actions>.bill-icon-button{color:var(--eng-blue)}
+.bill-engagement-market-card{border-color:#97aabd}
+.bill-engagement-market-tag{font-size:11px;font-weight:650}
+.bill-engagement-market-title,.bill-engagement-market-client,.bill-engagement-period,.bill-engagement-market-card>footer{font-size:12px}
+.bill-engagement-market-consumption>span,.bill-engagement-market-orders>summary{font-size:11px}
+[data-theme=dark] .bill-engagement-tracking{--bill-ink:#f7f9fc;--bill-muted:#c7d0dc;--bill-line:#5a6879;--bill-surface:#20262f;--bill-raised:#2c3541;--eng-blue:#8dc6ff;--eng-header:#1c5489;--eng-header-ink:#fff;--eng-header-muted:#e3effb}
+[data-theme=dark] .bill-engagement-tracking .bill-engagement-tabs{background:#252f3c;border-color:#70829a}
+[data-theme=dark] .bill-engagement-tracking .bill-engagement-tabs button{color:#e3eaf5}
+[data-theme=dark] .bill-engagement-tracking .bill-engagement-tabs button[aria-selected=true]{background:#1667b2;border-color:#6fb6ff;color:#fff}
+[data-theme=dark] .bill-engagement-tracking .bill-engagement-tabs button:hover:not([aria-selected=true]){background:#394b61;border-color:#93a9c4}
+[data-theme=dark] .bill-engagement-folder,[data-theme=dark] .bill-engagement-market-card{border-color:#6e839b}
+[data-theme=dark] .bill-engagement-order-table th{background:#354151;color:#e6edf7;border-bottom-color:#6e839b}
+[data-theme=dark] .bill-engagement-consumption-track{background:#5a6879}
+[data-theme=dark] .bill-engagement-folder-meter .bill-market-track{background:#7291af}
+@media(max-width:480px){.bill-engagement-tracking .bill-engagement-tabs button{padding:9px 8px;gap:7px;min-height:46px;font-size:12px}.bill-engagement-tracking .bill-engagement-tabs button svg{width:17px;height:17px}.bill-engagement-folder-head h3{font-size:15px}.bill-engagement-folder-head p{font-size:11px}.bill-engagement-order-identity small{font-size:11px}.bill-engagement-folder-footer{font-size:10px}.bill-engagement-summary span{font-size:11px}}

@@ -831,7 +831,7 @@ function render(preserveFields = false) {
     if (marketPromise) return;
     container.innerHTML = loadingMarkup('Chargement des marchés…');
     if (!document.getElementById("marketStyle")) { const link=document.createElement("link"); link.id="marketStyle"; link.rel="stylesheet"; link.href="platform/markets.css?v=stamping-allocation-20261025"; document.head.append(link); }
-    marketPromise = import("./platform/markets.js?v=client-filters-report-20261030")
+    marketPromise = import("./platform/markets.js?v=security-contrast-20261030")
       .then((module) => {
         marketModule = module;
         marketPromise = null;

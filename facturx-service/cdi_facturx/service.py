@@ -43,10 +43,20 @@ def health():
     return {'ready': len(checks) == 4 and all(checks.values()), 'tools': checks, 'factur_x': version('factur-x')}
 
 
-def run(args, timeout=120, cwd=None):
+def run(args, timeout=120, cwd=None, env=None):
     return subprocess.run(args, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                          timeout=timeout, check=False,
+                          timeout=timeout, check=False, env=env,
                           creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
+
+
+def ghostscript_environment():
+    # Defense in depth for a native parser: do not copy API keys, password
+    # verifiers, deployment credentials or GS_OPTIONS into its environment.
+    # This is not an OS sandbox; a same-UID process may still access /proc/files.
+    allowed = {'PATH', 'SYSTEMROOT', 'WINDIR', 'TEMP', 'TMP', 'TMPDIR', 'HOME',
+               'USERPROFILE', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TZ',
+               'FONTCONFIG_FILE', 'FONTCONFIG_PATH'}
+    return {key: value for key, value in os.environ.items() if key.upper() in allowed}
 
 
 def schematron(xml: bytes, profile: str, folder: Path):
@@ -83,7 +93,7 @@ def convert_pdfa(pdf: bytes, folder: Path, cfg):
             '-dPDFACompatibilityPolicy=1', '-sDEVICE=pdfwrite', '-sColorConversionStrategy=RGB',
             '-dEmbedAllFonts=true', '-dAutoRotatePages=/None', '--permit-file-read=srgb.icc',
             '-sOutputFile=archive.pdf', 'pdfa.ps', 'source.pdf']
-    result = run(args, cwd=folder)
+    result = run(args, cwd=folder, env=ghostscript_environment())
     if result.returncode or not output.exists():
         raise ConversionError('pdfa', 'La conversion PDF/A-3 a échoué.')
     return output

@@ -19,7 +19,7 @@ def layout_sample(name, rows):
                 kind, text = 'number', '[nombre]'
             else:
                 text = str(value).strip()
-                kind = 'number' if re.fullmatch(r'[\d\s.,€%+-]+', text) else 'text'
+                kind = 'number' if re.fullmatch(r'(?:EUR\s*)?[\d\s.,€%+-]+(?:\s*EUR)?', text, re.I) else 'text'
                 text = '[nombre]' if kind == 'number' else text[:220]
             cells.append({'cell':cell['cell'], 'row':r, 'column':c, 'kind':kind, 'text':text})
             if len(cells) >= 700:

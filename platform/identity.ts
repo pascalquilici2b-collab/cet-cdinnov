@@ -15,7 +15,7 @@ export function portalAdmin(portal:Record<string,any>,email:string):boolean {
   return allowed && !!portal.auth?.accounts?.[email] && accountRole(email,portal.auth.accounts[email])==='admin';
 }
 const seededAccounts = [...admins,'calendini.matthieu@cdinnov.com','vincenti.paulmichel@cdinnov.com'];
-const sessionAudience = 'cdinnov-budgets'; // Also accepts sessions issued before this migration.
+const sessionAudience = 'cdinnov-budgets';
 const challengeAudience = 'cdinnov-budget-login';
 const sessionDuration = 8 * 60 * 60 * 1000;
 type ObjectValue = Record<string, unknown>;
@@ -29,6 +29,9 @@ const fingerprint = (account:Account) => createHash('sha256').update(JSON.string
 // A challenge is public. Its binding must not be an offline password verifier:
 // SHA256([salt, iterations, PBKDF2(password)]) would reveal a guessable oracle.
 const challengeFingerprint = (current:Account|null,email:string,key:string) => createHmac('sha256',key).update('login-challenge:'+email+':'+(current?fingerprint(current):'unknown')).digest('hex');
+// Session claims are readable too, including after expiry or revocation. Never
+// expose the password-verifier hash there; old bindings require a fresh login.
+const sessionFingerprint = (current:Account,email:string,key:string) => createHmac('sha256',key).update('session-binding:'+email+':'+fingerprint(current)).digest('hex');
 const unknownSalt = (email:string,key:string) => createHmac('sha256',key).update('login-unknown-salt:'+email).digest('hex').slice(0,32);
 
 function secret(env:Environment):string {
@@ -83,12 +86,12 @@ async function account(env:Environment,email:string):Promise<Account|null> {
 export async function sessionIdentity(request:Request,env:Environment,now=Date.now()):Promise<SessionIdentity|null> {
   const authorization=request.headers.get('authorization');
   if(!authorization || !/^Bearer [A-Za-z0-9_.-]+$/i.test(authorization)) return null;
-  const claims=decode(authorization.slice(7),secret(env),sessionAudience,now);
+  const key=secret(env),claims=decode(authorization.slice(7),key,sessionAudience,now);
   if(!claims) return null;
   const revoked=await env.BUDGETS_DB.withSession('first-primary').prepare('SELECT token_hash FROM app_session_revocations WHERE token_hash=?').bind(createHash('sha256').update(authorization.slice(7)).digest('hex')).first();
   if(revoked)return null;
   const current=await account(env,claims.email);
-  if(!current || !equal(claims.fingerprint,fingerprint(current))) return null;
+  if(!current || !equal(claims.fingerprint,sessionFingerprint(current,claims.email,key))) return null;
   return {email:claims.email,name:current.name || claims.email,expiresAt:claims.exp,admin:current.role==='admin',access:current.access};
 }
 
@@ -140,7 +143,7 @@ export async function login(request:Request,env:Environment,db:Database,reply:Re
   const proof=createHmac('sha256',Buffer.from(current.hash,'hex')).update(input.challenge as string).digest('hex');
   if(!equal(proof,input.proof))return denied();
   const expiresAt=now+sessionDuration;
-  const token=encode({aud:sessionAudience,email,exp:expiresAt,fingerprint:fingerprint(current),nonce:randomBytes(16).toString('hex')},key);
+  const token=encode({aud:sessionAudience,email,exp:expiresAt,fingerprint:sessionFingerprint(current,email,key),nonce:randomBytes(16).toString('hex')},key);
   await db.prepare('DELETE FROM budgets_login_limits WHERE id=? OR until_at<?').bind(limitKeys[0],now).run();
   return reply(200,{token,expiresAt});
 }

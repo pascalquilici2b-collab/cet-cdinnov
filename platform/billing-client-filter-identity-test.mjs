@@ -68,3 +68,34 @@ test('les valeurs nulles historiques sont tolérées sans inventer une identité
  assert.deepEqual(resolve({clientId:null,name:null,siret:null,siren:null}),{value:'name:',label:'Client'});
  assert.equal(resolve({name:'Ancienne entité',siret:null,siren:null}).value,'id:'+a.id);
 });
+
+test('les doublons historiques de même SIRET partagent un filtre sans perdre leurs IDs d’origine',()=>{
+ const clients=[{id:'record-b',name:'Office régional',siret:'48227635900023'},{id:'record-a',name:'Office régional',siret:'482 276 359 00023'}];
+ const observations=clients.map(c=>({clientId:c.id,name:c.name})),before=structuredClone(clients);
+ for(const ordering of [clients,[...clients].reverse()]){
+  const resolve=createClientFilterResolver(ordering,observations);
+  assert.deepEqual(resolve(observations[0]),{value:'id:record-a',label:'Office régional'});
+  assert.deepEqual(resolve(observations[1]),resolve(observations[0]));
+  assert.equal(resolve({name:'Office régional',siret:'48227635900023'}).value,'id:record-a');
+ }
+ assert.deepEqual(clients,before);
+});
+
+test('homonymes sans identité juridique : libellés lisibles et stables sans UUID visible',()=>{
+ const clients=[{id:'d3f7aebd-1b4c-4923-b2ed-f8ab7268efb0',name:'Office régional'},{id:'7ea6a3c9-941a-49e1-88f9-fb338db05051',name:'Office régional'}];
+ const before=structuredClone(clients),resolve=createClientFilterResolver(clients),reversed=createClientFilterResolver([...clients].reverse());
+ const options=clients.map(c=>resolve({clientId:c.id,name:c.name}));
+ assert.notEqual(options[0].value,options[1].value);assert.notEqual(options[0].label,options[1].label);
+ for(const [i,c] of clients.entries()){
+  assert.match(options[i].label,/ — fiche [12]$/);assert.ok(!options[i].label.includes(c.id));
+  assert.deepEqual(options[i],reversed({clientId:c.id,name:c.name}));
+ }
+ assert.deepEqual(clients,before);
+});
+
+test('homonymes au même SIREN sans SIRET restent distincts avec des libellés différents',()=>{
+ const clients=[{id:'north',name:'Organisme',siren:'482276359'},{id:'south',name:'Organisme',siren:'482276359'}];
+ const resolve=createClientFilterResolver(clients),a=resolve({clientId:'north',name:'Organisme'}),b=resolve({clientId:'south',name:'Organisme'});
+ assert.notEqual(a.value,b.value);assert.notEqual(a.label,b.label);
+ assert.match(a.label,/SIREN 482276359 · fiche/);assert.match(b.label,/SIREN 482276359 · fiche/);
+});

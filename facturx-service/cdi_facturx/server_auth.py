@@ -50,9 +50,12 @@ def allow_attempt(remote, email):
     return True
 
 
-def fingerprint(account):
-    value = ':'.join([account['salt'], str(account.get('iter', 150_000)), account['hash']])
-    return hashlib.sha256(value.encode()).hexdigest()
+def account_binding(email, account):
+    # A signed token is readable, not encrypted. Never publish a deterministic
+    # unkeyed password-verifier digest that enables offline guesses with a known
+    # KDF salt. Bind identity and verifier under a separate server-only MAC domain.
+    value = json.dumps([email, account['salt'], int(account.get('iter', 150_000)), account['hash']], separators=(',', ':'))
+    return hmac.new(signing_key(), b'cdi-facturx-account-v2:' + value.encode(), hashlib.sha256).hexdigest()
 
 
 def signing_key():
@@ -63,7 +66,7 @@ def signing_key():
 
 
 def sign(payload):
-    return hmac.new(signing_key(), b'cdi-facturx-session-v1:' + payload.encode(), hashlib.sha256).hexdigest()
+    return hmac.new(signing_key(), b'cdi-facturx-session-v2:' + payload.encode(), hashlib.sha256).hexdigest()
 
 
 def login(email, password):
@@ -76,8 +79,8 @@ def login(email, password):
     if not account or not secrets.compare_digest(digest, account['hash']):
         return None
     now = int(time.time())
-    claims = {'email': email, 'iat': now, 'exp': now + SESSION_SECONDS,
-              'account': fingerprint(account), 'nonce': secrets.token_hex(12)}
+    claims = {'v': 2, 'email': email, 'iat': now, 'exp': now + SESSION_SECONDS,
+              'account': account_binding(email, account), 'nonce': secrets.token_hex(12)}
     payload = base64.urlsafe_b64encode(json.dumps(claims, separators=(',', ':')).encode()).decode().rstrip('=')
     return {'token': payload + '.' + sign(payload), 'expires_at': claims['exp'], 'email': email}
 
@@ -91,12 +94,12 @@ def verify(token):
             return None
         claims = json.loads(base64.urlsafe_b64decode(payload + '=' * (-len(payload) % 4)))
         now = int(time.time())
-        if not isinstance(claims, dict) or not isinstance(claims.get('iat'), int) or not isinstance(claims.get('exp'), int):
+        if not isinstance(claims, dict) or claims.get('v') != 2 or type(claims.get('iat')) is not int or type(claims.get('exp')) is not int:
             return None
         if not claims['iat'] <= now < claims['exp'] or claims['exp'] - claims['iat'] != SESSION_SECONDS:
             return None
         account = users().get(claims.get('email'))
-        if not account or not secrets.compare_digest(fingerprint(account), claims.get('account', '')):
+        if not account or not secrets.compare_digest(account_binding(claims['email'], account), claims.get('account', '')):
             return None
         return claims['email']
     except (ValueError, TypeError, KeyError, UnicodeError):

@@ -47,9 +47,9 @@ test('engagement folders retain market identity, commercial links, annual histor
   assert.equal(initial.orders.find(o=>o.id===ids.a1).invoicedMinor,30000);assert.equal(initial.orders.find(o=>o.id===ids.a1).reservedMinor,10000);
   assert.equal(initial.orders.find(o=>o.id===ids.b1).invoicedMinor,120000);assert.equal(initial.orders.find(o=>o.id===ids.a2).amountMinor,null);
   assert.equal(initial.markets.find(m=>m.id===ids.a).consumption.quotedMinor,20000);assert.equal(initial.markets.find(m=>m.id===ids.a).consumption.periods.find(p=>!p.current).quotedMinor,80000);
-  const source=`import React,{useState} from 'react';import {createRoot} from 'react-dom/client';import {EngagementTracking} from './platform/client/billing-engagement-tracking';import {createBillingTransport} from './platform/client/billing-api';import './platform/client/billing.css';import './platform/client/billing-apple.css';import './platform/client/billing-polish.css';
+  const source=`import React,{useState} from 'react';import {createRoot} from 'react-dom/client';import {EngagementTracking} from './platform/client/billing-engagement-tracking';import {mountBilling} from './platform/client/billing';import {createBillingTransport} from './platform/client/billing-api';import './platform/client/billing.css';import './platform/client/billing-apple.css';import './platform/client/billing-polish.css';
    const api=createBillingTransport({baseUrl:location.origin,getToken:async()=>${JSON.stringify(token)},isActive:()=>true}),transport={...api,engagements:async()=>{const data=await api.engagements();if(new URLSearchParams(location.search).get('visual')==='overrun')data.orders=data.orders.map(o=>o.id===${JSON.stringify(ids.b1)}?{...o,amountMinor:100000}:o);return data;}};
-   function App(){const [opened,setOpened]=useState('');return <main className="bill-app"><EngagementTracking transport={transport} onOpen={setOpened}/><output id="opened-document" className="bill-sr-only">{opened}</output></main>};createRoot(document.getElementById('root')).render(<App/>);`;
+   function App(){const [opened,setOpened]=useState('');return <main className="bill-app"><EngagementTracking transport={transport} onOpen={setOpened}/><output id="opened-document" className="bill-sr-only">{opened}</output></main>};if(new URLSearchParams(location.search).has('shell'))mountBilling(document.getElementById('root'),{transport,onLegacy:section=>{document.getElementById('legacy-opened').textContent=section;}});else createRoot(document.getElementById('root')).render(<App/>);`;
   const bundle=await build({stdin:{contents:source,resolveDir:root,loader:'tsx'},bundle:true,write:false,platform:'browser',format:'esm',jsx:'automatic',alias:{react:dirname(appRequire.resolve('react/package.json')),'react-dom':dirname(appRequire.resolve('react-dom/package.json'))},external:['/platform/pdf-editor-font.ttf'],outfile:'bundle.js',logLevel:'silent'});
   const assets=new Map(bundle.outputFiles.map(o=>['/'+o.path.split(/[\\/]/).at(-1),o.contents]));
   server=createServer(async(req,res)=>{try{
@@ -59,7 +59,7 @@ test('engagement folders retain market identity, commercial links, annual histor
     for(const key of ['authorization','content-type','if-match','if-none-match'])if(req.headers[key])headers[key]=req.headers[key];
     const response=await ctx.worker.dispatchFetch('https://local'+url.pathname+url.search,{method:req.method,headers,...(bytes.length?{body:bytes}:{})});requests.push({method:req.method,path:url.pathname,status:response.status});res.writeHead(response.status,Object.fromEntries(response.headers));res.end(Buffer.from(await response.arrayBuffer()));return;
    }
-   if(url.pathname==='/'){res.setHeader('Content-Type','text/html; charset=utf-8');res.end('<!doctype html><html lang="fr" data-theme="light"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/bundle.css"><style>body{margin:0;padding:24px;background:#f5f5f7}html[data-theme=dark] body{background:#151517}@media(max-width:500px){body{padding:12px}}</style><div id="root"></div><script type="module" src="/bundle.js"></script></html>');return;}
+   if(url.pathname==='/'){res.setHeader('Content-Type','text/html; charset=utf-8');res.end('<!doctype html><html lang="fr" data-theme="light"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/bundle.css"><style>body{margin:0;padding:24px;background:#f5f5f7}html[data-theme=dark] body{background:#151517}@media(max-width:500px){body{padding:12px}}</style><div id="root"></div><output id="legacy-opened" class="bill-sr-only"></output><script type="module" src="/bundle.js"></script></html>');return;}
    if(['/marches/vendor/pdf.mjs','/marches/vendor/pdf.worker.mjs'].includes(url.pathname)){res.setHeader('Content-Type','application/javascript');res.end(await readFile(join(root,url.pathname.slice(1))));return;}
    if(url.pathname==='/platform/pdf-editor-font.ttf'){res.setHeader('Content-Type','font/ttf');res.end(await readFile(join(root,'platform/pdf-editor-font.ttf')));return;}
    const asset=assets.get(url.pathname);res.statusCode=asset?200:404;res.setHeader('Content-Type',url.pathname.endsWith('.css')?'text/css':'application/javascript');res.end(asset);
@@ -143,6 +143,35 @@ test('engagement folders retain market identity, commercial links, annual histor
     await page.setViewportSize({width:390,height:844});await openOrder(orderCard(a,'BC-COMMUN'));await expect(search).toBeVisible();assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+1),'the entire tracking view must not overflow the mobile viewport');
     const interactive=await tracking.locator('button,input,select,summary').evaluateAll(elements=>elements.filter(el=>el.getClientRects().length).map(el=>({name:el.getAttribute('aria-label')||el.textContent,left:el.getBoundingClientRect().left,right:el.getBoundingClientRect().right})));assert.deepEqual(interactive.filter(el=>el.left<-.5||el.right>390.5),[],'visible actions fit the screen');await capture('engagement-folders-mobile-'+theme);
    }assert.notEqual(backgrounds[0],backgrounds[1]);
+  });
+  await scenario('dossier labels and the active menu have strong readable contrast in both themes',async()=>{
+   await page.setViewportSize({width:1400,height:1050});
+   for(const theme of ['light','dark']){
+    await page.evaluate(value=>document.documentElement.dataset.theme=value,theme);
+    const checks=await page.evaluate(()=>{
+     const rgb=value=>{const match=value.match(/rgba?\(([^)]+)\)/);if(!match)return null;const values=match[1].split(/[\s,/]+/).map(Number);return values.length===4&&values[3]===0?null:values.slice(0,3);};
+     const luminance=values=>values.map(n=>{const c=n/255;return c<=.04045?c/12.92:((c+.055)/1.055)**2.4;}).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);
+     const ratio=(a,b)=>{const x=luminance(a),y=luminance(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05);};
+     return ['.bill-engagement-folder-head h3','.bill-engagement-folder-head p','.bill-engagement-order-identity small','.bill-engagement-order-table th','.bill-engagement-consumption-values strong','.bill-engagement-tabs [aria-selected=true]'].map(selector=>{
+      const element=document.querySelector(selector),foreground=rgb(getComputedStyle(element).color);let ancestor=element,background=null;
+      while(ancestor&&!background){background=rgb(getComputedStyle(ancestor).backgroundColor);ancestor=ancestor.parentElement;}
+      return {selector,ratio:foreground&&background?ratio(foreground,background):0};
+     });
+    });
+    for(const check of checks)assert.ok(check.ratio>=4.5,theme+' '+check.selector+' contrast '+check.ratio.toFixed(2)+' must reach 4.5');
+   }
+  });
+  await scenario('the real billing menu opens purchase orders and global markets directly on desktop and mobile',async()=>{
+   await page.goto(base+'/?shell=1');const navigation=page.getByRole('navigation',{name:'Documents commerciaux'}),ordersEntry=navigation.getByRole('button',{name:'Bons de commande',exact:true}),marketsEntry=navigation.getByRole('button',{name:'Marchés globaux',exact:true});
+   for(const width of [1400,390]){await page.setViewportSize({width,height:width===390?844:1050});for(const theme of ['light','dark']){
+    await page.evaluate(value=>document.documentElement.dataset.theme=value,theme);await expect(ordersEntry).toBeVisible();await expect(marketsEntry).toBeVisible();await expect(navigation.getByRole('button',{name:'Marchés et contrats',exact:true})).toBeVisible();
+    await ordersEntry.click();await expect(tracking.getByRole('heading',{name:'Bons de commande',exact:true})).toBeVisible();await expect(groups).toHaveCount(4);await expect(ordersEntry).toHaveAttribute('aria-current','page');await expect(marketsEntry).not.toHaveAttribute('aria-current','page');
+    await marketsEntry.click();await expect(tracking.getByRole('heading',{name:'Marchés globaux',exact:true})).toBeVisible();await expect(page.locator('.bill-engagement-market-card')).toHaveCount(3);await expect(marketsEntry).toHaveAttribute('aria-current','page');await expect(ordersEntry).not.toHaveAttribute('aria-current','page');
+    await tracking.getByRole('tab',{name:'Bons de commande',exact:true}).click();await expect(ordersEntry).toHaveAttribute('aria-current','page');await expect(marketsEntry).not.toHaveAttribute('aria-current','page');
+    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+1),'real billing navigation must fit viewport '+width);
+    await capture('engagement-real-menu-'+width+'-'+theme,page.locator('.bill-app'));
+   }}
+   await navigation.getByRole('button',{name:'Marchés et contrats',exact:true}).click();await expect(page.locator('#legacy-opened')).toHaveText('markets');
   });
   assert.deepEqual(errors,[]);assert.ok(requests.filter(r=>r.path==='/api/v1/billing/engagements'&&r.status===200).length>=2);
   await writeFile(join(output,'verification.json'),JSON.stringify({passed:failedScenarios===0,failedScenarios,requests,errors,captures,localOnly:true,visualOverrides:['overrun lowers one displayed ceiling only; storage remains valid'],fixture:{marketIds:ids,issuedInvoice:native.id,importedInvoice:'imported:engagement-imported',reservedInvoice:reserved.id}},null,2));

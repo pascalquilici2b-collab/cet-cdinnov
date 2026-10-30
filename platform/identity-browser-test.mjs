@@ -9,7 +9,8 @@ import {dashboardFixture} from './dashboard-fixture.mjs';
 const require=createRequire(process.env.PLAYWRIGHT_PACKAGE||'C:/Users/quili/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright/package.json');
 const {chromium}=require('playwright'),root=fileURLToPath(new URL('../',import.meta.url)).replace(/[\\/]$/,'');
 const out=process.env.PORTAL_QA;assert.ok(out,'Private PORTAL_QA required');await mkdir(out,{recursive:true});
-process.env.MARCHES_TEST_WORKER=join(root,'.build/entry.mjs');process.env.MARCHES_TEST_COMPATIBILITY_DATE='2026-06-09';
+// Login must exercise the current server implementation, never a stale build.
+delete process.env.MARCHES_TEST_WORKER;process.env.MARCHES_TEST_COMPATIBILITY_DATE='2026-06-09';
 const ctx=await testEnvironment();
 const fixture=dashboardFixture(ctx.accounts,'2026-10-19');fixture.salaries.forEach(s=>{s.photo=null;s.payslip=null;});
 Object.assign(fixture,{params:{anneeSuivi:2026,entreprise:'CDInnov test'},types:[],mouvements:[],codesAffaires:[]});

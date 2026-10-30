@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {stampEnvironment,py} from './stamping-test-helper.mjs';
 const fixture=JSON.parse(await py(['-c',"import runpy,json,base64;m=runpy.run_path('tests/test_stamping_layout.py');print(json.dumps({'raw':base64.b64encode(m['workbook'](m['ROWS'])).decode(),'plan':m['PLAN']}))"]));
-const ctx=await stampEnvironment({ai:async()=>({response:JSON.stringify({plans:[fixture.plan]})})});
+const ctx=await stampEnvironment({ai:async input=>({response:JSON.stringify({plans:[{...fixture.plan,sheet:JSON.parse(input.messages[1].content).tables[0].sheet}]})})});
 const read=async(r,status=200)=>{assert.equal(r.status,status,await r.clone().text());return r.json();};
 try{
  const id=(await read(await ctx.send('/batches',{name:'Synthetic semantic import',category:'RH'}),201)).id;

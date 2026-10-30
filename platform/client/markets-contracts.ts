@@ -143,7 +143,7 @@ export interface ReadingSuggestion {
 export interface MarketsSnapshot {
   appliedAnalysisId?:string;
   rows: Market[];
-  clients: { id: string; name: string }[];
+  clients: { id: string; name: string; siret?:string; siren?:string }[];
   current: Market | null;
   docs: MarketDocument[];
   tab: string;

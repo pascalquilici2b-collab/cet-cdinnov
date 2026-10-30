@@ -23,13 +23,22 @@ export function createClientFilterResolver(clients:FilterClient[],observations:C
   const id=clientId(input.id);if(!id||current.has(id))continue;
   current.set(id,{...input,id,name:label(input.name),...identity(input),aliases:Array.isArray(input.aliases)?[...input.aliases]:[],historicalIds:Array.isArray(input.historicalIds)?input.historicalIds.map(clientId).filter(Boolean):[]});
  }
+ // Historical duplicate records of the same establishment share a filter only.
+ // Keep original IDs in the data and never collapse separate SIRETs on their SIREN/name.
+ const establishments=new Map<string,Client>(),canonical=new Map<Client,Client>();
+ for(const client of [...current.values()].sort((a,b)=>a.id.localeCompare(b.id))){
+  const representative=client.siret?establishments.get(client.siret)||client:client;
+  if(client.siret)establishments.set(client.siret,representative);
+  canonical.set(client,representative);
+ }
  for(const client of current.values()){
-  for(const id of client.historicalIds||[])add(history,id,client);
-  add(sirets,client.siret,client);add(sirens,client.siren,client);
-  for(const name of [client.name,...client.aliases||[]])add(names,clientFilterNameKey(name),client);
+  const representative=canonical.get(client)!;
+  for(const id of client.historicalIds||[])add(history,id,representative);
+  add(sirets,client.siret,representative);add(sirens,client.siren,representative);
+  for(const name of [client.name,...client.aliases||[]])add(names,clientFilterNameKey(name),representative);
  }
  const strong=(input:ClientIdentityInput):Client|undefined=>{
-  const id=clientId(input.clientId);if(id){const known=current.get(id)||unique(history.get(id));if(known)return known;}
+  const id=clientId(input.clientId);if(id){const known=current.get(id)||unique(history.get(id));if(known)return canonical.get(known)||known;}
   const ids=identity(input);
   if(ids.siret){const candidates=sirets.get(ids.siret);if(candidates?.size)return unique(candidates);}
   if(ids.siren){
@@ -53,13 +62,16 @@ export function createClientFilterResolver(clients:FilterClient[],observations:C
  };
  const labels=new Map<string,Set<string>>();
  const note=(value:string,text:string)=>{const key=clientFilterNameKey(text),set=labels.get(key)||new Set<string>();set.add(value);labels.set(key,set);};
- for(const client of current.values())note('id:'+client.id,client.name);
+ for(const client of new Set(canonical.values()))note('id:'+client.id,client.name);
  for(const input of observations){const found=resolve(input);note(found.value,found.label);}
  return input=>{
   const found=resolve(input),duplicates=labels.get(clientFilterNameKey(found.label));
   const ambiguous=!!duplicates&&(duplicates.size>1||!duplicates.has(found.value));
   if(!ambiguous)return {value:found.value,label:found.label};
-  const ids=found.client||identity(input),id=clientId(input.clientId),suffix=ids.siret?'SIRET '+ids.siret:ids.siren?'SIREN '+ids.siren:found.client?'ID '+found.client.id:id?'ID '+id:'sans identifiant';
+  const ids=found.client||identity(input),id=clientId(input.clientId);
+  const peers=[...duplicates||[],found.value].filter((value,index,all)=>all.indexOf(value)===index).sort();
+  const recordLabel='fiche '+(peers.indexOf(found.value)+1);
+  const suffix=ids.siret?'SIRET '+ids.siret:ids.siren?'SIREN '+ids.siren+' · '+recordLabel:found.client||id?recordLabel:'à rapprocher';
   return {value:found.value,label:found.label+' — '+suffix};
  };
 }
