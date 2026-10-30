@@ -10,6 +10,7 @@ import type {Invoice} from './finance-domain';
 import {blankDraft,formatMinor} from '../billing-domain';
 import {ClientAvatar} from './billing-client-avatar';
 import {PDFIcon} from './billing-pdf-icon';
+import {createClientFilterResolver} from '../billing-client-filter-identity';
 
 export type ImportedAction='edit'|'delete'|'pdf'|'facturx'|'downloadFacturx'|'upload';
 export type ImportedInvoices={invoices:Invoice[];act:(action:ImportedAction,id:string)=>void};
@@ -31,16 +32,19 @@ export async function listWithImports(transport:BillingTransport,query:Parameter
   native.push(...page.documents);
  }
  const clients=[...first.filters?.clients||[]],projects=[...first.filters?.projects||[]];
+ const fallbackClient=createClientFilterResolver(clients.filter(c=>c.value.startsWith('id:')).map(c=>({id:c.value.slice(3),name:c.label})));
  const rows:BillingListRow[]=[],seen=new Set<string>();
  for(const invoice of source.invoices){
   if(seen.has(invoice.id))continue;seen.add(invoice.id);
   const client=invoice.client||'',project=String(invoice.projectName||invoice.project||'');
-  let clientOption=clients.find(c=>nameKey(c.label)===nameKey(client));
-  if(!clientOption&&client){clientOption={value:'name:'+client,label:client};clients.push(clientOption);}
+  const mapped=first.filters?.importedClients?.[invoice.id];
+  const resolved=fallbackClient({name:client,clientId:typeof invoice.clientId==='string'?invoice.clientId:undefined,siret:typeof invoice.siret==='string'?invoice.siret:undefined,siren:typeof invoice.siren==='string'?invoice.siren:undefined});
+  let clientOption=mapped?clients.find(c=>c.value===mapped):clients.find(c=>c.value===resolved.value);
+  if(!clientOption&&client){clientOption=resolved;clients.push(clientOption);}
   let projectOption=projects.find(p=>nameKey(p.label)===nameKey(project));
   if(!projectOption&&project){projectOption={value:invoice.projectId?'id:'+invoice.projectId:'name:'+project,label:project};projects.push(projectOption);}
   if(query.client&&clientOption?.value!==query.client||query.project&&projectOption?.value!==query.project)continue;
-  if(query.q&&!nameKey([invoice.number,client,invoice.code,project,invoice.dateFacture].join(' ')).includes(nameKey(query.q)))continue;
+  if(query.q&&!nameKey([invoice.number,client,clientOption?.label,invoice.code,project,invoice.dateFacture].join(' ')).includes(nameKey(query.q)))continue;
   const state=importedInvoiceState(invoice);
   if(query.state&&!['all','issued',state,...(!importedInvoicePaid(invoice)?['unpaid']:[])].includes(query.state))continue;
   const data=blankDraft('invoice');data.title='Facture '+(invoice.number||'importée');data.buyer.name=client;data.issueDate=invoice.dateFacture||'';data.references.businessCode=invoice.code||'';

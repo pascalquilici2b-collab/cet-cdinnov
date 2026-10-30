@@ -102,7 +102,7 @@ export type BillingDirectoryData=BillingClientData|BillingServiceData;
 export type BillingDirectoryRecord={id:string;version:number;updatedAt:string|null;} & ({kind:'clients';data:BillingClientData;}|{kind:'services';data:BillingServiceData;});
 export interface BillingDirectoryPage {records:BillingDirectoryRecord[];total:number;offset:number;limit:number;}
 export interface BillingFilterOption {value:string;label:string;}
-export interface BillingPage {documents:BillingDocument[]; total:number; limit:number; offset:number; filters?:{clients:BillingFilterOption[];projects:BillingFilterOption[]};}
+export interface BillingPage {documents:BillingDocument[]; total:number; limit:number; offset:number; filters?:{clients:BillingFilterOption[];projects:BillingFilterOption[];importedClients?:Record<string,string>};}
 export type BillingContextOrder=import('./client/markets-contracts').MarketOrder & {serviceCode?:string;engagement?:string;otherReference?:string};
 export type BillingContextProject=Omit<import('./client/markets-contracts').MarketProject,'orders'> & {orders:BillingContextOrder[]};
 export interface BillingContext {

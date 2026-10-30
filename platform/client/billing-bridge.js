@@ -4,7 +4,7 @@ function billingLockForLogout(){billingLogoutPending=true;$('#content').inert=tr
 function billingUnlockLogout(){billingLogoutPending=false;$('#content').inert=false;}
 function billingModule(){
   if(!$('#billingStyle')){const link=document.createElement('link');link.id='billingStyle';link.rel='stylesheet';link.href='platform/billing.css?v=mail-contact-select-20261026';document.head.append(link);}
-  return billingModulePromise ||= import('./platform/billing.js?v=linked-flows-20261029').catch(error=>{billingModulePromise=null;throw error;});
+  return billingModulePromise ||= import('./platform/billing.js?v=client-filters-report-20261030').catch(error=>{billingModulePromise=null;throw error;});
 }
 function billingLeave(){return billingMounted?.canLeave?.()!==false;}
 function billingForget(){

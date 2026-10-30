@@ -1,4 +1,5 @@
 import {followupRoute,followupJSON} from './billing-followup';
+import {clientFilterProjection} from './billing-client-filter-projection';
 import {selectedLink,syncLinkedDrafts,linkedReferences} from './billing-link-sync';
 import {readAnnualQuotes,consumptionForMarket} from '../marches/annual-consumption.mjs';
 import {invoiceSelection} from './billing-invoice-selection';
@@ -156,11 +157,13 @@ async function list(request:Request,db:Database,reply:Reply) {
  if([...params.keys()].some(k=>!['kind','q','limit','offset','state','client','project'].includes(k))||[...new Set(params.keys())].some(k=>params.getAll(k).length>1)||
   (kind!==null&&kind!=='quote'&&kind!=='invoice')||q.length>200||client.length>600||project.length>600||!['trash','all','draft','issued','finalizing','issue_failed',...quoteStates,...paymentStates].includes(state)||(quoteStates.includes(state)&&kind!=='quote'&&!(state==='sent'&&kind==='invoice'))||(paymentStates.includes(state)&&kind!=='invoice'))return fail(400,'Filtres de recherche invalides.');
  const limit=pageParameter(params,'limit',25,100,1),offset=pageParameter(params,'offset',0,1000000);
+ const clientProjection=await clientFilterProjection(db,kind,state==='trash');
  // Count and page share one snapshot. Search characters remain literal, including SQL wildcards.
- const row=await db.prepare(`WITH enriched AS (
-  SELECT *,CASE WHEN coalesce(json_extract(data_json,'$.clientId'),'')<>'' THEN 'id:'||json_extract(data_json,'$.clientId')
+ const row=await db.prepare(`WITH client_map AS (SELECT json_extract(value,'$.id') id,json_extract(value,'$.value') client_key,json_extract(value,'$.label') label FROM json_each(?)), enriched AS (
+  SELECT *,coalesce((SELECT client_key FROM client_map WHERE client_map.id=billing_documents.id),CASE WHEN coalesce(json_extract(data_json,'$.clientId'),'')<>'' THEN 'id:'||json_extract(data_json,'$.clientId')
    WHEN coalesce(json_extract(data_json,'$.buyer.siren'),'')<>'' THEN 'siren:'||json_extract(data_json,'$.buyer.siren')
-   ELSE 'name:'||coalesce(json_extract(data_json,'$.buyer.name'),'') END AS client_key,
+   ELSE 'name:'||coalesce(json_extract(data_json,'$.buyer.name'),'') END) AS client_key,
+  coalesce((SELECT label FROM client_map WHERE client_map.id=billing_documents.id),json_extract(data_json,'$.buyer.name')) AS client_label,
   CASE WHEN coalesce(json_extract(data_json,'$.references.projectId'),'')<>'' THEN 'id:'||json_extract(data_json,'$.references.projectId')
    ELSE 'name:'||coalesce(json_extract(data_json,'$.references.project'),'') END AS project_key,
   ${followupJSON} AS followup_json,${sentAtSQL} AS sent_at,${rectificationJSON()} AS rectification_json,${reservedNumberJSON} AS reserved_number_json,${issuanceJSON} AS issuance_json,${quoteJSON()} AS quote_json,${settlementJSON()} AS settlement_json FROM billing_documents WHERE (? IS NULL OR kind=?) AND (EXISTS(SELECT 1 FROM billing_document_trash t WHERE t.document_id=billing_documents.id)=?)
@@ -173,14 +176,15 @@ async function list(request:Request,db:Database,reply:Reply) {
   WHEN ?='abandoned' THEN kind='quote' AND json_extract(quote_json,'$.revision.abandoned')=1
   ELSE (kind<>'quote' OR (?='all' AND ?<>'') OR (json_extract(quote_json,'$.revision.currentId')=id AND json_extract(quote_json,'$.revision.abandoned')=0))
    AND (?='all' OR effective_status=? OR (effective_status='issued' AND json_extract(quote_json,'$.state')=?) OR (effective_status='issued' AND (json_extract(settlement_json,'$.state')=? OR (?='overdue' AND json_extract(settlement_json,'$.overdue')=1)))) END)
-  AND (?='' OR instr(lower(coalesce(json_extract(followup_json,'$.title'),json_extract(data_json,'$.title'))),lower(?))>0 OR instr(lower(json_extract(data_json,'$.buyer.name')),lower(?))>0 OR instr(lower(json_extract(data_json,'$.references.businessCode')),lower(?))>0 OR instr(lower(coalesce(json_extract(issuance_json,'$.number'),json_extract(reserved_number_json,'$.number'))),lower(?))>0))
+  AND (?='' OR instr(lower(coalesce(json_extract(followup_json,'$.title'),json_extract(data_json,'$.title'))),lower(?))>0 OR instr(lower(json_extract(data_json,'$.buyer.name')||' '||client_label),lower(?))>0 OR instr(lower(json_extract(data_json,'$.references.businessCode')),lower(?))>0 OR instr(lower(coalesce(json_extract(issuance_json,'$.number'),json_extract(reserved_number_json,'$.number'))),lower(?))>0))
  SELECT (SELECT count(*) FROM filtered) AS total,
- (SELECT json_group_array(json(item)) FROM (SELECT json_object('value',client_key,'label',max(json_extract(data_json,'$.buyer.name'))) AS item FROM classified WHERE coalesce(json_extract(data_json,'$.buyer.name'),'')<>'' GROUP BY client_key ORDER BY max(json_extract(data_json,'$.buyer.name')) COLLATE NOCASE)) AS clients_json,
+ (SELECT json_group_array(json(item)) FROM (SELECT json_object('value',client_key,'label',max(client_label)) AS item FROM classified WHERE coalesce(client_label,'')<>'' AND client_key<>'name:' GROUP BY client_key ORDER BY max(client_label) COLLATE NOCASE)) AS clients_json,
  (SELECT json_group_array(json(item)) FROM (SELECT json_object('value',project_key,'label',max(json_extract(data_json,'$.references.project'))) AS item FROM classified WHERE coalesce(json_extract(data_json,'$.references.project'),'')<>'' GROUP BY project_key ORDER BY max(json_extract(data_json,'$.references.project')) COLLATE NOCASE)) AS projects_json,
  (SELECT json_group_array(json(row_json)) FROM (
  SELECT json_object('id',id,'kind',kind,'status',status,'version',version,'data_json',data_json,'totals_json',totals_json,'issues_json',issues_json,'source_document_id',source_document_id,'created_at',created_at,'updated_at',updated_at,'created_by',created_by,'updated_by',updated_by,'followup_json',followup_json,'sent_at',sent_at,'rectification_json',rectification_json,'reserved_number_json',reserved_number_json,'issuance_json',issuance_json,'quote_json',quote_json,'settlement_json',settlement_json) AS row_json
- FROM filtered ORDER BY updated_at DESC,id LIMIT ? OFFSET ?)) AS rows_json`).bind(kind,kind,state==='trash'?1:0,client,client,project,project,state,state,state,state,state,state,q,state,state,state,state,state,q,q,q,q,q,limit,offset).first<{total:number;rows_json:string;clients_json:string;projects_json:string}>();
- return reply(200,{documents:JSON.parse(row?.rows_json||'[]').map(document),total:row?.total||0,limit,offset,filters:{clients:JSON.parse(row?.clients_json||'[]'),projects:JSON.parse(row?.projects_json||'[]')}});
+ FROM filtered ORDER BY updated_at DESC,id LIMIT ? OFFSET ?)) AS rows_json`).bind(JSON.stringify(clientProjection.native),kind,kind,state==='trash'?1:0,client,client,project,project,state,state,state,state,state,state,q,state,state,state,state,state,q,q,q,q,q,limit,offset).first<{total:number;rows_json:string;clients_json:string;projects_json:string}>();
+ const clients=[...new Map([...clientProjection.clients,...JSON.parse(row?.clients_json||'[]')].map(c=>[c.value,c])).values()].sort((a,b)=>a.label.localeCompare(b.label,'fr'));
+ return reply(200,{documents:JSON.parse(row?.rows_json||'[]').map(document),total:row?.total||0,limit,offset,filters:{clients,importedClients:clientProjection.imported,projects:JSON.parse(row?.projects_json||'[]')}});
 }
 
 /** Dedicated billing API; the reservation ledger controls the effective state of each document. */

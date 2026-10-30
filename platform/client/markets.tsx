@@ -18,6 +18,7 @@ import './markets-refresh.css';
 import {ClientAvatar} from './billing-client-avatar';
 import {ActivityBadge} from './activity-select';
 import {marketActivity} from '../project-activity';
+import {marketClientGroups} from '../market-client-filter';
 import {Help} from './billing-help';
 import {
   TYPES,
@@ -1086,20 +1087,21 @@ function Setup({ s, m }: { s: MarketsSnapshot; m: Market }) {
     </>
   );
 }
-function MarketList({state:s,onQuery,client,onClient}:MarketsProps&{client:string;onClient:(value:string)=>void}){
- const [query,setQuery]=useState(s.query),q=query.toLocaleLowerCase('fr');
- const matches=s.rows.filter(m=>[m.title,m.reference,m.clientName].some(v=>v.toLocaleLowerCase('fr').includes(q))),rows=matches.filter(m=>!client||(m.clientName||'Client à renseigner')===client);
- const clients=[...new Set(matches.map(m=>m.clientName||'Client à renseigner'))].sort((a,b)=>a.localeCompare(b,'fr'));
+export function MarketList({state:s,onQuery,client,onClient}:MarketsProps&{client:string;onClient:(value:string)=>void}){
+ const [query,setQuery]=useState(s.query),groups=marketClientGroups(s.clients,s.rows,query);
+ const selected=groups.find(group=>group.value===client),rows=selected?.markets||[];
+ const clientLabel=marketClientGroups(s.clients,s.rows).find(group=>group.value===client)?.label||'Marchés et contrats';
  return <>
-  <div className="mk-heading"><div>{client&&<Button className="mk-link" onClick={()=>onClient('')}><ArrowLeft size={16}/>Tous les clients</Button>}<h1>{client||'Marchés et contrats'}</h1></div><Button className="mk-primary" data-action="new"><Plus size={17}/>Nouveau marché</Button></div>
+  <div className="mk-heading"><div>{client&&<Button className="mk-link" onClick={()=>onClient('')}><ArrowLeft size={16}/>Tous les clients</Button>}<h1>{client?clientLabel:'Marchés et contrats'}</h1></div><Button className="mk-primary" data-action="new"><Plus size={17}/>Nouveau marché</Button></div>
   <div className="mk-list-tools"><label className="mk-search" htmlFor="mkSearch"><Search size={17}/><input id="mkSearch" type="search" aria-label="Rechercher un marché" value={query} onChange={e=>{setQuery(e.target.value);onQuery(e.target.value);}} placeholder="Client, référence ou objet…" disabled={s.busy}/></label><Button className="mk-icon-button" aria-label="Actualiser les marchés" data-action="refresh"><RefreshCw size={17}/></Button></div>
-  <div id="mkMarketList">{s.busy?<Loading label="Chargement des marchés…"/>:!matches.length?<div className="mk-empty">Aucun marché trouvé.</div>:!client?<div className="mk-client-list">{clients.map(name=>{const contracts=matches.filter(m=>(m.clientName||'Client à renseigner')===name);return <button type="button" className="mk-client-row" key={name} onClick={()=>onClient(name)}><ClientAvatar name={name}/><span><strong>{name}</strong><small>{contracts.length} marché{contracts.length>1?'s':''}{contracts.some(m=>marketActivity(m).state==='active')?' · '+contracts.filter(m=>marketActivity(m).state==='active').length+' en cours':''}</small></span><ChevronRight size={18}/></button>;})}</div>:<div className="mk-contract-list">{rows.map(m=><article className="mk-contract-row" key={m.id}><div className="mk-contract-main"><Button className="mk-card-title" data-open={m.id}><span>{m.reference||'Marché'} · {TYPES[m.type as keyof typeof TYPES]||m.type}</span><strong>{m.title||'Nouveau marché'}</strong></Button><ActivityBadge activity={marketActivity(m)}/></div><div className="mk-contract-foot"><EngagementMeter used={m.tracking?.quotedMinor||0} maximum={marketTracking(m).maximumMinor} label={'Consommation du marché '+(m.reference||m.title)}/><Button className="mk-icon-button" data-open={m.id} aria-label={'Ouvrir le marché '+(m.reference||m.title)}><ChevronRight size={18}/></Button></div></article>)}</div>}</div>
+  <div id="mkMarketList">{s.busy?<Loading label="Chargement des marchés…"/>:(!groups.length||!!client&&!rows.length)?<div className="mk-empty">Aucun marché trouvé.</div>:!client?<div className="mk-client-list">{groups.map(group=>{const contracts=group.markets;return <button type="button" className="mk-client-row" key={group.value} data-client-filter={group.value} onClick={()=>onClient(group.value)}><ClientAvatar name={group.label}/><span><strong>{group.label}</strong><small>{contracts.length} marché{contracts.length>1?'s':''}{contracts.some(m=>marketActivity(m).state==='active')?' · '+contracts.filter(m=>marketActivity(m).state==='active').length+' en cours':''}</small></span><ChevronRight size={18}/></button>;})}</div>:<div className="mk-contract-list">{rows.map(m=><article className="mk-contract-row" key={m.id}><div className="mk-contract-main"><Button className="mk-card-title" data-open={m.id}><span>{m.reference||'Marché'} · {TYPES[m.type as keyof typeof TYPES]||m.type}</span><strong>{m.title||'Nouveau marché'}</strong></Button><ActivityBadge activity={marketActivity(m)}/></div><div className="mk-contract-foot"><EngagementMeter used={m.tracking?.quotedMinor||0} maximum={marketTracking(m).maximumMinor} label={'Consommation du marché '+(m.reference||m.title)}/><Button className="mk-icon-button" data-open={m.id} aria-label={'Ouvrir le marché '+(m.reference||m.title)}><ChevronRight size={18}/></Button></div></article>)}</div>}</div>
  </>;
 }
 function Markets(props: MarketsProps) {
   const [client,setClient]=useState('');
   const s = props.state,
     m = s.current,
+    clientLabel=marketClientGroups(s.clients,s.rows).find(group=>group.value===client)?.label,
     blockers = m ? activationBlockers(m) : [],
     Content =
       (
@@ -1143,7 +1145,7 @@ function Markets(props: MarketsProps) {
             <div className="mk-heading">
               <div>
                 <Button className="mk-link" data-action="back">
-                  <ArrowLeft size={16}/> {client||"Tous les clients"}
+                  <ArrowLeft size={16}/> {clientLabel||"Tous les clients"}
                 </Button>
                 <h1>{m.reference || m.title || "Nouveau marché"}</h1>{m.reference&&<p className="mk-market-title">{m.title}</p>}
                 <p>
