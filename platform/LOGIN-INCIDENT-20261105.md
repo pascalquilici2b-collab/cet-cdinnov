@@ -4,7 +4,7 @@
 
 Le Chrome de l'utilisateur envoyait encore ses requêtes à l'ancien hébergement GitHub (`185.199.109.153`), après le changement de CNAME vers Cloudflare Pages. L'interface déjà actualisée y appelait l'API du même domaine : POST `/budgets/session` retournait HTML 405 ; GET `/api/v1/session` retournait HTML 404. Le message JSON provenait du décodage de cette page d'erreur. Après un redémarrage de Chrome, la requête GET contactait encore cette ancienne adresse.
 
-Les résolveurs public Cloudflare, Google et système retournaient déjà `cdinnov-app.pages.dev`. Aucun mot de passe incorrect ni perte de données n'est démontré par cet incident. L'utilisateur a été invité à nettoyer manuellement le cache DNS et les connexions persistantes de Chrome ; les pages internes nécessaires sont interdites au contrôle navigateur. La validation de son accès après cette étape reste en attente.
+Les résolveurs public Cloudflare, Google et système retournaient déjà `cdinnov-app.pages.dev`. Aucun mot de passe incorrect ni perte de données n'est démontré par cet incident. L'utilisateur a nettoyé manuellement le cache DNS et les connexions persistantes de Chrome ; les pages internes nécessaires sont interdites au contrôle navigateur. Après son retour, le rechargement de l'onglet a rétabli la session : tableau de bord chargé, profil Pascal QUILICI administrateur et indicateur « Synchronisé » visibles à **14:06, heure de Paris**. L'accès utilisateur est donc confirmé.
 
 ## Correctifs publiés
 
