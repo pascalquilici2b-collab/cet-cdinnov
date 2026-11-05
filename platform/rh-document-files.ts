@@ -5,11 +5,13 @@ import type {RhSnapshot,RhLine,RhImportedPayment,RhReturnInspection,RhPaymentEnt
 import {rhDate,rhMonth} from './rh-domain';
 import {maritimeLogoData,epcicLogoData} from './rh-workbook-branding';
 import {rhAttestationTitle,rhAttestationText} from './rh-document-presentation';
-import {rhPaymentGroups} from './rh-payment-layout';
+import {rhPaymentGroups,type RhPaymentSource,type RhPaymentLine} from './rh-payment-layout';
 
 const FORMAT='CDINNOV_RH_1';
 const COMBINED_FORMAT='CDINNOV_RH_2';
 const FINAL_FORMAT='CDINNOV_RH_3';
+const MERGED_FORMAT='CDINNOV_RH_4';
+const PREVIEW_FORMAT='CDINNOV_RH_PREVIEW_1';
 const CERTIFICATION='Je soussigné ________________ en qualité de ______________________________, certifie les informations de paiements susmentionnées.';
 const CERTIFICATION_DATE='Fait à ____________    Le ___________';
 const META='_CDI_RH';
@@ -20,6 +22,7 @@ const COLORS={ink:'FF263B50',muted:'FF65768A',line:'FFDCE4EC',soft:'FFF0F4F8',in
 const logoCache=new WeakMap<ExcelTypes.Workbook,Map<string,number>>();
 function fail(message:string):never{throw new Error(message);}
 type ExpectedValue=string|number|null|{formula:string;result:number};
+type RhGridSource=Omit<RhSnapshot,'lines'>&{lines:RhPaymentLine[]};
 type Grid={name:string;cells:Map<string,ExpectedValue>;headerRow:number;lastRow:number;lines:RhLine[]};
 const address=(row:number,column:number)=>String.fromCharCode(64+column)+row;
 const titleDate=(value:string)=>value.split('-').reverse().join('/');
@@ -135,7 +138,7 @@ async function legacyRhWorkbook(snapshot:RhSnapshot):Promise<Uint8Array>{
 
 type CombinedSlot={row:number;payment:RhPaymentEntry};
 type CombinedGrid={name:string;programme:string;cells:Map<string,ExpectedValue>;slots:CombinedSlot[];merges:string[];segments:{start:number;end:number}[];headerRow:number;lastRow:number;totalRow:number;signatureRow:number;heading?:boolean;introRows?:{row:number;height:number;fontSize:number}[];certificationRow?:number;certificationDateRow?:number};
-const monthLabel=(value:string)=>new Intl.DateTimeFormat('fr-FR',{month:'long',year:'numeric',timeZone:'UTC'}).format(new Date(value+'-01T12:00:00Z'));
+const monthLabel=(value:string)=>rhMonth(value)?new Intl.DateTimeFormat('fr-FR',{month:'long',year:'numeric',timeZone:'UTC'}).format(new Date(value+'-01T12:00:00Z')):'À compléter';
 const COMBINED_PAGE_HEIGHT=585;
 function wrappedHeight(text:string,width:number,size:number,padding=7):number{
  const pixels=(token:string)=>[...token].reduce((sum,char)=>sum+(/[ilI.,:;'!|]/.test(char)?.26:/[MW@%]/.test(char)?.88:/[A-Z0-9]/.test(char)?.62:/\s/.test(char)?.3:char.charCodeAt(0)>255?1:.52),0)*size*96/72;
@@ -156,7 +159,7 @@ function fitCombinedRowHeights(sheet:ExcelTypes.Worksheet,grid:CombinedGrid){
  }));
  for(const {range,height}of vertical){let existing=0;for(let row=range.first;row<=range.last;row++)existing+=sheet.getRow(row).height||24;if(height>existing){const extra=(height-existing)/(range.last-range.first+1);for(let row=range.first;row<=range.last;row++)sheet.getRow(row).height=Math.min(409.5,(sheet.getRow(row).height||24)+extra);}}
 }
-function combinedGridsV2(snapshot:RhSnapshot):CombinedGrid[]{
+function combinedGridsV2(snapshot:RhGridSource):CombinedGrid[]{
  return rhPaymentGroups(snapshot).map(group=>{
   const cells=new Map<string,ExpectedValue>(),slots:CombinedSlot[]=[],merges:string[]=[],segments:{start:number;end:number}[]=[];
   const put=(row:number,column:number,value:ExpectedValue)=>cells.set(address(row,column),value),merge=(first:number,left:number,last:number,right:number)=>{if(first!==last||left!==right)merges.push(`${address(first,left)}:${address(last,right)}`);};
@@ -174,12 +177,12 @@ function combinedGridsV2(snapshot:RhSnapshot):CombinedGrid[]{
     put(start,1,block.agentName);put(start,2,monthLabel(block.month));put(start,3,euros(block.employerCostCents));for(const column of [1,2,3])merge(start,column,end,column);
     for(let index=0;index<count;index++,row++){const position=offset+index,line=block.lines[position],salary=block.salaryPayments[position],contribution=block.contributionPayments[position];
      put(row,16,block.agentId);put(row,17,block.month);
-     if(line){const archived=snapshot.lines.find(item=>item.id===line.id);if(!archived)fail('Ligne RH absente de la version archivée.');put(row,4,snapshot.projects.find(project=>project.id===archived.projectId)!.name);put(row,5,archived.rateBasisPoints/10000);put(row,6,{formula:`ROUND($C$${start}*E${row},2)`,result:euros(archived.allocatedCents)!});put(row,13,archived.id);}
+     if(line){const archived=snapshot.lines.find(item=>item.id===line.id);if(!archived)fail('Ligne RH absente de la version archivée.');put(row,4,snapshot.projects.find(project=>project.id===archived.projectId)!.name);put(row,5,archived.rateBasisPoints===null?null:archived.rateBasisPoints/10000);put(row,6,archived.allocatedCents===null?null:{formula:`ROUND($C$${start}*E${row},2)`,result:euros(archived.allocatedCents)!});put(row,13,archived.id);}
      if(salary){put(row,14,salary.id);slots.push({row,payment:salary});}if(contribution){put(row,15,contribution.id);slots.push({row,payment:contribution});}
     }offset+=count;if(row>20000)fail('Cette feuille dépasse 20 000 lignes. Réduisez la période du document.');
    }
   }
-  const totalRow=row;put(row,1,'Total imputé');merge(row,1,row,5);put(row,6,{formula:`SUM(F${headerRow+2}:F${row-1})`,result:euros(group.blocks.flatMap(block=>block.lines).reduce((sum,line)=>sum+(line.allocatedCents||0),0))!});row+=2;
+  const totalLines=group.blocks.flatMap(block=>block.lines),totalRow=row;put(row,1,'Total imputé');merge(row,1,row,5);put(row,6,totalLines.length&&totalLines.every(line=>line.allocatedCents!==null)?{formula:`SUM(F${headerRow+2}:F${row-1})`,result:euros(totalLines.reduce((sum,line)=>sum+line.allocatedCents!,0))!}:null);row+=2;
   put(row,1,'Complétez les cases bleues. Pour ajouter un versement, préparez une nouvelle version dans l’outil. Un paiement commun répété n’est compté qu’une fois.');merge(row,1,row,12);row+=2;
   const signatureRow=row;put(row,1,'Date, nom, qualité et signature de la personne habilitée :');merge(row,1,row+2,12);row+=2;
   return {name:group.name,programme:group.programme,cells,slots,merges,segments,headerRow,lastRow:row,totalRow,signatureRow};
@@ -187,7 +190,7 @@ function combinedGridsV2(snapshot:RhSnapshot):CombinedGrid[]{
 }
 
 /** A separate immutable presentation profile keeps already-issued V2 readable. */
-function combinedGridsV3(snapshot:RhSnapshot):CombinedGrid[]{
+function combinedGridsV3(snapshot:RhGridSource):CombinedGrid[]{
  const previous=combinedGridsV2(snapshot);
  return previous.map((grid,index)=>{
   const cells=new Map<string,ExpectedValue>(),merges:string[]=[],introRows:{row:number;height:number;fontSize:number}[]=[],heading=index===0,last=index===previous.length-1;
@@ -216,15 +219,53 @@ function combinedGridsV3(snapshot:RhSnapshot):CombinedGrid[]{
  });
 }
 
+function combinedGridsV4(snapshot:RhGridSource):CombinedGrid[]{
+ return combinedGridsV3(snapshot).map(grid=>{
+  const cells=new Map(grid.cells),firstData=grid.headerRow+2,lastData=grid.totalRow-1;
+  const merges=grid.merges.filter(range=>{const match=/^A(\d+):A(\d+)$/.exec(range);return !match||Number(match[1])<firstData||Number(match[2])>lastData;});
+  let first=firstData;while(first<=lastData){const agentId=cells.get(address(first,16));let last=first;while(last<lastData&&cells.get(address(last+1,16))===agentId)last++;
+   for(let row=first+1;row<=last;row++)cells.delete(address(row,1));
+   if(last>first)merges.push(`A${first}:A${last}`);first=last+1;
+  }
+  return {...grid,cells,merges};
+ });
+}
+
+function combinedBorders(sheet:ExcelTypes.Worksheet,grid:CombinedGrid){
+ const border={style:'thin' as const,color:{argb:'FF65717F'}},outline={top:border,bottom:border,left:border,right:border};
+ for(let row=grid.headerRow;row<=grid.totalRow;row++)for(let column=1;column<=12;column++)sheet.getCell(row,column).border=outline;
+ for(const intro of grid.introRows||[])for(const first of [1,7])if(grid.cells.has(address(intro.row,first)))for(let column=first;column<first+6;column++)sheet.getCell(intro.row,column).border=outline;
+ if(grid.heading)sheet.getCell('A4').border={};
+}
+
 /** Combined RH and financial columns; immutable identifiers preserve payment scope. */
-export async function exportRhWorkbook(snapshot:RhSnapshot,options:{legacy?:boolean;presentation?:'v2'|'v3'}={}):Promise<Uint8Array>{
+export async function exportRhWorkbook(snapshot:RhSnapshot,options:{legacy?:boolean;presentation?:'v2'|'v3'|'v4'}={}):Promise<Uint8Array>{
  if(options.legacy||snapshot.payments===undefined)return legacyRhWorkbook(snapshot);
- assertSnapshot(snapshot);const workbook=new ExcelJS.Workbook();workbook.creator='CDInnov';workbook.created=new Date(snapshot.createdAt);workbook.modified=new Date(snapshot.createdAt);workbook.calcProperties.fullCalcOnLoad=true;
- const v2=options.presentation==='v2',format=v2?COMBINED_FORMAT:FINAL_FORMAT;
- const logo=snapshot.client.logoData||(/999021967/.test(snapshot.client.siret||'')||/etablissement public du commerce et de l.industri|\bepcic\b/i.test(snapshot.client.name)?epcicLogoData:undefined),grids=v2?combinedGridsV2(snapshot):combinedGridsV3(snapshot);let pageNumber=1;
+ assertSnapshot(snapshot);return writeCombinedWorkbook(snapshot,options);
+}
+
+/** Read-only preview: missing values stay blank and its format cannot validate a financial return. */
+export async function exportRhPreviewWorkbook(source:RhPaymentSource&{name:string;documentId?:string;revision?:number}):Promise<Uint8Array>{
+ if(!source.name?.trim()||!source.client?.name||!source.periods.length)fail('Ajoutez un client, un nom et au moins un projet avant d’exporter l’aperçu.');
+ if(source.periods.length>50||source.lines.length>12000)fail('L’aperçu est trop volumineux. Réduisez sa période.');
+ const ids=new Set<string>();for(const period of source.periods)if(!source.projects.some(project=>project.id===period.projectId))fail('Un projet de l’aperçu est indisponible.');
+ for(const line of source.lines){if(ids.has(line.id)||!source.agents.some(agent=>agent.id===line.agentId)||!source.projects.some(project=>project.id===line.projectId)||!source.periods.some(period=>period.id===line.periodId&&period.projectId===line.projectId)||!rhMonth(line.month))fail('Une ligne de l’aperçu est incohérente.');ids.add(line.id);
+  for(const amount of [line.employerCostCents,line.rateBasisPoints,line.allocatedCents])if(amount!==null&&(!Number.isSafeInteger(amount)||amount<0))fail('Vérifiez les montants et les taux de l’aperçu.');
+  if(line.rateBasisPoints!==null&&line.rateBasisPoints>10000||line.allocatedCents!==null&&(line.employerCostCents===null||line.rateBasisPoints===null||Math.round(line.employerCostCents*line.rateBasisPoints/10000)!==line.allocatedCents))fail('Une imputation de l’aperçu est incohérente.');
+ }
+ const snapshot:RhGridSource={...source,id:'preview-'+crypto.randomUUID(),documentId:source.documentId||'',revision:source.revision??0,name:source.name.trim(),payroll:[],createdAt:new Date().toISOString(),createdBy:''};
+ return writeCombinedWorkbook(snapshot,{presentation:'v4'},true);
+}
+
+async function writeCombinedWorkbook(snapshot:RhGridSource,options:{presentation?:'v2'|'v3'|'v4'},preview=false):Promise<Uint8Array>{
+ const workbook=new ExcelJS.Workbook();workbook.creator='CDInnov';workbook.created=new Date(snapshot.createdAt);workbook.modified=new Date(snapshot.createdAt);workbook.calcProperties.fullCalcOnLoad=true;
+ const v2=options.presentation==='v2',v3=options.presentation==='v3',format=preview?PREVIEW_FORMAT:v2?COMBINED_FORMAT:v3?FINAL_FORMAT:MERGED_FORMAT;
+ const logo=snapshot.client.logoData||(/999021967/.test(snapshot.client.siret||'')||/etablissement public du commerce et de l.industri|\bepcic\b/i.test(snapshot.client.name)?epcicLogoData:undefined),grids=v2?combinedGridsV2(snapshot):v3?combinedGridsV3(snapshot):combinedGridsV4(snapshot);let pageNumber=1;
  for(const grid of grids){
   const sheet=workbook.addWorksheet(grid.name);sheet.columns=[19,14,17,15,8,15,12,12,14,16,14,12].map(width=>({width})).concat(Array.from({length:5},()=>({width:18,hidden:true})));
-  for(const [cell,value]of grid.cells)sheet.getCell(cell).value=value;
+  // A draft is a point-in-time preview: static known amounts avoid Excel turning
+  // a missing input into zero when recalculating incomplete formulas.
+  for(const [cell,value]of grid.cells)sheet.getCell(cell).value=preview&&value!==null&&typeof value==='object'?value.result:value;
   for(const slot of grid.slots){const p=slot.payment,date=p.date?new Date(p.date+'T12:00:00Z'):null,values=p.kind==='salary'?[p.reference,date,euros(p.amountCents)]:[p.organism,euros(p.amountCents),date],start=p.kind==='salary'?7:10;values.forEach((value,index)=>sheet.getCell(slot.row,start+index).value=value);}
   for(const range of grid.merges)sheet.mergeCells(range);styleSheet(sheet);
   sheet.properties.defaultRowHeight=24;
@@ -237,6 +278,7 @@ export async function exportRhWorkbook(snapshot:RhSnapshot,options:{legacy?:bool
   for(const slot of grid.slots){const first=slot.payment.kind==='salary'?7:10;for(let col=first;col<first+3;col++){const cell=sheet.getCell(slot.row,col);cell.protection={locked:false};cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:COLORS.input}};}const amount=sheet.getCell(slot.row,slot.payment.kind==='salary'?9:11);amount.dataValidation={type:'decimal',operator:'greaterThanOrEqual',formulae:[0],allowBlank:true,showErrorMessage:true,error:'Renseignez un montant positif ou nul.'};sheet.getCell(slot.row,slot.payment.kind==='salary'?8:12).numFmt='dd/mm/yyyy';}
   sheet.getRow(grid.totalRow).font={name:'Calibri',size:10,bold:true,color:{argb:COLORS.ink}};sheet.getCell(grid.totalRow,6).numFmt=EURO;
   if(v2){sheet.getRow(grid.totalRow+2).height=32;sheet.getRow(grid.signatureRow).height=28;}else if(grid.certificationRow&&grid.certificationDateRow){sheet.getRow(grid.certificationRow).height=36;sheet.getRow(grid.certificationDateRow).height=30;for(const row of [grid.certificationRow,grid.certificationDateRow])sheet.getCell(row,1).protection={locked:false};}
+  if(!v2&&!v3)combinedBorders(sheet,grid);
   fitCombinedRowHeights(sheet,grid);
   // Keep short agent/month segments together and start a new printed page when needed.
   const heightBetween=(first:number,last:number)=>{let height=0;for(let row=first;row<=last;row++)height+=sheet.getRow(row).height||24;return height;};
@@ -303,14 +345,14 @@ function paymentDate(cell:ExcelTypes.Cell):string{
  fail('Renseignez une date Excel ou une date au format JJ/MM/AAAA.');
 }
 
-function inspectCombined(workbook:ExcelTypes.Workbook,snapshot:RhSnapshot,format:typeof COMBINED_FORMAT|typeof FINAL_FORMAT):RhReturnInspection{
- const issues:string[]=[],payments=new Map<string,RhImportedPayment>(),issue=(message:string)=>{if(issues.length<60&&!issues.includes(message))issues.push(message);},grids=format===COMBINED_FORMAT?combinedGridsV2(snapshot):combinedGridsV3(snapshot),meta=workbook.getWorksheet(META);
+function inspectCombined(workbook:ExcelTypes.Workbook,snapshot:RhSnapshot,format:typeof COMBINED_FORMAT|typeof FINAL_FORMAT|typeof MERGED_FORMAT):RhReturnInspection{
+ const issues:string[]=[],payments=new Map<string,RhImportedPayment>(),issue=(message:string)=>{if(issues.length<60&&!issues.includes(message))issues.push(message);},grids=format===COMBINED_FORMAT?combinedGridsV2(snapshot):format===FINAL_FORMAT?combinedGridsV3(snapshot):combinedGridsV4(snapshot),meta=workbook.getWorksheet(META);
  if(!meta||!equalCell(normalizedCell(meta.getCell('A1')),format)||!equalCell(normalizedCell(meta.getCell('B2')),snapshot.id)||!equalCell(normalizedCell(meta.getCell('B3')),snapshot.documentId)||!equalCell(normalizedCell(meta.getCell('B4')),snapshot.revision)||!equalCell(normalizedCell(meta.getCell('B5')),snapshot.client.id)||!equalCell(normalizedCell(meta.getCell('B6')),JSON.stringify(grids.map(grid=>grid.name))))return {payments:[],issues:['Ce classeur ne correspond pas à la version RH sélectionnée.'],complete:false};
  if(workbook.worksheets.some(sheet=>![META,...grids.map(grid=>grid.name)].includes(sheet.name)))issue('Une feuille inattendue a été ajoutée au classeur.');
  for(const grid of grids){
   const sheet=workbook.getWorksheet(grid.name);if(!sheet){issue(`Feuille RH manquante : ${grid.name}.`);continue;}if(sheet.rowCount>20000){issue(`Feuille trop volumineuse : ${grid.name}.`);continue;}
   for(const [position,expected]of grid.cells){const actual=normalizedCell(sheet.getCell(position));
-   if(format===FINAL_FORMAT&&[grid.certificationRow,grid.certificationDateRow].some(row=>row&&position===address(row,1))){if(actual!==null&&(typeof actual!=='string'||actual.length>1000))issue(`Certification invalide : ${grid.name}, ${position}. Saisissez du texte (1 000 caractères maximum).`);continue;}
+   if(format!==COMBINED_FORMAT&&[grid.certificationRow,grid.certificationDateRow].some(row=>row&&position===address(row,1))){if(actual!==null&&(typeof actual!=='string'||actual.length>1000))issue(`Certification invalide : ${grid.name}, ${position}. Saisissez du texte (1 000 caractères maximum).`);continue;}
    if(!equalCell(actual,expected))issue(`Donnée RH modifiée : ${grid.name}, ${position}.`);
   }
   if(JSON.stringify([...(sheet.model.merges||[])].sort())!==JSON.stringify([...grid.merges].sort()))issue(`Fusions modifiées : ${grid.name}. Conservez les lignes du document exporté.`);
@@ -339,7 +381,7 @@ export async function inspectRhReturnWorkbook(bytes:Uint8Array,snapshot:RhSnapsh
  const payments:RhImportedPayment[]=[],issues:string[]=[];const issue=(message:string)=>{if(issues.length<60&&!issues.includes(message))issues.push(message);};
  try{
   assertSnapshot(snapshot);guardZip(bytes);const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(bytes as unknown as ExcelTypes.Buffer);
-  const format=workbook.getWorksheet(META)?.getCell('A1').value;if(format===COMBINED_FORMAT||format===FINAL_FORMAT)return inspectCombined(workbook,snapshot,format);
+  const format=workbook.getWorksheet(META)?.getCell('A1').value;if(format===PREVIEW_FORMAT)return {payments:[],issues:['Ce classeur est un aperçu non validé. Exportez une version RH validée pour importer le retour financier.'],complete:false};if(format===COMBINED_FORMAT||format===FINAL_FORMAT||format===MERGED_FORMAT)return inspectCombined(workbook,snapshot,format);
   let grids=rhGrids(snapshot);
   // Files already sent to finance retain their original presentation. Select one
   // exact profile for the whole workbook; every business cell is checked as before.

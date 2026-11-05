@@ -9,7 +9,7 @@ import {zipSync,unzipSync} from 'fflate';
 const output=new URL('../.build/rh-document-files-test-module.mjs',import.meta.url);
 await mkdir(new URL('../.build/',import.meta.url),{recursive:true});
 await build({entryPoints:[fileURLToPath(new URL('./rh-document-files.ts',import.meta.url))],outfile:fileURLToPath(output),bundle:true,platform:'node',format:'esm',packages:'external'});
-const {exportRhWorkbook,inspectRhReturnWorkbook}=await import(output.href);
+const {exportRhWorkbook,exportRhPreviewWorkbook,inspectRhReturnWorkbook}=await import(output.href);
 
 const agent=(id,name)=>({id,name,role:'',supervisor:'',allocations:[]});
 const project=(id,name,programme)=>({id,name,code:'IF TEST'+id,programme,marketId:'market-test',clientIds:['client-test']});
@@ -141,7 +141,7 @@ await test('V2 : textes financiers longs lisibles, pagination mesurée et topolo
 });
 
 const certification='Je soussigné ________________ en qualité de ______________________________, certifie les informations de paiements susmentionnées.';
-const v3Bytes=await exportRhWorkbook(combinedSnapshot);
+const v3Bytes=await exportRhWorkbook(combinedSnapshot,{presentation:'v3'});
 await test('V3 : un en-tête global, tableaux seuls ensuite et une certification finale',async()=>{
  const wb=await open(v3Bytes),sheets=wb.worksheets.filter(s=>s.name.startsWith('RH ')),zip=unzipSync(v3Bytes);assert.equal(wb.getWorksheet('_CDI_RH').getCell('A1').value,'CDINNOV_RH_3');
  const texts=sheets.flatMap(sheet=>{const values=[];sheet.eachRow(row=>row.eachCell(cell=>{if(cell.col<=12&&(!cell.isMerged||cell.master.address===cell.address)&&typeof cell.value==='string')values.push(cell.value);}));return values;});
@@ -158,8 +158,34 @@ await test('V3 : retour complété et certification libre, mêmes paiements que 
 });
 await test('V3 : introduction de 18 ou 50 projets tient page 1, IDs et dates intacts',async()=>{
  for(const count of [18,50]){const entries=Array.from({length:count},(_,i)=>project('stress-'+i,count===50?'Projet '+i+' '+('intitulé détaillé '.repeat(12)):'Projet de test '+i,'Interreg Maritime')),periods=entries.map((project,i)=>period('stress-period-'+i,project.id,'2026-01-01','2026-01-31','agent-a',100));
-  const source={...combinedSnapshot,projects:entries,periods,agents:[snapshot.agents[0]],lines:periods.map(p=>line(p,'2026-01')),payments:combinedSnapshot.payments.filter(p=>p.month==='2026-01')},output=await exportRhWorkbook(source),wb=await open(output),sheet=wb.worksheets.find(s=>s.name.startsWith('RH ')),header=Number(sheet.pageSetup.printTitlesRow.split(':')[0]);let height=0;for(let row=1;row<=header+1;row++)height+=sheet.getRow(row).height||24;assert.ok(height<=585,`${count} projets : ${height} pt`);
+  const source={...combinedSnapshot,projects:entries,periods,agents:[snapshot.agents[0]],lines:periods.map(p=>line(p,'2026-01')),payments:combinedSnapshot.payments.filter(p=>p.month==='2026-01')},output=await exportRhWorkbook(source,{presentation:'v3'}),wb=await open(output),sheet=wb.worksheets.find(s=>s.name.startsWith('RH ')),header=Number(sheet.pageSetup.printTitlesRow.split(':')[0]);let height=0;for(let row=1;row<=header+1;row++)height+=sheet.getRow(row).height||24;assert.ok(height<=585,`${count} projets : ${height} pt`);
   const intro=[];for(let row=7;row<header;row++)for(const col of [1,7])if(typeof sheet.getCell(row,col).value==='string')intro.push(sheet.getCell(row,col).value);for(const project of entries)assert.ok(intro.some(text=>text.includes(project.code)&&text.includes('01/01/2026 — 31/01/2026')));if(count===18)assert.ok(!intro.some(text=>text.includes('…')));else assert.ok(intro.some(text=>text.includes('…')));
   const result=await inspectRhReturnWorkbook(await bytes(fillCombined(wb)),source);assert.equal(result.complete,true,result.issues.join('\n'));
  }
+});
+
+await test('V4 : un nom par agent pour tous ses mois, mois et coûts mensuels séparés',async()=>{
+ const source={...combinedSnapshot,periods:combinedSnapshot.periods.map((p,i)=>i===0?{...p,agents:[...p.agents,{agentId:'agent-b',rateBasisPoints:1000}]}:p),lines:[...combinedSnapshot.lines,...['2026-01','2026-02'].map(month=>({...line(periods[0],month),id:'agent-b-extra-'+month,agentId:'agent-b'}))]},before=JSON.stringify(source),wb=await open(await exportRhWorkbook(source));assert.equal(JSON.stringify(source),before);assert.equal(wb.getWorksheet('_CDI_RH').getCell('A1').value,'CDINNOV_RH_4');
+ for(const sheet of wb.worksheets.filter(s=>s.name.startsWith('RH '))){const agents=new Map();sheet.eachRow(row=>{const id=row.getCell(16).value;if(!source.agents.some(a=>a.id===id))return;const item=agents.get(id)||{masters:new Set(),months:new Map()};item.masters.add(row.getCell(1).master.address);const month=row.getCell(17).value;item.months.set(month,row.getCell(2).master.address);assert.equal(row.getCell(1).value,source.agents.find(a=>a.id===id).name);assert.equal(row.getCell(3).value,3333.33);agents.set(id,item);});for(const item of agents.values()){assert.equal(item.masters.size,1);assert.equal(new Set(item.months.values()).size,item.months.size);}if(sheet.name==='RH 02 - 2026-01-01'){assert.equal(agents.size,2);assert.equal(agents.get('agent-a').months.size,3);assert.equal(agents.get('agent-b').months.size,2);}}
+ const result=await inspectRhReturnWorkbook(await bytes(fillCombined(wb)),source);assert.equal(result.complete,true,result.issues.join('\n'));
+});
+await test('V4 : grille complète, encarts projets et titre sans filets conservés dans le XML',async()=>{
+ const output=await exportRhWorkbook(combinedSnapshot),wb=await open(output),zip=unzipSync(output),styles=new TextDecoder().decode(zip['xl/styles.xml']),xfs=styles.match(/<cellXfs\b[^>]*>([\s\S]*?)<\/cellXfs>/)[1].match(/<xf\b[^>]*>/g),borders=styles.match(/<borders\b[^>]*>([\s\S]*?)<\/borders>/)[1].match(/<border\b[^>]*(?:\/>|>[\s\S]*?<\/border>)/g);
+ const xmlBorder=(sheetXml,address)=>{const cell=sheetXml.match(new RegExp('<c\\b[^>]*\\br="'+address+'"[^>]*>'));assert.ok(cell,address);const style=Number(cell[0].match(/\bs="(\d+)"/)?.[1]||0),id=Number(xfs[style].match(/\bborderId="(\d+)"/)?.[1]||0);return borders[id];};
+ for(const [i,sheet]of wb.worksheets.filter(s=>s.name.startsWith('RH ')).entries()){const header=Number(sheet.pageSetup.printTitlesRow.split(':')[0]);let total;sheet.eachRow(row=>{if(row.getCell(1).value==='Total imputé')total=row.number;});assert.ok(total);for(let row=header;row<=total;row++)for(let col=1;col<=12;col++)for(const side of ['top','bottom','left','right'])assert.equal(sheet.getCell(row,col).border[side]?.style,'thin',`${sheet.name} ${row}/${col} ${side}`);
+  const xml=new TextDecoder().decode(zip[`xl/worksheets/sheet${i+1}.xml`]);for(const cell of [`A${header}`,`A${header+2}`,`A${total-1}`,`L${total-1}`])for(const side of ['top','bottom','left','right'])assert.match(xmlBorder(xml,cell),new RegExp('<'+side+' style="thin"'));
+  if(i===0){for(const cell of ['A7','F7','G7','L7'])for(const side of ['top','bottom','left','right'])assert.match(xmlBorder(xml,cell),new RegExp('<'+side+' style="thin"'));assert.ok(!/<(?:top|bottom) style=/.test(xmlBorder(xml,'A4')));}
+ }
+});
+await test('V4 : paiements identiques à V3, anciennes fusions V3 rejetées sous un marqueur V4',async()=>{
+ const wb=fillCombined(await open(await exportRhWorkbook(combinedSnapshot))),result=await inspectRhReturnWorkbook(await bytes(wb),combinedSnapshot),v3=await inspectRhReturnWorkbook(await bytes(fillCombined(await open(v3Bytes))),combinedSnapshot);assert.equal(result.complete,true,result.issues.join('\n'));assert.deepEqual(result.payments,v3.payments);
+ const forged=fillCombined(await open(v3Bytes));forged.getWorksheet('_CDI_RH').getCell('A1').value='CDINNOV_RH_4';const rejected=await inspectRhReturnWorkbook(await bytes(forged),combinedSnapshot);assert.equal(rejected.complete,false);assert.ok(rejected.issues.some(issue=>/Fusions|RH modifiée/.test(issue)));
+});
+await test('aperçu séparé : coûts, taux, imputations et total inconnus restent vides',async()=>{
+ const source={...combinedSnapshot,lines:combinedSnapshot.lines.map((line,i)=>line.agentId==='agent-a'&&line.month==='2026-01'?{...line,employerCostCents:null,allocatedCents:null}:i===1?{...line,rateBasisPoints:null,allocatedCents:null}:line)},before=JSON.stringify(source),output=await exportRhPreviewWorkbook(source),wb=await open(output);assert.equal(JSON.stringify(source),before);assert.equal(wb.getWorksheet('_CDI_RH').getCell('A1').value,'CDINNOV_RH_PREVIEW_1');let unknowns=0;
+ for(const sheet of wb.worksheets.filter(s=>s.name.startsWith('RH '))){let partial=false;sheet.eachRow(row=>{const entry=source.lines.find(line=>line.id===row.getCell(13).value);if(!entry)return;if(entry.employerCostCents===null)assert.equal(row.getCell(3).value,null);if(entry.rateBasisPoints===null)assert.equal(row.getCell(5).value,null);if(entry.allocatedCents===null){assert.equal(row.getCell(6).value,null);unknowns++;partial=true;}});if(partial)sheet.eachRow(row=>{if(row.getCell(1).value==='Total imputé')assert.equal(row.getCell(6).value,null);});}
+ assert.equal(unknowns,3);for(const sheet of wb.worksheets.filter(s=>s.name.startsWith('RH ')))sheet.eachRow(row=>row.eachCell(cell=>assert.ok(!(cell.value&&typeof cell.value==='object'&&'formula'in cell.value),'Aucune formule incomplète à recalculer dans l’aperçu')));const rejected=await inspectRhReturnWorkbook(output,combinedSnapshot);assert.equal(rejected.complete,false);assert.match(rejected.issues.join(' '),/aperçu non validé/);
+ const withoutAgents={...source,periods:source.periods.map(period=>({...period,agents:[]})),lines:[]};const empty=await open(await exportRhPreviewWorkbook(withoutAgents));for(const sheet of empty.worksheets.filter(s=>s.name.startsWith('RH ')))sheet.eachRow(row=>{if(row.getCell(1).value==='Total imputé')assert.equal(row.getCell(6).value,null);});
+ await assert.rejects(exportRhPreviewWorkbook({...source,periods:[]}),/au moins un projet/);
+ const zero={...combinedSnapshot,lines:combinedSnapshot.lines.map(line=>({...line,employerCostCents:0,allocatedCents:0}))},zeroWb=await open(await exportRhPreviewWorkbook(zero));for(const sheet of zeroWb.worksheets.filter(s=>s.name.startsWith('RH ')))sheet.eachRow(row=>{if(row.getCell(1).value==='Total imputé')assert.equal(row.getCell(6).value,0);});
 });
