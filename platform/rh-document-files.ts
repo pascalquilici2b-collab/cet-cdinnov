@@ -14,6 +14,7 @@ const MERGED_FORMAT='CDINNOV_RH_4';
 const PREVIEW_FORMAT='CDINNOV_RH_PREVIEW_1';
 const CERTIFICATION='Je soussigné ________________ en qualité de ______________________________, certifie les informations de paiements susmentionnées.';
 const CERTIFICATION_DATE='Fait à ____________    Le ___________';
+const CERTIFICATION_DATE_V4=CERTIFICATION_DATE+' '.repeat(72)+'Cachet et/ou signature :';
 const META='_CDI_RH';
 const PAYMENT_SHEET='Paiements';
 const HEADER_ROW=9;
@@ -222,6 +223,7 @@ function combinedGridsV3(snapshot:RhGridSource):CombinedGrid[]{
 function combinedGridsV4(snapshot:RhGridSource):CombinedGrid[]{
  return combinedGridsV3(snapshot).map(grid=>{
   const cells=new Map(grid.cells),firstData=grid.headerRow+2,lastData=grid.totalRow-1;
+  if(grid.certificationDateRow)cells.set(address(grid.certificationDateRow,1),CERTIFICATION_DATE_V4);
   const merges=grid.merges.filter(range=>{const match=/^A(\d+):A(\d+)$/.exec(range);return !match||Number(match[1])<firstData||Number(match[2])>lastData;});
   let first=firstData;while(first<=lastData){const agentId=cells.get(address(first,16));let last=first;while(last<lastData&&cells.get(address(last+1,16))===agentId)last++;
    for(let row=first+1;row<=last;row++)cells.delete(address(row,1));
@@ -277,7 +279,11 @@ async function writeCombinedWorkbook(snapshot:RhGridSource,options:{presentation
   for(const segment of grid.segments)for(let row=segment.start;row<=segment.end;row++){sheet.getRow(row).height=27;for(let col=1;col<=12;col++){const cell=sheet.getCell(row,col);cell.font={name:'Calibri',size:10,color:{argb:COLORS.ink}};cell.border={bottom:{style:row===segment.end?'thin':'hair',color:{argb:COLORS.line}}};if([3,6,9,11].includes(col))cell.numFmt=EURO;if(col===5)cell.numFmt='0.00%';}}
   for(const slot of grid.slots){const first=slot.payment.kind==='salary'?7:10;for(let col=first;col<first+3;col++){const cell=sheet.getCell(slot.row,col);cell.protection={locked:false};cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:COLORS.input}};}const amount=sheet.getCell(slot.row,slot.payment.kind==='salary'?9:11);amount.dataValidation={type:'decimal',operator:'greaterThanOrEqual',formulae:[0],allowBlank:true,showErrorMessage:true,error:'Renseignez un montant positif ou nul.'};sheet.getCell(slot.row,slot.payment.kind==='salary'?8:12).numFmt='dd/mm/yyyy';}
   sheet.getRow(grid.totalRow).font={name:'Calibri',size:10,bold:true,color:{argb:COLORS.ink}};sheet.getCell(grid.totalRow,6).numFmt=EURO;
-  if(v2){sheet.getRow(grid.totalRow+2).height=32;sheet.getRow(grid.signatureRow).height=28;}else if(grid.certificationRow&&grid.certificationDateRow){sheet.getRow(grid.certificationRow).height=36;sheet.getRow(grid.certificationDateRow).height=30;for(const row of [grid.certificationRow,grid.certificationDateRow])sheet.getCell(row,1).protection={locked:false};}
+  if(v2){sheet.getRow(grid.totalRow+2).height=32;sheet.getRow(grid.signatureRow).height=28;}else if(grid.certificationRow&&grid.certificationDateRow){
+   // Two blank lines without moving the editable cells of already-issued V4 files.
+   if(!v3)sheet.getRow(grid.certificationRow-1).height=48;
+   sheet.getRow(grid.certificationRow).height=36;sheet.getRow(grid.certificationDateRow).height=30;for(const row of [grid.certificationRow,grid.certificationDateRow])sheet.getCell(row,1).protection={locked:false};
+  }
   if(!v2&&!v3)combinedBorders(sheet,grid);
   fitCombinedRowHeights(sheet,grid);
   // Keep short agent/month segments together and start a new printed page when needed.

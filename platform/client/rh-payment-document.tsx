@@ -37,7 +37,7 @@ function Heading({source,group,projects}:{source:RhPaper;group:RhPaymentGroup;pr
  <h2>{rhAttestationTitle(source.client.name)}</h2><p className="rh-paper-declaration">{rhAttestationText(source.client.name,group.periods)}</p>
  {!!projects.length&&<div className="rh-a4-projects">{projects.map(p=><div key={p.id}><strong>{source.projects.find(x=>x.id===p.projectId)?.code} · {source.projects.find(x=>x.id===p.projectId)?.name}</strong><span>{date(p.startDate)} — {date(p.endDate)}</span></div>)}</div>}</div>;
 }
-function Certification(){return <section className="rh-a4-certification"><p>Je soussigné ________________ en qualité de ______________________________, certifie les informations de paiements susmentionnées.</p><div><span>Fait à ____________</span><span>Le ___________</span></div></section>;}
+function Certification(){return <section className="rh-a4-certification"><p>Je soussigné ________________ en qualité de ______________________________, certifie les informations de paiements susmentionnées.</p><div><span>Fait à ____________</span><span>Le ___________</span><span>Cachet et/ou signature :</span></div></section>;}
 function Footer({page,count}:{page?:number;count?:number}){return <footer className="rh-a4-footer"><span>{page?'Page '+page+' / '+count:'Page'}</span></footer>;}
 
 export function RhPaymentDocument({source,busy=false,onEditPayments,onExportExcel}:{source:RhPaper;busy?:boolean;onEditPayments?:()=>void;onExportExcel?:()=>void}){

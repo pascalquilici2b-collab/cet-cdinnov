@@ -91,6 +91,7 @@ try{
  await check('A removed agent with saved payments remains available until its individual entries are explicitly removed',async()=>{await steps.getByRole('button',{name:/Agents$/}).click();const boxes=page.getByRole('checkbox',{name:/Marie Grâce Casablanca sur/});for(const box of await boxes.all())await box.uncheck();await documentStep();await page.getByRole('button',{name:'Modifier les informations de paiements',exact:true}).click();const choice=dialog.getByLabel('Paiements pour',{exact:true});assert.match(await choice.locator('option[value="agent-mgc"]').innerText(),/hors périmètre/);await choice.selectOption('agent-mgc');assert.equal(await dialog.getByLabel('Montant salaire 1',{exact:true}).inputValue(),'1250.42');await dialog.getByRole('button',{name:'Enregistrer les paiements',exact:true}).click();await dialog.getByRole('alert').waitFor();assert.equal(await dialog.getByLabel('Montant salaire 1',{exact:true}).inputValue(),'1250.42');await dialog.getByRole('button',{name:'Retirer le versement 1',exact:true}).click();await dialog.getByRole('button',{name:'Enregistrer les paiements',exact:true}).click();await dialog.waitFor({state:'hidden'});assert.ok(doc.draft.payments.every(p=>p.agentId!=='agent-mgc'));assert.ok(doc.draft.periods.every(p=>p.agents.every(a=>a.agentId!=='agent-mgc')));});
  const cert='Je soussigné ________________ en qualité de ______________________________, certifie les informations de paiements susmentionnées.';
  const place='Fait à ____________ Le ___________';
+ const signature='Cachet et/ou signature :';
  const normalize=value=>value.replace(/\s+/g,' ').trim();
  const assertPresentation=async(root,pageLocator)=>{
   const count=await pageLocator.count(),text=normalize(await root.innerText());
@@ -98,7 +99,7 @@ try{
   assert.equal(await pageLocator.first().locator('.rh-a4-heading').count(),1);
   assert.equal(await root.locator('.rh-a4-certification').count(),1);
   assert.equal(await pageLocator.last().locator('.rh-a4-certification').count(),1);
-  assert.ok(text.includes(cert));assert.ok(text.includes(place));
+  assert.ok(text.includes(cert));assert.ok(text.includes(place));assert.equal(await root.getByText(signature,{exact:true}).count(),1);assert.equal(await pageLocator.last().getByText(signature,{exact:true}).count(),1);
   assert.doesNotMatch(text,/(?:Document|Tableau) en préparation|Version RH \d|Date, qualité et signature du service financier/);
   for(let i=0;i<count;i++){
    const sheet=pageLocator.nth(i);
@@ -109,7 +110,19 @@ try{
   }
  };
  const assertNoOverflow=async(pageLocator,label)=>{
-  const bounds=await pageLocator.evaluateAll(pages=>pages.flatMap((p,index)=>{const r=p.getBoundingClientRect(),foot=p.querySelector('footer').getBoundingClientRect(),cert=p.querySelector('.rh-a4-certification')?.getBoundingClientRect();return [...p.querySelectorAll('table,thead,tbody,tr,td,.rh-a4-heading,.rh-paper-placeholder,.rh-a4-certification,footer')].filter(e=>{const b=e.getBoundingClientRect();return b.left<r.left-.7||b.right>r.right+.7||b.bottom>r.bottom+.7||b.top<r.top-.7||e.tagName==='TABLE'&&(b.bottom>foot.top+.7||cert&&b.bottom>cert.top+.7)||e.classList.contains('rh-a4-certification')&&Math.abs(b.bottom-foot.top)>1.5;}).map(e=>({page:index+1,element:e.tagName,text:e.textContent.slice(0,90)}));}));
+  const bounds=await pageLocator.evaluateAll(pages=>pages.flatMap((p,index)=>{
+   const r=p.getBoundingClientRect(),style=getComputedStyle(p),scale=r.height/parseFloat(style.height),foot=p.querySelector('footer').getBoundingClientRect(),certElement=p.querySelector('.rh-a4-certification'),cert=certElement?.getBoundingClientRect();
+   const issues=[...p.querySelectorAll('table,thead,tbody,tr,td,.rh-a4-heading,.rh-paper-placeholder,.rh-a4-certification,footer')].filter(e=>{const b=e.getBoundingClientRect();return b.left<r.left-.7||b.right>r.right+.7||b.bottom>r.bottom+.7||b.top<r.top-.7||e.tagName==='TABLE'&&(b.bottom>foot.top+.7||cert&&b.bottom>cert.top+.7)||e.classList.contains('rh-a4-certification')&&b.bottom>foot.top+.7;}).map(e=>({page:index+1,element:e.tagName,text:e.textContent.slice(0,90)}));
+   const expectedFooterBottom=r.bottom-(parseFloat(style.paddingBottom)+parseFloat(style.borderBottomWidth))*scale;
+   if(Math.abs(foot.bottom-expectedFooterBottom)>1.5)issues.push({page:index+1,element:'FOOTER_POSITION',text:String(foot.bottom-expectedFooterBottom)});
+   if(certElement){
+    const table=p.querySelector('table'),paragraph=certElement.querySelector('p'),lineHeight=parseFloat(getComputedStyle(paragraph).lineHeight)*scale;
+    if(table){const gap=paragraph.getBoundingClientRect().top-table.getBoundingClientRect().bottom;if(Math.abs(gap-2*lineHeight)>1.5)issues.push({page:index+1,element:'CERTIFICATION_GAP',text:gap+' instead of '+2*lineHeight});}
+    const labels=[...certElement.querySelectorAll('div>span')],date=labels.find(e=>e.textContent.startsWith('Le '))?.getBoundingClientRect(),signature=labels.find(e=>e.textContent==='Cachet et/ou signature :')?.getBoundingClientRect();
+    if(!date||!signature||signature.left<=date.right||Math.abs(signature.top-date.top)>1.5||Math.abs(signature.right-cert.right)>1.5)issues.push({page:index+1,element:'SIGNATURE_POSITION',text:'Signature must share the date row and align with its right edge'});
+   }
+   return issues;
+  }));
   assert.deepEqual(bounds,[],label);return bounds;
  };
  const printPdf=async(prefix)=>{
@@ -131,10 +144,11 @@ try{
    assert.ok(Math.abs(p.view[2]-p.view[0]-841.89)<1);assert.ok(Math.abs(p.view[3]-p.view[1]-595.28)<1);
    assert.equal((p.text.match(/Attestation de paiement/g)||[]).length,i===0?1:0);
    assert.equal((p.text.match(/Je soussigné/g)||[]).length,i===count-1?1:0);
+   assert.equal((p.text.match(/Cachet et\/ou signature/g)||[]).length,i===count-1?1:0);
    assert.ok(p.text.includes('Page '+(i+1)+' / '+count),p.text.slice(-180));
    assert.doesNotMatch(p.text,/(?:Document|Tableau) en préparation|Version RH \d|Date, qualité et signature du service financier/);
   }
-  assert.ok(normalize(parsed.at(-1).text).includes(cert));assert.ok(normalize(parsed.at(-1).text).includes(place));
+  assert.ok(normalize(parsed.at(-1).text).includes(cert));assert.ok(normalize(parsed.at(-1).text).includes(place));assert.ok(normalize(parsed.at(-1).text).includes(signature));
   const markers=s=>(s.match(/\bPROJET\d{2}\b/g)||[]).sort();assert.deepEqual(markers(parsed.map(p=>p.text).join(' ')),markers(await popup.locator('body').innerText()));
   await popup.close();return {pages:parsed.length,pageSize:parsed[0].view,bytes:bytes.length};
  };
