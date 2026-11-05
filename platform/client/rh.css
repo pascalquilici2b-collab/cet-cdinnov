@@ -15,3 +15,6 @@
 @media(max-width:700px){.rh-review-footer{bottom:-20px;gap:10px}.rh-review-position{flex-basis:100%}.rh-review-footer>.rh-button{flex:1}.rh-review-navigation{flex:1}.rh-review-navigation>.rh-button{flex:1}}
 
 .rh-paper-stack{grid-template-columns:minmax(0,1fr);min-width:0}.rh-paper{min-width:0}.rh-checklist{margin-bottom:22px}
+
+.rh-paper header h2{font-size:17px;line-height:1.5;margin:0}.rh-paper .rh-paper-declaration{font-size:11px;line-height:1.75;color:#374151;text-align:left}.rh-paper-table{isolation:isolate}.rh-paper-table .rh-employee-name{position:sticky;left:0;z-index:1;min-width:145px;max-width:190px;background:#fff;color:#232b35;box-shadow:1px 0 0 #e8ebef;overflow-wrap:anywhere}.rh-paper-table thead th:first-child{position:sticky;left:0;z-index:2;background:#f5f6f8}.rh-paper-table .rh-employee-name strong{font-weight:600}
+@media(max-width:700px){.rh-paper header h2{font-size:13px}.rh-paper .rh-paper-declaration{font-size:10px}.rh-paper-table .rh-employee-name{min-width:120px;max-width:150px}}

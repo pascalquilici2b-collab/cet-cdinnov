@@ -6,6 +6,7 @@ import type {ClientEmployee} from '../client-employees-domain';
 import './rh.css';
 import {RhPDFPreview} from './rh-pdf-preview';
 import {buildRhPreview,type RhPaper} from './rh-preview';
+import {rhAttestationTitle,rhAttestationText} from '../rh-document-presentation';
 import {maritimeLogoData,epcicLogoData} from '../rh-workbook-branding';
 
 export type RhProps={baseUrl:string;getSession:()=>Promise<string>;isActive:()=>boolean;onStampBatch:(id:string)=>void;onStamping:()=>void;send?:typeof fetch};
@@ -116,13 +117,17 @@ function App(props:RhProps){
    const members=s.agents.filter(a=>periods.some(p=>p.agents.some(x=>x.agentId===a.id)));
    return <article className="rh-paper" key={key}>
     <div className="rh-logos"><div>{/marit/i.test(programme||'')?<img src={maritimeLogoData} alt="Interreg Italie–France Maritime"/>:<strong>{programme}</strong>}</div>{(s.client.logoData||(/EPCIC|COMMERCE.*CORSE/i.test(s.client.name)?epcicLogoData:''))?<img src={s.client.logoData||epcicLogoData} alt={s.client.name}/>:<strong>{s.client.name}</strong>}</div>
-    <header><p>{programme}</p><h2>Attestation de paiement<br/>des ressources humaines</h2><div>{s.client.name}</div></header>
-    <p className="rh-paper-note">{s.provisional?'Aperçu provisoire':'Document préparatoire'} · Paiements à compléter par le service financier.</p>
+    <header><h2>{rhAttestationTitle(s.client.name)}</h2></header>
+    <p className="rh-paper-declaration">{rhAttestationText(s.client.name,periods)}</p>
     <div className="rh-project-list">{periods.length?periods.map(p=><div key={p.id}><strong>{s.projects.find(x=>x.id===p.projectId)?.code} · {s.projects.find(x=>x.id===p.projectId)?.name}</strong><span>{date(p.startDate)} — {date(p.endDate)}</span></div>):<p className="rh-missing">Projets et périodes à compléter</p>}</div>
     {!members.length&&<p className="rh-paper-placeholder">Agents à affecter</p>}
-    {members.map(a=><section key={a.id}><h3>{a.name}</h3><div className="rh-table-scroll"><table><thead><tr><th>Mois</th><th>Projet</th><th>Coût employeur</th><th>Net avant impôt</th><th>Taux</th><th>Imputation</th></tr></thead><tbody>
-     {s.lines.filter(l=>l.agentId===a.id&&periods.some(p=>p.id===l.periodId)).map(l=><tr key={l.id}><td>{month(l.month)}</td><td>{s.projects.find(x=>x.id===l.projectId)?.name}</td><td className="rh-number">{l.employerCostCents==null?missing:money(l.employerCostCents)}{l.payrollState==='unconfirmed'&&<small className="rh-missing">À vérifier</small>}</td><td className="rh-number">{l.netBeforeTaxCents==null?(s.provisional?missing:'—'):money(l.netBeforeTaxCents)}</td><td className="rh-number">{l.rateBasisPoints==null?missing:(l.rateBasisPoints/100)+' %'}</td><td className="rh-number">{l.allocatedCents==null?(l.payrollState==='unconfirmed'&&l.rateBasisPoints!==null?<span className="rh-missing">À vérifier</span>:missing):money(l.allocatedCents)}</td></tr>)}
-    </tbody></table></div></section>)}
+    {!!members.length&&<section className="rh-paper-employees"><div className="rh-table-scroll"><table className="rh-paper-table"><thead><tr><th scope="col">Salarié</th><th scope="col">Mois</th><th scope="col">Projet</th><th scope="col">Coût employeur</th><th scope="col">Net avant impôt</th><th scope="col">Taux</th><th scope="col">Imputation</th></tr></thead><tbody>
+     {members.flatMap(a=>{
+      const lines=s.lines.filter(l=>l.agentId===a.id&&periods.some(p=>p.id===l.periodId));
+      if(!lines.length)return [<tr key={a.id}><td className="rh-employee-name"><strong>{a.name}</strong></td><td colSpan={6}>{missing}</td></tr>];
+      return lines.map(l=><tr key={l.id}><td className="rh-employee-name"><strong>{a.name}</strong></td><td>{month(l.month)}</td><td>{s.projects.find(x=>x.id===l.projectId)?.name}</td><td className="rh-number">{l.employerCostCents==null?missing:money(l.employerCostCents)}{l.payrollState==='unconfirmed'&&<small className="rh-missing">À vérifier</small>}</td><td className="rh-number">{l.netBeforeTaxCents==null?(s.provisional?missing:'—'):money(l.netBeforeTaxCents)}</td><td className="rh-number">{l.rateBasisPoints==null?missing:(l.rateBasisPoints/100)+' %'}</td><td className="rh-number">{l.allocatedCents==null?(l.payrollState==='unconfirmed'&&l.rateBasisPoints!==null?<span className="rh-missing">À vérifier</span>:missing):money(l.allocatedCents)}</td></tr>);
+     })}
+    </tbody></table></div></section>}
     <footer><span>{s.provisional?'Document en préparation':'Version RH '+s.revision} · Feuille {i+1}</span><span>Signature du service financier sur le document retourné</span></footer>
    </article>;
   })}</div>;

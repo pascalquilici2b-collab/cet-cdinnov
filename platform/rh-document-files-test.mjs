@@ -22,6 +22,7 @@ const exported=await exportRhWorkbook(snapshot);
 const open=async(bytes=exported)=>{const wb=new ExcelJS.Workbook();await wb.xlsx.load(bytes);return wb;};
 const bytes=async wb=>new Uint8Array(await wb.xlsx.writeBuffer());
 const paid=async()=>{const wb=await open(),sheet=wb.getWorksheet('Paiements');for(let row=10;row<=17;row++){const charge=sheet.getCell(row,4).value==='Charges';sheet.getCell(row,5).value=charge?'Organisme Test':'';sheet.getCell(row,6).value=charge?250.25:2100;sheet.getCell(row,7).value=new Date('2026-04-15T00:00:00Z');sheet.getCell(row,8).value='REF-'+row;}return wb;};
+const legacyPaid=async()=>{const wb=await paid();for(const sheet of wb.worksheets.filter(s=>s.name.startsWith('RH '))){sheet.getCell('A4').value='Attestation de paiement des ressources humaines';sheet.getCell('A8').value='Document préparatoire · Paiements à compléter et signer par le service financier.';}return wb;};
 
 await test('export : groupes programme/début, dates de fin distinctes, imputation au centime et paiements uniques',async()=>{
  const wb=await open(),rh=wb.worksheets.filter(s=>s.name.startsWith('RH '));assert.equal(rh.length,3);assert.equal(wb.getWorksheet('_CDI_RH').state,'veryHidden');
@@ -30,11 +31,38 @@ await test('export : groupes programme/début, dates de fin distinctes, imputati
  const payments=wb.getWorksheet('Paiements');let filled=0;payments.eachRow((r,n)=>{if(n>9&&r.getCell(1).value)filled++;});assert.equal(filled,8);assert.ok(payments.pageSetup.printArea.endsWith('29'));
  for(const s of rh)assert.ok(Number(s.pageSetup.printArea.match(/H(\d+)/)[1])>=s.rowCount);assert.equal(maritimeJanuary.getColumn(9).hidden,true);
 });
+await test('attestation : titre complet, dates propres à chaque feuille et noms en première colonne visible',async()=>{
+ const wb=await open(),rh=wb.worksheets.filter(s=>s.name.startsWith('RH '));
+ for(const sheet of rh){
+  assert.equal(sheet.getCell('A4').value,'Programme de coopération INTERREG : Attestation de paiement des ressources humaines de Collectivité de démonstration');
+  const programme=sheet.getCell('A6').value,start=sheet.name.endsWith('2026-02-01')?'février 2026':'janvier 2026',end=programme==='ALCOTRA'?'janvier 2026':start==='février 2026'?'février 2026':'mars 2026';
+  assert.equal(sheet.getCell('A8').value,`Par la présente Collectivité de démonstration déclare que, dans le cadre de la justification de dépenses des projets ci-dessous, les dépenses relatives à la catégorie «Ressources humaines» pour les mois de ${start} à ${end} ont été payées selon les informations détaillées dans les tableaux ci-après.`);
+  assert.ok(sheet.getRow(4).height>=40);assert.ok(sheet.getRow(8).height>=50);assert.equal(sheet.getCell('A8').alignment.wrapText,true);
+  assert.notEqual(sheet.getColumn(1).hidden,true);assert.equal(sheet.getColumn(9).hidden,true);let agents=0;
+  sheet.eachRow(row=>{const line=snapshot.lines.find(line=>line.id===row.getCell(9).value);if(line){assert.equal(row.getCell(1).value,snapshot.agents.find(agent=>agent.id===line.agentId).name);agents++;}});assert.ok(agents>0);
+ }
+ const payment=wb.getWorksheet('Paiements');assert.equal(payment.getColumn(1).hidden,true);assert.notEqual(payment.getColumn(2).hidden,true);assert.equal(payment.getCell('B9').value,'Agent');assert.equal(payment.getCell('B10').value,'Alice Exemple');
+});
 await test('retour vierge : RH concordantes, finances clairement incomplètes',async()=>{
  const result=await inspectRhReturnWorkbook(exported,snapshot);assert.equal(result.complete,false);assert.equal(result.payments.length,0);assert.ok(result.issues.some(i=>i.includes('montant')));assert.ok(!result.issues.some(i=>/RH modifiée|Contenu RH ajouté|En-tête/.test(i)),result.issues.join('\n'));
 });
 await test('retour complété : 8 paiements importés, dont charges, dates Excel et mandats',async()=>{
  const result=await inspectRhReturnWorkbook(await bytes(await paid()),snapshot);assert.equal(result.complete,true,result.issues.join('\n'));assert.equal(result.payments.length,8);assert.equal(result.payments.filter(p=>p.kind==='contribution').length,4);assert.equal(result.payments[0].date,'2026-04-15');assert.equal(result.payments[1].amountCents,25025);
+});
+await test('ancien export complété : réimport accepté avec les mêmes paiements et contrôles RH',async()=>{
+ const wb=await legacyPaid(),old=await inspectRhReturnWorkbook(await bytes(wb),snapshot),current=await inspectRhReturnWorkbook(await bytes(await paid()),snapshot);
+ assert.equal(old.complete,true,old.issues.join('\n'));assert.deepEqual(old.payments,current.payments);
+ const sheet=wb.worksheets.find(s=>s.name.startsWith('RH '));sheet.eachRow(row=>{if(row.getCell(9).value===snapshot.lines.at(-1).id)row.getCell(5).value=1;});
+ const modified=await inspectRhReturnWorkbook(await bytes(wb),snapshot);assert.equal(modified.complete,false);assert.ok(modified.issues.some(i=>i.includes('Donnée RH modifiée')));
+});
+await test('présentation réimportée : dates modifiées et mélange des formats refusés',async()=>{
+ for(const change of ['date','title','mixed-text','mixed-sheets']){
+  const wb=await paid(),sheets=wb.worksheets.filter(s=>s.name.startsWith('RH ')),sheet=sheets[0];
+  if(change==='date')sheet.getCell('A8').value=sheet.getCell('A8').value.replace('à janvier 2026','à décembre 2026');
+  else if(change==='title')sheet.getCell('A4').value='Attestation libre';
+  else {sheet.getCell('A4').value='Attestation de paiement des ressources humaines';if(change==='mixed-sheets')sheet.getCell('A8').value='Document préparatoire · Paiements à compléter et signer par le service financier.';}
+  const result=await inspectRhReturnWorkbook(await bytes(wb),snapshot);assert.equal(result.complete,false,change);assert.ok(result.issues.some(i=>i.includes('Donnée RH modifiée')),change);
+ }
 });
 await test('plusieurs versements ou organismes sans duplication par projet',async()=>{
  const wb=await paid(),sheet=wb.getWorksheet('Paiements');sheet.getRow(18).values=['agent-a','Alice Exemple','2026-01','Charges','Autre organisme',40.1,'16/04/2026','COMPL-1'];const result=await inspectRhReturnWorkbook(await bytes(wb),snapshot);assert.equal(result.complete,true,result.issues.join('\n'));assert.equal(result.payments.length,9);

@@ -4,6 +4,7 @@ import {Unzip,UnzipInflate} from 'fflate';
 import type {RhSnapshot,RhLine,RhImportedPayment,RhReturnInspection} from './rh-domain';
 import {rhDate,rhMonth} from './rh-domain';
 import {maritimeLogoData,epcicLogoData} from './rh-workbook-branding';
+import {rhAttestationTitle,rhAttestationText} from './rh-document-presentation';
 
 const FORMAT='CDINNOV_RH_1';
 const META='_CDI_RH';
@@ -30,14 +31,14 @@ function assertSnapshot(snapshot:RhSnapshot){
  }
 }
 
-function rhGrids(snapshot:RhSnapshot):Grid[]{
+function rhGrids(snapshot:RhSnapshot,presentation:'current'|'legacy'='current'):Grid[]{
  const grouped=new Map<string,typeof snapshot.periods>();
  for(const period of snapshot.periods){const project=snapshot.projects.find(p=>p.id===period.projectId);if(!project)fail('Projet absent de la version RH.');const groupKey=project.programme.trim()+'|'+period.startDate;grouped.set(groupKey,[...(grouped.get(groupKey)||[]),period]);}
  return [...grouped.entries()].sort(([a],[b])=>a.localeCompare(b,'fr')).map(([groupKey,periods],index)=>{
   const name=`RH ${String(index+1).padStart(2,'0')} - ${periods[0].startDate}`,cells=new Map<string,ExpectedValue>(),put=(r:number,c:number,v:ExpectedValue)=>cells.set(address(r,c),v);
   const programme=snapshot.projects.find(p=>p.id===periods[0].projectId)!.programme;
-  put(4,1,'Attestation de paiement des ressources humaines');put(5,1,snapshot.client.name);put(6,1,programme);
-  put(7,1,`${snapshot.name} · Version RH ${snapshot.revision}`);put(8,1,'Document préparatoire · Paiements à compléter et signer par le service financier.');
+  put(4,1,presentation==='legacy'?'Attestation de paiement des ressources humaines':rhAttestationTitle(snapshot.client.name));put(5,1,snapshot.client.name);put(6,1,programme);
+  put(7,1,`${snapshot.name} · Version RH ${snapshot.revision}`);put(8,1,presentation==='legacy'?'Document préparatoire · Paiements à compléter et signer par le service financier.':rhAttestationText(snapshot.client.name,periods));
   let row=10;
   for(const period of periods){const p=snapshot.projects.find(p=>p.id===period.projectId)!;put(row,1,[p.name,p.code].filter(Boolean).join(' · '));put(row,5,`${titleDate(period.startDate)} — ${titleDate(period.endDate)}`);row++;}
   row++;const headerRow=row;
@@ -100,8 +101,8 @@ export async function exportRhWorkbook(snapshot:RhSnapshot):Promise<Uint8Array>{
   for(const [cell,value] of grid.cells)sheet.getCell(cell).value=value;
   for(const row of [4,5,6,7,8])sheet.mergeCells(row,1,row,8);
   for(let row=10;row<grid.headerRow-1;row++){sheet.mergeCells(row,1,row,4);sheet.mergeCells(row,5,row,8);}
-  sheet.mergeCells(grid.lastRow,1,grid.lastRow,8);styleSheet(sheet);sheet.getRow(1).height=24;sheet.getRow(2).height=24;sheet.getRow(3).height=12;sheet.getRow(4).height=30;
-  sheet.getCell('A4').font={name:'Calibri',size:16,bold:true,color:{argb:COLORS.ink}};sheet.getCell('A5').font={name:'Calibri',size:12,bold:true,color:{argb:COLORS.ink}};for(const n of [6,7,8])sheet.getCell('A'+n).font={name:'Calibri',size:10,color:{argb:COLORS.muted}};
+  sheet.mergeCells(grid.lastRow,1,grid.lastRow,8);styleSheet(sheet);sheet.getRow(1).height=24;sheet.getRow(2).height=24;sheet.getRow(3).height=12;sheet.getRow(4).height=Math.max(42,Math.ceil(stringValue(grid.cells.get('A4')).length/105)*20);sheet.getRow(8).height=Math.max(50,Math.ceil(stringValue(grid.cells.get('A8')).length/150)*15+12);
+  sheet.getCell('A4').font={name:'Calibri',size:14,bold:true,color:{argb:COLORS.ink}};sheet.getCell('A5').font={name:'Calibri',size:12,bold:true,color:{argb:COLORS.ink}};for(const n of [6,7,8])sheet.getCell('A'+n).font={name:'Calibri',size:10,color:{argb:COLORS.muted}};
   styleHeader(sheet,grid.headerRow);
   for(let row=grid.headerRow+1;row<grid.lastRow-2;row++){sheet.getRow(row).height=30;for(let col=1;col<=8;col++){const cell=sheet.getCell(row,col);cell.border={bottom:{style:'hair',color:{argb:COLORS.line}}};if([5,6,8].includes(col))cell.numFmt=EURO;else if(col===7)cell.numFmt='0.00%';if(col>=5)cell.alignment={vertical:'middle',horizontal:'right'};}}
   sheet.getRow(grid.lastRow-2).font={bold:true,color:{argb:COLORS.ink}};sheet.getCell(grid.lastRow-2,8).numFmt=EURO;
@@ -178,7 +179,12 @@ export async function inspectRhReturnWorkbook(bytes:Uint8Array,snapshot:RhSnapsh
  const payments:RhImportedPayment[]=[],issues:string[]=[];const issue=(message:string)=>{if(issues.length<60&&!issues.includes(message))issues.push(message);};
  try{
   assertSnapshot(snapshot);guardZip(bytes);const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(bytes as unknown as ExcelTypes.Buffer);
-  const grids=rhGrids(snapshot),meta=workbook.getWorksheet(META),financial=workbook.getWorksheet(PAYMENT_SHEET);
+  let grids=rhGrids(snapshot);
+  // Files already sent to finance retain their original presentation. Select one
+  // exact profile for the whole workbook; every business cell is checked as before.
+  const firstRhSheet=workbook.getWorksheet(grids[0].name);
+  if(firstRhSheet&&normalizedCell(firstRhSheet.getCell('A4'))==='Attestation de paiement des ressources humaines')grids=rhGrids(snapshot,'legacy');
+  const meta=workbook.getWorksheet(META),financial=workbook.getWorksheet(PAYMENT_SHEET);
   if(!meta||!equalCell(normalizedCell(meta.getCell('A1')),FORMAT)||!equalCell(normalizedCell(meta.getCell('B2')),snapshot.id)||!equalCell(normalizedCell(meta.getCell('B3')),snapshot.documentId)||!equalCell(normalizedCell(meta.getCell('B4')),snapshot.revision)||!equalCell(normalizedCell(meta.getCell('B5')),snapshot.client.id)||!equalCell(normalizedCell(meta.getCell('B6')),JSON.stringify(grids.map(g=>g.name))))return {payments,issues:['Ce classeur ne correspond pas à la version RH sélectionnée.'],complete:false};
   if(workbook.worksheets.some(sheet=>![META,PAYMENT_SHEET,...grids.map(g=>g.name)].includes(sheet.name)))issue('Une feuille inattendue a été ajoutée au classeur.');
   for(const grid of grids){const sheet=workbook.getWorksheet(grid.name);if(!sheet){issue(`Feuille RH manquante : ${grid.name}.`);continue;}for(const [position,expected] of grid.cells)if(!equalCell(normalizedCell(sheet.getCell(position)),expected))issue(`Donnée RH modifiée : ${grid.name}, ${position}.`);
