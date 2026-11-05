@@ -65,3 +65,15 @@ Ce serveur de test manuel n’active pas la file de tamponnage : son message de 
 Le lecteur de bulletins utilise désormais PDF.js local, sans iframe. `node platform/rh-pdf-preview-test.mjs` vérifie un PDF de deux pages, les pixels de texte effectivement dessinés, pagination, zoom, reprise après erreur et mobile. Le rendu a aussi été inspecté en CUA dans la fenêtre de rapprochement.
 
 Les 8 tests Excel couvrent retours, intégrité, versements multiples et limites ZIP. La migration reste explicite, sans écriture de documents métier de production.
+
+
+## Publication RH vérifiée — 5 novembre 2026
+
+- Source publiée sur `main` et `codex/rh-documents-20261105`, intégrant les commits de sécurité `cd83c26` et de procédure `4567f31` (release RH `a4d0526`).
+- Migrations explicites : 27 instructions, 10 tables RH ; quota de tamponnage RH 300, quota natif 100. Les 44 tables métier contrôlées conservent les mêmes empreintes avant/après.
+- Worker publié et relu : SHA-256 `924535b1e68253e81490aa75e01b535944ab64401854fea5f861492b2bf489b9`. Les 14 bindings et la planification restent identiques.
+- Frontal Pages `cdinnov-app` : interface Cloudflare « Success! », 668/668 fichiers importés ; dossier exact `.build/frontend-lqxK2t`. Les contrôles de livrable et de connexion compilée ont réussi. SHA-256 ZIP : `b7ef79f36e51499933e345674d66da04a1d01d93fa4dfabdc54d6a784a545e3c`.
+- Vérification HTTPS à 10:26 UTC : portail, RH JS/CSS, tamponnage, facturation, sessions CSS et transport identiques octet pour octet au livrable. Quatre routes privées retournent 401 sans session ; origine étrangère 403. CSP et nosniff sont présents.
+- Le DNS public 1.1.1.1 pointe `app.cdinnov.eu` vers `cdinnov-app.pages.dev`. Le résolveur local conserve encore temporairement l’ancien CNAME GitHub. Le contrôle HTTPS a utilisé la destination publique actuelle avec validation normale du certificat `app.cdinnov.eu` ; aucune vérification TLS désactivée.
+
+Aucun bulletin réel, document RH de test, paiement ou courriel n’a été créé en production pour ces essais. Les résultats détaillés et sauvegardes restent dans `.private/rh-release` et `.private/rh-publication-exact-20261105`.
