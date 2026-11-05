@@ -3,11 +3,21 @@ import Home from "../app/page";
 import type { WorkspaceStorage } from "../lib/workspace-storage";
 import "../app/globals.css";
 import "./embedded.css";
+import { AuthGate } from '../../sheets/src/auth-gate';
+import { readSession } from '../../sheets/src/api';
+import { createBudgetTransport } from '../../../platform/client/workspace-client';
+import './standalone-auth.css';
 
 const pending = new Map<string, {resolve:(value:any)=>void;reject:(error:Error)=>void;timer:ReturnType<typeof setTimeout>}>();
+const standalone = window.parent === window;
+const transport = createBudgetTransport();
 let version = 0;
 function request(method:string, workspace?:unknown):Promise<any> {
-  if(window.parent===window)return Promise.reject(new Error("Ouvrez BUDGETS PROJETS depuis l’application CDInnov après connexion."));
+  if(standalone){
+    const session=readSession();
+    if(!session){window.CDISession.expire();return Promise.reject(new Error('Reconnectez-vous pour continuer.'));}
+    return transport.request('/budgets/workspace',session,method as 'GET'|'PUT',workspace as Record<string,unknown>,version);
+  }
   const id=crypto.randomUUID();
   return new Promise((resolve,reject)=>{
     const timer=setTimeout(()=>{pending.delete(id);reject(new Error("La connexion ou la sauvegarde n’a pas abouti. Gardez votre copie et réessayez."))},300000);
@@ -36,7 +46,12 @@ const storage:WorkspaceStorage={
   async save(workspace){const data=await request("PUT",workspace);version=data.version},
   dirty(value){window.parent.postMessage({type:"cdi-budget-dirty",dirty:value},location.origin)},
 };
-createRoot(document.getElementById("root")!).render(<Home storage={storage} embedded openClientsInitially={new URLSearchParams(location.search).get("clients")==="1"}/>);
+const app=<Home storage={storage} embedded={!standalone} openClientsInitially={new URLSearchParams(location.search).get("clients")==="1"}/>;
+if(standalone){
+  window.addEventListener('cdinnov-session-logout',()=>transport.clear());
+  window.addEventListener('cdinnov-session-expired',()=>transport.suspend());
+}
+createRoot(document.getElementById("root")!).render(standalone?<AuthGate application="budgets">{app}</AuthGate>:app);
 new ResizeObserver(()=>{
   window.parent.postMessage({type:"cdi-budget-height",height:document.getElementById("root")!.scrollHeight},location.origin);
 }).observe(document.getElementById("root")!);

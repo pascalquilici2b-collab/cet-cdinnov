@@ -13,7 +13,7 @@ test('PDF overlay coordinates use the viewport affine transform at every zoom/ro
 });
 test('quote tracking title preserves issued snapshot; shared engagement checks combined invoice capacity',async()=>{
  const ctx=await testEnvironment();try{
-  await migrateBilling(ctx.db);const token=(await ctx.login(users[0])).token,f=await quoteFixtureTools(ctx,token);
+  await migrateBilling(ctx.db);const token=(await ctx.login(users[0])).cookie,f=await quoteFixtureTools(ctx,token);
   const q=await f.create(),original=(await ctx.db.prepare('SELECT data_json FROM billing_documents WHERE id=?').bind(q.id).first()).data_json;
   let response=await f.call('/documents/'+q.id+'/followup','PATCH',{title:'Nouveau libellé de suivi'},{'If-Match':'0'});assert.equal(response.status,200,await response.clone().text());
   let updated=await response.json();assert.equal(updated.followup.title,'Nouveau libellé de suivi');assert.equal(updated.data.title,q.data.title);assert.equal(updated.version,q.version);

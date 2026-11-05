@@ -14,7 +14,7 @@ await test('montants français exacts et opérations strictes',()=>{
 });
 await test('règlements : écritures atomiques, concurrence et historique',async t=>{
  const ctx=await testEnvironment();try{
-  await migrateBilling(ctx.db);const token=(await ctx.login(users[0])).token,f=await paymentFixtureTools(ctx,token),{call,create,input,send}=f;
+  await migrateBilling(ctx.db);const token=(await ctx.login(users[0])).cookie,f=await paymentFixtureTools(ctx,token),{call,create,input,send}=f;
   const read=async doc=>(await call('/documents/'+doc.id)).json(),history=async doc=>(await call('/documents/'+doc.id+'/payments')).json();
   const ok=async(res,status=201)=>{assert.equal(res.status,status,await res.clone().text());return res.json();};
   let doc=await create();const original=structuredClone(doc),files={};for(const kind of doc.issuance.files)files[kind]=await (await call('/documents/'+doc.id+'/files/'+kind)).text();
@@ -77,9 +77,9 @@ await test('règlements : écritures atomiques, concurrence et historique',async
   });
   await t.test('authentification, origine, préconditions et document figé',async()=>{
    assert.equal((await call('/documents/'+doc.id+'/payments','POST',input(doc))).status,428);
-   assert.equal((await call('/documents/'+doc.id+'/payments','POST',input(doc),{'If-Match':String(doc.settlement.version),Authorization:'Bearer absent'})).status,401);
-   assert.equal((await call('/documents/'+doc.id+'/payments','POST',input(doc),{'If-Match':String(doc.settlement.version),Origin:'https://evil.example'})).status,403);
-   const other=(await ctx.login(users[1])).token;assert.equal((await call('/documents/'+doc.id+'/payments','GET',undefined,{Authorization:'Bearer '+other})).status,403);
+   assert.equal((await call('/documents/'+doc.id+'/payments','POST',input(doc),{'If-Match':String(doc.settlement.version),Cookie:'__Host-cdi_session=absent'})).status,401);
+   assert.equal((await call('/documents/'+doc.id+'/payments','POST',input(doc),{'If-Match':String(doc.settlement.version),'X-CDInnov-Request':'1',Origin:'https://evil.example'})).status,403);
+   const other=(await ctx.login(users[1])).cookie;assert.equal((await call('/documents/'+doc.id+'/payments','GET',undefined,{Cookie:other})).status,403);
    const now=await read(doc);for(const field of ['data','version','issuance','updatedAt','totals'])assert.deepEqual(now[field],original[field]);for(const kind of doc.issuance.files)assert.equal(await (await call('/documents/'+doc.id+'/files/'+kind)).text(),files[kind]);
    const count=(await ctx.db.prepare('SELECT count(*) AS n FROM billing_payment_entries').first()).n;await migrateBilling(ctx.db);assert.equal((await ctx.db.prepare('SELECT count(*) AS n FROM billing_payment_entries').first()).n,count);
   });

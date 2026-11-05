@@ -23,13 +23,13 @@ await test('registre D1 : numérotation, gel et reprise après échec',async t=>
  // Exercise the current source Worker and its complete local billing schema.
  delete process.env.MARCHES_TEST_WORKER;
  const ctx=await testEnvironment();const user=users[0],numbering=series();let header,first,firstInput;
- const call=(path,options={})=>ctx.worker.dispatchFetch('https://preview.example/api/v1/billing'+path,{...options,headers:{Origin:'http://127.0.0.1:5196','Content-Type':'application/json',...header,...options.headers}});
+ const call=(path,options={})=>ctx.worker.dispatchFetch('https://preview.example/api/v1/billing'+path,{...options,headers:{'X-CDInnov-Request':'1',Origin:'http://127.0.0.1:5196','Content-Type':'application/json',...header,...options.headers}});
  const create=async(data=fixture())=>{const id=randomUUID();const r=await call('/documents',{method:'POST',body:JSON.stringify({id,data})});assert.equal(r.status,201,await r.clone().text());return r.json();};
  const request=(doc,s=numbering)=>({id:randomUUID(),documentId:doc.id,documentVersion:doc.version,seriesId:s.id});
  const counter=async(s=numbering)=>(await ctx.db.prepare('SELECT next_value FROM billing_number_series WHERE id=?').bind(s.id).first()).next_value;
  const events=id=>ctx.db.prepare('SELECT * FROM billing_issue_events WHERE issuance_id=? ORDER BY version').bind(id).all();
  try{
-  header={Authorization:'Bearer '+(await ctx.login(user)).token};
+  header={Cookie:(await ctx.login(user)).cookie};
   await t.test('migration rejouable : brouillons et historique antérieurs conservés, aucune série créée',async()=>{
    await migrateBilling(ctx.db);
    const before=await create();const history=await ctx.db.prepare('SELECT * FROM billing_document_versions WHERE document_id=?').bind(before.id).all();

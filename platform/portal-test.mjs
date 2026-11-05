@@ -8,7 +8,7 @@ const ctx=await testEnvironment();let checks=0;
 const check=async(name,fn)=>{await fn();checks++;console.log('OK '+name);};
 const file='https://test/files/private.pdf',receipt='https://test/files/receipt.pdf';
 const source={params:{anneeSuivi:2026},types:[],salaries:[{matricule:'001',nom:'Direction',photo:'https://test/files/portrait.png',payslip:file,salaire:9999},{matricule:'004',nom:'Consultant',payslip:'https://test/files/own-pay.pdf',salaire:1234}],conges:[{id:'leave',matricule:'001',date:'2026-11-01',statut:'Validé',commentaire:'private'}],mouvements:[],notesFrais:[{id:'n1',matricule:'004',statut:'Brouillon',lignes:[{justificatif:receipt}]}],codesAffaires:[],factures:[{id:'f1',pdfUrl:file}],extension:{untouched:true},auth:{accounts:ctx.accounts,allowed:users}};
-const call=(path,options={},session)=>ctx.worker.dispatchFetch('https://test'+path,{...options,headers:{Origin:'https://app.cdinnov.eu','Content-Type':'application/json',...(session?{Authorization:'Bearer '+session.token}:{}),...options.headers}});
+const call=(path,options={},session)=>ctx.worker.dispatchFetch('https://test'+path,{...options,headers:{'X-CDInnov-Request':'1',Origin:'https://app.cdinnov.eu','Content-Type':'application/json',...(session?{Cookie:session.cookie}:{}),...options.headers}});
 let admin,staff;
 const get=session=>call('/api/v1/portal',{},session).then(r=>r.json());
 const put=(data,version,session=admin)=>call('/api/v1/portal',{method:'PUT',headers:{'If-Match':String(version)},body:JSON.stringify(data)},session);
@@ -17,7 +17,7 @@ try{
  await check('Old URLs, anonymous portal/files/notification routes are closed',async()=>{
    for(const path of ['/markets-test','/unknown','/%6darkets-test'])for(const method of ['GET','PUT'])assert.equal((await call(path,{method,...(method==='PUT'?{body:'{}'}:{})})).status,410);
    for(const path of ['/api/v1/portal','/files/private.pdf','/notify'])assert.equal((await call(path)).status,401);
-   assert.equal((await call('/api/v1/portal',{headers:{Origin:'https://evil.example'}},admin)).status,403);
+   assert.equal((await call('/api/v1/portal',{headers:{'X-CDInnov-Request':'1',Origin:'https://evil.example'}},admin)).status,403);
  });
  await check('Migration keeps exact legacy data; normal reads never expose password verifiers',async()=>{
    const row=await ctx.db.prepare("SELECT * FROM app_portal_workspace WHERE id='shared'").first();assert.equal(row.payload,originalKV);
@@ -73,7 +73,7 @@ try{
  });
  await check('Logout revokes the bearer across all services without changing the legacy snapshot',async()=>{
    assert.equal((await call('/api/v1/session',{method:'DELETE'},admin)).status,200);
-   assert.equal((await call('/api/v1/portal',{},admin)).status,401);assert.equal((await ctx.call('workspace',{headers:{Authorization:'Bearer '+admin.token}})).status,401);
+   assert.equal((await call('/api/v1/portal',{},admin)).status,401);assert.equal((await ctx.call('workspace',{headers:{Cookie:admin.cookie}})).status,401);
    assert.equal(await ctx.kv.get('markets-test'),originalKV);
  });
  console.log(checks+' secure portal checks passed');

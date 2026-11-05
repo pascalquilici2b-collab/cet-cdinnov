@@ -20,7 +20,7 @@ import {StampPaymentPreview,type PaymentFocus} from './stamping-payment-preview'
 import {stampingPeriod} from './stamping-period';
 import {StampAvatar,StampDeleteDialog,type StampCreator} from './stamping-lot-controls';
 
-type Props={baseUrl:string;getToken:()=>Promise<string>;isActive:()=>boolean;creator?:(owner:string)=>StampCreator};
+type Props={baseUrl:string;getSession:()=>Promise<string>;isActive:()=>boolean;creator?:(owner:string)=>StampCreator};
 const fields:Record<string,string>={document_type:'Type de pièce',document_ref:'Référence document',period:'Mois',employee_ref:'Référence salarié',invoice_number:'Numéro de facture',invoice_date:'Date de facture',supplier_ref:'Référence fournisseur',project_name:'Nom du projet',project_code:'Code projet',programme:'Programme',base_amount:'Assiette / coût employeur',base_type:'Type d’assiette',allocation_percent:'Pourcentage',allocation_amount:'Montant imputé',currency:'Devise'};
 const eur=(v:number|null|undefined)=>v==null?'À vérifier':new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR'}).format(v/100);
 const sum=(docs:any[],name:string)=>docs.reduce((total,d)=>total+(d.data?.[name]||0),0);
@@ -42,8 +42,9 @@ function App(props:Props){
  const sourceCache=useRef<{key:string;blob:Blob}|null>(null);
  const alive=useRef(true),latest=useRef<any>(null);
  const request=async(path:string,init:RequestInit={})=>{
-  const token=await props.getToken();if(!alive.current||!props.isActive())throw new Error('Session fermée.');
-  const response=await fetch(props.baseUrl+'/api/v1/stamping'+path,{...init,headers:{Authorization:'Bearer '+token,...(init.body&&!(init.body instanceof FormData)?{'Content-Type':'application/json'}:{}),...init.headers},cache:'no-store',signal:AbortSignal.timeout(600000)});
+  const sessionId=await props.getSession();if(!alive.current||!props.isActive())throw new Error('Session fermée.');
+  const response=await fetch(props.baseUrl+'/api/v1/stamping'+path,{...init,credentials:'same-origin',headers:{'X-CDInnov-Request':'1',...(init.body&&!(init.body instanceof FormData)?{'Content-Type':'application/json'}:{}),...init.headers},cache:'no-store',signal:AbortSignal.timeout(600000)});
+  if(response.status===401)window.dispatchEvent(new CustomEvent('cdinnov-session-expired',{detail:{sessionId}}));
   if(!alive.current||!props.isActive())throw new Error('Session fermée.');
   if(!response.ok){let message='Le service est indisponible.';try{message=(await response.json()).error||message;}catch{}throw new Error(message);}
   return response;

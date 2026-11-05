@@ -22,8 +22,8 @@ await test('Flux locaux Clients → Marchés → Projets → BDC → BPU',async 
  try{
   await migrateBilling(ctx.db);
   await seedBusinessDocument(ctx.db,'budgets',{clients:[{id:'client-a',name:'Client Alpha'},{id:'client-b',name:'Client Bêta'},{id:'client-c',name:'Client Gamma'}]},2);
-  const {token}=await ctx.login(users[0]);
-  const api=(path,method='GET',body,headers={})=>ctx.worker.dispatchFetch('https://test'+path,{method,headers:{Origin:'https://app.cdinnov.eu',Authorization:'Bearer '+token,'Content-Type':'application/json',...headers},...(body===undefined?{}:{body:JSON.stringify(body)})});
+  const {cookie:token}=await ctx.login(users[0]);
+  const api=(path,method='GET',body,headers={})=>ctx.worker.dispatchFetch('https://test'+path,{method,headers:{'X-CDInnov-Request':'1',Origin:'https://app.cdinnov.eu',Cookie:token,'Content-Type':'application/json',...headers},...(body===undefined?{}:{body:JSON.stringify(body)})});
   const json=async(path,method='GET',body,headers={},status=200)=>{
    const response=await api(path,method,body,headers);
    assert.equal(response.status,status,await response.clone().text());return response.json();
@@ -124,7 +124,7 @@ await test('Flux locaux Clients → Marchés → Projets → BDC → BPU',async 
 await test('Corbeille → changement d’engagement familial → restauration atomique',async t=>{
  const ctx=await testEnvironment();
  try{
-  await migrateBilling(ctx.db);const token=(await ctx.login(users[0])).token,q=await quoteFixtureTools(ctx,token);
+  await migrateBilling(ctx.db);const token=(await ctx.login(users[0])).cookie,q=await quoteFixtureTools(ctx,token);
   const ok=async(response,status=200)=>{assert.equal(response.status,status,await response.clone().text());return response.json();};
   for(const id of ['restore-a','restore-b']){
    const market={...emptyMarket(),title:'Marché de restauration '+id,reference:id,clientName:'Client fictif',orders:[{id:id+'-order',reference:id+'-BDC',date:'2026-01-01',amountMinor:100000}]};
@@ -132,7 +132,7 @@ await test('Corbeille → changement d’engagement familial → restauration at
   }
   const data=quoteFixture('Devis fictif de restauration');data.lines[0].quantity='3';data.lines[0].unitPrice='100';data.references.marketId='restore-a';
   let quote=await q.create(data);quote=await ok(await q.send(quote),201);
-  const upload=await ctx.worker.dispatchFetch('https://test/api/v1/billing/documents/'+quote.id+'/engagement?'+new URLSearchParams({kind:'order',reference:'restore-a-BDC',marketId:'restore-a',amountMinor:'100000'}),{method:'PUT',headers:{Origin:'https://app.cdinnov.eu',Authorization:'Bearer '+token,'If-Match':String(quote.version),'X-Filename':'Commande-fictive.pdf','Content-Type':'application/pdf'},body:samplePDF()});
+  const upload=await ctx.worker.dispatchFetch('https://test/api/v1/billing/documents/'+quote.id+'/engagement?'+new URLSearchParams({kind:'order',reference:'restore-a-BDC',marketId:'restore-a',amountMinor:'100000'}),{method:'PUT',headers:{'X-CDInnov-Request':'1',Origin:'https://app.cdinnov.eu',Cookie:token,'If-Match':String(quote.version),'X-Filename':'Commande-fictive.pdf','Content-Type':'application/pdf'},body:samplePDF()});
   await ok(upload,201);
   const convert=async()=>ok(await q.call('/documents/'+quote.id+'/convert','POST',{id:randomUUID()},{'If-Match':String(quote.version)}),201);
   let active=await convert(),deleted=await convert();

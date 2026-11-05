@@ -3,8 +3,12 @@ const form = $('#invoice-form');
 const embedConfig = window.FACTURX_EMBED_CONFIG || null;
 const serviceBase = embedConfig ? embedConfig.apiBase.replace(/\/$/, '') : '';
 const apiFetch = async (url, options={}) => {
+  if(embedConfig){
+    if(window.parent===window||window.parent.location.origin!==embedConfig.parentOrigin)throw new Error('Ouvrez le convertisseur depuis votre facture.');
+    return window.parent.facturxApi(url,options);
+  }
   const headers=new Headers(options.headers);
-  if(embedConfig?.token)headers.set('Authorization','Bearer '+embedConfig.token);
+  headers.delete('Authorization');
   const response=await fetch(serviceBase+url,{...options,headers,signal:options.signal||AbortSignal.timeout(240000)});
   if(response.status===401){
     if(embedConfig)window.parent.postMessage({type:'cdi-facturx-auth-expired',session:embedConfig.session},embedConfig.parentOrigin);

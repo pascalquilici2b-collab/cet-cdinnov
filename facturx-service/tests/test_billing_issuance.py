@@ -88,8 +88,7 @@ class StructuredIssuanceTests(unittest.TestCase):
             payload = envelope('quote')
             path = '/api/billing/generate-issued'
             self.assertEqual(client.post(path, json=payload).status_code, 401)
-            with patch('cdi_facturx.api.server_auth.verify', return_value={'email': 'synthetic@example.invalid'}):
-                self.assertEqual(client.post(path, json=payload, headers={'Authorization': 'Bearer user-token'}).status_code, 403)
+            self.assertEqual(client.post(path, json=payload, headers={'Authorization': 'Bearer user-token'}).status_code, 401)
             headers = {'X-API-Key': key}
             self.assertEqual(client.post(path, json=payload, headers={**headers, 'Origin': 'https://evil.invalid'}).status_code, 403)
             self.assertEqual(client.post(path, json={**payload, 'number': 'FORGED'}, headers=headers).status_code, 422)

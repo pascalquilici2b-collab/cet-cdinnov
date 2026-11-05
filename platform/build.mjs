@@ -24,7 +24,8 @@ const portalPath=path.join(root,'index.html');
 let portal=await readFile(portalPath,'utf8');
 // Keep remaining classic controllers connected to the authenticated portal bridge.
 // Replace declarations structurally so no former public persistence path stays active.
-const ts=require('typescript'),bridge=(await readFile(path.join(root,'platform/client/loading-markup.js'),'utf8'))+'\n'+(await readFile(path.join(root,'platform/client/portal-compat.js'),'utf8'))+'\n'+(await readFile(path.join(root,'platform/client/facturx-integrity.js'),'utf8'));
+await copyFile(path.join(root,'platform/client/session-ui.css'),path.join(root,'platform/session-ui.css'));
+const ts=require('typescript'),bridge=(await readFile(path.join(root,'platform/client/session-ui.js'),'utf8'))+'\n'+(await readFile(path.join(root,'platform/client/loading-markup.js'),'utf8'))+'\n'+(await readFile(path.join(root,'platform/client/portal-compat.js'),'utf8'))+'\n'+(await readFile(path.join(root,'platform/client/facturx-integrity.js'),'utf8'))+'\n'+(await readFile(path.join(root,'platform/client/facturx-auth-bridge.js'),'utf8'));
 portal=portal.replace(/(?:\r?\n)*\/\* CDI_PORTAL_START \*\/[\s\S]*?\/\* CDI_PORTAL_END \*\/(?:\r?\n)*/,'\n');
 portal=portal.replace(/(?:\r?\n)*\/\* CDI_BILLING_START \*\/[\s\S]*?\/\* CDI_BILLING_END \*\/(?:\r?\n)*/,'\n');
 const bridgeAst=ts.createSourceFile('bridge.js',bridge,ts.ScriptTarget.Latest,true,ts.ScriptKind.JS);
@@ -46,8 +47,11 @@ portal=portal.replace(marker,()=> '/* CDI_MARKETS_START */\n'+controller.outputF
 // One visual theme for the standalone converter and the embedded mini-software.
 const converterStyle=await readFile(path.join(root,'facturx-service/cdi_facturx/static/apple.css'),'utf8');
 const converterTheme=await readFile(path.join(root,'facturx-service/cdi_facturx/static/theme.js'),'utf8');
+const converterApp=await readFile(path.join(root,'facturx-service/cdi_facturx/static/app.js'),'utf8');
 portal=portal.replace(/const CDI_FACTURX_DOCUMENT = ("(?:[^"\\]|\\.)*");/,(_match,encoded)=>{
  let doc=JSON.parse(encoded).replace(/<style id="cdi-converter-apple">[\s\S]*?<\/style>/g,'').replace(/<script id="cdi-converter-theme">[\s\S]*?<\/script>/g,'');
+ if(!doc.includes("const $ = (s) => document.querySelector(s);"))throw new Error('Converter application marker missing');
+ doc=doc.replace(/const \$ = \(s\) => document.querySelector\(s\);[\s\S]*?(?=<\/script>)/,()=>converterApp.replace(/<\/script/gi,'<\\/script'));
  doc=doc.replace('</head>','<style id="cdi-converter-apple">'+converterStyle+'</style><script id="cdi-converter-theme">'+converterTheme+'</script></head>');
  return 'const CDI_FACTURX_DOCUMENT = '+JSON.stringify(doc).replaceAll('<','\\u003c')+';';
 });

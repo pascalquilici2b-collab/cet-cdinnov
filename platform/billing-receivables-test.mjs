@@ -18,7 +18,7 @@ test('échéance calendaire J+30 et états avant/après échéance, sans écritu
  doc.data.references.project='PROTERINA';doc.data.details={period:'S8'};assert.equal(defaultBillingEmail(doc),'Bonjour,\n\nJe vous prie de bien vouloir trouver ci-joint la facture F-20261023-001 relative au projet PROTERINA pour la période Semestre 8.\n\nLa facture électronique vous sera également adressée sur votre plateforme agréée.\n\nVous en souhaitant bonne réception,');
 });
 test('API : échéance, filtres et rectification avant transmission avec archive immuable',async()=>{
- const ctx=await testEnvironment();try{await migrateBilling(ctx.db);const token=(await ctx.login(users[0])).token,f=await paymentFixtureTools(ctx,token),{call,create,input,send}=f;
+ const ctx=await testEnvironment();try{await migrateBilling(ctx.db);const token=(await ctx.login(users[0])).cookie,f=await paymentFixtureTools(ctx,token),{call,create,input,send}=f;
  const ok=async(r,status)=>{assert.equal(r.status,status,await r.clone().text());return r.json();},get=async id=>ok(await call('/documents/'+id),200),headers=d=>({'If-Match':String(d.version)});
  let old=await create(invoiceFixture('Facture ancienne'));assert.equal(old.settlement.overdue,false);old=await ok(await call('/documents/'+old.id+'/sent','POST',{sentOn:billingToday(),confirmed:true},headers(old)),200);assert.equal(old.settlement.overdue,true);
  const future={...invoiceFixture('Facture future'),issueDate:billingToday(),dueDate:''},doc=await create(future),original=structuredClone(doc);assert.equal(doc.data.dueDate,addBillingDays(billingToday(),30));assert.equal(doc.settlement.overdue,false);

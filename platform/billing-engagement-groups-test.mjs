@@ -82,8 +82,8 @@ await test('API engagements : identités des marchés, tous les bons historiques
    {id:'imported-second',number:'LOCAL-B',ht:200,marketId:second,orderId:sharedOrder,orderReference:'BC-IDENTIQUE'},
    {id:'imported-history',number:'LOCAL-H',ht:50,marketId:first,projectId,orderId:historicOrder,orderReference:'BC-ANCIEN'}
   ]}));
-  const token=(await ctx.login(users[0])).token;
-  const get=()=>ctx.worker.dispatchFetch('https://preview.example/api/v1/billing/engagements',{headers:{Origin:'https://app.cdinnov.eu',Authorization:'Bearer '+token}});
+  const token=(await ctx.login(users[0])).cookie;
+  const get=()=>ctx.worker.dispatchFetch('https://preview.example/api/v1/billing/engagements',{headers:{'X-CDInnov-Request':'1',Origin:'https://app.cdinnov.eu',Cookie:token}});
   const snapshot=async()=>{
    const result={};for(const table of ['markets','market_versions','portal_invoices','billing_documents','billing_document_versions','billing_order_allocations','billing_document_followup'])result[table]=(await ctx.db.prepare('SELECT * FROM '+table).all()).results;
    return result;

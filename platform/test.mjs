@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import {testEnvironment,users} from '../marches/test.mjs';
 import {migrateLocal} from './migrations.mjs';
 import {createBudgetTransport} from './client/workspace-client.ts';
-process.env.MARCHES_TEST_WORKER ||= fileURLToPath(new URL('../.build/entry.mjs',import.meta.url));
+delete process.env.MARCHES_TEST_WORKER;
 process.env.MARCHES_TEST_COMPATIBILITY_DATE ||= '2026-06-09';
 const ctx=await testEnvironment();
 let checks=0;
@@ -13,7 +13,7 @@ const check=async(name,fn)=>{await fn();checks++;console.log('OK '+name)};
 const workspace={demo:false,clients:[{id:'c1',name:'Client test',accounts:[],logo:'data:image/png;base64,'+'a'.repeat(900000)},{id:'c2',name:'Autre client',accounts:[]}],projects:[{id:'p1',name:'Projet test',clientId:'c1',unknownFuture:{keep:true}}],budgetLines:[{id:'l1',projectId:'p1',amount:123.45}],expenses:[],drs:[],imports:[],partnerReports:[{id:'r1',anything:'preserved'}],reportExpenseLinks:[{noId:'keep'}],unknownNull:null,unknownString:'future field',unknownFlag:true};
 try{
  const login=await ctx.login(users[0]),other=await ctx.login(users[1]);
- const headers={Authorization:'Bearer '+login.token};
+ const headers={Cookie:login.cookie,Origin:'https://app.cdinnov.eu','X-CDInnov-Request':'1'};
  const call=(route,options={})=>ctx.call(route,{...options,headers:{...headers,...options.headers}});
  const put=(data,version)=>call('workspace',{method:'PUT',headers:{'If-Match':String(version)},body:JSON.stringify(data)});
  await check('Routes privées et CORS restent protégés',async()=>{
@@ -35,7 +35,7 @@ try{
   const r=await call('workspace');assert.equal(r.status,200);tag=r.headers.get('ETag');assert.equal(tag,'"budgets-1"');assert.deepEqual((await r.json()).workspace,workspace);
   const unchanged=await call('workspace',{headers:{'If-None-Match':tag}});assert.equal(unchanged.status,304);assert.equal(await unchanged.text(),'');
  });
- const page=async(query,session=login)=>ctx.worker.dispatchFetch('https://test/api/v1/budget-records?'+query,{headers:{Authorization:'Bearer '+session.token,Origin:'https://app.cdinnov.eu'}});
+ const page=async(query,session=login)=>ctx.worker.dispatchFetch('https://test/api/v1/budget-records?'+query,{headers:{Cookie:session.cookie,Origin:'https://app.cdinnov.eu'}});
  await check('Pagination stable pour les utilisateurs déjà habilités',async()=>{
   const a=await(await page('collection=clients&limit=1',other)).json();assert.equal(a.items[0].id,'c1');assert.deepEqual(a.next,{after:0,version:1});
   const b=await(await page('collection=clients&limit=1&after=0&version=1')).json();assert.equal(b.items[0].id,'c2');assert.equal(b.next,null);
@@ -73,18 +73,34 @@ try{
   await ctx.db.prepare('DROP TRIGGER test_failure').run();
  });
  await check('Cache navigateur valide les versions et isole les sessions',async()=>{
-  const transport=createBudgetTransport((url,options)=>ctx.worker.dispatchFetch(url,{...options,headers:{...options.headers,Origin:'https://app.cdinnov.eu'}}));
-  const url='https://test/budgets/workspace',session={email:users[0],token:login.token};
+  let activeCookie=login.cookie;const transport=createBudgetTransport((url,options)=>ctx.worker.dispatchFetch(url,{...options,headers:{...options.headers,Cookie:activeCookie,Origin:'https://app.cdinnov.eu'}}));
+  const url='https://test/budgets/workspace',session={email:users[0],sessionId:login.sessionId};
   const a=await transport.request(url,session,'GET');a.workspace.clients=[];
   const b=await transport.request(url,session,'GET');assert.equal(b.workspace.clients.length,2);
-  transport.clear();const c=await transport.request(url,{email:users[1],token:other.token},'GET');assert.equal(c.version,b.version);
-  const current=await transport.request(url,session,'GET');const changed=structuredClone(current.workspace);changed.unknownString='saved';await transport.request(url,session,'PUT',changed,current.version);
+  transport.clear();activeCookie=other.cookie;const c=await transport.request(url,{email:users[1],sessionId:other.sessionId},'GET');assert.equal(c.version,b.version);
+  activeCookie=login.cookie;const current=await transport.request(url,session,'GET');const changed=structuredClone(current.workspace);changed.unknownString='saved';await transport.request(url,session,'PUT',changed,current.version);
   assert.equal((await transport.request(url,session,'GET')).workspace.unknownString,'saved');
  });
  await check('Déconnexion annule une réponse de cache en vol',async()=>{
   let finish;const transport=createBudgetTransport(()=>new Promise(r=>{finish=r}));
-  const pending=transport.request('https://test',{email:'test',token:'test'},'GET');transport.clear();finish(Response.json({workspace:{},version:1}));
+  const pending=transport.request('https://test',{email:'test',sessionId:'test'},'GET');transport.clear();finish(Response.json({workspace:{},version:1}));
   await assert.rejects(()=>pending,/session ou le budget a changé/);
+ });
+ await check('Reconnexion conserve le brouillon du même compte et détecte les conflits',async()=>{
+  let auth=await ctx.login(users[0]);
+  const transport=createBudgetTransport((url,options)=>ctx.worker.dispatchFetch(url,{...options,headers:{...options.headers,Cookie:auth.cookie,Origin:'https://app.cdinnov.eu'}}));
+  const url='https://test/budgets/workspace',session=()=>({email:auth.email,sessionId:auth.sessionId});
+  const before=await transport.request(url,session(),'GET'),draft=structuredClone(before.workspace);draft.projects[0].name='Brouillon après reconnexion';
+  await ctx.worker.dispatchFetch('https://test/api/v1/session',{method:'DELETE',headers:{Cookie:auth.cookie,Origin:'https://app.cdinnov.eu','X-CDInnov-Request':'1'}});
+  await assert.rejects(()=>transport.request(url,session(),'PUT',draft),error=>error.status===401);
+  transport.suspend();auth=await ctx.login(users[0]);
+  const elsewhere=structuredClone(before.workspace);elsewhere.clients[0].name='Modification d’un collègue';assert.equal((await put(elsewhere,before.version)).status,200);
+  await transport.request(url,session(),'PUT',draft);
+  const actual=await transport.request(url,session(),'GET');assert.equal(actual.workspace.projects[0].name,draft.projects[0].name);assert.equal(actual.workspace.clients[0].name,elsewhere.clients[0].name);
+  const conflicting=structuredClone(actual.workspace);conflicting.projects[0].name='Autre modification concurrente';assert.equal((await put(conflicting,actual.version)).status,200);
+  transport.suspend();auth=await ctx.login(users[0]);const stale=structuredClone(actual.workspace);stale.projects[0].name='Brouillon ancien conservé';
+  await assert.rejects(()=>transport.request(url,session(),'PUT',stale),error=>error.status===409);
+  await assert.rejects(()=>transport.request(url,{email:users[1],sessionId:other.sessionId},'PUT',stale),/Rechargez le budget/);
  });
  await check('Smartsheet conserve lecture, sauvegarde et protection contre les écrasements',async()=>{
   const sheets=(options={})=>ctx.worker.dispatchFetch('https://test/sheets/state',{...options,headers:{Origin:'https://app.cdinnov.eu','Content-Type':'application/json',...headers,...options.headers}});

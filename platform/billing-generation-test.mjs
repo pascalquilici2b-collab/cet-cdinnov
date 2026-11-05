@@ -41,7 +41,7 @@ await test('HTTP émission : refus avant réservation et contrôle des fichiers 
  }});
  try{
   await migrateBilling(ctx.db);const admin=await ctx.login(users[0]),reader=await ctx.login(users[1]);
-  const headers={Origin:'https://app.cdinnov.eu',Authorization:'Bearer '+admin.token,'Content-Type':'application/json'};
+  const headers={'X-CDInnov-Request':'1',Origin:'https://app.cdinnov.eu',Cookie:admin.cookie,'Content-Type':'application/json'};
   const call=(path,method='GET',body,extra={})=>ctx.worker.dispatchFetch('https://preview.test/api/v1/billing'+path,{method,headers:{...headers,...extra},...(body===undefined?{}:{body:JSON.stringify(body)})});
   const create=async()=>{const result=await call('/documents','POST',{id:randomUUID(),data:fixture()});assert.equal(result.status,201);return result.json();};
   const s={id:randomUUID(),issuerSiren:'732829320',kind:'invoice',prefix:'TEST-',width:4,firstValue:41,startDate:'2026-01-01',endDate:'2026-12-31'};
@@ -49,10 +49,10 @@ await test('HTTP émission : refus avant réservation et contrôle des fichiers 
   const reserve=(document=doc,body=issueInput)=>call('/documents/'+document.id+'/issue','POST',body,{'If-Match':String(document.version)});
   const counter=async()=>(await ctx.db.prepare('SELECT next_value FROM billing_number_series WHERE id=?').bind(s.id).first()).next_value;
   await t.test('identité, droits, origine, méthode et version avant tout appel distant',async()=>{
-   for(const [token,status] of [['',401],['Bearer '+reader.token,403]]){
-    for(const [path,body] of [['/number-series',{data:{...s,id:randomUUID()}}],['/documents/'+doc.id+'/issue',issueInput],['/documents/'+doc.id+'/finalize',{}]])assert.equal((await call(path,'POST',body,{Authorization:token,'If-Match':'1'})).status,status);
+   for(const [token,status] of [['',401],[reader.cookie,403]]){
+    for(const [path,body] of [['/number-series',{data:{...s,id:randomUUID()}}],['/documents/'+doc.id+'/issue',issueInput],['/documents/'+doc.id+'/finalize',{}]])assert.equal((await call(path,'POST',body,{Cookie:token,'If-Match':'1'})).status,status);
    }
-   assert.equal((await call('/documents/'+doc.id+'/issue','POST',issueInput,{Origin:'https://untrusted.test','If-Match':'1'})).status,403);
+   assert.equal((await call('/documents/'+doc.id+'/issue','POST',issueInput,{'X-CDInnov-Request':'1',Origin:'https://untrusted.test','If-Match':'1'})).status,403);
    assert.equal((await call('/documents/'+doc.id+'/issue','GET')).status,405);
    assert.equal((await call('/documents/'+doc.id+'/issue','POST',issueInput)).status,428);
    assert.equal((await reserve({...doc,version:2})).status,409);

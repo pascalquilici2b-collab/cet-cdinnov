@@ -8,9 +8,9 @@ const check=async(label,fn)=>{await fn();checks++;console.log('OK '+label);};
 try{
  let id,payId,invoiceId,b;
  await check('Anonymous, collaborator and hostile origin rejected',async()=>{
-  const other=await ctx.login(users[1]);assert.equal((await ctx.call('/batches',{headers:{Authorization:''}})).status,401);
-  assert.equal((await ctx.call('/batches',{headers:{Authorization:'Bearer '+other.token}})).status,403);
-  assert.equal((await ctx.call('/batches',{headers:{Origin:'https://evil.example'}})).status,403);
+  const other=await ctx.login(users[1]);assert.equal((await ctx.call('/batches',{headers:{Cookie:''}})).status,401);
+  assert.equal((await ctx.call('/batches',{headers:{Cookie:other.cookie}})).status,403);
+  assert.equal((await ctx.call('/batches',{headers:{'X-CDInnov-Request':'1',Origin:'https://evil.example'}})).status,403);
  });
  await check('Create private lot; import real CSV with exact provenance',async()=>{
   id=(await read(await ctx.send('/batches',{name:'Lot synthétique / paie : 2026',useAI:true}),201)).id;b=await read(await ctx.call('/batches/'+id));
@@ -52,10 +52,10 @@ try{
  });
  await check('Team visibility, author/admin edits, guessed IDs and generic R2 route blocked',async()=>{
   await ctx.setPortal(JSON.stringify({auth:{accounts:{...ctx.accounts,[users[1]]:{...ctx.accounts[users[1]],role:'collaborator',access:{tamponnage:true}}},allowed:users}}));const other=await ctx.login(users[1]);
-  for(const path of [`/batches/${id}`,`/batches/${id}/documents/${payId}/source`,`/batches/${id}/documents/${payId}/output`,`/batches/${id}/export`])assert.equal((await ctx.call(path,{headers:{Authorization:'Bearer '+other.token}})).status,200);
-  assert.equal((await ctx.call('/batches/'+id,{method:'DELETE',headers:{Authorization:'Bearer '+other.token}})).status,403);
-  const shared=await read(await ctx.call('/batches',{headers:{Authorization:'Bearer '+other.token}}));assert.ok(shared.batches.some(b=>b.id===id&&b.canEdit===false));
-  const r=await ctx.worker.dispatchFetch('https://preview.example/files/stamping/any',{headers:{Origin:'http://127.0.0.1:5196',Authorization:'Bearer '+ctx.admin.token}});assert.equal(r.status,403);
+  for(const path of [`/batches/${id}`,`/batches/${id}/documents/${payId}/source`,`/batches/${id}/documents/${payId}/output`,`/batches/${id}/export`])assert.equal((await ctx.call(path,{headers:{Cookie:other.cookie}})).status,200);
+  assert.equal((await ctx.call('/batches/'+id,{method:'DELETE',headers:{Cookie:other.cookie}})).status,403);
+  const shared=await read(await ctx.call('/batches',{headers:{Cookie:other.cookie}}));assert.ok(shared.batches.some(b=>b.id===id&&b.canEdit===false));
+  const r=await ctx.worker.dispatchFetch('https://preview.example/files/stamping/any',{headers:{'X-CDInnov-Request':'1',Origin:'http://127.0.0.1:5196',Cookie:ctx.admin.cookie}});assert.equal(r.status,403);
   const empty=(await read(await ctx.send('/batches',{name:'Autre lot'}),201)).id;assert.equal((await ctx.call(`/batches/${empty}/documents/${payId}/source`)).status,404);
  });
  await check('Delete removes private originals, candidates and audit',async()=>{

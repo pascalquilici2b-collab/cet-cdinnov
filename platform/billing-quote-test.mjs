@@ -13,11 +13,11 @@ test('expiration du devis : calendrier Paris, validité inclusive, réponses con
 });
 await test('suivi réel D1 : journal immuable, reprises, réponses et facturation liée',async t=>{
  const ctx=await testEnvironment();try{
-  await migrateBilling(ctx.db);const admin=await ctx.login(users[0]),reader=await ctx.login(users[1]);const {call,create,input,send}=await quoteFixtureTools(ctx,admin.token);
+  await migrateBilling(ctx.db);const admin=await ctx.login(users[0]),reader=await ctx.login(users[1]);const {call,create,input,send}=await quoteFixtureTools(ctx,admin.cookie);
   const read=async(r,status)=>{assert.equal(r.status,status,await r.clone().text());return r.json();};
   const doc=await create();
   await t.test('direction uniquement, JSON strict, versions et dates contrôlées',async()=>{
-   for(const auth of ['', 'Bearer '+reader.token])for(const method of ['GET','POST'])assert.equal((await call('/documents/'+doc.id+'/quote-events',method,method==='POST'?input(doc):undefined,{Authorization:auth})).status,auth?403:401);
+   for(const auth of ['', reader.cookie])for(const method of ['GET','POST'])assert.equal((await call('/documents/'+doc.id+'/quote-events',method,method==='POST'?input(doc):undefined,{Cookie:auth})).status,auth?403:401);
    assert.equal((await call('/documents/'+doc.id+'/quote-events','POST',input(doc))).status,428);
    for(const patch of [{action:'paid'},{occurredOn:'2026-02-30'},{id:'bad'},{documentVersion:1.5},{extra:1}])await read(await send(doc,{...input(doc),...patch}),400);
    for(const patch of [{occurredOn:'2099-01-01'},{occurredOn:'2019-12-31'},{note:'   '}])await read(await send(doc,{...input(doc),...patch}),422);

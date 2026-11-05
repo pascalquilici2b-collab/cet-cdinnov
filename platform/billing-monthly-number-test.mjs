@@ -7,7 +7,7 @@ import {createNumberSeries,reserveIssuance} from './billing-issuance.ts';
 import {reserveDraftNumber} from './billing-draft-number.ts';
 import {migrateBilling} from './billing-schema.mjs';
 const p=await billingPreview(),db=p.ctx.db,user='test';
-const headers={Origin:'https://app.cdinnov.eu','Content-Type':'application/json',Authorization:'Bearer '+p.sessions[0].token};
+const headers={'X-CDInnov-Request':'1',Origin:'https://app.cdinnov.eu','Content-Type':'application/json',Cookie:p.sessions[0].cookie};
 const call=(path,method='GET',body)=>p.ctx.worker.dispatchFetch('https://preview/api/v1/billing'+path,{method,headers,...(body?{body:JSON.stringify(body)}:{})});
 const create=async(kind,date='2026-10-28')=>{const data=kind==='invoice'?invoiceFixture():quoteFixture();data.kind=kind;data.issueDate=date;if(kind==='invoice'){data.validUntil='';data.dueDate='2027-02-01';data.paymentMeans='10';}const r=await call('/documents','POST',{id:randomUUID(),data});assert.equal(r.status,201,await r.clone().text());return r.json();};
 const read=async d=>(await call('/documents/'+d.id)).json();

@@ -19,7 +19,7 @@ await test('ajout aux clients depuis un document : identités, données corrigé
   await migrateBilling(ctx.db);
   const admin=await ctx.login(users[0]),consultant=await ctx.login(users[1]);
   const call=(path,method='GET',payload,headers={})=>ctx.worker.dispatchFetch('https://preview.example/api/v1/billing'+path,{
-   method,headers:{Origin:'https://app.cdinnov.eu','Content-Type':'application/json',Authorization:'Bearer '+admin.token,...headers},
+   method,headers:{'X-CDInnov-Request':'1',Origin:'https://app.cdinnov.eu','Content-Type':'application/json',Cookie:admin.cookie,...headers},
    ...(payload===undefined?{}:{body:JSON.stringify(payload)})
   });
   const read=async(response,status=200)=>{assert.equal(response.status,status,await response.clone().text());return response.json();};
@@ -44,8 +44,8 @@ await test('ajout aux clients depuis un document : identités, données corrigé
   let savedClient,document;
 
   await t.test('ajout soumis à la session et au rôle, sans écriture refusée',async()=>{
-   for(const [authorization,status] of [['',401],['Bearer '+consultant.token,403]]){
-    await read(await call('/clients','POST',{id:clientId,data:customer},{Authorization:authorization}),status);
+   for(const [authorization,status] of [['',401],[consultant.cookie,403]]){
+    await read(await call('/clients','POST',{id:clientId,data:customer},{Cookie:authorization}),status);
    }
    assert.equal((await countSiret(first.party.siret)).n,0);
   });
@@ -151,7 +151,7 @@ await test('ajout aux clients depuis un document : identités, données corrigé
    assert.equal(document.data.clientId,'');
    document=await read(await call('/documents/'+document.id,'PUT',{data:{...document.data,clientId}},{'If-Match':String(document.version)}));
    const fresh=await ctx.login(users[0]);
-   const reloaded=await read(await call('/documents/'+document.id,'GET',undefined,{Authorization:'Bearer '+fresh.token}));
+   const reloaded=await read(await call('/documents/'+document.id,'GET',undefined,{Cookie:fresh.cookie}));
    assert.equal(reloaded.data.clientId,clientId);assert.deepEqual(reloaded.data.buyer,customer.party);
    assert.equal(reloaded.data.buyer.name,'Collectivité de Corse — Direction des projets');
    const persisted=await ctx.db.prepare('SELECT data_json FROM billing_documents WHERE id=?').bind(document.id).first();

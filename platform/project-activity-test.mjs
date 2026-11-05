@@ -17,7 +17,7 @@ assert.equal(marketActivity(renewed,'2028-01-01').state,'active');assert.equal(m
 assert.equal(marketActivity({...market,status:'archived'},'2026-10-23').state,'inactive');
 const p=await billingPreview();
 try{
- const headers={Origin:'https://app.cdinnov.eu',Authorization:'Bearer '+p.sessions[0].token,'Content-Type':'application/json'};
+ const headers={'X-CDInnov-Request':'1',Origin:'https://app.cdinnov.eu',Cookie:p.sessions[0].cookie,'Content-Type':'application/json'};
  const r=await p.ctx.call('markets',{method:'POST',headers,body:JSON.stringify({id:'market-dates',market})});assert.equal(r.status,201);
  const read=async()=>{const r=await p.ctx.worker.dispatchFetch('https://preview.test/api/v1/projects',{headers});assert.equal(r.status,200);return (await r.json()).projects.find(p=>p.id===project.id);};
  let saved=await read();assert.equal(saved.startDate,project.startDate);assert.equal(saved.endDate,project.endDate);

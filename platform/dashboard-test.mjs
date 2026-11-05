@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import {fileURLToPath} from 'node:url';
 import {testEnvironment,users} from '../marches/test.mjs';
-import {dashboardEnvironment,readDashboard} from './dashboard.ts';
+import {build} from 'esbuild';
 import {dashboardFixture,insertDashboardTrips,shiftDay} from './dashboard-fixture.mjs';
+const dashboardBundle=await build({entryPoints:[fileURLToPath(new URL('./dashboard.ts',import.meta.url))],bundle:true,platform:'node',format:'esm',write:false});
+const {dashboardEnvironment,readDashboard}=await import('data:text/javascript;base64,'+Buffer.from(dashboardBundle.outputFiles[0].text).toString('base64'));
 process.env.MARCHES_TEST_WORKER=fileURLToPath(new URL('../.build/entry.mjs',import.meta.url));
 process.env.MARCHES_TEST_COMPATIBILITY_DATE='2026-06-09';
 const ctx=await testEnvironment();let count=0;
@@ -14,10 +16,10 @@ try{
  await ctx.setPortal(JSON.stringify(fixture));
  await insertDashboardTrips(ctx.db,day,users[0],users[1]);
  const sessions=await Promise.all([ctx.login(users[0]),ctx.login(users[1]),ctx.login(extra)]);
- const call=(token=sessions[0].token,query='?week='+day,options={})=>ctx.worker.dispatchFetch('https://test/api/v1/dashboard'+query,{...options,headers:{Origin:'https://app.cdinnov.eu',...(token?{Authorization:'Bearer '+token}:{}),...options.headers}});
+ const call=(token=sessions[0].cookie,query='?week='+day,options={})=>ctx.worker.dispatchFetch('https://test/api/v1/dashboard'+query,{...options,headers:{'X-CDInnov-Request':'1',Origin:'https://app.cdinnov.eu',...(token?{Cookie:token}:{}),...options.headers}});
  await check('Authentification, méthode et origine contrôlées',async()=>{
   assert.equal((await call(null)).status,401);assert.equal((await call(undefined,'',{method:'POST'})).status,405);
-  assert.equal((await call(undefined,'',{headers:{Origin:'https://evil.example'}})).status,403);
+  assert.equal((await call(undefined,'',{headers:{'X-CDInnov-Request':'1',Origin:'https://evil.example'}})).status,403);
   assert.equal((await call(null,'',{method:'OPTIONS'})).status,204);
   assert.equal((await call(undefined,'?week=2026-02-30')).status,400);
  });
@@ -30,9 +32,9 @@ try{
   assert.ok(!JSON.stringify(d).includes('PRIVATE_'));assert.ok(!JSON.stringify(d).includes(accounts[users[0]].hash));
  });
  await check('Filtrage financier effectué par le serveur',async()=>{
-  const d=await(await call(sessions[1].token)).json();assert.equal(d.admin,false);assert.equal(d.invoices,null);
+  const d=await(await call(sessions[1].cookie)).json();assert.equal(d.admin,false);assert.equal(d.invoices,null);
   assert.deepEqual(d.expenses.map(e=>e.id),['expense-1']);assert.equal(d.members.length,3);
-  const unmapped=await(await call(sessions[2].token)).json();assert.deepEqual(unmapped.expenses,[]);assert.equal(unmapped.invoices,null);
+  const unmapped=await(await call(sessions[2].cookie)).json();assert.deepEqual(unmapped.expenses,[]);assert.equal(unmapped.invoices,null);
  });
  await check('Un seul accès KV, compteurs du jour et aucune écriture',async()=>{
   let reads=0;const before=await ctx.kv.get('markets-test');

@@ -9,13 +9,13 @@ import {emptyMarket} from '../marches/domain.mjs';
 const ok=async(response,status=200)=>{assert.equal(response.status,status,await response.clone().text());return response.json();};
 async function setup(){
  const ctx=await testEnvironment();await migrateBilling(ctx.db);
- const token=(await ctx.login(users[0])).token,q=await quoteFixtureTools(ctx,token),f=await quoteFixtureTools(ctx,token,{kind:'invoice',prefix:'AUDIT-FAC-'}),marketId=randomUUID(),projectId=randomUUID(),manualOrderId=randomUUID();
+ const token=(await ctx.login(users[0])).cookie,q=await quoteFixtureTools(ctx,token),f=await quoteFixtureTools(ctx,token,{kind:'invoice',prefix:'AUDIT-FAC-'}),marketId=randomUUID(),projectId=randomUUID(),manualOrderId=randomUUID();
  const market={...emptyMarket(),reference:'M-AUDIT',clientName:'Atelier Horizon',projects:[{id:projectId,name:'Projet audit',orders:[]}],orders:[{id:manualOrderId,reference:'BC-SANS-CHORUS',date:'2026-10-01',amountMinor:1000000,notes:''}]};
  await ctx.db.prepare('INSERT INTO markets VALUES(?,?,1,?,?)').bind(marketId,JSON.stringify(market),new Date().toISOString(),users[0]).run();
  async function quotedOrder(reference='BC-A',service='00123',engagement='ENG-A',sourceReferences={}){
   const data=quoteFixture('Accompagnement '+reference);data.references={...data.references,marketId,marketReference:'M-AUDIT',projectId,project:'Projet audit',...sourceReferences};data.lines[0].unitCode='DAY';
   let quote=await q.create(data);quote=await ok(await q.send(quote),201);
-  const upload=await ctx.worker.dispatchFetch('https://local/api/v1/billing/documents/'+quote.id+'/engagement?'+new URLSearchParams({kind:'order',reference,marketId,projectId:data.references.projectId||'',amountMinor:'1000000',engagement,serviceCode:service,otherReference:'REF-'+reference}),{method:'PUT',headers:{Origin:'https://app.cdinnov.eu',Authorization:'Bearer '+token,'If-Match':String(quote.version),'X-Filename':reference+'.pdf','Content-Type':'application/pdf'},body:samplePDF()});
+  const upload=await ctx.worker.dispatchFetch('https://local/api/v1/billing/documents/'+quote.id+'/engagement?'+new URLSearchParams({kind:'order',reference,marketId,projectId:data.references.projectId||'',amountMinor:'1000000',engagement,serviceCode:service,otherReference:'REF-'+reference}),{method:'PUT',headers:{'X-CDInnov-Request':'1',Origin:'https://app.cdinnov.eu',Cookie:token,'If-Match':String(quote.version),'X-Filename':reference+'.pdf','Content-Type':'application/pdf'},body:samplePDF()});
   quote=await ok(upload,201);return {quote,orderId:'engagement:'+quote.id};
  }
  const convert=quote=>q.call('/documents/'+quote.id+'/convert','POST',{id:randomUUID()},{'If-Match':String(quote.version)}).then(r=>ok(r,201));

@@ -38,7 +38,7 @@ test('contrat Python strict et invalidation de la liaison en cas de référence 
 
 test('le contrat natif n’ouvre aucun contournement de la future allocation contrôlée',async()=>{
  const ctx=await testEnvironment();try{
-  await migrateBilling(ctx.db);const token=(await ctx.login(users[0])).token,headers={Origin:'https://app.cdinnov.eu','Content-Type':'application/json',Authorization:'Bearer '+token};
+  await migrateBilling(ctx.db);const token=(await ctx.login(users[0])).cookie,headers={'X-CDInnov-Request':'1',Origin:'https://app.cdinnov.eu','Content-Type':'application/json',Cookie:token};
   const d=credit(),id=randomUUID();let response=await ctx.worker.dispatchFetch('https://preview.test/api/v1/billing/documents',{method:'POST',headers,body:JSON.stringify({id,data:d})});assert.equal(response.status,409);assert.equal(await ctx.db.prepare('SELECT id FROM billing_documents WHERE id=?').bind(id).first(),null);
   response=await ctx.worker.dispatchFetch('https://preview.test/api/v1/billing/documents',{method:'POST',headers,body:JSON.stringify({id,data:invoiceFixture()})});assert.equal(response.status,201);
   response=await ctx.worker.dispatchFetch('https://preview.test/api/v1/billing/documents/'+id,{method:'PUT',headers:{...headers,'If-Match':'1'},body:JSON.stringify({data:d})});assert.equal(response.status,409);

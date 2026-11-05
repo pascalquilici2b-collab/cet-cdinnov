@@ -10,7 +10,7 @@ import {readAnnualQuotes,consumptionForMarket} from '../marches/annual-consumpti
 const ok=async(response,status=200)=>{assert.equal(response.status,status,await response.clone().text());return response.json();};
 async function setup(run){
  const ctx=await testEnvironment();try{
-  await migrateBilling(ctx.db);const token=(await ctx.login(users[0])).token,q=await quoteFixtureTools(ctx,token),f=await quoteFixtureTools(ctx,token,{kind:'invoice',prefix:'AUDIT-INV-'});
+  await migrateBilling(ctx.db);const token=(await ctx.login(users[0])).cookie,q=await quoteFixtureTools(ctx,token),f=await quoteFixtureTools(ctx,token,{kind:'invoice',prefix:'AUDIT-INV-'});
   const marketA=randomUUID(),marketB=randomUUID(),orderA=randomUUID(),orderB=randomUUID();
   for(const [id,orderId,reference,amount] of [[marketA,orderA,'A',100000],[marketB,orderB,'B',200000]]){
    const m={...emptyMarket(),title:'Marché '+reference,reference:'M-'+reference,clientName:'Atelier Horizon',orders:[{id:orderId,reference:'BC-'+reference,date:'2026-01-01',amountMinor:amount}]};
@@ -45,7 +45,7 @@ test('moving a quote/invoice engagement to another market moves quote consumptio
  const data={...draft(),kind:'quote',validUntil:'2099-12-31'};
  let quote=await q.create(data);quote=await ok(await q.send(quote),201);
  const originalSnapshot=await ctx.db.prepare('SELECT * FROM billing_issuances WHERE document_id=?').bind(quote.id).first();
- const upload=await ctx.worker.dispatchFetch('https://local/api/v1/billing/documents/'+quote.id+'/engagement?'+new URLSearchParams({kind:'order',reference:'BC-A',marketId:marketA,amountMinor:'100000'}),{method:'PUT',headers:{Origin:'https://app.cdinnov.eu',Authorization:'Bearer '+token,'If-Match':String(quote.version),'X-Filename':'Bon-A.pdf','Content-Type':'application/pdf'},body:samplePDF()});
+ const upload=await ctx.worker.dispatchFetch('https://local/api/v1/billing/documents/'+quote.id+'/engagement?'+new URLSearchParams({kind:'order',reference:'BC-A',marketId:marketA,amountMinor:'100000'}),{method:'PUT',headers:{'X-CDInnov-Request':'1',Origin:'https://app.cdinnov.eu',Cookie:token,'If-Match':String(quote.version),'X-Filename':'Bon-A.pdf','Content-Type':'application/pdf'},body:samplePDF()});
  await ok(upload,201);
  const invoice=await ok(await q.call('/documents/'+quote.id+'/convert','POST',{id:randomUUID()},{'If-Match':String(quote.version)}),201);
  await ok(await q.call('/documents/'+invoice.id+'/followup','PATCH',{marketId:marketB,orderId:orderB},{'If-Match':'0'}));
@@ -67,7 +67,7 @@ test('annual quote consumption resolves tracking, archived engagement and origin
  quote=await ok(await q.call('/documents/'+quote.id+'/followup','PATCH',{title:'Libellé corrigé'},{'If-Match':'0'}));
  assert.equal(await market(),marketA,'A title-only correction must preserve the original reference fallback');
  quote=await ok(await q.send(quote),201);
- await ok(await ctx.worker.dispatchFetch('https://local/api/v1/billing/documents/'+quote.id+'/engagement?'+new URLSearchParams({kind:'order',reference:'BC-B',marketId:marketB,amountMinor:'200000'}),{method:'PUT',headers:{Origin:'https://app.cdinnov.eu',Authorization:'Bearer '+token,'If-Match':String(quote.version),'X-Filename':'Bon-B.pdf','Content-Type':'application/pdf'},body:samplePDF()}),201);
+ await ok(await ctx.worker.dispatchFetch('https://local/api/v1/billing/documents/'+quote.id+'/engagement?'+new URLSearchParams({kind:'order',reference:'BC-B',marketId:marketB,amountMinor:'200000'}),{method:'PUT',headers:{'X-CDInnov-Request':'1',Origin:'https://app.cdinnov.eu',Cookie:token,'If-Match':String(quote.version),'X-Filename':'Bon-B.pdf','Content-Type':'application/pdf'},body:samplePDF()}),201);
  assert.equal(await market(),marketB,'An archived engagement can correct the market before a followup link exists');
  quote=await ok(await q.call('/documents/'+quote.id+'/followup','PATCH',{marketId:marketA,orderId:orderA},{'If-Match':'1'}));
  assert.equal(await market(),marketA,'A later commercial correction overrides archived engagement metadata');
@@ -110,7 +110,7 @@ test('editor commitment change checks the entire invoice family, rolls back fail
  await ctx.db.prepare('UPDATE markets SET payload=?,version=version+1 WHERE id=?').bind(JSON.stringify(market),marketB).run();
  const data={...draft('100'),kind:'quote',validUntil:'2099-12-31'};data.lines[0].quantity='10';
  let quote=await q.create(data);quote=await ok(await q.send(quote),201);
- await ok(await ctx.worker.dispatchFetch('https://local/api/v1/billing/documents/'+quote.id+'/engagement?'+new URLSearchParams({kind:'order',reference:'BC-A',marketId:marketA,amountMinor:'100000'}),{method:'PUT',headers:{Origin:'https://app.cdinnov.eu',Authorization:'Bearer '+token,'If-Match':String(quote.version),'X-Filename':'Bon-A.pdf','Content-Type':'application/pdf'},body:samplePDF()}),201);
+ await ok(await ctx.worker.dispatchFetch('https://local/api/v1/billing/documents/'+quote.id+'/engagement?'+new URLSearchParams({kind:'order',reference:'BC-A',marketId:marketA,amountMinor:'100000'}),{method:'PUT',headers:{'X-CDInnov-Request':'1',Origin:'https://app.cdinnov.eu',Cookie:token,'If-Match':String(quote.version),'X-Filename':'Bon-A.pdf','Content-Type':'application/pdf'},body:samplePDF()}),201);
  const convert=async quantity=>ok(await q.call('/documents/'+quote.id+'/convert','POST',{id:randomUUID(),selection:{periods:[],customPeriod:'',quantities:[{id:data.lines[0].id,quantity}]}},{'If-Match':String(quote.version)}),201);
  let issued=await convert('4');issued=await f.finalize(issued);const first=await convert('3'),second=await convert('3');
  const inspect=async()=>{

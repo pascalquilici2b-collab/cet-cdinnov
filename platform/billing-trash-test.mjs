@@ -5,7 +5,7 @@ import {quoteFixture} from './billing-quote-fixture.mjs';
 import {billingCanonicalJSON} from './billing-issuance.ts';
 import {calculateBilling} from './billing-domain.ts';
 const p=await billingPreview({outboundService:async req=>{const {document}=await req.json();return Response.json({valid:true,snapshotSha256:createHash('sha256').update(billingCanonicalJSON({schemaVersion:1,document,totals:calculateBilling(document)})).digest('hex'),checks:{render:true,amounts:true,xsd:true,schematron:true,france:true}});}});
-const headers={Origin:'https://app.cdinnov.eu','Content-Type':'application/json',Authorization:'Bearer '+p.sessions[0].token};
+const headers={'X-CDInnov-Request':'1',Origin:'https://app.cdinnov.eu','Content-Type':'application/json',Cookie:p.sessions[0].cookie};
 const call=(path,method='GET',body,version,auth=headers)=>p.ctx.worker.dispatchFetch('https://preview.test/api/v1/billing'+path,{method,headers:{...auth,...(version?{'If-Match':String(version)}:{})},...(body?{body:JSON.stringify(body)}:{})});
 const ok=async(r,status=200)=>{assert.equal(r.status,status,await r.clone().text());return r.json();};
 try{
@@ -13,7 +13,7 @@ try{
   const data={...quoteFixture('Brouillon restaurable '+kind),kind},created=await ok(await call('/documents','POST',{id:randomUUID(),data}),201),doc=await ok(await call('/documents/'+created.id+'/number','POST',{},created.version));
   const path='/documents/'+doc.id;
   await ok(await call(path,'DELETE',undefined,doc.version+1),409);
-  await ok(await call(path,'DELETE',undefined,doc.version,{...headers,Authorization:'Bearer '+p.sessions[1].token}),403);
+  await ok(await call(path,'DELETE',undefined,doc.version,{...headers,Cookie:p.sessions[1].cookie}),403);
   await ok(await call(path,'DELETE'),428);
   await ok(await call(path,'DELETE',undefined,doc.version));await ok(await call(path,'DELETE',undefined,doc.version));
   assert.equal((await ok(await call('/documents?kind='+kind))).total,0);

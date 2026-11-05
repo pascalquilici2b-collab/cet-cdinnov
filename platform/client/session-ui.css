@@ -1,0 +1,23 @@
+body.cdi-session-locked > :not(#cdi-session-dialog):not(script):not(link):not(style) { visibility: hidden !important; }
+.cdi-session-dialog { --session-surface:#fff; --session-text:#1d1d1f; --session-muted:#626269; --session-field:#f5f5f7; --session-line:#d2d2d7; box-sizing:border-box; position:fixed; inset:0; margin:auto; width:min(420px,calc(100vw - 32px)); max-height:calc(100dvh - 32px); overflow:auto; padding:32px; border:1px solid rgba(0,0,0,.07); border-radius:24px; background:var(--session-surface); color:var(--session-text); box-shadow:0 24px 80px #0003,0 2px 10px #0000000d; font-family:Inter, -apple-system, BlinkMacSystemFont,"Segoe UI",sans-serif; text-align:center; }
+.cdi-session-dialog::backdrop { background:rgba(232,233,237,.88); backdrop-filter:blur(12px); }
+.cdi-session-dialog .cdi-session-icon { display:grid; place-items:center; width:72px; height:72px; margin:0 auto 21px; border-radius:22px; color:#0071e3; background:#eaf3ff; }
+.cdi-session-icon svg { width:44px; height:44px; }
+.cdi-session-dialog h2 { margin:0 0 12px; color:var(--session-text); font-size:24px; font-weight:650; letter-spacing:-.65px; line-height:1.2; }
+.cdi-session-dialog #cdi-session-description { margin:0 0 26px; color:var(--session-muted); font-size:15px; line-height:1.55; }
+.cdi-session-dialog button.cdi-session-primary { display:block; width:100%; min-height:44px; padding:11px 16px; border:0; border-radius:12px; color:#fff; background:#0071e3; font-family:inherit; font-size:15px; font-weight:600; line-height:1.4; cursor:pointer; transition:background .15s; }
+.cdi-session-dialog button.cdi-session-primary:hover { background:#0066cc; }
+.cdi-session-dialog button.cdi-session-primary:disabled { opacity:.65; cursor:wait; }
+.cdi-session-dialog [hidden] { display:none !important; }
+.cdi-session-dialog form { text-align:left; }
+.cdi-session-dialog label { display:block; margin:16px 0 7px; font-size:13px; font-weight:600; color:var(--session-text); }
+.cdi-session-dialog input { box-sizing:border-box; width:100%; height:46px; margin:0; padding:10px 12px; border:1px solid var(--session-line); border-radius:10px; background:var(--session-field); color:var(--session-text); font:inherit; font-size:16px; }
+.cdi-session-dialog form button { margin-top:22px; }
+.cdi-session-dialog :focus-visible { outline:3px solid #58a9ff; outline-offset:3px; }
+.cdi-session-dialog .cdi-session-error { margin:12px 0 0; color:#bd291e; font-size:13px; line-height:1.45; }
+html[data-theme=dark] .cdi-session-dialog, html.dark .cdi-session-dialog { --session-surface:#242426; --session-text:#f5f5f7; --session-muted:#b9b9c0; --session-field:#303033; --session-line:#56565c; border-color:#ffffff12; box-shadow:0 24px 80px #0009; }
+html[data-theme=dark] .cdi-session-dialog::backdrop, html.dark .cdi-session-dialog::backdrop { background:rgba(18,18,20,.9); }
+html[data-theme=dark] .cdi-session-icon, html.dark .cdi-session-icon { color:#65adff; background:#173553; }
+html[data-theme=dark] .cdi-session-error, html.dark .cdi-session-error { color:#ff9d95; }
+@media (max-width:420px) { .cdi-session-dialog { padding:26px 24px; } }
+@media (prefers-reduced-motion:reduce) { .cdi-session-dialog * { transition:none !important; } }

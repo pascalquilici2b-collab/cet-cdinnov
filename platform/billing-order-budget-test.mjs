@@ -10,7 +10,7 @@ import {reserveIssuance,claimIssuanceJob,completeIssuanceJob} from './billing-is
 
 test('order ceiling is atomic across drafts, edits, imports, trash and restoration',async()=>{
  const ctx=await testEnvironment();try{
- await migrateBilling(ctx.db);await ctx.setPortal(JSON.stringify({auth:{accounts:ctx.accounts,allowed:users},factures:[{id:'legacy-capacity',number:'TEST',ht:0}]}));const token=(await ctx.login(users[0])).token,{call}=await quoteFixtureTools(ctx,token),marketId=randomUUID(),orderId=randomUUID(),projectId=randomUUID();
+ await migrateBilling(ctx.db);await ctx.setPortal(JSON.stringify({auth:{accounts:ctx.accounts,allowed:users},factures:[{id:'legacy-capacity',number:'TEST',ht:0}]}));const token=(await ctx.login(users[0])).cookie,{call}=await quoteFixtureTools(ctx,token),marketId=randomUUID(),orderId=randomUUID(),projectId=randomUUID();
  const m=validateMarket({...emptyMarket(),title:'Marché de test',clientName:'Client fictif',projects:[{id:projectId,name:'Projet',orders:[]}],orders:[{id:orderId,reference:'BC-1000',amountMinor:100000,date:'2026-01-01'}]});
  await ctx.db.prepare('INSERT INTO markets VALUES(?,?,1,?,?)').bind(marketId,JSON.stringify(m),new Date().toISOString(),users[0]).run();
  const draft=(price)=>{const d={...quoteFixture(),kind:'invoice',validUntil:''};d.references={...d.references,marketId,projectId,orderId,orderReference:'BC-1000'};d.lines[0].quantity='1';d.lines[0].unitPrice=price;return d;};
@@ -33,7 +33,7 @@ test('order ceiling is atomic across drafts, edits, imports, trash and restorati
 
 test('rectification replaces its original allocation; finalization rechecks a changed ceiling',async()=>{
  const ctx=await testEnvironment();try{
- await migrateBilling(ctx.db);const token=(await ctx.login(users[0])).token,f=await paymentFixtureTools(ctx,token),marketId=randomUUID(),projectId=randomUUID(),orderId=randomUUID();
+ await migrateBilling(ctx.db);const token=(await ctx.login(users[0])).cookie,f=await paymentFixtureTools(ctx,token),marketId=randomUUID(),projectId=randomUUID(),orderId=randomUUID();
  const m={...emptyMarket(),title:'Marché global',clientName:'Atelier Horizon',projects:[{id:projectId,name:'Projet',orders:[]}],orders:[{id:orderId,reference:'GLOBAL',amountMinor:100000}]};
  await ctx.db.prepare('INSERT INTO markets VALUES(?,?,1,?,?)').bind(marketId,JSON.stringify(m),new Date().toISOString(),users[0]).run();
  const data=amount=>{const d=invoiceFixture();d.references={...d.references,marketId,projectId,orderId,orderReference:'GLOBAL'};d.lines[0].quantity='1';d.lines[0].unitPrice=amount;return d;};

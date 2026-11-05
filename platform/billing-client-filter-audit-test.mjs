@@ -13,7 +13,7 @@ import {quoteFixtureTools,quoteFixture,samplePDF} from './billing-quote-fixture.
 const ok=async(response,status=200)=>{assert.equal(response.status,status,await response.clone().text());return response.json();};
 async function setup(run){
  const ctx=await testEnvironment();try{
-  await migrateBilling(ctx.db);const token=(await ctx.login(users[0])).token,q=await quoteFixtureTools(ctx,token),f=await quoteFixtureTools(ctx,token,{kind:'invoice',prefix:'CLIENT-AUDIT-'});
+  await migrateBilling(ctx.db);const token=(await ctx.login(users[0])).cookie,q=await quoteFixtureTools(ctx,token),f=await quoteFixtureTools(ctx,token,{kind:'invoice',prefix:'CLIENT-AUDIT-'});
   const client=async(name,siret,siren=siret.slice(0,9))=>ok(await q.call('/clients','POST',{id:randomUUID(),data:{...blankClient(),party:{...quoteFixture().buyer,name,siret,siren}}}),201);
   const invoice=(record,patch={},ready=false)=>{
    const data={...quoteFixture(),kind:'invoice',validUntil:'',clientId:record?.id||'',buyer:structuredClone(record?.data.party||quoteFixture().buyer),...patch};
@@ -37,7 +37,7 @@ test('client rename unifies historical IDs, exact SIRETs and proven old names wi
  const formattedSiret=await invoice(null,{buyer:{...customer.data.party,name:'Abréviation de l’ancien client',siret:'392 175 568 00022',siren:''}});
  const quoteData={...quoteFixture(),clientId:'',buyer:structuredClone(customer.data.party)};quoteData.references={...quoteData.references,marketId,marketReference:market.reference};
  let quote=await q.create(quoteData);quote=await ok(await q.send(quote),201);
- await ok(await ctx.worker.dispatchFetch('https://local/api/v1/billing/documents/'+quote.id+'/engagement?'+new URLSearchParams({kind:'signed_quote',reference:'Accord signé test',marketId}),{method:'PUT',headers:{Origin:'https://app.cdinnov.eu',Authorization:'Bearer '+token,'If-Match':String(quote.version),'X-Filename':'Accord.pdf','Content-Type':'application/pdf'},body:samplePDF()}),201);
+ await ok(await ctx.worker.dispatchFetch('https://local/api/v1/billing/documents/'+quote.id+'/engagement?'+new URLSearchParams({kind:'signed_quote',reference:'Accord signé test',marketId}),{method:'PUT',headers:{'X-CDInnov-Request':'1',Origin:'https://app.cdinnov.eu',Cookie:token,'If-Match':String(quote.version),'X-Filename':'Accord.pdf','Content-Type':'application/pdf'},body:samplePDF()}),201);
  let linked=await ok(await q.call('/documents/'+quote.id+'/convert','POST',{id:randomUUID()},{'If-Match':String(quote.version)}),201);linked=await f.finalize(linked);
  const tables=['billing_documents','billing_document_versions','billing_issuances','billing_quote_engagements','markets'],before=await snapshot(tables);
  customer=await ok(await q.call('/clients/'+customer.id,'PUT',{data:{...customer.data,party:{...customer.data.party,name:newName}}},{'If-Match':String(customer.version)}));

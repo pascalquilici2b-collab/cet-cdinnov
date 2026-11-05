@@ -8,8 +8,8 @@ export function invoiceFixture(title='Mission d’accompagnement'){
  d.buyer.siren='552100554';d.buyer.electronicAddress=d.buyer.siren;d.buyer.electronicScheme='0225';
  d.paymentMeans='10';d.businessProcess='S1';d.legalNotes={recovery:'Test indemnité',penalties:'Test pénalités',discount:'Test escompte'};return d;
 }
-export async function paymentFixtureTools(ctx,token){
- const q=await quoteFixtureTools(ctx,token),email='direction@example.test',series={...q.series,id:randomUUID(),kind:'invoice',prefix:'TEST-FACT-'};await createNumberSeries(ctx.db,series,email);
+export async function paymentFixtureTools(ctx,cookie){
+ const q=await quoteFixtureTools(ctx,cookie),email='direction@example.test',series={...q.series,id:randomUUID(),kind:'invoice',prefix:'TEST-FACT-'};await createNumberSeries(ctx.db,series,email);
  const create=async(data=invoiceFixture(),ready=true)=>{
   let doc=await q.create(data,false);if(!ready)return doc;
   const issue=await reserveIssuance(ctx.db,{id:randomUUID(),documentId:doc.id,documentVersion:doc.version,seriesId:series.id},email),lease=randomUUID();assert.ok(await claimIssuanceJob(ctx.db,issue.id,lease,email));

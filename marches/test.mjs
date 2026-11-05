@@ -28,8 +28,9 @@ export async function testEnvironment(options={}){
  if(!options.beforeBusinessMigration)await migrateBusiness(db);
  const migration=(await readFile(new URL('schema.sql',import.meta.url),'utf8'))+'\n'+(await readFile(new URL('ai-schema.sql',import.meta.url),'utf8'));
  for(const sql of migration.split(/;(?=\s*(?:CREATE|$))/).map(s=>s.trim()).filter(Boolean))await db.prepare(sql).run();
- const call=async(path,options={})=>{if(options.body instanceof FormData){const serialized=new Request('https://preview.example',{method:'POST',body:options.body});options={...options,body:Buffer.from(await serialized.arrayBuffer()),headers:{...options.headers,'Content-Type':serialized.headers.get('content-type')}};}return worker.dispatchFetch('https://preview.example/budgets/'+path,{...options,headers:{Origin:'http://127.0.0.1:5196','Content-Type':'application/json',...options.headers}});};
- const login=async email=>{const c=await(await call('session',{method:'POST',body:JSON.stringify({email,action:'challenge'})})).json();const proof=createHmac('sha256',pbkdf2Sync(password,Buffer.from(c.salt,'hex'),c.iter,32,'sha256')).update(c.challenge).digest('hex');const r=await call('session',{method:'POST',body:JSON.stringify({email,action:'verify',challenge:c.challenge,proof})});assert.equal(r.status,200);return r.json();};
+ const call=async(path,options={})=>{if(options.body instanceof FormData){const serialized=new Request('https://preview.example',{method:'POST',body:options.body});options={...options,body:Buffer.from(await serialized.arrayBuffer()),headers:{...options.headers,'Content-Type':serialized.headers.get('content-type')}};}return worker.dispatchFetch('https://preview.example/budgets/'+path,{...options,headers:{Origin:'http://127.0.0.1:5196','X-CDInnov-Request':'1','Content-Type':'application/json',...options.headers}});};
+ // Only the Node test harness reads Set-Cookie. Browser code receives metadata.
+ const login=async email=>{const c=await(await call('session',{method:'POST',body:JSON.stringify({email,action:'challenge'})})).json();const proof=createHmac('sha256',pbkdf2Sync(password,Buffer.from(c.salt,'hex'),c.iter,32,'sha256')).update(c.challenge).digest('hex');const r=await call('session',{method:'POST',body:JSON.stringify({email,action:'verify',challenge:c.challenge,proof})});assert.equal(r.status,200,await r.clone().text());const session=await r.json();assert.equal(session.token,undefined);const cookie=r.headers.get('set-cookie')?.split(';')[0];assert.ok(cookie?.startsWith('__Host-cdi_session='));return {...session,cookie};};
  const setPortal=async payload=>{await kv.put('markets-test',payload);const row=await db.prepare("SELECT version FROM app_portal_workspace WHERE id='shared'").first();await seedBusinessDocument(db,'portal',JSON.parse(payload),(row?.version||0)+1);};
  return {worker,db,kv,accounts,password,sessionSecret,call,login,setPortal};
 }
@@ -44,7 +45,7 @@ if(process.argv[1]&&fileURLToPath(import.meta.url)===process.argv[1]){
  const ctx=await testEnvironment();
  try{
  const admin=await ctx.login(users[0]),consultant=await ctx.login(users[1]);
- const headers={Authorization:'Bearer '+admin.token},other={Authorization:'Bearer '+consultant.token};
+ const headers={Cookie:admin.cookie},other={Cookie:consultant.cookie};
  const response=await ctx.call('markets');assert.equal(response.status,401);count++;
  assert.equal((await ctx.call('markets',{headers:other})).status,403);count++;
  assert.equal((await ctx.call('markets',{headers:{...headers,Origin:'https://evil.example'}})).status,403);count++;

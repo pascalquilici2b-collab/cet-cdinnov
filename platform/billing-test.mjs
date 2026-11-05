@@ -21,7 +21,7 @@ await test('API de brouillons : identité, conservation, concurrence et traçabi
  try{
   const admin=await ctx.login(users[0]),consultant=await ctx.login(users[1]);
   const call=(path='',options={})=>ctx.worker.dispatchFetch('https://preview.example/api/v1/billing'+path,{
-   ...options,headers:{Origin:'http://127.0.0.1:5196','Content-Type':'application/json',Authorization:'Bearer '+admin.token,...options.headers}
+   ...options,headers:{'X-CDInnov-Request':'1',Origin:'http://127.0.0.1:5196','Content-Type':'application/json',Cookie:admin.cookie,...options.headers}
   });
   const send=(method,path,payload,headers={})=>call(path,{method,headers,body:JSON.stringify(payload)});
   const create=(id,data)=>send('POST','/documents',{id,data});
@@ -40,12 +40,12 @@ await test('API de brouillons : identité, conservation, concurrence et traçabi
   await t.test('la direction seule accède aux routes, avec origine contrôlée',async()=>{
    const id=randomUUID();
    for(const [method,path,payload] of [['GET','/settings'],['PUT','/settings',{data:blankSettings()}],['GET','/documents'],['GET','/context'],['GET','/documents/'+id],['POST','/documents',{id,data:fixture()}],['PUT','/documents/'+id,{data:fixture()}],['POST','/documents/'+id+'/convert',{id:randomUUID()}]]){
-    const options={method,headers:{Authorization:''},...(payload?{body:JSON.stringify(payload)}:{})};
+    const options={method,headers:{Cookie:''},...(payload?{body:JSON.stringify(payload)}:{})};
     await read(await call(path,options),401);
-    await read(await call(path,{...options,headers:{Authorization:'Bearer '+consultant.token}}),403);
+    await read(await call(path,{...options,headers:{Cookie:consultant.cookie}}),403);
    }
-   await read(await call('/documents',{headers:{Origin:'https://evil.example'}}),403);
-   await read(await call('/documents',{headers:{Authorization:'Bearer invalide'}}),401);
+   await read(await call('/documents',{headers:{'X-CDInnov-Request':'1',Origin:'https://evil.example'}}),403);
+   await read(await call('/documents',{headers:{Cookie:'__Host-cdi_session=invalide'}}),401);
    const response=await call('/documents');assert.match(response.headers.get('cache-control'),/no-store/);
    assert.equal((await ctx.db.prepare('SELECT count(*) AS n FROM billing_documents').first()).n,0);
   });
@@ -242,7 +242,7 @@ await test('API de brouillons : identité, conservation, concurrence et traçabi
    await read(await call('/documents/'+id,{method:'DELETE'}),405);
    await read(await call('/context',{method:'POST',body:'{}'}),405);
    await read(await call('/not-a-route'),404);
-   const revoked=await ctx.worker.dispatchFetch('https://preview.example/api/v1/session',{method:'DELETE',headers:{Origin:'http://127.0.0.1:5196',Authorization:'Bearer '+admin.token}});assert.equal(revoked.status,200);
+   const revoked=await ctx.worker.dispatchFetch('https://preview.example/api/v1/session',{method:'DELETE',headers:{'X-CDInnov-Request':'1',Origin:'http://127.0.0.1:5196',Cookie:admin.cookie}});assert.equal(revoked.status,200);
    await read(await call('/documents'),401);await read(await call('/context'),401);await read(await create(randomUUID(),invoice),401);
   });
  }finally{await ctx.worker.dispose();}
