@@ -11,6 +11,8 @@ from cdi_facturx.pdf_import import extract_pdf
 from cdi_facturx.document_annotations import validate_annotations, paint_annotations
 from cdi_facturx.document_pdf import _font_chars, _FONT_NAME
 from reportlab.pdfgen.canvas import Canvas
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.pagesizes import A4
 from pypdf import PdfReader, PdfWriter
 
@@ -29,6 +31,47 @@ def main():
     assert result['report']['valid'] and all(result['report']['checks'].values())
     print('SYNTHETIC CONVERSION PASSED: ' + json.dumps(result['report']['checks']))
     print('LIVE PROGRESS PASSED: six server milestones before validated result.')
+
+    # The TrueType interpreter fix must retain real embedded-font rendering,
+    # accented text, multipage order and the complete Factur-X/PDF/A-3b path.
+    _font_chars()
+    pdfmetrics.registerFont(TTFont('NativeSecuritySerif', '/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf'))
+    annex = BytesIO()
+    canvas = Canvas(annex, pagesize=A4)
+    samples = ['Annexe de démonstration — caractères éèàçù, ÉTÉ et NOËL.',
+               'Polices incorporées, ligatures fi fl, symbole euro €.',
+               'DOCUMENT FICTIF — contrôle visuel du moteur PDF.']
+    for font in [_FONT_NAME, 'NativeSecuritySerif']:
+        canvas.setFont(font, 18)
+        for index, text in enumerate(samples):
+            canvas.drawString(40, 760 - 50 * index, text)
+        canvas.showPage()
+    canvas.save()
+    annex_reader = PdfReader(BytesIO(annex.getvalue()))
+    for page in annex_reader.pages:
+        fonts = [font.get_object() for font in page['/Resources']['/Font'].get_object().values()]
+        assert any('/FontFile2' in font['/FontDescriptor'] for font in fonts if '/FontDescriptor' in font), 'TrueType fixture must embed the actual font'
+    writer = PdfWriter()
+    writer.append(PdfReader(BytesIO(pdf)))
+    writer.append(annex_reader)
+    joined = BytesIO(); writer.write(joined)
+    multipage = joined.getvalue()
+    font_request = GenerationRequest.model_validate({'invoice': INVOICE, 'profile': 'en16931',
+        'reviewed': True, 'source_sha256': hashlib.sha256(multipage).hexdigest()})
+    font_result = generate(multipage, font_request)
+    assert font_result['report']['valid'] and all(font_result['report']['checks'].values())
+    with pymupdf.open(stream=multipage, filetype='pdf') as before, pymupdf.open(stream=font_result['pdf'], filetype='pdf') as after:
+        assert len(before) == len(after) == 3
+        for page in [1, 2]:
+            assert 'NOËL' in after[page].get_text(), 'Accented TrueType text was lost'
+            left = before[page].get_pixmap(matrix=pymupdf.Matrix(1.5, 1.5), colorspace=pymupdf.csRGB, alpha=False)
+            right = after[page].get_pixmap(matrix=pymupdf.Matrix(1.5, 1.5), colorspace=pymupdf.csRGB, alpha=False)
+            assert (left.width, left.height) == (right.width, right.height)
+            first, second = left.samples, right.samples
+            ink = [i for i in range(0, len(first), 3) if min(first[i:i+3]) < 180]
+            assert len(ink) > 1000, 'TrueType fixture has no visible text'
+            assert sum(abs(first[i+c] - second[i+c]) for i in ink for c in range(3)) / (len(ink) * 3) < 40, 'TrueType rendering changed materially'
+    print('MULTIPAGE TRUETYPE PASSED: three pages, two embedded fonts, accents, visual comparison, PDF/A-3b and Factur-X.')
 
     # Text and translucent highlights must survive the real PDF/A + Factur-X path.
     _font_chars()

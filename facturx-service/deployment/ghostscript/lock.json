@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "source_version": "10.05.1~dfsg-1+deb13u3",
+  "package_version": "10.05.1~dfsg-1+deb13u3+cdi1",
+  "source_base_url": "https://security.debian.org/debian-security/pool/updates/main/g/ghostscript/",
+  "source_files": {
+    "ghostscript_10.05.1~dfsg-1+deb13u3.dsc": "c1f0541ac18bc890d296934a26a23825d3ca17b15e27c786eadd2570e4cc0c98",
+    "ghostscript_10.05.1~dfsg.orig.tar.xz": "ca4ff3a4c2b536baedd3029cb9b7bdd3bd9b27a03b53956efda062140843add1",
+    "ghostscript_10.05.1~dfsg-1+deb13u3.debian.tar.xz": "f7635b85d7a692e62fa22d99bc21d70ee15a55078994b3ab8b7c27425b7080c2"
+  },
+  "patches": {
+    "CVE-2026-110133.patch": {
+      "commit": "0e623dbd83b93bbbe70ebfe93431b5968e006789",
+      "sha256": "89777d09ee25b2e5cf823856f173cc9f893fb0d6d228ebf6ec01f52ec456e4b1"
+    },
+    "CVE-2026-112922.patch": {
+      "commit": "4f878064736b09811694dace00102bd89639874e",
+      "sha256": "aa882f5dbe8b0ef4f276719b1b2eefa2a408b6d12f4a6f4f0e2a801061665a4a"
+    }
+  },
+  "patched_sources": {
+    "base/gxshade.c": "79023c5a2d433facb7eccbad1c6808d2d7049543a50b827e1c2ffdf9ccbc85d5",
+    "base/gxttfb.c": "49b8c397ee14bf8fbb92540edfb6b469caa39572efe9c80383a1d47ca4b17aa9",
+    "base/ttfmain.c": "fe461d8d28c2752e7b05ee444f71fa28a8179458fe79bc54f49a787f6db85499"
+  },
+  "debian_rules_sha256": "96ad293076c7aa22390d5e2b37912c78827bbc137d26395babefb11f4bf5c54b",
+  "runtime_packages": ["ghostscript", "libgs10", "libgs10-common", "libgs-common"]
+}

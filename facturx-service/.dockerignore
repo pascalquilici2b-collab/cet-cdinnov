@@ -11,3 +11,10 @@
 !deployment/install_verapdf.py
 !deployment/start_server.py
 !deployment/verify_runtime.py
+!deployment/verify_stamping.py
+!deployment/verify_document_security.py
+!deployment/verify_native_packages.py
+!deployment/build_ghostscript.py
+!deployment/ghostscript/
+!deployment/ghostscript/*.patch
+!deployment/ghostscript/lock.json
