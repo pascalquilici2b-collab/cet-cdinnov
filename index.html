@@ -5747,11 +5747,33 @@ function budgetsForget(){
   document.body.classList.remove('cdi-budget-expanded');budgetsTransport.clear();budgetsSession=null;budgetsWarmPromise=null;budgetsDirty=false;
   clearTimeout(budgetsClientsTimer);budgetsClients=[];document.getElementById('cdiClientsList')?.remove();budgetsObservedClientNames=null;budgetsPendingClientNames.clear();document.getElementById('cdiBudgetsFrame')?.remove();
 }
+async function portalAuthJSON(response){
+  const contentType=(response.headers.get('Content-Type')||'').split(';')[0].trim().toLowerCase();
+  let responsePath='';try{responsePath=new URL(response.url).pathname;}catch{}
+  const failure=(code,message)=>Object.assign(new Error(message),{code,status:response.status,contentType,responsePath,redirected:response.redirected});
+  const status=' (HTTP '+response.status+'). Réessayez dans quelques instants.';
+  if(!/^application\/(?:[a-z0-9!#$&^_.+-]+\+)?json$/.test(contentType)){
+    throw failure('AUTH_RESPONSE_TYPE','Le service de connexion a renvoyé '+(contentType==='text/html'?'une page':'une réponse')+' inattendue'+status);
+  }
+  let result;
+  try{result=await response.json();}catch(error){
+    if(error?.name!=='SyntaxError')throw error;
+    // JSON parser errors can quote the response body. Keep diagnostics useful
+    // without propagating HTML, credentials or other server output to the UI.
+    throw failure('AUTH_RESPONSE_JSON','La réponse du service de connexion est illisible'+status);
+  }
+  if(!result||typeof result!=='object'||Array.isArray(result))throw failure('AUTH_RESPONSE_SHAPE','La réponse du service de connexion est invalide'+status);
+  if(!response.ok){
+    const message=typeof result.error==='string'&&result.error.trim()&&result.error.length<=500&&!/[<>\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(result.error)?result.error:'Connexion CDInnov impossible (HTTP '+response.status+').';
+    throw failure('AUTH_HTTP_ERROR',message);
+  }
+  return result;
+}
 async function budgetsSignIn(email,password,commit=true){
   if(portalLogoutPending)throw new Error('Déconnexion en cours. Réessayez dans un instant.');
   if(portalSigninPending)throw new Error('Une connexion est déjà en cours. Réessayez dans un instant.');
   email=normEmail(email);const generation=portalLoginAttempt;
-  const request=async data=>{const response=await fetch(budgetsApi()+'/session',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CDInnov-Request':'1'},body:JSON.stringify({email,...data}),signal:AbortSignal.timeout(30000)});const result=await response.json();if(!response.ok)throw new Error(result.error||'Connexion CDInnov impossible.');return result;};
+  const request=async data=>{const response=await fetch(budgetsApi()+'/session',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Accept':'application/json','Content-Type':'application/json','X-CDInnov-Request':'1'},body:JSON.stringify({email,...data}),signal:AbortSignal.timeout(30000)});return portalAuthJSON(response);};
   const pending=(async()=>{
     const challenge=await request({action:'challenge'});
     if(!/^[a-f0-9]{32}$/i.test(challenge.salt)||!Number.isInteger(challenge.iter)||challenge.iter<100000||challenge.iter>1000000||typeof challenge.challenge!=='string')throw new Error('Connexion CDInnov indisponible.');
@@ -5779,9 +5801,8 @@ async function portalReconnect(email,password){
   if(previous&&previous!==email){portalForgetUser();portalSuspendedUser=null;}
   budgetsSession=session;setSession(email);AUTH_USER=email;
   // Verify access using the new cookie before revealing any retained editor.
-  const response=await fetch('/api/v1/session',{credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(30000)});
-  if(!response.ok)throw new Error('Impossible de vérifier votre connexion. Réessayez.');
-  const access=await response.json();
+  const response=await fetch('/api/v1/session',{credentials:'same-origin',cache:'no-store',headers:{'Accept':'application/json'},signal:AbortSignal.timeout(30000)});
+  const access=await portalAuthJSON(response);
   if(access.email!==email)throw new Error('La session utilisateur a changé.');
   if(previous!==email){
     if(!await cloudLoad({discard:true}))throw new Error('Impossible de charger vos données. Réessayez.');unlockApp(email);

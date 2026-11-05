@@ -36,9 +36,11 @@ const script=portal.slice(scriptStart,scriptEnd),ast=ts.createSourceFile('shell.
 let updated=script;
 for(const node of [...ast.statements].reverse())if(ts.isFunctionDeclaration(node)&&names.has(node.name?.text))updated=updated.slice(0,node.getStart(ast))+updated.slice(node.end);
 if(!updated.includes('\nbootAuth();'))throw new Error('Portal boot marker missing');
-updated=updated.replace('\nbootAuth();','\n/* CDI_PORTAL_START */\n'+bridge+'\n/* CDI_PORTAL_END */\nbootAuth();');
+// Insert code literally: replacement strings interpret $&, $` and $' inside
+// JavaScript sources (for example MIME regexes), corrupting the compiled shell.
+updated=updated.replace('\nbootAuth();',()=> '\n/* CDI_PORTAL_START */\n'+bridge+'\n/* CDI_PORTAL_END */\nbootAuth();');
 const billingBridge=(await readFile(path.join(root,'platform/client/billing-bridge.js'),'utf8'))+'\n'+(await readFile(path.join(root,'platform/client/billing-facturx-bridge.js'),'utf8'))+'\n'+(await readFile(path.join(root,'platform/client/stamping-bridge.js'),'utf8'));
-updated=updated.replace('\nbootAuth();','\n/* CDI_BILLING_START */\n'+billingBridge+"\nsetView('dashboard');\n/* CDI_BILLING_END */\nbootAuth();");
+updated=updated.replace('\nbootAuth();',()=> '\n/* CDI_BILLING_START */\n'+billingBridge+"\nsetView('dashboard');\n/* CDI_BILLING_END */\nbootAuth();");
 portal=portal.slice(0,scriptStart)+updated+portal.slice(scriptEnd);
 const marker=/\/\* CDI_MARKETS_START \*\/[\s\S]*?\/\* CDI_MARKETS_END \*\//;
 if(!marker.test(portal))throw new Error('Market controller integration marker missing.');

@@ -6,7 +6,8 @@ import {pathToFileURL} from 'node:url';
 import path from 'node:path';
 import {unzipSync} from 'fflate';
 import {gunzipSync} from 'node:zlib';
-import {build} from 'esbuild';
+import {build,transform} from 'esbuild';
+import vm from 'node:vm';
 
 const root=process.cwd(),dir=path.resolve(process.env.FRONTEND_ARTIFACT||''),out=path.resolve(process.env.PORTAL_QA||'');
 assert.ok(process.env.FRONTEND_ARTIFACT&&process.env.PORTAL_QA,'FRONTEND_ARTIFACT and private PORTAL_QA are required');
@@ -21,6 +22,19 @@ const required=['_worker.js','_routes.json','index.html','feuilles/index.html','
 for(const name of required)assert.ok(archive[name]?.length>0,name);
 for(const name of names.filter(name=>name.endsWith('.traineddata.gz')))assert.ok(gunzipSync(archive[name]).length>100000,name);
 const text=name=>new TextDecoder().decode(archive[name]);
+let inlineScripts=0;
+for(const name of names.filter(name=>name.endsWith('.html'))){
+  let index=0;
+  for(const match of text(name).matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi)){
+    index++;const attributes=match[1],body=match[2];if(!body.trim())continue;
+    const type=(attributes.match(/\btype\s*=\s*["']([^"']+)["']/i)?.[1]||'text/javascript').toLowerCase();
+    if(!['module','text/javascript','application/javascript'].includes(type))continue;
+    const filename=name+':inline-script-'+index;
+    try{if(type==='module')await transform(body,{loader:'js',sourcefile:filename});else new vm.Script(body,{filename});}
+    catch(error){throw new Error('Invalid published inline JavaScript in '+filename,{cause:error});}
+    inlineScripts++;
+  }
+}
 const entryPoints=['dashboard','finance','billing','personnel','agenda','markets','stamping','workspace-client','outlook-callback','theme','icons','frame-guard'].map(name=>'platform/'+name+'.js');
 entryPoints.push('marches/reader.mjs','marches/vendor/pdf.mjs','marches/vendor/pdf.worker.mjs');
 for(const name of ['feuilles/index.html','budgets-projets/index.html'])for(const match of text(name).matchAll(/<script\b[^>]*src="([^"]+)"[^>]*>/g)){const value=match[1];entryPoints.push(path.posix.normalize(value.startsWith('/')?value.slice(1):path.posix.join(path.posix.dirname(name),value)));}
@@ -33,7 +47,7 @@ const resolved=await build({entryPoints,bundle:true,write:false,outdir:path.join
   });
   builder.onLoad({filter:/.*/,namespace:'archive'},args=>({contents:archive[args.path],loader:args.path.endsWith('.css')?'css':/\.(?:js|mjs)$/.test(args.path)?'js':'file'}));
 }}]});
-console.log('OK archive/manifest/output identical: '+names.length+' files; required PDF/OCR assets and '+Object.keys(resolved.metafile.inputs).length+' compiled imports resolved');
+console.log('OK archive/manifest/output identical: '+names.length+' files; '+inlineScripts+' inline scripts parsed; required PDF/OCR assets and '+Object.keys(resolved.metafile.inputs).length+' compiled imports resolved');
 
 const frontend=(await import(pathToFileURL(path.join(dir,'_worker.js')).href)).default;
 const requests=[],errors=[],external=[];
@@ -63,6 +77,6 @@ try{
  });
  assert.match(result.pdfText,/DOCUMENT TEST 12345/);assert.match(result.ocrText,/DOCUMENT TEST 12345/);assert.deepEqual(errors,[]);assert.deepEqual(external,[]);assert.ok(requests.every(r=>r.status===200));
  assert.ok(requests.some(r=>r.path.endsWith('pdf.worker.mjs')));assert.ok(requests.some(r=>r.path.endsWith('FoxitSerif.pfb')));assert.ok(requests.some(r=>r.path.endsWith('fra.traineddata.gz')));assert.ok(requests.some(r=>r.path.endsWith('eng.traineddata.gz')));
- await mkdir(out,{recursive:true});await page.screenshot({path:path.join(out,'artifact-pdf-render.png')});await writeFile(path.join(out,'frontend-artifact-checks.json'),JSON.stringify({artifact:dir,files:names.length,compiledImports:Object.keys(resolved.metafile.inputs).length,required,result,requests,errors,external},null,2));
+ await mkdir(out,{recursive:true});await page.screenshot({path:path.join(out,'artifact-pdf-render.png')});await writeFile(path.join(out,'frontend-artifact-checks.json'),JSON.stringify({artifact:dir,files:names.length,inlineScripts,compiledImports:Object.keys(resolved.metafile.inputs).length,required,result,requests,errors,external},null,2));
  console.log('PASS compiled frontend artifact: real PDF worker, Type1 font rendering and French/English OCR with HTTP CSP, no external request or missing asset.');
 }finally{await browser.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
