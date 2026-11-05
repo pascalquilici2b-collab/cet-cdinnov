@@ -4,10 +4,11 @@ export interface RhClient {id:string;name:string;logoData?:string;siret?:string;
 export interface RhProject {id:string;name:string;code:string;programme:string;clientIds:string[];marketId:string;marketVersion?:number;logoData?:string;}
 export interface RhMember {agentId:string;rateBasisPoints:number|null;}
 export interface RhPeriod {id:string;projectId:string;startDate:string;endDate:string;agents:RhMember[];}
-export interface RhDraft {name:string;clientId:string;periods:RhPeriod[];}
+export interface RhPaymentEntry {id:string;agentId:string;month:string;kind:'salary'|'contribution';organism:string;amountCents:number|null;date:string;reference:string;}
+export interface RhDraft {name:string;clientId:string;periods:RhPeriod[];payments?:RhPaymentEntry[];}
 export interface RhPayrollSource {id:string;agentId:string;month:string;filename:string;sha256:string;objectKey:string;employerCostCents:number|null;netBeforeTaxCents:number|null;reading:any;confirmed:boolean;identityReason?:string;reviewedBy?:string;reviewedAt?:string;createdAt:string;}
 export interface RhLine {id:string;periodId:string;agentId:string;projectId:string;month:string;employerCostCents:number;netBeforeTaxCents:number|null;rateBasisPoints:number;allocatedCents:number;payrollId:string;}
-export interface RhSnapshot {id:string;documentId:string;revision:number;name:string;client:RhClient;projects:RhProject[];periods:RhPeriod[];agents:ClientEmployee[];lines:RhLine[];payroll:RhPayrollSource[];createdAt:string;createdBy:string;}
+export interface RhSnapshot {id:string;documentId:string;revision:number;name:string;client:RhClient;projects:RhProject[];periods:RhPeriod[];agents:ClientEmployee[];lines:RhLine[];payroll:RhPayrollSource[];payments?:RhPaymentEntry[];createdAt:string;createdBy:string;}
 export interface RhImportedPayment {id?:string;agentId:string;month:string;kind:'salary'|'contribution';organism:string;amountCents:number;date:string;reference:string;}
 export interface RhReturnInspection {payments:RhImportedPayment[];issues:string[];complete:boolean;}
 export interface RhDocument {id:string;version:number;draft:RhDraft;createdAt:string;updatedAt:string;payroll:RhPayrollSource[];versions:{id:string;revision:number;createdAt:string}[];}
@@ -25,7 +26,37 @@ export function normalizeRhDraft(value:any):RhDraft{
   const members=new Set();const agents:RhMember[]=p.agents.map((a:any)=>{if(!a||!rhId(a.agentId)||members.has(a.agentId)||a.rateBasisPoints!==null&&(!Number.isInteger(a.rateBasisPoints)||a.rateBasisPoints<0||a.rateBasisPoints>10000))rhFail('Vérifiez les agents et les taux.');members.add(a.agentId);return {agentId:a.agentId,rateBasisPoints:a.rateBasisPoints};});
   for(const month of rhMonths(p))for(const a of agents){const k=[a.agentId,p.projectId,month].join('|');if(pairs.has(k))rhFail('Un agent apparaît deux fois sur le même projet et le même mois.');pairs.add(k);if(pairs.size>12000)rhFail('Le document dépasse 12 000 lignes RH. Réduisez sa période.');}
   return {id:p.id,projectId:p.projectId,startDate:p.startDate,endDate:p.endDate,agents};
- });const normalized={name:value.name.trim(),clientId:value.clientId,periods};rhExpected(normalized);return normalized;
+ });const normalized:RhDraft={name:value.name.trim(),clientId:value.clientId,periods};rhExpected(normalized);if(value.payments!==undefined){if(!Array.isArray(value.payments)||value.payments.length>6000)rhFail('La liste des paiements est invalide.');normalized.payments=normalizeRhPayments(rhCompletePaymentSlots({...normalized,payments:value.payments}),periods);}return normalized;
+}
+/** Partial financial entry is allowed; an empty amount must never become zero. */
+export function normalizeRhPayments(value:unknown,periods:RhPeriod[]):RhPaymentEntry[]{
+ if(!Array.isArray(value)||value.length>6000)rhFail('La liste des paiements est invalide.');
+ const months=new Set(periods.flatMap(p=>rhMonths(p))),agents=new Set(periods.flatMap(p=>p.agents.flatMap(a=>rhMonths(p).map(month=>a.agentId+'|'+month)))),ids=new Set<string>();
+ return value.map((p:any)=>{
+  if(!p||!rhId(p.id)||ids.has(p.id)||typeof p.agentId!=='string'||p.agentId!==''&&!agents.has(p.agentId+'|'+p.month)||!rhMonth(p.month||'')||!months.has(p.month)||!['salary','contribution'].includes(p.kind))rhFail('Un paiement ne correspond pas aux agents et mois du document.');
+  if(p.amountCents!==null&&(!Number.isSafeInteger(p.amountCents)||p.amountCents<0||p.amountCents>99999999999))rhFail('Renseignez un montant de paiement positif ou laissez-le vide.');
+  if(typeof p.date!=='string'||p.date!==''&&!rhDate(p.date)||typeof p.organism!=='string'||p.organism.length>200||typeof p.reference!=='string'||p.reference.length>300)rhFail('Vérifiez la date, l’organisme et la référence du paiement.');
+  ids.add(p.id);return {id:p.id,agentId:p.agentId,month:p.month,kind:p.kind,organism:p.organism.trim(),amountCents:p.amountCents,date:p.date,reference:p.reference.trim()};
+ });
+}
+export function rhDefaultPayments({periods}:Pick<RhDraft,'periods'>):RhPaymentEntry[]{
+ const months=[...new Set(periods.flatMap(p=>{try{return rhDate(p.startDate)&&rhDate(p.endDate)&&p.startDate<=p.endDate?rhMonths(p):[];}catch{return [];}}))].sort();
+ if(months.length>1200)rhFail('Le document dépasse 6 000 emplacements de paiement. Réduisez sa période.');
+ return months.flatMap(month=>[{id:`payment-${month}-salary`,agentId:'',month,kind:'salary' as const,organism:'',amountCents:null,date:'',reference:''},...Array.from({length:4},(_,i)=>({id:`payment-${month}-contribution-${i+1}`,agentId:'',month,kind:'contribution' as const,organism:'',amountCents:null,date:'',reference:''}))]);
+}
+export function rhCompletePaymentSlots(draft:Pick<RhDraft,'periods'|'payments'>):RhPaymentEntry[]{
+ const defaults=rhDefaultPayments(draft),months=new Set(defaults.map(p=>p.month)),agentMonths=new Set(draft.periods.flatMap(p=>{try{return p.agents.flatMap(a=>rhMonths(p).map(month=>a.agentId+'|'+month));}catch{return [];}}));
+ // Only empty placeholders can disappear after a period/assignment change.
+ const payments=(draft.payments||[]).filter(p=>!p||p.amountCents!==null||p.organism!==''||p.date!==''||p.reference!==''||months.has(p.month)&&(p.agentId===''||agentMonths.has(p.agentId+'|'+p.month)));
+ const ids=new Set(payments.filter(Boolean).map(p=>p.id)),groups=new Map<string,RhPaymentEntry[]>(),counts=new Map<string,number>();
+ for(const p of payments)if(p&&p.agentId===''){const key=p.month+'|'+p.kind;counts.set(key,(counts.get(key)||0)+1);}
+ for(const p of defaults){const key=p.month+'|'+p.kind;groups.set(key,[...(groups.get(key)||[]),p]);}
+ for(const [key,slots] of groups){let count=counts.get(key)||0;while(count<slots.length){const entry=slots.find(p=>!ids.has(p.id))||slots[0];let id=entry.id,suffix=1;while(ids.has(id))id=entry.id+'-shared-'+suffix++;ids.add(id);payments.push({...entry,id});count++;}}
+ return payments;
+}
+/** An individual payment replaces the shared entries of the same kind, never adds to them. */
+export function rhPaymentsForAgent(payments:RhPaymentEntry[],agentId:string,month:string):RhPaymentEntry[]{
+ return (['salary','contribution'] as const).flatMap(kind=>{const selected=payments.filter(p=>p.month===month&&p.kind===kind),individual=selected.filter(p=>p.agentId===agentId&&agentId!=='');return individual.length?individual:selected.filter(p=>p.agentId==='');});
 }
 export function rhExpected(draft:RhDraft){const seen=new Map<string,{agentId:string;month:string}>();for(const p of draft.periods)for(const a of p.agents)for(const month of rhMonths(p)){seen.set(a.agentId+'|'+month,{agentId:a.agentId,month});if(seen.size>1200)rhFail('Le document dépasse 1 200 mois de salaire. Réduisez sa période.');}return [...seen.values()];}
 export function rhValidateReferences(draft:RhDraft,projects:RhProject[],agents:ClientEmployee[]){for(const p of draft.periods){if(!projects.some(x=>x.id===p.projectId&&x.clientIds.includes(draft.clientId)))rhFail('Un projet ne dépend pas du client sélectionné.');for(const a of p.agents)if(!agents.some(x=>x.id===a.agentId))rhFail('Un agent ne dépend pas du client sélectionné.');}}

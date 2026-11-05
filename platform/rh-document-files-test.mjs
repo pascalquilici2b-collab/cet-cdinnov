@@ -4,7 +4,7 @@ import {mkdir} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import {build} from 'esbuild';
 import ExcelJS from 'exceljs';
-import {zipSync} from 'fflate';
+import {zipSync,unzipSync} from 'fflate';
 
 const output=new URL('../.build/rh-document-files-test-module.mjs',import.meta.url);
 await mkdir(new URL('../.build/',import.meta.url),{recursive:true});
@@ -88,4 +88,53 @@ await test('faux XLSX, limite fichier et dimensions ZIP bomb bloqués avant pars
  assert.equal((await inspectRhReturnWorkbook(new Uint8Array(13*1024*1024),snapshot)).complete,false);
  const edited=exported.slice(),view=new DataView(edited.buffer);let changed=false;for(let i=0;i<edited.length-46;i++)if(view.getUint32(i,true)===0x02014b50){view.setUint32(i+24,50*1024*1024,true);changed=true;break;}assert.ok(changed);const result=await inspectRhReturnWorkbook(edited,snapshot);assert.equal(result.complete,false);assert.ok(result.issues.some(i=>i.includes('volumineux')));
  const forged=zipSync({'xl/workbook.xml':new Uint8Array(14*1024*1024)},{level:9}),forgedView=new DataView(forged.buffer);for(let i=0;i<forged.length-46;i++)if(forgedView.getUint32(i,true)===0x02014b50)forgedView.setUint32(i+24,100,true);const forgedResult=await inspectRhReturnWorkbook(forged,snapshot);assert.equal(forgedResult.complete,false);assert.ok(forgedResult.issues.some(i=>/volumineux|décompressé/.test(i)),forgedResult.issues.join('\n'));
+});
+
+const paymentEntry=(id,month,kind,agentId='',extra={})=>({id,agentId,month,kind,organism:'',amountCents:null,date:'',reference:'',...extra});
+const combinedSnapshot={...snapshot,payments:['2026-01','2026-02','2026-03'].flatMap(month=>[paymentEntry(`payment-${month}-salary`,month,'salary'),...Array.from({length:4},(_,i)=>paymentEntry(`payment-${month}-contribution-${i+1}`,month,'contribution'))])};
+const combinedBytes=await exportRhWorkbook(combinedSnapshot);
+const fillCombined=(wb,firstOnly=false)=>{const seen=new Set();for(const sheet of wb.worksheets.filter(s=>s.name.startsWith('RH ')))sheet.eachRow((row,n)=>{for(const [idCol,start]of [[14,7],[15,10]]){const id=row.getCell(idCol).value;if(typeof id!=='string'||!id.startsWith('payment-')||idCol===15&&!id.endsWith('-1')||firstOnly&&seen.has(id))continue;seen.add(id);if(idCol===14){row.getCell(start).value='MANDAT-'+id;row.getCell(start+1).value=new Date('2026-04-15T00:00:00Z');row.getCell(start+2).value=2100;}else{row.getCell(start).value='Organisme Test';row.getCell(start+1).value=250.25;row.getCell(start+2).value='15/04/2026';}}});return wb;};
+
+await test('V2 combiné : 12 colonnes A4 paysage, fusions agent/mois et slots financiers éditables',async()=>{
+ const wb=await open(combinedBytes),sheets=wb.worksheets.filter(s=>s.name.startsWith('RH '));assert.equal(sheets.length,3);assert.equal(wb.getWorksheet('Paiements'),undefined);assert.equal(wb.getWorksheet('_CDI_RH').getCell('A1').value,'CDINNOV_RH_2');
+ for(const sheet of sheets){assert.equal(sheet.pageSetup.orientation,'landscape');assert.equal(sheet.pageSetup.paperSize,9);assert.equal(sheet.pageSetup.fitToPage,false);assert.equal(sheet.pageSetup.scale,84);assert.match(sheet.pageSetup.printArea,/^A1:L\d+$/);assert.equal(sheet.sheetProtection.formatRows,true);assert.equal(sheet.getColumn(1).hidden,false);for(const col of [13,14,15,16,17])assert.equal(sheet.getColumn(col).hidden,true);
+  const [firstHeader,lastHeader]=sheet.pageSetup.printTitlesRow.split(':').map(Number);assert.equal(lastHeader,firstHeader+1);assert.equal(sheet.getCell(firstHeader,1).value,'Agent');assert.equal(sheet.getCell(firstHeader,2).value,'Bulletins de salaire');assert.equal(sheet.getCell(firstHeader,7).value,'SALAIRES');assert.equal(sheet.getCell(firstHeader,10).value,'CHARGES');
+  let count=0;sheet.eachRow(row=>{const line=snapshot.lines.find(line=>line.id===row.getCell(13).value);if(line){count++;assert.equal(row.getCell(1).value,snapshot.agents.find(a=>a.id===line.agentId).name);assert.equal(row.getCell(3).value,line.employerCostCents/100);assert.equal(row.getCell(6).value.result,line.allocatedCents/100);assert.notEqual(row.getCell(3).protection?.locked,false);}if(row.getCell(14).value?.startsWith('payment-'))assert.equal(row.getCell(7).protection.locked,false);if(row.getCell(15).value?.startsWith('payment-'))assert.equal(row.getCell(10).protection.locked,false);});assert.ok(count>0);assert.ok(sheet.model.merges.some(range=>/^B\d+:B\d+$/.test(range)));assert.ok(sheet.model.merges.some(range=>/^C\d+:C\d+$/.test(range)));
+  const signature=sheet.findRow(Number(sheet.pageSetup.printArea.match(/L(\d+)/)[1])-2);assert.match(signature.getCell(1).value,/signature de la personne habilitée/);
+ }
+});
+await test('V2 vierge : montants manquants restent vides et retour incomplet',async()=>{
+ const result=await inspectRhReturnWorkbook(combinedBytes,combinedSnapshot);assert.equal(result.complete,false);assert.equal(result.payments.length,0);assert.ok(result.issues.every(issue=>issue.includes('manquant')),result.issues.join('\n'));
+});
+await test('V2 : paiements communs répétés par agents et feuilles importés une seule fois',async()=>{
+ const repeated=await inspectRhReturnWorkbook(await bytes(fillCombined(await open(combinedBytes))),combinedSnapshot),single=await inspectRhReturnWorkbook(await bytes(fillCombined(await open(combinedBytes),true)),combinedSnapshot);
+ assert.equal(repeated.complete,true,repeated.issues.join('\n'));assert.equal(single.complete,true,single.issues.join('\n'));assert.equal(repeated.payments.length,6);assert.ok(repeated.payments.every(p=>p.agentId===''));assert.deepEqual(single.payments,repeated.payments);assert.equal(repeated.payments.reduce((sum,p)=>sum+p.amountCents,0),3*(210000+25025));
+});
+await test('V2 : copies contradictoires, cellules RH, IDs ou fusions modifiés sont refusés',async()=>{
+ for(const change of ['conflict','cost','rate','row-id','payment-id','formula','merge','new-payment-row']){const wb=fillCombined(await open(combinedBytes)),sheets=wb.worksheets.filter(s=>s.name.startsWith('RH ')),sheet=sheets.find(s=>s.getCell('A6').value==='Interreg Maritime'&&s.name.endsWith('2026-01-01'));let dataRow;sheet.eachRow(row=>{if(!dataRow&&row.getCell(13).value?.includes('period1:'))dataRow=row.number;});assert.ok(dataRow);
+  if(change==='conflict')sheet.getCell(dataRow,9).value=1;else if(change==='cost')sheet.getCell(dataRow,3).value=1;else if(change==='rate')sheet.getCell(dataRow,5).value=.99;else if(change==='row-id')sheet.getCell(dataRow,13).value='unknown';else if(change==='payment-id')sheet.getCell(dataRow,14).value='unknown';else if(change==='formula')sheet.getCell(dataRow,9).value={formula:'2100',result:2100};else if(change==='merge')sheet.mergeCells(`G${dataRow}:I${dataRow}`);else sheet.getCell('I100').value=999;
+  const result=await inspectRhReturnWorkbook(await bytes(wb),combinedSnapshot);assert.equal(result.complete,false,change);assert.ok(result.issues.length>0,change);
+ }
+});
+await test('V2 : paiements spécifiques remplacent les communs et plusieurs versements restent distincts',async()=>{
+ const specific={...combinedSnapshot,payments:[...combinedSnapshot.payments,paymentEntry('alice-salary-a','2026-01','salary','agent-a',{amountCents:100000,date:'2026-02-01',reference:'ACOMPTE'}),paymentEntry('alice-salary-b','2026-01','salary','agent-a',{amountCents:110000,date:'2026-02-02',reference:'SOLDE'})]};
+ const wb=fillCombined(await open(await exportRhWorkbook(specific))),result=await inspectRhReturnWorkbook(await bytes(wb),specific);assert.equal(result.complete,true,result.issues.join('\n'));assert.equal(result.payments.length,8);assert.equal(result.payments.filter(p=>p.agentId==='agent-a').reduce((sum,p)=>sum+p.amountCents,0),210000);assert.equal(result.payments.filter(p=>p.id==='payment-2026-01-salary').length,1);
+ const replay={...specific,payments:specific.payments.map(p=>({...p,...(result.payments.find(entry=>entry.id===p.id)||{})}))},reimport=await inspectRhReturnWorkbook(await exportRhWorkbook(replay),specific);assert.equal(reimport.complete,true,reimport.issues.join('\n'));assert.deepEqual(reimport.payments,result.payments);
+});
+await test('V2 : longs blocs segmentés avec vrais sauts de page et signature imprimable',async()=>{
+ const one={...combinedSnapshot,projects:[projects[0]],periods:[{...periods[0],endDate:'2026-01-31'}],agents:[snapshot.agents[0]],lines:[snapshot.lines[0]],payments:[paymentEntry('salary-long','2026-01','salary','',{amountCents:0}),...Array.from({length:19},(_,i)=>paymentEntry('charge-long-'+i,'2026-01','contribution','',{amountCents:0}))]};
+ const exported=await exportRhWorkbook(one),wb=await open(exported),sheet=wb.worksheets.find(s=>s.name.startsWith('RH ')),sheetXml=new TextDecoder().decode(unzipSync(exported)['xl/worksheets/sheet1.xml']);assert.ok((sheetXml.match(/<brk /g)||[]).length>=1);assert.ok(sheet.model.merges.filter(range=>/^B\d+:B\d+$/.test(range)).length>=3);const result=await inspectRhReturnWorkbook(await bytes(wb),one);assert.equal(result.complete,true,result.issues.join('\n'));assert.equal(result.payments.length,20);assert.ok(result.payments.every(p=>p.amountCents===0&&p.date===''));
+});
+await test('V1 historique réexporté avec retour validé : plusieurs versements conservés et réimportables',async()=>{
+ const returned=(await inspectRhReturnWorkbook(await bytes(await paid()),snapshot)).payments,withReturns={...snapshot,payments:[...returned,{...returned[0],id:'extra-payment',reference:'ACOMPTE-2',amountCents:1234}]};
+ const wb=await open(await exportRhWorkbook(withReturns,{legacy:true}));assert.equal(wb.getWorksheet('_CDI_RH').getCell('A1').value,'CDINNOV_RH_1');const result=await inspectRhReturnWorkbook(await bytes(wb),snapshot);assert.equal(result.complete,true,result.issues.join('\n'));assert.equal(result.payments.length,9);assert.ok(result.payments.some(p=>p.reference==='ACOMPTE-2'&&p.amountCents===1234));
+});
+await test('V2 : textes financiers longs lisibles, pagination mesurée et topologie de réimport stable',async()=>{
+ const reference='MANDAT DE PAIEMENT '.repeat(17).slice(0,300),organism='Organisme de cotisations '.repeat(9).slice(0,200),long={...combinedSnapshot,payments:combinedSnapshot.payments.map(p=>p.kind==='salary'?{...p,reference,amountCents:210000,date:'2026-04-15'}:p.id.endsWith('-1')?{...p,organism,amountCents:25025,date:'2026-04-15'}:p)};
+ const output=await exportRhWorkbook(long),wb=await open(output);let checked=0;
+ for(const sheet of wb.worksheets.filter(s=>s.name.startsWith('RH ')))sheet.eachRow(row=>{if(row.getCell(14).value?.startsWith('payment-')){assert.equal(row.getCell(7).value,reference);assert.ok(row.height>100);assert.ok(row.height<=409.5);checked++;}});assert.ok(checked>0);
+ assert.equal((await inspectRhReturnWorkbook(output,combinedSnapshot)).complete,true);
+ const shorter={...long,payments:long.payments.map(p=>({...p,reference:p.reference?'MANDAT COURT':'',organism:p.organism?'Organisme Test':''}))},shortWb=await open(await exportRhWorkbook(shorter));
+ for(const sheet of wb.worksheets.filter(s=>s.name.startsWith('RH '))){const next=shortWb.getWorksheet(sheet.name);assert.deepEqual(next.model.merges,sheet.model.merges);sheet.eachRow(row=>{for(const col of [13,14,15,16,17])assert.equal(next.getCell(row.number,col).value,row.getCell(col).value);});}
+ const imported=await inspectRhReturnWorkbook(await bytes(shortWb),long);assert.equal(imported.complete,true,imported.issues.join('\n'));assert.equal(imported.payments.length,6);
 });

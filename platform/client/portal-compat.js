@@ -101,7 +101,7 @@ async function portalReconnect(email,password){
     portalForgetUser();AUTH_USER=email;budgetsSession=session;setSession(email);
     if(!await cloudLoad({discard:true}))throw new Error('Impossible de charger vos données. Réessayez.');unlockApp(email);
   }
-  portalSuspendedUser=null;return session;
+  portalSuspendedUser=null;void portalRememberAccount(email);return session;
   }finally{portalReconnecting=false;}
 }
 async function authLogout(){
@@ -253,6 +253,75 @@ function portalClear(){
   for(const url of portalBlobs.values())URL.revokeObjectURL(url);portalBlobs.clear();
   try{localStorage.removeItem(STORE_KEY);}catch{}state=freshState();
 }
+// This is a presentation preference, never an authentication session. Keep one
+// display identity and a small local portrait; passwords and tokens stay out.
+function authRecentAccount(){
+  try{
+    const value=JSON.parse(localStorage.getItem('cdi-last-account-v1')||'null');
+    if(!value||typeof value.email!=='string'||value.email.length>254||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.email))return null;
+    const photo=typeof value.photo==='string'&&value.photo.length<=32768&&/^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(value.photo)?value.photo:'';
+    return {email:normEmail(value.email),name:typeof value.name==='string'?value.name.trim().slice(0,180):'',photo};
+  }catch{return null;}
+}
+function authRecentInitials(account){return (account.name||account.email.split('@')[0]).split(/[\s._-]+/).filter(Boolean).slice(0,2).map(part=>part[0]).join('').toLocaleUpperCase('fr-FR');}
+async function portalRememberAccount(email){
+  email=normEmail(email);if(AUTH_USER!==email)return;
+  const epoch=portalEpoch,person=(state.salaries||[]).find(p=>normEmail(p.email||'')===email||AUTH_USER_MAT[email]&&p.matricule===AUTH_USER_MAT[email]);
+  const name=(person?[person.prenom,person.nom].filter(Boolean).join(' '):state.auth?.accounts?.[email]?.name)||email;
+  const account={email,name:String(name).slice(0,180),photo:''};
+  const persist=()=>{if(AUTH_USER===email&&portalEpoch===epoch)try{localStorage.setItem('cdi-last-account-v1',JSON.stringify(account));}catch{}};
+  persist();
+  // Only the authenticated profile's already-loaded local image is sampled.
+  const src=person?.photo?photoURL(person.photo):'';
+  if(!/^(?:blob:|data:image\/(?:png|jpeg|webp|gif);base64,)/.test(src))return;
+  try{
+    const portrait=await new Promise((resolve,reject)=>{const img=new Image(),timer=setTimeout(()=>{img.onload=img.onerror=null;reject(new Error('Portrait indisponible'));},2500);img.onload=()=>{clearTimeout(timer);resolve(img);};img.onerror=()=>{clearTimeout(timer);reject(new Error('Portrait indisponible'));};img.src=src;});
+    if(!portrait.naturalWidth||!portrait.naturalHeight)return;
+    const canvas=document.createElement('canvas');canvas.width=96;canvas.height=96;const context=canvas.getContext('2d');if(!context)return;
+    const side=Math.min(portrait.naturalWidth,portrait.naturalHeight);context.fillStyle='#f5f5f7';context.fillRect(0,0,96,96);context.drawImage(portrait,(portrait.naturalWidth-side)/2,(portrait.naturalHeight-side)/2,side,side,0,0,96,96);
+    const photo=canvas.toDataURL('image/jpeg',.78);if(photo.length<=32768)account.photo=photo;persist();
+  }catch{}
+}
+function authRecentMount(){
+  const emailStep=$('#authStepEmail');if(!emailStep)return;
+  if(!document.getElementById('authRecentStyle')){
+    const style=document.createElement('style');style.id='authRecentStyle';style.textContent=`
+      .auth-recent-choice{position:relative;margin:24px 0 14px;border:1px solid var(--line,#e3e3e8);border-radius:16px;background:var(--surface,#fff);overflow:visible}
+      .auth-recent-account{display:flex;align-items:center;gap:14px;width:100%;padding:18px 18px 40px;border:0;border-radius:16px;background:transparent;color:var(--ink,#1d1d1f);text-align:left;cursor:pointer;font:inherit}
+      .auth-recent-account:hover{background:var(--paper-tint,#f5f5f7)}.auth-recent-account:focus-visible,.auth-other-account:focus-visible,.auth-recent-badge:focus-visible{outline:3px solid var(--cyan,#0071e3);outline-offset:3px}
+      .auth-recent-avatar{position:relative;display:grid;place-items:center;width:48px;height:48px;flex:0 0 48px;border-radius:50%;background:#e7edf5;color:#39567b;font-size:16px;font-weight:650;overflow:hidden}
+      .auth-recent-avatar img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}.auth-recent-copy{display:grid;gap:5px;min-width:0;flex:1}.auth-recent-copy strong{font-size:15px;font-weight:600;overflow-wrap:anywhere}.auth-recent-copy small{font-size:13px;color:var(--muted,#6e6e73)}
+      .auth-recent-account>svg{width:18px;height:18px;flex:none;color:var(--muted,#6e6e73)}.auth-recent-hint{position:absolute;left:80px;bottom:15px;max-width:calc(100% - 96px)}
+      .auth-recent-badge{display:inline-block;padding:4px 8px;border-radius:6px;background:#eee8fa;color:#6f40a6;font-size:10px;line-height:1.3;font-weight:600;cursor:help}
+      .auth-recent-tooltip{position:absolute;z-index:5;left:0;bottom:calc(100% + 9px);width:230px;max-width:calc(100vw - 125px);padding:10px 12px;border-radius:9px;background:#26242b;color:#fff;font-size:11px;line-height:1.55;box-shadow:0 5px 20px #0002;visibility:hidden;opacity:0;pointer-events:none;transition:opacity .12s}
+      .auth-recent-hint:hover .auth-recent-tooltip,.auth-recent-hint:focus-within .auth-recent-tooltip{visibility:visible;opacity:1}.auth-other-account{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;min-height:44px;padding:12px 8px;border:0;border-radius:10px;background:transparent;color:var(--muted,#6e6e73);font:inherit;font-size:12px;cursor:pointer}.auth-other-account:hover{background:var(--paper-tint,#f5f5f7);color:var(--ink,#1d1d1f)}.auth-other-account svg{width:17px;height:17px;flex:none}
+      [data-theme=dark] .auth-recent-choice{background:#242426;border-color:#424246}[data-theme=dark] .auth-recent-account{color:#f5f5f7}[data-theme=dark] .auth-recent-account:hover,[data-theme=dark] .auth-other-account:hover{background:#303033}[data-theme=dark] .auth-recent-badge{background:#392b4b;color:#d2b3f5}
+      @media(max-width:420px){.auth-recent-account{padding-left:14px;padding-right:14px;gap:11px}.auth-recent-hint{left:73px;max-width:calc(100% - 87px)}.auth-recent-badge{font-size:9px}}
+    `;document.head.append(style);
+  }
+  let step=$('#authStepRecent');if(!step){step=document.createElement('div');step.id='authStepRecent';step.style.display='none';emailStep.before(step);}
+  const account=authRecentAccount();step.replaceChildren();
+  if(account){
+    const heading=document.createElement('h2');heading.className='auth-h';heading.textContent='Connexion';
+    const choice=document.createElement('div');choice.className='auth-recent-choice';
+    const button=document.createElement('button');button.type='button';button.id='authRecentAccount';button.className='auth-recent-account';button.setAttribute('aria-label','Se connecter avec '+(account.name||account.email));
+    const avatar=document.createElement('span');avatar.className='auth-recent-avatar';avatar.setAttribute('aria-hidden','true');avatar.textContent=authRecentInitials(account);if(account.photo){const img=document.createElement('img');img.src=account.photo;img.alt='';img.onerror=()=>img.remove();avatar.append(img);}
+    const copy=document.createElement('span');copy.className='auth-recent-copy';const name=document.createElement('strong');name.textContent=account.name||account.email;const label=document.createElement('small');label.textContent='Se connecter';copy.append(name,label);button.append(avatar,copy);button.insertAdjacentHTML('beforeend','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>');
+    button.onclick=()=>{if(portalSigninPending||portalLogoutPending)return;$('#authEmail').value=account.email;authContinue();};
+    const hint=document.createElement('span');hint.className='auth-recent-hint';const badge=document.createElement('span');badge.className='auth-recent-badge';badge.tabIndex=0;badge.textContent='Dernière connexion utilisée';badge.setAttribute('aria-describedby','authRecentTooltip');const tooltip=document.createElement('span');tooltip.id='authRecentTooltip';tooltip.className='auth-recent-tooltip';tooltip.role='tooltip';tooltip.textContent='Ce compte a été utilisé sur ce navigateur. Votre mot de passe reste nécessaire.';hint.append(badge,tooltip);choice.append(button,hint);
+    const other=document.createElement('button');other.type='button';other.className='auth-other-account';other.onclick=authUseOtherAccount;other.innerHTML=authOtherAccountMarkup();step.append(heading,choice,other);
+  }
+  const back=$('#authStepLogin .auth-link');if(back){back.className='auth-other-account';back.onclick=authUseOtherAccount;back.innerHTML=authOtherAccountMarkup();}
+  // Labels from the original shell become explicit associations as well.
+  for(const id of ['authEmail','authPw','authName','authPw1','authPw2']){const input=$('#'+id),label=input?.previousElementSibling;if(label?.tagName==='LABEL')label.htmlFor=id;}
+}
+function authOtherAccountMarkup(){return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 21v-2a6 6 0 0 1 12 0v2m4-13v6m-3-3h6"/></svg><span>Se connecter avec un autre compte</span>';}
+function authShowStep(step){authSetLoading(step==='Loading');['Loading','Recent','Email','Login','Create'].forEach(x=>{const el=$('#authStep'+x);if(el)el.style.display=x===step?'':'none';});}
+function authUseOtherAccount(){if(!portalSigninPending&&!portalLogoutPending)authBack(true);}
+function authBack(otherAccount=false){
+  authMsg('');authRecentMount();_authEmailPending='';for(const id of ['authPw','authPw1','authPw2','authEmail']){const input=$('#'+id);if(input)input.value='';}
+  const recent=!otherAccount&&!!authRecentAccount();authShowStep(recent?'Recent':'Email');setTimeout(()=>{const step=$('#authStep'+(recent?'Recent':'Email'));if(step&&step.style.display!=='none')$('#'+(recent?'authRecentAccount':'authEmail'))?.focus();},30);
+}
 function authContinue(){
   authMsg('');const email=normEmail($('#authEmail').value);
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){authMsg('Entrez une adresse e-mail valide.');return;}
@@ -265,7 +334,7 @@ async function portalLogin(email,password){
   budgetsSession=session;setSession(email);AUTH_USER=email;window.CDISession.accept(session);
   if(cloudEnabled()&&!await cloudLoad({discard:true})){AUTH_USER=null;clearSession();throw new Error('Impossible de charger vos données. Réessayez.');}
   if(attempt!==portalLoginAttempt)throw new Error('La demande de connexion a changé.');
-  unlockApp(email);await authSaveCredential(email,password);facturxWarmLogin(email,password);
+  void portalRememberAccount(email);unlockApp(email);await authSaveCredential(email,password);facturxWarmLogin(email,password);
 }
 async function authDoLogin(){
   const pw=$('#authPw').value;if(!pw)return authMsg('Entrez votre mot de passe.');
@@ -322,7 +391,7 @@ async function bootAuth(){
   if(!session){authBack();return;}
   AUTH_USER=session.email;
   if(!budgetsCurrentSession(session.email)){window.CDISession.expire({sessionId:session.sessionId,reason:'timeout'});authSetLoading(false);return;}
-  try{await portalFetch('/api/v1/session');if(!await cloudLoad({discard:true}))throw new Error('Chargement impossible');window.CDISession.accept(session);unlockApp(session.email);}
+  try{await portalFetch('/api/v1/session');if(!await cloudLoad({discard:true}))throw new Error('Chargement impossible');window.CDISession.accept(session);void portalRememberAccount(session.email);unlockApp(session.email);}
   catch(error){if(error.status===401||window.CDISession.isExpired()){authSetLoading(false);return;}AUTH_USER=null;authBack();authMsg('Impossible de charger vos données. Réessayez.');}
 }
 

@@ -1,4 +1,4 @@
-import {rhDate,rhMonths,type RhDraft,type RhDocument,type RhSnapshot,type RhLine,type RhClient,type RhProject} from '../rh-domain';
+import {rhDate,rhMonths,rhCompletePaymentSlots,type RhDraft,type RhDocument,type RhSnapshot,type RhLine,type RhClient,type RhProject} from '../rh-domain';
 import type {ClientEmployee} from '../client-employees-domain';
 
 // A provisional view never changes the strict archived/exported RH schema.
@@ -24,5 +24,5 @@ export function buildRhPreview(draft:RhDraft,doc:RhDocument,client:RhClient,proj
     allocatedCents:file?.confirmed&&cost!==null&&rate!==null&&Number.isInteger(rate)&&rate>=0&&rate<=10000?Math.round(cost*rate/10000):null});
   }
  }
- return {id:'preview',documentId:doc.id,revision:doc.versions.length+1,name:draft.name,client,projects,periods:draft.periods,agents,lines,payroll:doc.payroll,createdAt:'',createdBy:'',provisional:true};
+ return {id:'preview',documentId:doc.id,revision:doc.versions.length+1,name:draft.name,client,projects,periods:draft.periods,agents,lines,payroll:doc.payroll,payments:rhCompletePaymentSlots(draft),createdAt:'',createdBy:'',provisional:true};
 }

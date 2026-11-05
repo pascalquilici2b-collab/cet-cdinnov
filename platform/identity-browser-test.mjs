@@ -15,6 +15,7 @@ if(process.env.SESSION_WORKER_ARTIFACT)process.env.MARCHES_TEST_WORKER=resolve(p
 process.env.MARCHES_TEST_COMPATIBILITY_DATE='2026-06-09';
 const ctx=await testEnvironment();
 const fixture=dashboardFixture(ctx.accounts,'2026-10-19');fixture.salaries.forEach(s=>{s.photo=null;s.payslip=null;});
+fixture.salaries[0].email=users[0];fixture.salaries[0].photo='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jVwQAAAAASUVORK5CYII=';fixture.salaries[1].email=users[1];
 Object.assign(fixture,{params:{anneeSuivi:2026,entreprise:'CDInnov test'},types:[],mouvements:[],codesAffaires:[]});
 await ctx.setPortal(JSON.stringify(fixture));const before=await ctx.kv.get('markets-test');
 // Keep real UI login, PBKDF2, challenge/HMAC proof and browser-managed HttpOnly cookie; isolate external integrations.
@@ -50,12 +51,14 @@ try {
     if(request.resourceType()==='image' && new URL(request.url()).origin==='https://cdinnov.eu')return route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>'});
     blocked.push(new URL(request.url()).origin);return route.abort();
   });
-  const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));await page.goto(base);
-  const enterEmail=async email=>{await page.locator('#authEmail').fill(email);await page.locator('#authEmail').press('Enter');await page.locator('#authPw').waitFor({state:'visible'});};
+  const page=await context.newPage();page.on('pageerror',e=>{errors.push(e.message);console.error('BROWSER',e.message);});await page.goto(base);
+  const enterEmail=async email=>{if(await page.locator('#authStepRecent').isVisible())await page.locator('#authStepRecent .auth-other-account').click();await page.locator('#authEmail').fill(email);await page.locator('#authEmail').press('Enter');await page.locator('#authPw').waitFor({state:'visible'});};
   await enterEmail(users[0]);await page.locator('#authPw').fill('wrong-password');await page.locator('#authPw').press('Enter');await page.getByText('Connexion CDInnov invalide ou expirée. Reconnectez-vous.',{exact:true}).waitFor();
   assert.equal(requests.filter(r=>['/budgets/session','/api/v1/session'].includes(r.path)&&r.method==='POST').length,2);
   await page.locator('#authPw').fill(ctx.password);await page.locator('#authPw').press('Enter');
   await page.waitForFunction(()=>!!budgetsCurrentSession());
+  await page.waitForFunction(()=>!!authRecentAccount()?.photo);
+  const remembered=await page.evaluate(()=>authRecentAccount());assert.deepEqual(Object.keys(remembered).sort(),['email','name','photo']);assert.equal(remembered.email,users[0]);assert.equal(remembered.name,'Camille Direction');assert.match(remembered.photo,/^data:image\/jpeg;base64,/);assert.ok(remembered.photo.length<=32768);
   const summary=await page.evaluate(async()=>{const r=await fetch('/api/v1/session',{credentials:'same-origin'});return {status:r.status,data:await r.json()};});
   assert.equal(summary.status,200);assert.equal(summary.data.email,users[0]);assert.equal(summary.data.admin,true);
   assert.equal(summary.data.token,undefined);assert.match(summary.data.sessionId,/^[a-f0-9]{32}$/);
@@ -80,7 +83,15 @@ try {
   assert.equal(await page.evaluate(()=>getSession()),null);
   assert.equal((await ctx.worker.dispatchFetch('https://test/api/v1/session',{headers:{Cookie:'__Host-cdi_session='+capturedCookie.value,Origin:'https://app.cdinnov.eu'}})).status,401,'Logout revokes a copied cookie on the server');
   assert.equal((await context.cookies()).some(c=>c.name==='__Host-cdi_session'),false);
+  await page.locator('#authRecentAccount').waitFor({state:'visible'});assert.equal(await page.locator('#authRecentAccount img').count(),1);assert.equal(await page.locator('#authStepRecent .auth-recent-badge').innerText(),'Dernière connexion utilisée');
+  await page.locator('.auth-recent-badge').focus();await page.getByRole('tooltip').waitFor({state:'visible'});assert.match(await page.getByRole('tooltip').innerText(),/mot de passe reste nécessaire/);
+  await page.locator('#authRecentAccount').focus();await page.screenshot({path:join(out,'login-last-account-desktop.png')});
+  await page.setViewportSize({width:390,height:844});await page.screenshot({path:join(out,'login-last-account-mobile.png')});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await page.evaluate(()=>CDITheme.set('dark'));await page.screenshot({path:join(out,'login-last-account-dark-mobile.png')});await page.evaluate(()=>CDITheme.set('light'));await page.setViewportSize({width:1440,height:1000});
+  const beforeChoice=requests.length;await page.locator('#authRecentAccount').click();await page.locator('#authPw').waitFor({state:'visible'});assert.equal(requests.length,beforeChoice,'Choosing a remembered account must not make an authentication request');assert.equal(await page.evaluate(()=>_authEmailPending),users[0]);assert.equal(await page.locator('#authPw').inputValue(),'');assert.equal(await page.evaluate(()=>AUTH_USER),null);
+  await page.locator('#authPw').fill('temporary-unsent-password');await page.locator('#authStepLogin .auth-other-account').click();await page.locator('#authEmail').waitFor({state:'visible'});assert.equal(await page.locator('#authEmail').inputValue(),'');assert.equal(await page.locator('#authPw').inputValue(),'');assert.equal(await page.evaluate(()=>_authEmailPending),'');
+  await page.reload();await page.locator('#authRecentAccount').waitFor({state:'visible'});assert.equal(await page.evaluate(()=>getSession()),null);assert.equal(await page.locator('#authRecentAccount img').count(),1);
   await enterEmail(users[1]);await page.locator('#authPw').fill(ctx.password);await page.locator('#authPw').press('Enter');await page.waitForFunction(()=>!!budgetsCurrentSession());
+  await page.waitForFunction(()=>authRecentAccount()?.email===AUTH_USER);const secondRemembered=await page.evaluate(()=>authRecentAccount());assert.equal(secondRemembered.name,'Alex Consultant');assert.equal(secondRemembered.photo,'');
   const employee=await page.evaluate(async()=>{
     const headers={'X-CDInnov-Request':'1'};
     return {session:await(await fetch('/api/v1/session',{headers})).json(),market:(await fetch('/budgets/markets',{headers})).status,sheets:(await fetch('/sheets/session',{headers})).status};
@@ -103,6 +114,6 @@ try {
   await page.waitForFunction(async()=>{const r=await fetch('/api/v1/session');return r.status===401;});
   assert.ok(requests.every(r=>!r.bearer),'The application never sends a portal bearer token');
   assert.equal(await ctx.kv.get('markets-test'),before);assert.deepEqual(errors,[]);assert.deepEqual(blocked,[]);
-  await writeFile(join(out,'identity-browser-checks.json'),JSON.stringify({frontendArtifact:process.env.FRONTEND_ARTIFACT||null,workerArtifact:process.env.SESSION_WORKER_ARTIFACT||null,checks:['real browser password derivation and HMAC','HttpOnly Secure SameSite Strict cookie','no browser-readable bearer','server revocation of copied cookie','CSRF denial','existing-session reload','direction and employee permissions','logout','late login response ignored'],requests,errors,blocked,portalUnchanged:true},null,2));
+  await writeFile(join(out,'identity-browser-checks.json'),JSON.stringify({frontendArtifact:process.env.FRONTEND_ARTIFACT||null,workerArtifact:process.env.SESSION_WORKER_ARTIFACT||null,checks:['real browser password derivation and HMAC','HttpOnly Secure SameSite Strict cookie','no browser-readable bearer','server revocation of copied cookie','CSRF denial','existing-session reload','direction and employee permissions','logout','late login response ignored','last account identity and bounded portrait only','remembered selection still requires password with no request','other account clears pending email and password','keyboard tooltip','desktop mobile and dark login','last account replaced after a different successful login'],requests,errors,blocked,portalUnchanged:true},null,2));
   console.log('PASS: real portal login and browser crypto, reload, roles, logout and late response; synthetic data unchanged.');
 }finally{await browser.close();server.closeAllConnections();await new Promise(r=>server.close(r));await ctx.worker.dispose();}

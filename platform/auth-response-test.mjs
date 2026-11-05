@@ -27,7 +27,7 @@ function harness(responses){
     setSession:value=>stored.push(value),window:{CDISession:{accept:value=>accepted.push(value)}},
     portalForgetUser:()=>assert.fail('Same-account test must retain the current screen'),
     cloudLoad:async()=>assert.fail('Same-account reconnect must retain pending edits'),
-    unlockApp:()=>assert.fail('Same-account reconnect must retain the mounted screen'),
+    unlockApp:()=>assert.fail('Same-account reconnect must retain the mounted screen'),portalRememberAccount:async()=>{},
     fetch:async(url,options={})=>{
       calls.push({url,options});assert.ok(responses.length,'Unexpected retry or extra request');
       const next=responses.shift();return typeof next==='function'?next(url,options):next;

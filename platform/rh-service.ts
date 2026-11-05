@@ -4,8 +4,8 @@ import {sessionIdentity,hasAccess} from './identity';
 import {boundedBody} from './portal';
 import {normalizeClientEmployees} from './client-employees-domain';
 import type {ClientEmployee} from './client-employees-domain';
-import {normalizeRhDraft,rhExpected,rhValidateReferences,rhIssues,rhLines,rhFail,rhId,rhMonth} from './rh-domain';
-import type {RhClient,RhProject,RhDraft,RhPayrollSource,RhSnapshot,RhDocument,RhReturnInspection} from './rh-domain';
+import {normalizeRhDraft,normalizeRhPayments,rhDefaultPayments,rhCompletePaymentSlots,rhExpected,rhValidateReferences,rhIssues,rhLines,rhFail,rhId,rhMonth} from './rh-domain';
+import type {RhClient,RhProject,RhDraft,RhPayrollSource,RhSnapshot,RhDocument,RhReturnInspection,RhPaymentEntry} from './rh-domain';
 import {exportRhWorkbook,inspectRhReturnWorkbook} from './rh-document-files';
 import {createRhStampingBatch} from './rh-stamping';
 
@@ -43,6 +43,28 @@ async function payroll(db:Database,id:string){return (await db.prepare('SELECT d
 async function detail(db:Database,row:Row):Promise<RhDocument&{issues:string[]} >{
  const draft=JSON.parse(row.data_json) as RhDraft,[files,versions,space]=await Promise.all([payroll(db,row.id),db.prepare('SELECT id,revision,created_at AS createdAt FROM rh_versions WHERE document_id=? ORDER BY revision DESC').bind(row.id).all<{id:string;revision:number;createdAt:string}>(),employees(db,row.client_id)]);
  return {id:row.id,version:row.version,draft,payroll:files,versions:versions.results,createdAt:row.created_at,updatedAt:row.updated_at,issues:rhIssues(draft,files,space.agents)};
+}
+function returnPayments(snapshot:RhSnapshot,inspection:RhReturnInspection,returnId:string):RhPaymentEntry[]{
+ const entries=normalizeRhPayments(inspection.payments.map((p,i)=>({...p,id:p.id||`return-${returnId}-${i}`})),snapshot.periods);
+ if(entries.some(p=>p.amountCents===null||p.amountCents>0&&(!p.date||p.kind==='salary'&&!p.reference||p.kind==='contribution'&&!p.organism)))rhFail('Le retour contient des paiements incomplets.');
+ if(snapshot.payments!==undefined)for(const payment of entries){const slot=snapshot.payments.find(p=>p.id===payment.id);if(!slot||slot.agentId!==payment.agentId||slot.month!==payment.month||slot.kind!==payment.kind)rhFail('Un paiement reçu ne correspond pas aux emplacements du document.');}
+ return entries;
+}
+async function paymentView(db:Database,snapshot:RhSnapshot){
+ const record=await db.prepare("SELECT id,revision,data_json FROM rh_returns WHERE version_id=? AND status='validated' ORDER BY revision DESC LIMIT 1").bind(snapshot.id).first<{id:string;revision:number;data_json:string}>();
+ const slots=snapshot.payments===undefined?undefined:normalizeRhPayments(snapshot.payments,snapshot.periods);
+ if(!record)return {currentPayments:slots||[],paymentSource:'snapshot' as const,paymentReturnId:undefined,paymentReturnRevision:0};
+ const payments=returnPayments(snapshot,JSON.parse(record.data_json).inspection,record.id),byId=new Map(payments.map(p=>[p.id,p]));
+ return {currentPayments:slots?slots.map(p=>byId.get(p.id)||{...p,organism:'',amountCents:null,date:'',reference:''}):payments,paymentSource:'validated-return' as const,paymentReturnId:record.id,paymentReturnRevision:record.revision};
+}
+function reopenState(snapshot:RhSnapshot,document:RhDocument){
+ const shape=(draft:Pick<RhDraft,'name'|'clientId'|'periods'>)=>JSON.stringify({name:draft.name,clientId:draft.clientId,periods:draft.periods});
+ const sourceShape=(files:RhPayrollSource[])=>JSON.stringify(files.map(p=>({id:p.id,sha256:p.sha256,agentId:p.agentId,month:p.month,employerCostCents:p.employerCostCents,netBeforeTaxCents:p.netBeforeTaxCents,confirmed:p.confirmed})).sort((a,b)=>a.id.localeCompare(b.id)));
+ if(document.versions[0]?.id!==snapshot.id)return {canReopen:false,reopenReason:'Une version RH plus récente existe. Ouvrez-la pour compléter ses paiements.'};
+ if(shape(document.draft)!==shape({name:snapshot.name,clientId:snapshot.client.id,periods:snapshot.periods}))return {canReopen:false,reopenReason:'Le brouillon RH a été modifié depuis cette version. Ouvrez le document en préparation.'};
+ const expected=rhExpected(document.draft),selected=document.payroll.filter(p=>p.confirmed&&expected.some(e=>e.agentId===p.agentId&&e.month===p.month));
+ if(sourceShape(selected)!==sourceShape(snapshot.payroll))return {canReopen:false,reopenReason:'Les bulletins ont été modifiés depuis cette version. Ouvrez le document en préparation.'};
+ return {canReopen:true,reopenReason:''};
 }
 async function rowFor(db:Database,id:string){const row=await db.prepare('SELECT * FROM rh_documents WHERE id=?').bind(id).first<Row>();if(!row)rhFail('Document introuvable.',404);return row!;}
 function ifMatch(request:Request,version:number){if(request.headers.get('if-match')!==String(version))rhFail('Le document a changé. Actualisez avant de continuer.',409);}
@@ -103,7 +125,7 @@ async function route(request:Request,env:Environment,reply:Reply):Promise<Respon
   if(!sub&&method==='GET')return reply(200,await detail(db,row));
   ifMatch(request,row.version);
   if(!sub&&method==='PUT'){
-   const next=normalizeRhDraft(await json(request));if(next.clientId!==row.client_id)rhFail('Le client du document ne peut pas être modifié.');const [refs,space]=await Promise.all([context(db),employees(db,row.client_id)]);rhValidateReferences(next,refs.projects,space.agents);
+   const input=await json(request),next=normalizeRhDraft({...input,payments:input.payments===undefined?draft.payments:input.payments});if(next.clientId!==row.client_id)rhFail('Le client du document ne peut pas être modifié.');const [refs,space]=await Promise.all([context(db),employees(db,row.client_id)]);rhValidateReferences(next,refs.projects,space.agents);
    const links=next.periods.flatMap(p=>p.agents.map(a=>db.prepare('INSERT OR IGNORE INTO rh_agent_projects VALUES(?,?,?,?,?)').bind(row.client_id,a.agentId,p.projectId,now(),session.email)));
    return reply(200,await mutate(db,row,session.email,[...links,audit(db,row.client_id,row.id,'DRAFT_SAVED',{},session.email)],next,referencesGuard(next,space.version,refs.projects)));
   }
@@ -136,21 +158,27 @@ async function route(request:Request,env:Environment,reply:Reply):Promise<Respon
    const checkedAgents=structuredClone(space.agents);for(const version of latest.values())for(const line of version.lines){const agent=checkedAgents.find(a=>a.id===line.agentId);if(agent)agent.allocations.push({id:line.id,projectId:line.projectId,project:'Document RH',projectCode:'',programme:'',percent:String(line.rateBasisPoints/100),startDate:line.month+'-01',endDate:new Date(Date.UTC(Number(line.month.slice(0,4)),Number(line.month.slice(5,7)),0)).toISOString().slice(0,10),tasks:''});}
    const issues=rhIssues(draft,files,checkedAgents);for(const p of refs.projects.filter(p=>draft.periods.some(x=>x.projectId===p.id)))if(!p.code||!p.programme)issues.push(`Complétez l’ID et le programme du projet ${p.name} dans sa fiche.`);if(issues.length)return reply(422,{error:issues[0],issues});
    const used=rhExpected(draft),selected=files.filter(p=>p.confirmed&&used.some(x=>x.agentId===p.agentId&&x.month===p.month));for(const f of selected){const object=await bucket(env).get(f.objectKey);if(!object||sha(new Uint8Array(await object.arrayBuffer()))!==f.sha256)rhFail('Un bulletin source est absent ou a changé.',409);}
-   const id=crypto.randomUUID(),snapshot:RhSnapshot={id,documentId:row.id,revision:previous+1,name:draft.name,client:refs.clients.find(c=>c.id===row.client_id)!,projects:refs.projects.filter(p=>draft.periods.some(x=>x.projectId===p.id)),periods:draft.periods,agents:space.agents.filter(a=>used.some(x=>x.agentId===a.id)),payroll:selected,lines:rhLines(draft,files),createdAt:now(),createdBy:session.email};
+   const id=crypto.randomUUID(),snapshot:RhSnapshot={id,documentId:row.id,revision:previous+1,name:draft.name,client:refs.clients.find(c=>c.id===row.client_id)!,projects:refs.projects.filter(p=>draft.periods.some(x=>x.projectId===p.id)),periods:draft.periods,agents:space.agents.filter(a=>used.some(x=>x.agentId===a.id)),payroll:selected,lines:rhLines(draft,files),payments:normalizeRhPayments(rhCompletePaymentSlots(draft),draft.periods),createdAt:now(),createdBy:session.email};
    for(const prior of latest.values())if(prior.lines.some(a=>snapshot.lines.some(b=>a.agentId===b.agentId&&a.projectId===b.projectId&&a.month===b.month)))rhFail('Ces dépenses figurent déjà dans un autre document RH. Corrigez le document existant.');
    const frozenGuard=referencesGuard(draft,space.version,refs.projects);frozenGuard.condition+=' AND (SELECT count(*) FROM rh_versions WHERE client_id=?)=?';frozenGuard.params.push(row.client_id,allVersions.results.length);
    const document=await mutate(db,row,session.email,[db.prepare('INSERT INTO rh_versions VALUES(?,?,?,?,?,?,?)').bind(id,row.id,row.client_id,snapshot.revision,JSON.stringify(snapshot),snapshot.createdAt,session.email),audit(db,row.client_id,row.id,'VERSION_FROZEN',{versionId:id,revision:snapshot.revision},session.email)],undefined,frozenGuard);return reply(201,{version:snapshot,document});
   }
   return reply(405,{error:'Méthode non autorisée.'});
  }
- match=path.match(/^\/versions\/([^/]+)(?:\/(export|returns|stamping)(?:\/([^/]+)(?:\/(validate|files)(?:\/(\d+))?)?)?)?$/);
+ match=path.match(/^\/versions\/([^/]+)(?:\/(export|returns|stamping|reopen)(?:\/([^/]+)(?:\/(validate|files)(?:\/(\d+))?)?)?)?$/);
  if(match){const saved=await db.prepare('SELECT data_json,client_id FROM rh_versions WHERE id=?').bind(match[1]).first<{data_json:string;client_id:string}>();if(!saved)rhFail('Version introuvable.',404);await activeClient(db,saved!.client_id);const snapshot=JSON.parse(saved!.data_json) as RhSnapshot,sub=match[2];
-  if(!sub&&method==='GET'){const records=(await db.prepare('SELECT * FROM rh_returns WHERE version_id=? ORDER BY revision DESC').bind(snapshot.id).all<any>()).results.map(r=>({id:r.id,revision:r.revision,status:r.status,createdAt:r.created_at,...JSON.parse(r.data_json)}));return reply(200,{snapshot,returns:records});}
+  if(!sub&&method==='GET'){const [records,payments,document]=await Promise.all([db.prepare('SELECT * FROM rh_returns WHERE version_id=? ORDER BY revision DESC').bind(snapshot.id).all<any>(),paymentView(db,snapshot),rowFor(db,snapshot.documentId).then(row=>detail(db,row))]);return reply(200,{snapshot,returns:records.results.map(r=>({id:r.id,revision:r.revision,status:r.status,createdAt:r.created_at,...JSON.parse(r.data_json)})),...payments,documentVersion:document.version,...reopenState(snapshot,document)});}
+  if(sub==='reopen'&&method==='POST'){
+   const row=await rowFor(db,snapshot.documentId);ifMatch(request,row.version);const document=await detail(db,row),state=reopenState(snapshot,document);if(!state.canReopen)rhFail(state.reopenReason,409);
+   const payments=await paymentView(db,snapshot),paymentDraftPreserved=document.draft.payments!==undefined&&JSON.stringify(rhCompletePaymentSlots(document.draft))!==JSON.stringify(rhCompletePaymentSlots({periods:snapshot.periods,payments:snapshot.payments}));
+   const draft=normalizeRhDraft({...document.draft,payments:paymentDraftPreserved?document.draft.payments:snapshot.payments===undefined&&!payments.currentPayments.length?rhDefaultPayments(document.draft):payments.currentPayments});
+   const reopened=await mutate(db,row,session.email,[audit(db,row.client_id,row.id,'PAYMENTS_REOPENED',{versionId:snapshot.id,paymentReturnId:payments.paymentReturnId||null,paymentDraftPreserved},session.email)],draft,{condition:"coalesce((SELECT max(revision) FROM rh_returns WHERE version_id=? AND status='validated'),0)=?",params:[snapshot.id,payments.paymentReturnRevision]});return reply(200,{...reopened,paymentDraftPreserved});
+  }
   if(sub==='stamping'&&method==='POST'){if(!hasAccess(session,'tamponnage'))return reply(403,{error:'Accès au tamponnage requis.'});return reply(201,await createRhStampingBatch(env,session,snapshot,await json(request)));}
-  if(sub==='export'&&method==='GET'){const data=await exportRhWorkbook(snapshot),headers=new Headers(reply(200,{}).headers);headers.set('Content-Type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');headers.set('Content-Disposition',"attachment; filename*=UTF-8''"+encodeURIComponent(`RH_${snapshot.client.name}_v${snapshot.revision}.xlsx`));return new Response(new Uint8Array(data),{headers});}
+  if(sub==='export'&&method==='GET'){const payments=await paymentView(db,snapshot),data=await exportRhWorkbook({...snapshot,payments:payments.currentPayments},{legacy:snapshot.payments===undefined}),headers=new Headers(reply(200,{}).headers);headers.set('Content-Type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');headers.set('Content-Disposition',"attachment; filename*=UTF-8''"+encodeURIComponent(`RH_${snapshot.client.name}_v${snapshot.revision}.xlsx`));return new Response(new Uint8Array(data),{headers});}
   if(sub==='returns'&&!match[3]&&method==='POST'){
    const form=await multipart(request),signed=await uploaded(form.get('signedPdf'),'pdf'),excel=form.get('excel')?await uploaded(form.get('excel'),'xlsx'):null;
-   let inspection:RhReturnInspection;try{inspection=excel?await inspectRhReturnWorkbook(excel.bytes,snapshot):{payments:[],complete:false,issues:['PDF archivé. Un fichier Excel complété est nécessaire pour vérifier automatiquement les paiements.']};}catch(error){inspection={payments:[],complete:false,issues:[String((error as Error).message||'Le classeur reçu est illisible.').slice(0,500)]};}
+   let inspection:RhReturnInspection;try{inspection=excel?await inspectRhReturnWorkbook(excel.bytes,snapshot):{payments:[],complete:false,issues:['PDF archivé. Un fichier Excel complété est nécessaire pour vérifier automatiquement les paiements.']};if(inspection.complete)returnPayments(snapshot,inspection,'pending');}catch(error){inspection={payments:[],complete:false,issues:[String((error as Error).message||'Le classeur reçu est illisible.').slice(0,500)]};}
    const existing=await db.prepare('SELECT max(revision) AS revision FROM rh_returns WHERE version_id=?').bind(snapshot.id).first<{revision:number|null}>(),revision=(existing?.revision||0)+1,id=crypto.randomUUID(),files:Array<{objectKey:string;name:string;mime:string;sha256:string}>=[];
    const data={inspection,files,signatureReviewed:false,concordanceReviewed:false},status='received';try{for(const file of [signed,...(excel?[excel]:[])]){const objectKey=`rh/${snapshot.client.id}/returns/${id}/${files.length}`;await bucket(env).put(objectKey,file.bytes,{httpMetadata:{contentType:file.mime}});files.push({objectKey,name:file.name,mime:file.mime,sha256:file.sha256});}await db.batch([db.prepare('INSERT INTO rh_returns VALUES(?,?,?,?,?,?,?)').bind(id,snapshot.id,revision,status,JSON.stringify(data),now(),session.email),audit(db,snapshot.client.id,snapshot.documentId,'RETURN_RECEIVED',{returnId:id,versionId:snapshot.id},session.email)]);}catch(e){if(files.length)await bucket(env).delete(files.map(f=>f.objectKey));throw e;}
    return reply(201,{id,revision,status,...data});
@@ -158,7 +186,7 @@ async function route(request:Request,env:Environment,reply:Reply):Promise<Respon
   if(sub==='returns'&&match[3]){const record=await db.prepare('SELECT * FROM rh_returns WHERE id=? AND version_id=?').bind(match[3],snapshot.id).first<any>();if(!record)rhFail('Retour introuvable.',404);const data=JSON.parse(record.data_json);
    if(match[4]==='files'&&method==='GET'){const f=data.files[Number(match[5])];if(!f)rhFail('Fichier introuvable.',404);return binary(env,f.objectKey,f.name,f.mime,reply);}
    if(match[4]==='validate'&&method==='POST'){const input=await json(request);if(input.signatureReviewed!==true||input.concordanceReviewed!==true)rhFail('Vérifiez la signature et la concordance du PDF avec l’Excel.');if(!data.inspection.complete||data.inspection.issues.length||data.files.length<2)rhFail('Le retour doit contenir un Excel complet conforme et son PDF signé.');if(record.status==='validated')return reply(200,{id:record.id,status:record.status,...data});
-    for(const file of data.files){const original=await bucket(env).get(file.objectKey);if(!original||sha(new Uint8Array(await original.arrayBuffer()))!==file.sha256)rhFail('Une pièce du retour est absente ou a changé. Réimportez les originaux.',409);}
+    returnPayments(snapshot,data.inspection,record.id);for(const file of data.files){const original=await bucket(env).get(file.objectKey);if(!original||sha(new Uint8Array(await original.arrayBuffer()))!==file.sha256)rhFail('Une pièce du retour est absente ou a changé. Réimportez les originaux.',409);}
     const checked={...data,signatureReviewed:true,concordanceReviewed:true,reviewedBy:session.email,reviewedAt:now()},[before,after]=guard(db,"EXISTS(SELECT 1 FROM rh_returns WHERE id=? AND status='received')",[record.id]);await db.batch([before,db.prepare("UPDATE rh_returns SET status='validated',data_json=? WHERE id=? AND status='received'").bind(JSON.stringify(checked),record.id),audit(db,snapshot.client.id,snapshot.documentId,'RETURN_VALIDATED',{returnId:record.id},session.email),after]);return reply(200,{id:record.id,status:'validated',...checked});
    }
   }return reply(405,{error:'Méthode non autorisée.'});

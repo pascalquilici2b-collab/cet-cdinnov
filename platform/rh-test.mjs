@@ -4,7 +4,7 @@ import {testEnvironment,users} from '../marches/test.mjs';
 import {emptyMarket} from '../marches/domain.mjs';
 import {migrateBilling} from './billing-schema.mjs';
 import {migrateRh} from './rh-schema.mjs';
-import {normalizeRhDraft,rhIssues,rhLines} from './rh-domain.ts';
+import {normalizeRhDraft,normalizeRhPayments,rhDefaultPayments,rhCompletePaymentSlots,rhPaymentsForAgent,rhIssues,rhLines} from './rh-domain.ts';
 import ExcelJS from 'exceljs';
 
 let checks=0,engineCalls=0;
@@ -60,10 +60,30 @@ try{
   const source=await call(`/payroll/${sourceId}/source`);assert.equal(source.status,200);assert.deepEqual(Buffer.from(await source.arrayBuffer()),Buffer.from(await pdf.arrayBuffer()));
   const denied=await ctx.worker.dispatchFetch('https://preview.example/files/'+doc.payroll[0].objectKey,{headers:{Origin:'http://127.0.0.1:5196',Cookie:admin.cookie}});assert.equal(denied.status,403);
  });
+ await check('Manual payments preserve partial entries and zero, validate scope and never certify a financial return',async()=>{
+  const payments=rhDefaultPayments(doc.draft);assert.equal(payments.length,5);assert.ok(payments.every(p=>p.agentId===''));assert.deepEqual(payments,rhDefaultPayments({...doc.draft,periods:[...doc.draft.periods,...doc.draft.periods]}));payments[0].amountCents=0;payments[1].organism='Organisme fictif';
+  doc=await read(await send('PUT',`/documents/${doc.id}`,{...doc.draft,payments},doc.version));assert.equal(doc.draft.payments[0].amountCents,0);assert.equal(doc.draft.payments[1].amountCents,null);assert.equal(doc.draft.payments[0].date,'');
+  for(const change of [{month:'2026-02'},{agentId:randomUUID()},{date:'2026-02-30'},{amountCents:-1},{amountCents:''}])await read(await send('PUT',`/documents/${doc.id}`,{...doc.draft,payments:payments.map((p,i)=>i===0?{...p,...change}:p)},doc.version),422);
+  await read(await send('PUT',`/documents/${doc.id}`,{...doc.draft,payments:[...payments,payments[0]]},doc.version),422);
+  await read(await send('PUT',`/documents/${doc.id}`,{...doc.draft,periods:doc.draft.periods.map(p=>({...p,startDate:'2026-02-01',endDate:'2026-02-28'}))},doc.version),422);
+  assert.equal((await read(await call(`/documents/${doc.id}`))).version,doc.version);
+  const {payments:omitted,...oldClientDraft}=doc.draft;doc=await read(await send('PUT',`/documents/${doc.id}`,oldClientDraft,doc.version));assert.deepEqual(doc.draft.payments,payments);
+  assert.equal((await ctx.db.prepare('SELECT count(*) n FROM rh_returns').first()).n,0);assert.deepEqual(JSON.parse((await ctx.db.prepare('SELECT data_json FROM client_employee_spaces WHERE client_id=?').bind(clientId).first()).data_json).payments,[]);
+  const personal={...payments[0],id:'personal-salary',agentId,amountCents:123};const combined=normalizeRhPayments([...payments,personal],doc.draft.periods);const shown=rhPaymentsForAgent(combined,agentId,'2026-01');assert.equal(shown.filter(p=>p.kind==='salary').length,1);assert.equal(shown.find(p=>p.kind==='salary').id,'personal-salary');assert.equal(shown.filter(p=>p.kind==='contribution').length,4);
+ });
  await check('Frozen exact cents, source hash and immutable history',async()=>{
   const frozen=await read(await send('POST',`/documents/${doc.id}/freeze`,{},doc.version),201);versionId=frozen.version.id;doc=frozen.document;assert.equal(frozen.version.lines[0].allocatedCents,Math.round(432167*3333/10000));assert.equal(frozen.version.payroll[0].sha256,createHash('sha256').update(Buffer.from(await pdf.arrayBuffer())).digest('hex'));
+  assert.deepEqual(frozen.version.payments,doc.draft.payments);assert.equal(frozen.version.payments[0].amountCents,0);
   await assert.rejects(ctx.db.prepare("UPDATE rh_versions SET data_json='{}' WHERE id=?").bind(versionId).run(),/IMMUTABLE/);assert.equal((await ctx.db.prepare('SELECT count(*) n FROM rh_payroll_history WHERE payroll_id=?').bind(sourceId).first()).n,2);
   doc=await read(await send('PUT',`/documents/${doc.id}`,{...doc.draft,name:'Brouillon modifié'},doc.version));assert.equal((await read(await call(`/versions/${versionId}`))).snapshot.name,'RH janvier — fictif');
+ });
+ await check('Reopening financial entry preserves newer drafts and rejects stale RH or payroll versions',async()=>{
+  const path=`/versions/${versionId}`,before=JSON.stringify((await read(await call(path))).snapshot);assert.equal((await read(await call(path))).canReopen,false);await read(await send('POST',path+'/reopen',{},doc.version),409);
+  doc=await read(await send('PUT',`/documents/${doc.id}`,{...doc.draft,name:'RH janvier — fictif'},doc.version));const view=await read(await call(path));assert.equal(view.canReopen,true);assert.equal(view.documentVersion,doc.version);assert.equal(view.paymentSource,'snapshot');assert.equal(view.currentPayments.length,5);
+  await read(await send('POST',path+'/reopen',{},doc.version-1),409);const attempts=await Promise.all([send('POST',path+'/reopen',{},doc.version),send('POST',path+'/reopen',{},doc.version)]);assert.deepEqual(attempts.map(r=>r.status).sort(),[200,409]);doc=await read(await call(`/documents/${doc.id}`));
+  doc=await read(await send('PUT',`/documents/${doc.id}`,{...doc.draft,payments:doc.draft.payments.map((p,i)=>i===0?{...p,amountCents:125000,date:'2026-02-02',reference:'MANUEL'}:p)},doc.version));const preserved=await read(await send('POST',path+'/reopen',{},doc.version));assert.equal(preserved.paymentDraftPreserved,true);assert.equal(preserved.draft.payments[0].amountCents,125000);doc=preserved;
+  doc=await read(await send('PATCH',`/documents/${doc.id}/payroll/${sourceId}`,{agentId,month:'2026-01',netBeforeTaxCents:280001,confirmed:true},doc.version));assert.equal((await read(await call(path))).canReopen,false);await read(await send('POST',path+'/reopen',{},doc.version),409);
+  doc=await read(await send('PATCH',`/documents/${doc.id}/payroll/${sourceId}`,{agentId,month:'2026-01',netBeforeTaxCents:280000,confirmed:true},doc.version));assert.equal((await read(await call(path))).canReopen,true);assert.equal(JSON.stringify((await read(await call(path))).snapshot),before);
  });
  await check('Future documents reuse shared agents and confirmed PDFs without uploading',async()=>{
   const available=await read(await call(`/clients/${clientId}/payroll`));assert.equal(available.payroll[0].id,sourceId);
@@ -73,17 +93,65 @@ try{
   const exported=await call(`/versions/${versionId}/export`);assert.equal(exported.status,200);const bytes=new Uint8Array(await exported.arrayBuffer());assert.equal(bytes[0],80);
   const result=await read(await upload(`/versions/${versionId}/returns`,{signedPdf:pdf}),201);assert.equal(result.status,'received');assert.equal(result.inspection.complete,false);await read(await send('POST',`/versions/${versionId}/returns/${result.id}/validate`,{signatureReviewed:true,concordanceReviewed:true}),422);
   const original=await call(`/versions/${versionId}/returns/${result.id}/files/0`);assert.equal(original.status,200);assert.deepEqual(Buffer.from(await original.arrayBuffer()),Buffer.from(await pdf.arrayBuffer()));
-  const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(bytes);assert.ok(workbook.getWorksheet('Paiements'));assert.equal((await ctx.db.prepare('SELECT count(*) n FROM rh_returns').first()).n,1);
-  const sheet=workbook.getWorksheet('Paiements');for(const row of [10,11]){sheet.getCell(row,5).value=row===11?'Organisme fictif':'';sheet.getCell(row,6).value=row===11?500:2800;sheet.getCell(row,7).value=new Date('2026-02-04T00:00:00Z');sheet.getCell(row,8).value='MANDAT-'+row;}
+  const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(bytes);assert.equal(workbook.getWorksheet('Paiements'),undefined);assert.equal((await ctx.db.prepare('SELECT count(*) n FROM rh_returns').first()).n,1);
+  const salaryId='payment-2026-01-salary',chargesId='payment-2026-01-contribution-1';let filled=0;
+  for(const sheet of workbook.worksheets)for(let row=1;row<=sheet.rowCount;row++){
+   if(sheet.getCell(row,14).value===salaryId){sheet.getCell(row,7).value='MANDAT-SALAIRE';sheet.getCell(row,8).value=new Date('2026-02-04T00:00:00Z');sheet.getCell(row,9).value=2800;filled++;}
+   if(sheet.getCell(row,15).value===chargesId){sheet.getCell(row,10).value='Organisme fictif';sheet.getCell(row,11).value=500;sheet.getCell(row,12).value=new Date('2026-02-04T00:00:00Z');filled++;}
+  }assert.equal(filled,2);
   const completed=await read(await upload(`/versions/${versionId}/returns`,{signedPdf:pdf,excel:new Blob([await workbook.xlsx.writeBuffer()])}),201);assert.equal(completed.inspection.complete,true,JSON.stringify(completed.inspection));assert.equal(completed.inspection.payments.length,2);
   await read(await send('POST',`/versions/${versionId}/returns/${completed.id}/validate`,{signatureReviewed:true}),422);
-  const accepted=await read(await send('POST',`/versions/${versionId}/returns/${completed.id}/validate`,{signatureReviewed:true,concordanceReviewed:true}));assert.equal(accepted.status,'validated');assert.equal(accepted.inspection.payments[0].amountCents,280000);
-  const frozenBefore=JSON.stringify((await read(await call(`/versions/${versionId}`))).snapshot);workbook.worksheets.find(s=>s.name.startsWith('RH ')).getCell('A4').value='Version altérée';
+  const accepted=await read(await send('POST',`/versions/${versionId}/returns/${completed.id}/validate`,{signatureReviewed:true,concordanceReviewed:true}));assert.equal(accepted.status,'validated');assert.equal(accepted.inspection.payments.find(p=>p.kind==='salary').amountCents,280000);assert.ok(accepted.inspection.payments.every(p=>p.agentId===''));assert.equal(accepted.inspection.payments.find(p=>p.kind==='contribution').reference,'');
+  const frozenBefore=JSON.stringify((await read(await call(`/versions/${versionId}`))).snapshot);workbook.worksheets[0].getCell('A4').value='Version altérée';
   const modified=await read(await upload(`/versions/${versionId}/returns`,{signedPdf:pdf,excel:new Blob([await workbook.xlsx.writeBuffer()])}),201);assert.equal(modified.inspection.complete,false);await read(await send('POST',`/versions/${versionId}/returns/${modified.id}/validate`,{signatureReviewed:true,concordanceReviewed:true}),422);assert.equal(JSON.stringify((await read(await call(`/versions/${versionId}`))).snapshot),frozenBefore);
+ });
+ await check('Validated returns overlay fixed slots without adding them, manual corrections create a new unsigned RH revision',async()=>{
+  const path=`/versions/${versionId}`,view=await read(await call(path)),original=JSON.stringify(view.snapshot);assert.equal(view.paymentSource,'validated-return');assert.equal(view.currentPayments.length,5);assert.equal(view.currentPayments[0].amountCents,280000);assert.equal(view.currentPayments[1].amountCents,50000);assert.equal(view.currentPayments[2].amountCents,null);assert.equal(view.snapshot.payments[0].amountCents,0);
+  const receipt=await ctx.db.prepare('SELECT * FROM rh_returns WHERE id=?').bind(view.paymentReturnId).first(),receiptJSON=JSON.stringify(receipt);
+  const exported=await call(path+'/export'),wb=new ExcelJS.Workbook();await wb.xlsx.load(await exported.arrayBuffer());let salary=0;for(const sheet of wb.worksheets)for(let row=1;row<=sheet.rowCount;row++)if(sheet.getCell(row,14).value==='payment-2026-01-salary'){assert.equal(sheet.getCell(row,9).value,2800);salary++;}assert.equal(salary,1);
+  const kept=await read(await send('POST',path+'/reopen',{},doc.version));assert.equal(kept.paymentDraftPreserved,true);assert.equal(kept.draft.payments[0].amountCents,125000);doc=kept;
+  doc=await read(await send('PUT',`/documents/${doc.id}`,{...doc.draft,payments:view.snapshot.payments},doc.version));doc=await read(await send('POST',path+'/reopen',{},doc.version));assert.equal(doc.paymentDraftPreserved,false);assert.equal(doc.draft.payments[0].amountCents,280000);
+  doc=await read(await send('PUT',`/documents/${doc.id}`,{...doc.draft,payments:doc.draft.payments.map((p,i)=>i===0?{...p,amountCents:285000,reference:'CORRECTION MANUELLE'}:p)},doc.version));assert.equal((await read(await call(path))).currentPayments[0].amountCents,280000);
+  const revised=await read(await send('POST',`/documents/${doc.id}/freeze`,{},doc.version),201);doc=revised.document;assert.equal(revised.version.revision,2);assert.equal(revised.version.payments[0].amountCents,285000);
+  const next=await read(await call(`/versions/${revised.version.id}`));assert.equal(next.paymentSource,'snapshot');assert.equal(next.returns.length,0);assert.equal(next.currentPayments[0].amountCents,285000);assert.equal(next.currentPayments[0].signatureReviewed,undefined);
+  assert.equal((await read(await call(path))).canReopen,false);await read(await send('POST',path+'/reopen',{},doc.version),409);assert.equal(JSON.stringify((await read(await call(path))).snapshot),original);assert.equal(JSON.stringify(await ctx.db.prepare('SELECT * FROM rh_returns WHERE id=?').bind(view.paymentReturnId).first()),receiptJSON);
+ });
+ await check('A validated return can clear a previously filled slot without resurrecting or doubling its amount',async()=>{
+  const extra={id:'second-salary',agentId:'',month:'2026-01',kind:'salary',organism:'',amountCents:null,date:'',reference:''};
+  doc=await read(await send('PUT',`/documents/${doc.id}`,{...doc.draft,payments:[...doc.draft.payments,extra]},doc.version));const frozen=await read(await send('POST',`/documents/${doc.id}/freeze`,{},doc.version),201);doc=frozen.document;const path=`/versions/${frozen.version.id}`,wb=new ExcelJS.Workbook();await wb.xlsx.load(await(await call(path+'/export')).arrayBuffer());
+  for(const sheet of wb.worksheets)for(let row=1;row<=sheet.rowCount;row++){
+   if(sheet.getCell(row,14).value==='payment-2026-01-salary')for(const col of [7,8,9])sheet.getCell(row,col).value=null;
+   if(sheet.getCell(row,14).value===extra.id){sheet.getCell(row,7).value='REMPLACE LE VERSEMENT';sheet.getCell(row,8).value=new Date('2026-02-08T00:00:00Z');sheet.getCell(row,9).value=2800;}
+  }
+  const received=await read(await upload(path+'/returns',{signedPdf:pdf,excel:new Blob([await wb.xlsx.writeBuffer()])}),201);assert.equal(received.inspection.complete,true,JSON.stringify(received.inspection));await read(await send('POST',path+'/returns/'+received.id+'/validate',{signatureReviewed:true,concordanceReviewed:true}));
+  const view=await read(await call(path));assert.equal(view.currentPayments.length,6);assert.equal(view.snapshot.payments[0].amountCents,285000);assert.equal(view.currentPayments[0].amountCents,null);assert.equal(view.currentPayments[0].reference,'');assert.equal(view.currentPayments.find(p=>p.id===extra.id).amountCents,280000);assert.equal(view.currentPayments.filter(p=>p.kind==='salary').reduce((sum,p)=>sum+(p.amountCents||0),0),280000);
+ });
+ await check('Historical archives keep V1 exports and individual financial returns, reopening adds editable slots',async()=>{
+  let legacy=await read(await send('POST','/documents',{name:'Archive historique fictive',clientId,periods:doc.draft.periods}),201);legacy=await read(await send('POST',`/documents/${legacy.id}/reuse-payroll`,{payrollIds:[sourceId]},legacy.version));
+  const {payments:removed,...basis}=(await read(await call(`/versions/${versionId}`))).snapshot,legacyVersion=randomUUID(),historical={...basis,id:legacyVersion,documentId:legacy.id,name:legacy.draft.name,revision:1,payroll:legacy.payroll,lines:rhLines(legacy.draft,legacy.payroll)};
+  await ctx.db.prepare('INSERT INTO rh_versions VALUES(?,?,?,?,?,?,?)').bind(legacyVersion,legacy.id,clientId,1,JSON.stringify(historical),historical.createdAt,'fixture').run();const path=`/versions/${legacyVersion}`;
+  legacy=await read(await send('POST',path+'/reopen',{},legacy.version));assert.equal(legacy.draft.payments.length,5);assert.ok(legacy.draft.payments.every(p=>p.agentId===''&&p.amountCents===null));
+  const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(await(await call(path+'/export')).arrayBuffer());const sheet=workbook.getWorksheet('Paiements');assert.ok(sheet);
+  for(const row of [10,11]){sheet.getCell(row,5).value=row===11?'Organisme historique':'';sheet.getCell(row,6).value=row===11?400:2700;sheet.getCell(row,7).value=new Date('2026-02-06T00:00:00Z');sheet.getCell(row,8).value='HISTORIQUE-'+row;}
+  const returned=await read(await upload(path+'/returns',{signedPdf:pdf,excel:new Blob([await workbook.xlsx.writeBuffer()])}),201);assert.equal(returned.inspection.complete,true,JSON.stringify(returned.inspection));await read(await send('POST',path+'/returns/'+returned.id+'/validate',{signatureReviewed:true,concordanceReviewed:true}));
+  const view=await read(await call(path));assert.equal(view.snapshot.payments,undefined);assert.equal(view.paymentSource,'validated-return');assert.equal(view.currentPayments.length,2);assert.ok(view.currentPayments.every(p=>p.agentId===agentId));
+  const reexport=new ExcelJS.Workbook();await reexport.xlsx.load(await(await call(path+'/export')).arrayBuffer());assert.equal(reexport.getWorksheet('Paiements').getCell(10,6).value,2700);
+  legacy=await read(await send('POST',path+'/reopen',{},legacy.version));assert.equal(legacy.paymentDraftPreserved,false);assert.equal(legacy.draft.payments.length,7);assert.equal(rhPaymentsForAgent(legacy.draft.payments,agentId,'2026-01').find(p=>p.kind==='salary').amountCents,270000);assert.equal(JSON.stringify((await read(await call(path))).snapshot),JSON.stringify(historical));
+ });
+ await check('Explicit zero financial returns need no invented date, mandate or organism and still need signature review',async()=>{
+  const id=doc.versions[0].id,path=`/versions/${id}`,wb=new ExcelJS.Workbook();await wb.xlsx.load(await(await call(path+'/export')).arrayBuffer());
+  for(const sheet of wb.worksheets)for(let row=1;row<=sheet.rowCount;row++){
+   const salary=sheet.getCell(row,14).value,charges=sheet.getCell(row,15).value;
+   if(salary==='payment-2026-01-salary'||salary==='second-salary'){for(const col of [7,8,9])sheet.getCell(row,col).value=null;if(salary==='payment-2026-01-salary')sheet.getCell(row,9).value=0;}
+   if(charges==='payment-2026-01-contribution-1'){for(const col of [10,11,12])sheet.getCell(row,col).value=null;sheet.getCell(row,11).value=0;}
+  }
+  const returned=await read(await upload(path+'/returns',{signedPdf:pdf,excel:new Blob([await wb.xlsx.writeBuffer()])}),201);assert.equal(returned.inspection.complete,true,JSON.stringify(returned.inspection));assert.equal(returned.inspection.payments.length,2);assert.ok(returned.inspection.payments.every(p=>p.amountCents===0&&p.date===''));
+  await read(await send('POST',path+'/returns/'+returned.id+'/validate',{signatureReviewed:true}),422);await read(await send('POST',path+'/returns/'+returned.id+'/validate',{signatureReviewed:true,concordanceReviewed:true}));const current=(await read(await call(path))).currentPayments;assert.equal(current.find(p=>p.id==='payment-2026-01-salary').amountCents,0);assert.equal(current.find(p=>p.id==='payment-2026-01-contribution-1').amountCents,0);assert.equal(current.find(p=>p.id==='second-salary').amountCents,null);
  });
  await check('Domain rejects invented partial months, duplicate agent/project months and overallocations',async()=>{
   const base={name:'Test',clientId,periods:[{id:periodId,projectId,startDate:'2026-01-01',endDate:'2026-01-31',agents:[{agentId,rateBasisPoints:5000}]}]};assert.throws(()=>normalizeRhDraft({...base,periods:[{...base.periods[0],startDate:'2026-01-02'}]}));assert.throws(()=>normalizeRhDraft({...base,periods:[...base.periods,{...base.periods[0],id:randomUUID()}]}));
   const files=[{id:sourceId,agentId,month:'2026-01',confirmed:true,employerCostCents:432167,netBeforeTaxCents:null}];assert.equal(rhLines(base,files)[0].allocatedCents,216084);assert.ok(rhIssues(base,files,[{id:agentId,name:'Alex Test',allocations:[{projectId:'elsewhere',percent:'60',startDate:'2026-01-01',endDate:'2026-01-31'}]}]).some(s=>s.includes('100')));
+  const blank=rhDefaultPayments(base),extended={...base,periods:base.periods.map(p=>({...p,endDate:'2026-02-28'})),payments:blank};assert.equal(rhCompletePaymentSlots(extended).length,10);assert.equal(rhCompletePaymentSlots({...base,payments:[]}).length,5);assert.equal(normalizeRhDraft({...base,periods:base.periods.map(p=>({...p,startDate:'2026-02-01',endDate:'2026-02-28'})),payments:blank}).payments.length,5);assert.throws(()=>normalizeRhDraft({...extended,periods:extended.periods.map(p=>({...p,startDate:'2026-02-01'})),payments:blank.map((p,i)=>i===0?{...p,amountCents:0}:p)}));
  });
  console.log(JSON.stringify({checks,engineCalls,status:'passed',environment:'isolated D1/R2 with synthetic payroll engine'}));
 }finally{await ctx.worker.dispose();}
