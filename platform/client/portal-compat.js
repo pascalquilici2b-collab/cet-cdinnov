@@ -7,7 +7,7 @@ window.addEventListener('storage',event=>{
   let email;try{email=JSON.parse(event.newValue)?.email;}catch{}
   if(email===AUTH_USER)return;
   if(portalClean&&JSON.stringify(state)!==portalClean)portalRemember();
-  dashboardForget();financeForget();billingForget();stampingForget();personnelForget();closeModal();nfDraft=null;marchesForget();agendaForget();budgetsForget();facturxForgetAuth();
+  dashboardForget();financeForget();billingForget();stampingForget();rhForget();personnelForget();closeModal();nfDraft=null;marchesForget();agendaForget();budgetsForget();facturxForgetAuth();
   AUTH_USER=null;movAccess=null;salariesUnlocked=false;portalClear();document.body.classList.remove('authed');renderUserChip();authBack();
 });
 function load(){return freshState();}
@@ -20,7 +20,7 @@ function accountModules(email=AUTH_USER){return CDIPlatform.accountAccess(state.
 function canAccess(view){
  if(!AUTH_USER)return false;
  if(view==='parametres'||view==='cet')return isAdmin(AUTH_USER);
- const key=({marches:'facturier',conges:'agenda'})[view]||view;
+ const key=({marches:'facturier',rh:'facturier',conges:'agenda'})[view]||view;
  return accountModules()[key]===true;
 }
 function applyAccessNavigation(){
@@ -69,7 +69,7 @@ async function cloudLoad(options={}){
     await portalLoadPhotos();if(AUTH_USER!==user||portalEpoch!==epoch)return false;
     setSync('ok','Synchronisé');
     if(document.body.classList.contains('authed')&&(wasAdmin!==isAdmin(user)||previousAccess!==JSON.stringify(accountModules(user)))){
-      dashboardForget();financeForget();billingForget();stampingForget();personnelForget();marchesForget();agendaForget();budgetsForget();facturxForgetAuth();closeModal();nfDraft=null;
+      dashboardForget();financeForget();billingForget();stampingForget();rhForget();personnelForget();marchesForget();agendaForget();budgetsForget();facturxForgetAuth();closeModal();nfDraft=null;
       currentView=firstAllowedView();unlockApp(user);
     }else render();
     return true;
