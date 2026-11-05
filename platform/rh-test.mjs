@@ -8,10 +8,11 @@ import {normalizeRhDraft,rhIssues,rhLines} from './rh-domain.ts';
 import ExcelJS from 'exceljs';
 
 let checks=0,engineCalls=0;
+const headOfficeSiret='12345678900011',payrollEstablishmentSiret='12345678900029';
 const check=async(name,fn)=>{await fn();checks++;console.log('OK '+name);};
 const ctx=await testEnvironment({bindings:{BILLING_PDF_SERVICE_URL:'https://rh-engine.test',BILLING_PDF_SERVICE_KEY:'x'.repeat(40)},outboundService:async request=>{
  assert.equal(new URL(request.url).origin,'https://rh-engine.test');const form=await request.formData(),payload=JSON.parse(form.get('payload'));assert.equal(payload.action,'extract');engineCalls++;const bytes=new Uint8Array(await form.get('file').arrayBuffer());
- return Response.json({ok:true,result:{fields:{employee_name:'Alex Test',period:'2026-01',document_type:'PAYSLIP'},proofs:{employee_name:'Alex Test',period:'Janvier 2026'},bases:{EMPLOYER_COST:{amount_cents:432167,method:'monthly_total',evidence:'Total employeur 4 321,67'}},source_sha256:createHash('sha256').update(bytes).digest('hex'),algorithm:'fixture-extract-1',pages:[{width:600,height:800,method:'text'}],warnings:[],evidence:[]}});
+ return Response.json({ok:true,result:{fields:{employee_name:'Alex Test',period:'2026-01',document_type:'PAYSLIP',supplier_ref:payrollEstablishmentSiret},proofs:{employee_name:'Alex Test',period:'Janvier 2026'},bases:{EMPLOYER_COST:{amount_cents:432167,method:'monthly_total',evidence:'Total employeur 4 321,67'}},source_sha256:createHash('sha256').update(bytes).digest('hex'),algorithm:'fixture-extract-1',pages:[{width:600,height:800,method:'text'}],warnings:[],evidence:[]}});
 }});
 try{
  const admin=await ctx.login(users[0]),other=await ctx.login(users[1]);
@@ -24,7 +25,7 @@ try{
   await migrateBilling(ctx.db);await migrateRh(ctx.db);await migrateRh(ctx.db);assert.equal((await read(await call('/documents'))).documents.length,0);
  });
  const clientId='client-rh-test',otherClient='other-client-test',projectId='project-rh-test',foreignProject='project-foreign-test',agentId=randomUUID(),periodId=randomUUID(),documentId=randomUUID(),stamp=new Date().toISOString();
- for(const [id,name] of [[clientId,'Client de démonstration'],[otherClient,'Autre client fictif']])await ctx.db.prepare("INSERT INTO billing_directory VALUES('clients',?,1,?,?,?,'fixture',?,'fixture')").bind(id,JSON.stringify({archived:false,party:{name},logoData:''}),'hash-'+id,stamp,stamp).run();
+ for(const [id,name] of [[clientId,'Client de démonstration'],[otherClient,'Autre client fictif']])await ctx.db.prepare("INSERT INTO billing_directory VALUES('clients',?,1,?,?,?,'fixture',?,'fixture')").bind(id,JSON.stringify({archived:false,party:{name,siret:headOfficeSiret},logoData:''}),'hash-'+id,stamp,stamp).run();
  for(const [id,client,project] of [['market-rh-test',clientId,projectId],['market-other-test',otherClient,foreignProject]])await ctx.db.prepare('INSERT INTO markets VALUES(?,?,1,?,?)').bind(id,JSON.stringify({...emptyMarket(),title:'Marché fictif',clientId:client,clientName:'Client fictif',projects:[{id:project,name:'Projet fictif '+project,code:'IF TEST001',programme:'Interreg test',notes:'',archived:false,orders:[],clientIds:[client]}]}),stamp,'fixture').run();
  let doc,versionId,sourceId;
  await check('Shared agent creation and rate-free remembered link',async()=>{
@@ -48,11 +49,14 @@ try{
   const unchanged=await read(await call(`/documents/${valid.id}`));assert.equal(unchanged.version,valid.version);assert.deepEqual(unchanged.draft,valid.draft);assert.equal((await ctx.db.prepare('SELECT count(*) n FROM rh_document_history WHERE document_id=?').bind(valid.id).first()).n,1);assert.equal((await ctx.db.prepare('SELECT count(*) n FROM rh_write_guards').first()).n,0);
  });
  const pdf=new Blob(['%PDF-1.7\nSynthetic payroll fixture\n%%EOF'],{type:'application/pdf'});
- await check('PDF intake, deduplication, server extraction and controlled confirmation',async()=>{
+ await check('PDF confirmation accepts another establishment SIRET without a reason, retaining agent/month/amount checks',async()=>{
   doc=await read(await upload(`/documents/${doc.id}/payroll`,{file:pdf},doc.version),201);sourceId=doc.payroll[0].id;assert.equal(engineCalls,1);assert.equal(doc.payroll[0].employerCostCents,432167);assert.equal(doc.payroll[0].agentId,agentId);assert.equal(doc.payroll[0].month,'2026-01');assert.equal(doc.payroll[0].confirmed,false);
   const same=await read(await upload(`/documents/${doc.id}/payroll`,{file:pdf},doc.version));assert.equal(same.duplicate,true);assert.equal(engineCalls,1);assert.equal(same.version,doc.version);
   await read(await send('PATCH',`/documents/${doc.id}/payroll/${sourceId}`,{agentId,month:'2026-02',confirmed:true},doc.version),422);
-  doc=await read(await send('PATCH',`/documents/${doc.id}/payroll/${sourceId}`,{agentId,month:'2026-01',netBeforeTaxCents:280000,employerCostCents:1,confirmed:true},doc.version));assert.equal(doc.payroll[0].employerCostCents,432167);assert.equal(doc.payroll[0].netBeforeTaxCents,280000);
+  await read(await send('PATCH',`/documents/${doc.id}/payroll/${sourceId}`,{agentId:randomUUID(),month:'2026-01',confirmed:true},doc.version),422);
+  await read(await send('PATCH',`/documents/${doc.id}/payroll/${sourceId}`,{agentId,month:'2026-01',netBeforeTaxCents:-1,confirmed:true},doc.version),422);
+  assert.equal((await read(await call('/context'))).clients.find(c=>c.id===clientId).siret,headOfficeSiret);assert.equal(doc.payroll[0].reading.fields.supplier_ref,payrollEstablishmentSiret);assert.notEqual(headOfficeSiret,payrollEstablishmentSiret);
+  doc=await read(await send('PATCH',`/documents/${doc.id}/payroll/${sourceId}`,{agentId,month:'2026-01',netBeforeTaxCents:280000,employerCostCents:1,confirmed:true},doc.version));assert.equal(doc.payroll[0].confirmed,true);assert.equal(doc.payroll[0].identityReason,'');assert.equal(doc.payroll[0].employerCostCents,432167);assert.equal(doc.payroll[0].netBeforeTaxCents,280000);
   const source=await call(`/payroll/${sourceId}/source`);assert.equal(source.status,200);assert.deepEqual(Buffer.from(await source.arrayBuffer()),Buffer.from(await pdf.arrayBuffer()));
   const denied=await ctx.worker.dispatchFetch('https://preview.example/files/'+doc.payroll[0].objectKey,{headers:{Origin:'http://127.0.0.1:5196',Cookie:admin.cookie}});assert.equal(denied.status,403);
  });

@@ -5,7 +5,7 @@ export interface RhProject {id:string;name:string;code:string;programme:string;c
 export interface RhMember {agentId:string;rateBasisPoints:number|null;}
 export interface RhPeriod {id:string;projectId:string;startDate:string;endDate:string;agents:RhMember[];}
 export interface RhDraft {name:string;clientId:string;periods:RhPeriod[];}
-export interface RhPayrollSource {id:string;agentId:string;month:string;filename:string;sha256:string;objectKey:string;employerCostCents:number|null;netBeforeTaxCents:number|null;reading:any;confirmed:boolean;reviewedBy?:string;reviewedAt?:string;createdAt:string;}
+export interface RhPayrollSource {id:string;agentId:string;month:string;filename:string;sha256:string;objectKey:string;employerCostCents:number|null;netBeforeTaxCents:number|null;reading:any;confirmed:boolean;identityReason?:string;reviewedBy?:string;reviewedAt?:string;createdAt:string;}
 export interface RhLine {id:string;periodId:string;agentId:string;projectId:string;month:string;employerCostCents:number;netBeforeTaxCents:number|null;rateBasisPoints:number;allocatedCents:number;payrollId:string;}
 export interface RhSnapshot {id:string;documentId:string;revision:number;name:string;client:RhClient;projects:RhProject[];periods:RhPeriod[];agents:ClientEmployee[];lines:RhLine[];payroll:RhPayrollSource[];createdAt:string;createdBy:string;}
 export interface RhImportedPayment {id?:string;agentId:string;month:string;kind:'salary'|'contribution';organism:string;amountCents:number;date:string;reference:string;}

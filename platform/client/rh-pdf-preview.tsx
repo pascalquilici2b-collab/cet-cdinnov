@@ -14,7 +14,7 @@ function pdfEngine(){
 }
 
 /** Read-only local PDF rendering; the original file never leaves this browser. */
-export function RhPDFPreview({blob,title='Bulletin original'}:{blob:Blob;title?:string}){
+export function RhPDFPreview({blob,title='Bulletin original',onReady}:{blob:Blob;title?:string;onReady?:(ready:boolean)=>void}){
  const [pdf,setPDF]=useState<PDFDocument|null>(null),[page,setPage]=useState(1),[zoom,setZoom]=useState(1),[retry,setRetry]=useState(0);
  const [loading,setLoading]=useState(true),[rendering,setRendering]=useState(false),[error,setError]=useState(''),[text,setText]=useState(''),[width,setWidth]=useState(500);
  const viewport=useRef<HTMLDivElement>(null),canvas=useRef<HTMLCanvasElement>(null);
@@ -45,6 +45,7 @@ export function RhPDFPreview({blob,title='Bulletin original'}:{blob:Blob;title?:
   })().catch(e=>{if(active){setRendering(false);setError(e instanceof Error?e.message:'Cette page ne peut pas être affichée.');}});
   return()=>{active=false;task?.cancel();};
  },[pdf,page,zoom,width,loading]);
+ useEffect(()=>{onReady?.(!!pdf&&!loading&&!rendering&&!error);},[pdf,loading,rendering,error,onReady]);
  const turn=(delta:number)=>{setPage(n=>Math.max(1,Math.min(pdf?.numPages||1,n+delta)));viewport.current?.scrollTo({top:0,left:0});};
  return <section className="rh-pdf-viewer" aria-label={title}>
   <div className="rh-pdf-toolbar" role="group" aria-label="Navigation dans le bulletin">
