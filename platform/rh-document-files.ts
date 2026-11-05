@@ -9,6 +9,9 @@ import {rhPaymentGroups} from './rh-payment-layout';
 
 const FORMAT='CDINNOV_RH_1';
 const COMBINED_FORMAT='CDINNOV_RH_2';
+const FINAL_FORMAT='CDINNOV_RH_3';
+const CERTIFICATION='Je soussigné ________________ en qualité de ______________________________, certifie les informations de paiements susmentionnées.';
+const CERTIFICATION_DATE='Fait à ____________    Le ___________';
 const META='_CDI_RH';
 const PAYMENT_SHEET='Paiements';
 const HEADER_ROW=9;
@@ -131,13 +134,13 @@ async function legacyRhWorkbook(snapshot:RhSnapshot):Promise<Uint8Array>{
 }
 
 type CombinedSlot={row:number;payment:RhPaymentEntry};
-type CombinedGrid={name:string;programme:string;cells:Map<string,ExpectedValue>;slots:CombinedSlot[];merges:string[];segments:{start:number;end:number}[];headerRow:number;lastRow:number;totalRow:number;signatureRow:number};
+type CombinedGrid={name:string;programme:string;cells:Map<string,ExpectedValue>;slots:CombinedSlot[];merges:string[];segments:{start:number;end:number}[];headerRow:number;lastRow:number;totalRow:number;signatureRow:number;heading?:boolean;introRows?:{row:number;height:number;fontSize:number}[];certificationRow?:number;certificationDateRow?:number};
 const monthLabel=(value:string)=>new Intl.DateTimeFormat('fr-FR',{month:'long',year:'numeric',timeZone:'UTC'}).format(new Date(value+'-01T12:00:00Z'));
 const COMBINED_PAGE_HEIGHT=585;
-function wrappedHeight(text:string,width:number,size:number):number{
+function wrappedHeight(text:string,width:number,size:number,padding=7):number{
  const pixels=(token:string)=>[...token].reduce((sum,char)=>sum+(/[ilI.,:;'!|]/.test(char)?.26:/[MW@%]/.test(char)?.88:/[A-Z0-9]/.test(char)?.62:/\s/.test(char)?.3:char.charCodeAt(0)>255?1:.52),0)*size*96/72;
  let lines=0;for(const paragraph of text.split(/\r?\n/)){let used=0,count=1;for(const word of paragraph.match(/\S+|\s+/g)||[]){const length=pixels(word);if(/^\s+$/.test(word)){if(used)used+=length;continue;}if(used&&used+length>width){count++;used=0;}if(length>width){count+=Math.ceil(length/width)-1;used=length%width||width;}else used+=length;}lines+=count;}
- return Math.ceil(lines*size*1.25+7);
+ return Math.ceil(lines*size*1.25+padding);
 }
 function fitCombinedRowHeights(sheet:ExcelTypes.Worksheet,grid:CombinedGrid){
  const ranges=new Map<string,{first:number;last:number;left:number;right:number}>(),column=(letters:string)=>[...letters].reduce((value,letter)=>value*26+letter.charCodeAt(0)-64,0);
@@ -147,13 +150,13 @@ function fitCombinedRowHeights(sheet:ExcelTypes.Worksheet,grid:CombinedGrid){
   const range=ranges.get(cell.address)||{first:row.number,last:row.number,left:Number(cell.col),right:Number(cell.col)};
   let width=0;for(let col=range.left;col<=range.right;col++)width+=(sheet.getColumn(col).width||8.43)*7+5;width=Math.max(20,width-10);
   const text=value instanceof Date?titleDate(value.toISOString().slice(0,10)):typeof value==='number'?new Intl.NumberFormat('fr-FR').format(value)+(cell.numFmt===EURO?' €':''):cell.text;
-  let size=cell.font?.size||10,height=wrappedHeight(text,width,size);
-  if(range.first===range.last){while(height>390&&size>7){size-=.5;height=wrappedHeight(text,width,size);}if(size!==(cell.font?.size||10))cell.font={...cell.font,size};row.height=Math.max(row.height||24,Math.min(409.5,height));}
+  const padding=grid.introRows?.some(item=>item.row===range.first)?2:7;let size=cell.font?.size||10,height=wrappedHeight(text,width,size,padding);
+  if(range.first===range.last){while(height>390&&size>7){size-=.5;height=wrappedHeight(text,width,size,padding);}if(size!==(cell.font?.size||10))cell.font={...cell.font,size};row.height=Math.max(row.height||24,Math.min(409.5,height));}
   else vertical.push({range,height});
  }));
  for(const {range,height}of vertical){let existing=0;for(let row=range.first;row<=range.last;row++)existing+=sheet.getRow(row).height||24;if(height>existing){const extra=(height-existing)/(range.last-range.first+1);for(let row=range.first;row<=range.last;row++)sheet.getRow(row).height=Math.min(409.5,(sheet.getRow(row).height||24)+extra);}}
 }
-function combinedGrids(snapshot:RhSnapshot):CombinedGrid[]{
+function combinedGridsV2(snapshot:RhSnapshot):CombinedGrid[]{
  return rhPaymentGroups(snapshot).map(group=>{
   const cells=new Map<string,ExpectedValue>(),slots:CombinedSlot[]=[],merges:string[]=[],segments:{start:number;end:number}[]=[];
   const put=(row:number,column:number,value:ExpectedValue)=>cells.set(address(row,column),value),merge=(first:number,left:number,last:number,right:number)=>{if(first!==last||left!==right)merges.push(`${address(first,left)}:${address(last,right)}`);};
@@ -183,35 +186,72 @@ function combinedGrids(snapshot:RhSnapshot):CombinedGrid[]{
  });
 }
 
+/** A separate immutable presentation profile keeps already-issued V2 readable. */
+function combinedGridsV3(snapshot:RhSnapshot):CombinedGrid[]{
+ const previous=combinedGridsV2(snapshot);
+ return previous.map((grid,index)=>{
+  const cells=new Map<string,ExpectedValue>(),merges:string[]=[],introRows:{row:number;height:number;fontSize:number}[]=[],heading=index===0,last=index===previous.length-1;
+  const put=(row:number,column:number,value:ExpectedValue)=>cells.set(address(row,column),value);
+  let headerRow=1;
+  if(heading){
+   const title=rhAttestationTitle(snapshot.client.name),declaration=rhAttestationText(snapshot.client.name,snapshot.periods);
+   put(4,1,title);put(5,1,declaration);merges.push('A4:L4','A5:L5');
+   const titleHeight=Math.max(38,Math.ceil(title.length/118)*19,wrappedHeight(title,1226,14)),declarationHeight=Math.max(48,Math.ceil(declaration.length/165)*15+10,wrappedHeight(declaration,1226,10));
+   const available=COMBINED_PAGE_HEIGHT-168-titleHeight-declarationHeight;
+   let selected:{labels:string[];heights:number[];fontSize:number}|undefined;
+   for(const limit of [Infinity,120,80,48,28]){for(const fontSize of [9,8.5,8,7.5,7]){
+    const labels=snapshot.periods.map(period=>{const project=snapshot.projects.find(p=>p.id===period.projectId)!,name=project.name.length>limit?project.name.slice(0,limit-1)+'…':project.name;return `${[name,project.code].filter(Boolean).join(' · ')} · ${titleDate(period.startDate)} — ${titleDate(period.endDate)}`;}),heights:number[]=[];
+    for(let i=0;i<labels.length;i+=2)heights.push(Math.max(wrappedHeight(labels[i],636,fontSize,2),labels[i+1]?wrappedHeight(labels[i+1],580,fontSize,2):0));
+    if(heights.reduce((sum,height)=>sum+height,0)<=available){selected={labels,heights,fontSize};break;}
+   }if(selected)break;}
+   if(!selected)fail('La liste des projets et de leurs références est trop longue pour la première page A4. Réduisez les libellés ou le nombre de projets de ce document.');
+   let row=7;for(let i=0;i<selected.labels.length;i+=2,row++){put(row,1,selected.labels[i]);merges.push(`A${row}:F${row}`);if(selected.labels[i+1]){put(row,7,selected.labels[i+1]);merges.push(`G${row}:L${row}`);}introRows.push({row,height:selected.heights[i/2],fontSize:selected.fontSize});}headerRow=row+1;
+  }
+  const delta=headerRow-grid.headerRow,shift=(position:string)=>position.replace(/(\$?[A-Z]+\$?)(\d+)/g,(_,column,row)=>column+(Number(row)+delta));
+  for(const [position,value]of grid.cells){const row=Number(position.replace(/[A-Z]+/,''));if(row<grid.headerRow||row>grid.totalRow)continue;cells.set(shift(position),typeof value==='object'&&value!==null?{...value,formula:shift(value.formula)}:value);}
+  for(const range of grid.merges){const [start,end]=range.split(':').map(cell=>Number(cell.replace(/[A-Z]+/,'')));if(start>=grid.headerRow&&end<=grid.totalRow)merges.push(shift(range));}
+  const totalRow=grid.totalRow+delta;let lastRow=totalRow,certificationRow:number|undefined,certificationDateRow:number|undefined;
+  if(last){certificationRow=totalRow+2;certificationDateRow=certificationRow+2;put(certificationRow,1,CERTIFICATION);put(certificationDateRow,1,CERTIFICATION_DATE);merges.push(`A${certificationRow}:L${certificationRow}`,`A${certificationDateRow}:L${certificationDateRow}`);lastRow=certificationDateRow+2;}
+  return {...grid,cells,merges,slots:grid.slots.map(slot=>({...slot,row:slot.row+delta})),segments:grid.segments.map(segment=>({start:segment.start+delta,end:segment.end+delta})),headerRow,totalRow,lastRow,signatureRow:0,heading,introRows,certificationRow,certificationDateRow};
+ });
+}
+
 /** Combined RH and financial columns; immutable identifiers preserve payment scope. */
-export async function exportRhWorkbook(snapshot:RhSnapshot,options:{legacy?:boolean}={}):Promise<Uint8Array>{
+export async function exportRhWorkbook(snapshot:RhSnapshot,options:{legacy?:boolean;presentation?:'v2'|'v3'}={}):Promise<Uint8Array>{
  if(options.legacy||snapshot.payments===undefined)return legacyRhWorkbook(snapshot);
  assertSnapshot(snapshot);const workbook=new ExcelJS.Workbook();workbook.creator='CDInnov';workbook.created=new Date(snapshot.createdAt);workbook.modified=new Date(snapshot.createdAt);workbook.calcProperties.fullCalcOnLoad=true;
- const logo=snapshot.client.logoData||(/999021967/.test(snapshot.client.siret||'')||/etablissement public du commerce et de l.industri|\bepcic\b/i.test(snapshot.client.name)?epcicLogoData:undefined),grids=combinedGrids(snapshot);
+ const v2=options.presentation==='v2',format=v2?COMBINED_FORMAT:FINAL_FORMAT;
+ const logo=snapshot.client.logoData||(/999021967/.test(snapshot.client.siret||'')||/etablissement public du commerce et de l.industri|\bepcic\b/i.test(snapshot.client.name)?epcicLogoData:undefined),grids=v2?combinedGridsV2(snapshot):combinedGridsV3(snapshot);let pageNumber=1;
  for(const grid of grids){
   const sheet=workbook.addWorksheet(grid.name);sheet.columns=[19,14,17,15,8,15,12,12,14,16,14,12].map(width=>({width})).concat(Array.from({length:5},()=>({width:18,hidden:true})));
   for(const [cell,value]of grid.cells)sheet.getCell(cell).value=value;
   for(const slot of grid.slots){const p=slot.payment,date=p.date?new Date(p.date+'T12:00:00Z'):null,values=p.kind==='salary'?[p.reference,date,euros(p.amountCents)]:[p.organism,euros(p.amountCents),date],start=p.kind==='salary'?7:10;values.forEach((value,index)=>sheet.getCell(slot.row,start+index).value=value);}
   for(const range of grid.merges)sheet.mergeCells(range);styleSheet(sheet);
-  sheet.properties.defaultRowHeight=24;sheet.getRow(1).height=24;sheet.getRow(2).height=24;sheet.getRow(3).height=12;sheet.getRow(4).height=Math.max(38,Math.ceil(rhAttestationTitle(snapshot.client.name).length/118)*19);sheet.getRow(8).height=Math.max(48,Math.ceil(stringValue(grid.cells.get('A8')).length/165)*15+10);
-  sheet.getCell('A4').font={name:'Calibri',size:14,bold:true,color:{argb:COLORS.ink}};sheet.getCell('A5').font={name:'Calibri',size:11,bold:true,color:{argb:COLORS.ink}};for(const row of [6,7,8])sheet.getCell(row,1).font={name:'Calibri',size:10,color:{argb:COLORS.muted}};
+  sheet.properties.defaultRowHeight=24;
+  if(v2||grid.heading){const declarationRow=v2?8:5;sheet.getRow(1).height=24;sheet.getRow(2).height=24;sheet.getRow(3).height=12;sheet.getRow(4).height=Math.max(38,Math.ceil(rhAttestationTitle(snapshot.client.name).length/118)*19);sheet.getRow(declarationRow).height=Math.max(48,Math.ceil(stringValue(grid.cells.get('A'+declarationRow)).length/165)*15+10);sheet.getCell('A4').font={name:'Calibri',size:14,bold:true,color:{argb:COLORS.ink}};sheet.getCell(declarationRow,1).font={name:'Calibri',size:10,color:{argb:COLORS.muted}};
+   if(v2){sheet.getCell('A5').font={name:'Calibri',size:11,bold:true,color:{argb:COLORS.ink}};for(const row of [6,7])sheet.getCell(row,1).font={name:'Calibri',size:10,color:{argb:COLORS.muted}};}
+  }
+  for(const intro of grid.introRows||[]){sheet.getRow(intro.row).height=intro.height;for(const col of [1,7])sheet.getCell(intro.row,col).font={name:'Calibri',size:intro.fontSize,color:{argb:COLORS.ink}};}
   styleHeader(sheet,grid.headerRow,12);styleHeader(sheet,grid.headerRow+1,12);sheet.getRow(grid.headerRow).height=29;sheet.getRow(grid.headerRow+1).height=31;
   for(const segment of grid.segments)for(let row=segment.start;row<=segment.end;row++){sheet.getRow(row).height=27;for(let col=1;col<=12;col++){const cell=sheet.getCell(row,col);cell.font={name:'Calibri',size:10,color:{argb:COLORS.ink}};cell.border={bottom:{style:row===segment.end?'thin':'hair',color:{argb:COLORS.line}}};if([3,6,9,11].includes(col))cell.numFmt=EURO;if(col===5)cell.numFmt='0.00%';}}
   for(const slot of grid.slots){const first=slot.payment.kind==='salary'?7:10;for(let col=first;col<first+3;col++){const cell=sheet.getCell(slot.row,col);cell.protection={locked:false};cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:COLORS.input}};}const amount=sheet.getCell(slot.row,slot.payment.kind==='salary'?9:11);amount.dataValidation={type:'decimal',operator:'greaterThanOrEqual',formulae:[0],allowBlank:true,showErrorMessage:true,error:'Renseignez un montant positif ou nul.'};sheet.getCell(slot.row,slot.payment.kind==='salary'?8:12).numFmt='dd/mm/yyyy';}
-  sheet.getRow(grid.totalRow).font={name:'Calibri',size:10,bold:true,color:{argb:COLORS.ink}};sheet.getCell(grid.totalRow,6).numFmt=EURO;sheet.getRow(grid.totalRow+2).height=32;sheet.getRow(grid.signatureRow).height=28;
+  sheet.getRow(grid.totalRow).font={name:'Calibri',size:10,bold:true,color:{argb:COLORS.ink}};sheet.getCell(grid.totalRow,6).numFmt=EURO;
+  if(v2){sheet.getRow(grid.totalRow+2).height=32;sheet.getRow(grid.signatureRow).height=28;}else if(grid.certificationRow&&grid.certificationDateRow){sheet.getRow(grid.certificationRow).height=36;sheet.getRow(grid.certificationDateRow).height=30;for(const row of [grid.certificationRow,grid.certificationDateRow])sheet.getCell(row,1).protection={locked:false};}
   fitCombinedRowHeights(sheet,grid);
   // Keep short agent/month segments together and start a new printed page when needed.
   const heightBetween=(first:number,last:number)=>{let height=0;for(let row=first;row<=last;row++)height+=sheet.getRow(row).height||24;return height;};
+  const breaks=new Set<number>(),breakAfter=(row:number)=>{if(!breaks.has(row)){sheet.getRow(row).addPageBreak();breaks.add(row);}};
   const headerHeight=heightBetween(grid.headerRow,grid.headerRow+1),pageHeight=COMBINED_PAGE_HEIGHT;let used=heightBetween(1,grid.headerRow+1);
-  for(const segment of grid.segments){const height=heightBetween(segment.start,segment.end);if(height+headerHeight<=pageHeight){if(used+height>pageHeight){sheet.getRow(segment.start-1).addPageBreak();used=headerHeight;}used+=height;}else for(let row=segment.start;row<=segment.end;row++){const height=sheet.getRow(row).height||24;if(used+height>pageHeight){sheet.getRow(row-1).addPageBreak();used=headerHeight;}used+=height;}}
-  if(used+heightBetween(grid.totalRow,grid.lastRow)>pageHeight)sheet.getRow(grid.totalRow-1).addPageBreak();
+  for(const segment of grid.segments){const height=heightBetween(segment.start,segment.end);if(height+headerHeight<=pageHeight){if(used+height>pageHeight){breakAfter(segment.start-1);used=headerHeight;}used+=height;}else for(let row=segment.start;row<=segment.end;row++){const height=sheet.getRow(row).height||24;if(used+height>pageHeight){breakAfter(row-1);used=headerHeight;}used+=height;}}
+  if(used+heightBetween(grid.totalRow,grid.lastRow)>pageHeight)breakAfter(grid.totalRow-1);
   // Excel ignores manual breaks with Fit To enabled. Fixed scaling keeps the
   // 12 columns within A4 landscape while honoring the inserted page boundaries.
   sheet.pageSetup.fitToPage=false;sheet.pageSetup.scale=84;sheet.pageSetup.printArea=`A1:L${grid.lastRow}`;sheet.pageSetup.printTitlesRow=`${grid.headerRow}:${grid.headerRow+1}`;sheet.views=[{state:'frozen',ySplit:grid.headerRow+1,showGridLines:false}];
-  if(/marit/i.test(grid.programme))addLogo(workbook,sheet,maritimeLogoData,'left');addLogo(workbook,sheet,logo,'right',9);
+  if(!v2){sheet.headerFooter.oddFooter='&RPage &P';sheet.pageSetup.firstPageNumber=pageNumber;pageNumber+=breaks.size+1;}
+  if(v2||grid.heading){if(/marit/i.test(grid.programme))addLogo(workbook,sheet,maritimeLogoData,'left');addLogo(workbook,sheet,logo,'right',9);}
   await sheet.protect('CDInnov-RH-'+snapshot.id,{selectLockedCells:true,selectUnlockedCells:true,formatRows:true,spinCount:1000});
  }
- const meta=workbook.addWorksheet(META,{state:'veryHidden'});meta.addRows([[COMBINED_FORMAT],['versionId',snapshot.id],['documentId',snapshot.documentId],['revision',snapshot.revision],['clientId',snapshot.client.id],['rhSheets',JSON.stringify(grids.map(grid=>grid.name))]]);
+ const meta=workbook.addWorksheet(META,{state:'veryHidden'});meta.addRows([[format],['versionId',snapshot.id],['documentId',snapshot.documentId],['revision',snapshot.revision],['clientId',snapshot.client.id],['rhSheets',JSON.stringify(grids.map(grid=>grid.name))]]);
  return new Uint8Array(await workbook.xlsx.writeBuffer() as ArrayBuffer);
 }
 
@@ -263,13 +303,16 @@ function paymentDate(cell:ExcelTypes.Cell):string{
  fail('Renseignez une date Excel ou une date au format JJ/MM/AAAA.');
 }
 
-function inspectCombined(workbook:ExcelTypes.Workbook,snapshot:RhSnapshot):RhReturnInspection{
- const issues:string[]=[],payments=new Map<string,RhImportedPayment>(),issue=(message:string)=>{if(issues.length<60&&!issues.includes(message))issues.push(message);},grids=combinedGrids(snapshot),meta=workbook.getWorksheet(META);
- if(!meta||!equalCell(normalizedCell(meta.getCell('A1')),COMBINED_FORMAT)||!equalCell(normalizedCell(meta.getCell('B2')),snapshot.id)||!equalCell(normalizedCell(meta.getCell('B3')),snapshot.documentId)||!equalCell(normalizedCell(meta.getCell('B4')),snapshot.revision)||!equalCell(normalizedCell(meta.getCell('B5')),snapshot.client.id)||!equalCell(normalizedCell(meta.getCell('B6')),JSON.stringify(grids.map(grid=>grid.name))))return {payments:[],issues:['Ce classeur ne correspond pas à la version RH sélectionnée.'],complete:false};
+function inspectCombined(workbook:ExcelTypes.Workbook,snapshot:RhSnapshot,format:typeof COMBINED_FORMAT|typeof FINAL_FORMAT):RhReturnInspection{
+ const issues:string[]=[],payments=new Map<string,RhImportedPayment>(),issue=(message:string)=>{if(issues.length<60&&!issues.includes(message))issues.push(message);},grids=format===COMBINED_FORMAT?combinedGridsV2(snapshot):combinedGridsV3(snapshot),meta=workbook.getWorksheet(META);
+ if(!meta||!equalCell(normalizedCell(meta.getCell('A1')),format)||!equalCell(normalizedCell(meta.getCell('B2')),snapshot.id)||!equalCell(normalizedCell(meta.getCell('B3')),snapshot.documentId)||!equalCell(normalizedCell(meta.getCell('B4')),snapshot.revision)||!equalCell(normalizedCell(meta.getCell('B5')),snapshot.client.id)||!equalCell(normalizedCell(meta.getCell('B6')),JSON.stringify(grids.map(grid=>grid.name))))return {payments:[],issues:['Ce classeur ne correspond pas à la version RH sélectionnée.'],complete:false};
  if(workbook.worksheets.some(sheet=>![META,...grids.map(grid=>grid.name)].includes(sheet.name)))issue('Une feuille inattendue a été ajoutée au classeur.');
  for(const grid of grids){
   const sheet=workbook.getWorksheet(grid.name);if(!sheet){issue(`Feuille RH manquante : ${grid.name}.`);continue;}if(sheet.rowCount>20000){issue(`Feuille trop volumineuse : ${grid.name}.`);continue;}
-  for(const [position,expected]of grid.cells)if(!equalCell(normalizedCell(sheet.getCell(position)),expected))issue(`Donnée RH modifiée : ${grid.name}, ${position}.`);
+  for(const [position,expected]of grid.cells){const actual=normalizedCell(sheet.getCell(position));
+   if(format===FINAL_FORMAT&&[grid.certificationRow,grid.certificationDateRow].some(row=>row&&position===address(row,1))){if(actual!==null&&(typeof actual!=='string'||actual.length>1000))issue(`Certification invalide : ${grid.name}, ${position}. Saisissez du texte (1 000 caractères maximum).`);continue;}
+   if(!equalCell(actual,expected))issue(`Donnée RH modifiée : ${grid.name}, ${position}.`);
+  }
   if(JSON.stringify([...(sheet.model.merges||[])].sort())!==JSON.stringify([...grid.merges].sort()))issue(`Fusions modifiées : ${grid.name}. Conservez les lignes du document exporté.`);
   const editable=new Set<string>();for(const slot of grid.slots){const first=slot.payment.kind==='salary'?7:10;for(let column=first;column<first+3;column++)editable.add(address(slot.row,column));}
   sheet.eachRow(row=>row.eachCell(cell=>{if(cell.isMerged&&cell.master.address!==cell.address)return;if(normalizedCell(cell)!==null&&!grid.cells.has(cell.address)&&!editable.has(cell.address))issue(`Contenu RH ajouté : ${grid.name}, ${cell.address}.`);}));
@@ -296,7 +339,7 @@ export async function inspectRhReturnWorkbook(bytes:Uint8Array,snapshot:RhSnapsh
  const payments:RhImportedPayment[]=[],issues:string[]=[];const issue=(message:string)=>{if(issues.length<60&&!issues.includes(message))issues.push(message);};
  try{
   assertSnapshot(snapshot);guardZip(bytes);const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(bytes as unknown as ExcelTypes.Buffer);
-  if(workbook.getWorksheet(META)?.getCell('A1').value===COMBINED_FORMAT)return inspectCombined(workbook,snapshot);
+  const format=workbook.getWorksheet(META)?.getCell('A1').value;if(format===COMBINED_FORMAT||format===FINAL_FORMAT)return inspectCombined(workbook,snapshot,format);
   let grids=rhGrids(snapshot);
   // Files already sent to finance retain their original presentation. Select one
   // exact profile for the whole workbook; every business cell is checked as before.

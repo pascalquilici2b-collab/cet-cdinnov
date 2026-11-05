@@ -2,3 +2,5 @@
 @page rh-payment{size:A4 landscape;margin:0}
 @media print{.rh-print-document{width:297mm}.rh-print-document .rh-a4-page{print-color-adjust:exact;-webkit-print-color-adjust:exact}.rh-a4-measure,.rh-a4-controls{display:none!important}}
 @media(max-width:700px){.rh-payment-filters{grid-template-columns:1fr}.rh-a4-controls>div{flex-wrap:wrap}.rh-a4-controls{gap:10px}.rh-payroll-folder>summary{padding:14px 10px;gap:8px}.rh-payroll-folder summary .rh-badge{font-size:10px}.rh-payroll-folder .rh-file-list{padding:0 10px}.rh-payroll-folder .rh-file-amount{min-width:80px}}
+
+.rh-a4-intro{flex:none}.rh-app .rh-a4-footer{justify-content:flex-end}.rh-app .rh-a4-certification{flex:none;margin-top:auto;padding-top:20px;font:9pt/1.6 Arial,sans-serif;color:#1d2630}.rh-app .rh-a4-certification p{margin:0;font:inherit;color:inherit}.rh-a4-certification>div{display:flex;gap:55px;margin-top:14px}.rh-a4-page:has(.rh-a4-certification) .rh-a4-footer{margin-top:0}.rh-a4-measure .rh-a4-certification{margin-top:0}

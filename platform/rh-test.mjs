@@ -89,11 +89,11 @@ try{
   const available=await read(await call(`/clients/${clientId}/payroll`));assert.equal(available.payroll[0].id,sourceId);
   const next=await read(await send('POST','/documents',{name:'Réemploi fictif',clientId,periods:doc.draft.periods}),201);const reused=await read(await send('POST',`/documents/${next.id}/reuse-payroll`,{payrollIds:[sourceId]},next.version));assert.equal(reused.payroll.length,1);assert.equal(reused.payroll[0].objectKey,doc.payroll[0].objectKey);await read(await send('POST',`/documents/${next.id}/freeze`,{},reused.version),422);
  });
- await check('Financial return remains external, PDF-only is pending, original retained',async()=>{
+ await check('V3 financial return remains external, PDF-only is pending, original retained',async()=>{
   const exported=await call(`/versions/${versionId}/export`);assert.equal(exported.status,200);const bytes=new Uint8Array(await exported.arrayBuffer());assert.equal(bytes[0],80);
   const result=await read(await upload(`/versions/${versionId}/returns`,{signedPdf:pdf}),201);assert.equal(result.status,'received');assert.equal(result.inspection.complete,false);await read(await send('POST',`/versions/${versionId}/returns/${result.id}/validate`,{signatureReviewed:true,concordanceReviewed:true}),422);
   const original=await call(`/versions/${versionId}/returns/${result.id}/files/0`);assert.equal(original.status,200);assert.deepEqual(Buffer.from(await original.arrayBuffer()),Buffer.from(await pdf.arrayBuffer()));
-  const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(bytes);assert.equal(workbook.getWorksheet('Paiements'),undefined);assert.equal((await ctx.db.prepare('SELECT count(*) n FROM rh_returns').first()).n,1);
+  const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(bytes);assert.equal(workbook.getWorksheet('_CDI_RH').getCell('A1').value,'CDINNOV_RH_3');assert.equal(workbook.getWorksheet('Paiements'),undefined);assert.equal((await ctx.db.prepare('SELECT count(*) n FROM rh_returns').first()).n,1);
   const salaryId='payment-2026-01-salary',chargesId='payment-2026-01-contribution-1';let filled=0;
   for(const sheet of workbook.worksheets)for(let row=1;row<=sheet.rowCount;row++){
    if(sheet.getCell(row,14).value===salaryId){sheet.getCell(row,7).value='MANDAT-SALAIRE';sheet.getCell(row,8).value=new Date('2026-02-04T00:00:00Z');sheet.getCell(row,9).value=2800;filled++;}
@@ -131,7 +131,7 @@ try{
   const {payments:removed,...basis}=(await read(await call(`/versions/${versionId}`))).snapshot,legacyVersion=randomUUID(),historical={...basis,id:legacyVersion,documentId:legacy.id,name:legacy.draft.name,revision:1,payroll:legacy.payroll,lines:rhLines(legacy.draft,legacy.payroll)};
   await ctx.db.prepare('INSERT INTO rh_versions VALUES(?,?,?,?,?,?,?)').bind(legacyVersion,legacy.id,clientId,1,JSON.stringify(historical),historical.createdAt,'fixture').run();const path=`/versions/${legacyVersion}`;
   legacy=await read(await send('POST',path+'/reopen',{},legacy.version));assert.equal(legacy.draft.payments.length,5);assert.ok(legacy.draft.payments.every(p=>p.agentId===''&&p.amountCents===null));
-  const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(await(await call(path+'/export')).arrayBuffer());const sheet=workbook.getWorksheet('Paiements');assert.ok(sheet);
+  const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(await(await call(path+'/export')).arrayBuffer());const sheet=workbook.getWorksheet('Paiements');assert.ok(sheet);assert.equal(workbook.getWorksheet('_CDI_RH').getCell('A1').value,'CDINNOV_RH_1');
   for(const row of [10,11]){sheet.getCell(row,5).value=row===11?'Organisme historique':'';sheet.getCell(row,6).value=row===11?400:2700;sheet.getCell(row,7).value=new Date('2026-02-06T00:00:00Z');sheet.getCell(row,8).value='HISTORIQUE-'+row;}
   const returned=await read(await upload(path+'/returns',{signedPdf:pdf,excel:new Blob([await workbook.xlsx.writeBuffer()])}),201);assert.equal(returned.inspection.complete,true,JSON.stringify(returned.inspection));await read(await send('POST',path+'/returns/'+returned.id+'/validate',{signatureReviewed:true,concordanceReviewed:true}));
   const view=await read(await call(path));assert.equal(view.snapshot.payments,undefined);assert.equal(view.paymentSource,'validated-return');assert.equal(view.currentPayments.length,2);assert.ok(view.currentPayments.every(p=>p.agentId===agentId));

@@ -11,7 +11,7 @@ import './rh-payment-document.css';
 const money=(n:number|null|undefined)=>n==null?'':new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR'}).format(n/100);
 const date=(s:string)=>rhDate(s)?new Date(s+'T12:00:00').toLocaleDateString('fr-FR'):'';
 const month=(s:string)=>/^\d{4}-\d{2}$/.test(s)?new Date(s+'-01T12:00:00').toLocaleDateString('fr-FR',{month:'short',year:'2-digit'}):'À préciser';
-type Page={group:RhPaymentGroup;segments:RhPaymentSegment[];projects:RhPeriod[];cover?:boolean};
+type Page={group:RhPaymentGroup;segments:RhPaymentSegment[];intro?:boolean;introHeight?:number;introScale?:number;certification?:boolean;empty?:boolean;usedHeight:number};
 const widths=[22,15,25,30,16,23,27,23,24,25,24,23];
 
 function Table({source,segments}:{source:RhPaper;segments:RhPaymentSegment[]}){
@@ -33,27 +33,48 @@ function Heading({source,group,projects}:{source:RhPaper;group:RhPaymentGroup;pr
  <h2>{rhAttestationTitle(source.client.name)}</h2><p className="rh-paper-declaration">{rhAttestationText(source.client.name,group.periods)}</p>
  {!!projects.length&&<div className="rh-a4-projects">{projects.map(p=><div key={p.id}><strong>{source.projects.find(x=>x.id===p.projectId)?.code} · {source.projects.find(x=>x.id===p.projectId)?.name}</strong><span>{date(p.startDate)} — {date(p.endDate)}</span></div>)}</div>}</div>;
 }
-function Footer({source,page,count}:{source:RhPaper;page?:number;count?:number}){return <footer className="rh-a4-footer"><span>{source.provisional?'Document en préparation':'Version RH '+source.revision}</span><span>Date, qualité et signature du service financier : ____________________</span><span>{page?'Page '+page+' / '+count:'Page'}</span></footer>;}
+function Certification(){return <section className="rh-a4-certification"><p>Je soussigné ________________ en qualité de ______________________________, certifie les informations de paiements susmentionnées.</p><div><span>Fait à ____________</span><span>Le ___________</span></div></section>;}
+function Footer({page,count}:{page?:number;count?:number}){return <footer className="rh-a4-footer"><span>{page?'Page '+page+' / '+count:'Page'}</span></footer>;}
 
 export function RhPaymentDocument({source}:{source:RhPaper}){
  const groups=useMemo(()=>{const result=rhPaymentGroups(source);return result.length?result:[{key:'empty',name:'RH',programme:'',periods:[],blocks:[]}];},[source]);
+ const introGroup={...groups[0],periods:source.periods,programme:[...new Set(groups.map(g=>g.programme).filter(Boolean))].join(' · ')};
  const measure=useRef<HTMLDivElement>(null),viewport=useRef<HTMLDivElement>(null),pagesRef=useRef<HTMLDivElement>(null);
  const [pages,setPages]=useState<Page[]>([]),[segmentLimit,setSegmentLimit]=useState(8),[width,setWidth]=useState(1100),[zoom,setZoom]=useState('fit'),[printError,setPrintError]=useState('');
  useLayoutEffect(()=>{const element=viewport.current;if(!element)return;const observer=new ResizeObserver(entries=>setWidth(entries[0].contentRect.width));observer.observe(element);return()=>observer.disconnect();},[]);
  useLayoutEffect(()=>{
   const root=measure.current;if(!root)return;const next:Page[]=[];let smaller=false;
+  const headingHeight=root.querySelector('[data-document-heading]')!.getBoundingClientRect().height;
+  const emptyHeight=root.querySelector('[data-empty-placeholder]')!.getBoundingClientRect().height;
+  const footerHeight=root.querySelector('footer')!.getBoundingClientRect().height,certHeight=root.querySelector('.rh-a4-certification')!.getBoundingClientRect().height;
+  // The introduction belongs to the document, not to each programme/date group.
+  const available=190*96/25.4-footerHeight-4,introScale=Math.min(1,available/Math.max(1,headingHeight)),introHeight=headingHeight*introScale;
+  const heights=new Map<RhPaymentSegment,number>(),headers=new Map<string,number>();
   groups.forEach((group,groupIndex)=>{
-   const measured=root.children[groupIndex] as HTMLElement,table=measured.querySelector('table')!,rows=[...measured.querySelectorAll('tbody')];
-   const fullHeading=measured.querySelector('[data-full-heading]')!.getBoundingClientRect().height,compactHeading=measured.querySelector('[data-compact-heading]')!.getBoundingClientRect().height;
-   const header=table.querySelector('thead')!.getBoundingClientRect().height,footer=measured.querySelector('footer')!.getBoundingClientRect().height;
-   const available=210*96/25.4-20*96/25.4-header-footer-16;
-   const cover=group.periods.length>8||available-fullHeading<180,capacity=available-(cover?compactHeading:fullHeading),segments=rhPaymentSegments(group,segmentLimit);
-   if(cover)for(let i=0;i<group.periods.length;i+=8)next.push({group,projects:group.periods.slice(i,i+8),segments:[],cover:true});
-   let current:RhPaymentSegment[]=[],height=0;
-   segments.forEach((segment,i)=>{const h=rows[i]?.getBoundingClientRect().height||24;if(h>capacity&&segmentLimit>1){smaller=true;return;}if(current.length&&height+h>capacity){next.push({group,projects:cover?[]:group.periods,segments:current});current=[];height=0;}current.push(segment);height+=h;});
-   if(current.length||!segments.length)next.push({group,projects:cover?[]:group.periods,segments:current});
+   const measured=root.querySelectorAll('[data-measure-group]')[groupIndex],header=measured.querySelector('thead')!.getBoundingClientRect().height;
+   const rows=[...measured.querySelectorAll('tbody')],segments=rhPaymentSegments(group,segmentLimit);headers.set(group.key,header);
+   let current:Page={group,segments:[],intro:groupIndex===0,introHeight,introScale,usedHeight:groupIndex===0?introHeight:0};
+   segments.forEach((segment,i)=>{
+    const h=rows[i]?.getBoundingClientRect().height||24;heights.set(segment,h);
+    if(h+header>available&&segmentLimit>1){smaller=true;return;}
+    const added=h+(current.segments.length?0:header);
+    if(current.usedHeight+added>available&&(current.intro||current.segments.length)){next.push(current);current={group,segments:[],usedHeight:0};}
+    current.usedHeight+=h+(current.segments.length?0:header);current.segments.push(segment);
+   });
+   if(!segments.length){if(current.intro&&current.usedHeight+emptyHeight>available){next.push(current);current={group,segments:[],usedHeight:0};}current.usedHeight+=emptyHeight;current.empty=true;}
+   next.push(current);
   });
-  if(smaller){setSegmentLimit(1);return;}setPages(next);
+  if(smaller){setSegmentLimit(limit=>Math.max(1,Math.floor(limit/2)));return;}
+  const last=next[next.length-1];
+  if(last.usedHeight+certHeight<=available)last.certification=true;
+  else{
+   // Move only trailing table blocks when the final declaration needs its own page.
+   const header=headers.get(last.group.key)||0,moved:RhPaymentSegment[]=[];let height=header;
+   while(last.segments.length){const candidate=last.segments[last.segments.length-1],h=heights.get(candidate)||24;if(height+h+certHeight>available)break;moved.unshift(last.segments.pop()!);height+=h;last.usedHeight-=h;}
+   if(!last.segments.length&&!last.intro)next.pop();
+   next.push({group:last.group,segments:moved,usedHeight:moved.length?height:0,certification:true});
+  }
+  setPages(next);
  },[groups,segmentLimit]);
  const scale=zoom==='100'?1:Math.max(.15,Math.min(1,(width-2)/(297*96/25.4)));
  const print=()=>{
@@ -67,7 +88,7 @@ export function RhPaymentDocument({source}:{source:RhPaper}){
  return <div className="rh-a4-viewer" ref={viewport}>
   <div className="rh-a4-controls"><span>A4 paysage · {pages.length||1} page{pages.length>1?'s':''}</span><div><label><ZoomIn size={16}/><select aria-label="Zoom du document" value={zoom} onChange={e=>setZoom(e.target.value)}><option value="fit">Adapter à l’écran</option><option value="100">Taille réelle · 100 %</option></select></label><button type="button" className="rh-button" disabled={!pages.length} onClick={print}><span><Printer size={16}/>Imprimer / PDF</span></button></div></div>
   {printError&&<p role="alert" className="rh-error">{printError}</p>}
-  <div className="rh-a4-scroll"><div className="rh-a4-pages" ref={pagesRef}>{pages.map((page,i)=><div className="rh-a4-sheet-wrap" key={page.group.key+'|'+i} style={{width:297*96/25.4*scale,height:210*96/25.4*scale}}><article className="rh-a4-page rh-paper" style={{transform:`scale(${scale})`}} aria-label={'Page '+(i+1)+' du document'}><Heading source={source} group={page.group} projects={page.projects}/>{!page.cover&&(page.segments.length?<Table source={source} segments={page.segments}/>:<p className="rh-paper-placeholder">{page.group.periods.length?'Agents et périodes à compléter':'Projets et périodes à compléter'}</p>)}<Footer source={source} page={i+1} count={pages.length}/></article></div>)}</div></div>
-  <div className="rh-a4-measure" ref={measure} aria-hidden="true">{groups.map(group=><div className="rh-a4-page" key={group.key}><div data-full-heading><Heading source={source} group={group} projects={group.periods}/></div><div data-compact-heading><Heading source={source} group={group} projects={[]}/></div><Table source={source} segments={rhPaymentSegments(group,segmentLimit)}/><Footer source={source}/></div>)}</div>
+  <div className="rh-a4-scroll"><div className="rh-a4-pages" ref={pagesRef}>{pages.map((page,i)=><div className="rh-a4-sheet-wrap" key={page.group.key+'|'+i} style={{width:297*96/25.4*scale,height:210*96/25.4*scale}}><article className="rh-a4-page rh-paper" style={{transform:`scale(${scale})`}} aria-label={'Page '+(i+1)+' du document'}>{page.intro&&<div className="rh-a4-intro" style={page.introScale!<1?{height:page.introHeight}:undefined}><div style={page.introScale!<1?{transform:`scale(${page.introScale})`,transformOrigin:'top left'}:undefined}><Heading source={source} group={introGroup} projects={source.periods}/></div></div>}{page.segments.length?<Table source={source} segments={page.segments}/>:page.empty&&<p className="rh-paper-placeholder">{source.periods.length?'Agents et périodes à compléter':'Projets et périodes à compléter'}</p>}{page.certification&&<Certification/>}<Footer page={i+1} count={pages.length}/></article></div>)}</div></div>
+  <div className="rh-a4-measure" ref={measure} aria-hidden="true"><div className="rh-a4-page"><div data-document-heading><Heading source={source} group={introGroup} projects={source.periods}/></div><Certification/><Footer/><p className="rh-paper-placeholder" data-empty-placeholder>Agents et périodes à compléter</p></div>{groups.map(group=><div className="rh-a4-page" data-measure-group key={group.key}><Table source={source} segments={rhPaymentSegments(group,segmentLimit)}/></div>)}</div>
  </div>;
 }
