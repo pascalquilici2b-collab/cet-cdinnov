@@ -72,10 +72,10 @@ try{
   const personal={...payments[0],id:'personal-salary',agentId,amountCents:123};const combined=normalizeRhPayments([...payments,personal],doc.draft.periods);const shown=rhPaymentsForAgent(combined,agentId,'2026-01');assert.equal(shown.filter(p=>p.kind==='salary').length,1);assert.equal(shown.find(p=>p.kind==='salary').id,'personal-salary');assert.equal(shown.filter(p=>p.kind==='contribution').length,4);
  });
  await check('Frozen exact cents, source hash and immutable history',async()=>{
-  const frozen=await read(await send('POST',`/documents/${doc.id}/freeze`,{},doc.version),201);versionId=frozen.version.id;doc=frozen.document;assert.equal(frozen.version.lines[0].allocatedCents,Math.round(432167*3333/10000));assert.equal(frozen.version.payroll[0].sha256,createHash('sha256').update(Buffer.from(await pdf.arrayBuffer())).digest('hex'));
+  const frozen=await read(await send('POST',`/documents/${doc.id}/freeze`,{},doc.version),201);versionId=frozen.version.id;doc=frozen.document;assert.equal(doc.status,'finalized');assert.equal((await read(await call('/documents'))).documents.find(d=>d.id===doc.id).status,'finalized');assert.equal(frozen.version.lines[0].allocatedCents,Math.round(432167*3333/10000));assert.equal(frozen.version.payroll[0].sha256,createHash('sha256').update(Buffer.from(await pdf.arrayBuffer())).digest('hex'));
   assert.deepEqual(frozen.version.payments,doc.draft.payments);assert.equal(frozen.version.payments[0].amountCents,0);
   await assert.rejects(ctx.db.prepare("UPDATE rh_versions SET data_json='{}' WHERE id=?").bind(versionId).run(),/IMMUTABLE/);assert.equal((await ctx.db.prepare('SELECT count(*) n FROM rh_payroll_history WHERE payroll_id=?').bind(sourceId).first()).n,2);
-  doc=await read(await send('PUT',`/documents/${doc.id}`,{...doc.draft,name:'Brouillon modifié'},doc.version));assert.equal((await read(await call(`/versions/${versionId}`))).snapshot.name,'RH janvier — fictif');
+  doc=await read(await send('PUT',`/documents/${doc.id}`,{...doc.draft,name:'Brouillon modifié'},doc.version));assert.equal(doc.status,'in_progress');assert.equal((await read(await call(`/versions/${versionId}`))).snapshot.name,'RH janvier — fictif');
  });
  await check('Reopening financial entry preserves newer drafts and rejects stale RH or payroll versions',async()=>{
   const path=`/versions/${versionId}`,before=JSON.stringify((await read(await call(path))).snapshot);assert.equal((await read(await call(path))).canReopen,false);await read(await send('POST',path+'/reopen',{},doc.version),409);
@@ -89,11 +89,11 @@ try{
   const available=await read(await call(`/clients/${clientId}/payroll`));assert.equal(available.payroll[0].id,sourceId);
   const next=await read(await send('POST','/documents',{name:'Réemploi fictif',clientId,periods:doc.draft.periods}),201);const reused=await read(await send('POST',`/documents/${next.id}/reuse-payroll`,{payrollIds:[sourceId]},next.version));assert.equal(reused.payroll.length,1);assert.equal(reused.payroll[0].objectKey,doc.payroll[0].objectKey);await read(await send('POST',`/documents/${next.id}/freeze`,{},reused.version),422);
  });
- await check('V4 financial return remains external, PDF-only is pending, original retained',async()=>{
+ await check('V5 financial return remains external, PDF-only is pending, original retained',async()=>{
   const exported=await call(`/versions/${versionId}/export`);assert.equal(exported.status,200);const bytes=new Uint8Array(await exported.arrayBuffer());assert.equal(bytes[0],80);
   const result=await read(await upload(`/versions/${versionId}/returns`,{signedPdf:pdf}),201);assert.equal(result.status,'received');assert.equal(result.inspection.complete,false);await read(await send('POST',`/versions/${versionId}/returns/${result.id}/validate`,{signatureReviewed:true,concordanceReviewed:true}),422);
   const original=await call(`/versions/${versionId}/returns/${result.id}/files/0`);assert.equal(original.status,200);assert.deepEqual(Buffer.from(await original.arrayBuffer()),Buffer.from(await pdf.arrayBuffer()));
-  const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(bytes);assert.equal(workbook.getWorksheet('_CDI_RH').getCell('A1').value,'CDINNOV_RH_4');assert.equal(workbook.getWorksheet('Paiements'),undefined);assert.equal((await ctx.db.prepare('SELECT count(*) n FROM rh_returns').first()).n,1);
+  const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(bytes);assert.equal(workbook.getWorksheet('_CDI_RH').getCell('A1').value,'CDINNOV_RH_5');assert.equal(workbook.getWorksheet('Paiements'),undefined);assert.equal((await ctx.db.prepare('SELECT count(*) n FROM rh_returns').first()).n,1);
   const salaryId='payment-2026-01-salary',chargesId='payment-2026-01-contribution-1';let filled=0;
   for(const sheet of workbook.worksheets)for(let row=1;row<=sheet.rowCount;row++){
    if(sheet.getCell(row,14).value===salaryId){sheet.getCell(row,7).value='MANDAT-SALAIRE';sheet.getCell(row,8).value=new Date('2026-02-04T00:00:00Z');sheet.getCell(row,9).value=2800;filled++;}
@@ -152,6 +152,26 @@ try{
   const base={name:'Test',clientId,periods:[{id:periodId,projectId,startDate:'2026-01-01',endDate:'2026-01-31',agents:[{agentId,rateBasisPoints:5000}]}]};assert.throws(()=>normalizeRhDraft({...base,periods:[{...base.periods[0],startDate:'2026-01-02'}]}));assert.throws(()=>normalizeRhDraft({...base,periods:[...base.periods,{...base.periods[0],id:randomUUID()}]}));
   const files=[{id:sourceId,agentId,month:'2026-01',confirmed:true,employerCostCents:432167,netBeforeTaxCents:null}];assert.equal(rhLines(base,files)[0].allocatedCents,216084);assert.ok(rhIssues(base,files,[{id:agentId,name:'Alex Test',allocations:[{projectId:'elsewhere',percent:'60',startDate:'2026-01-01',endDate:'2026-01-31'}]}]).some(s=>s.includes('100')));
   const blank=rhDefaultPayments(base),extended={...base,periods:base.periods.map(p=>({...p,endDate:'2026-02-28'})),payments:blank};assert.equal(rhCompletePaymentSlots(extended).length,10);assert.equal(rhCompletePaymentSlots({...base,payments:[]}).length,5);assert.equal(normalizeRhDraft({...base,periods:base.periods.map(p=>({...p,startDate:'2026-02-01',endDate:'2026-02-28'})),payments:blank}).payments.length,5);assert.throws(()=>normalizeRhDraft({...extended,periods:extended.periods.map(p=>({...p,startDate:'2026-02-01'})),payments:blank.map((p,i)=>i===0?{...p,amountCents:0}:p)}));
+ });
+ await check('Document lifecycle, recoverable deletion and server-owned workflow preserve shared records',async()=>{
+  const blank=await read(await send('POST','/documents',{name:'Brouillon test corbeille',clientId,periods:[],_workflow:'finalized',_deletedAt:stamp}),201);assert.equal(blank.status,'draft');assert.equal(blank.draft._workflow,undefined);assert.equal(blank.draft._deletedAt,undefined);
+  const progress=await read(await send('POST','/documents',{name:'En cours test corbeille',clientId,periods:doc.draft.periods}),201);assert.equal(progress.status,'in_progress');
+  doc=await read(await call('/documents/'+doc.id));assert.equal(doc.status,'finalized');
+  const sharedBefore=JSON.stringify((await ctx.db.prepare('SELECT * FROM client_employee_spaces').all()).results),linksBefore=JSON.stringify((await ctx.db.prepare('SELECT * FROM rh_agent_projects').all()).results),versionsBefore=JSON.stringify((await ctx.db.prepare('SELECT * FROM rh_versions').all()).results),payrollBefore=JSON.stringify((await ctx.db.prepare('SELECT * FROM rh_payroll_files').all()).results);
+  for(const value of [blank,progress,doc]){
+   await read(await send('DELETE','/documents/'+value.id,undefined,value.version-1),409);
+   const deleted=await read(await send('DELETE','/documents/'+value.id,undefined,value.version));assert.equal(deleted.deleted,true);
+   assert.ok(!(await read(await call('/documents'))).documents.some(d=>d.id===value.id));
+   const trash=await read(await call('/documents?trash=1'));assert.equal(trash.documents.find(d=>d.id===value.id).status,value.status);
+   await read(await call('/documents/'+value.id),404);await read(await send('PUT','/documents/'+value.id,value.draft,deleted.version),404);
+   if(value.versions.length){const vid=value.versions[0].id;assert.ok(!(await read(await call('/versions'))).versions.some(v=>v.id===vid));await read(await call('/versions/'+vid));await read(await send('POST','/versions/'+vid+'/reopen',{},deleted.version),404);await read(await send('POST','/versions/'+vid+'/stamping',{}),404);}
+   await read(await send('POST','/documents/'+value.id+'/restore',{},value.version),409);
+   const restored=await read(await send('POST','/documents/'+value.id+'/restore',{},deleted.version));assert.equal(restored.status,value.status);assert.deepEqual(restored.draft,value.draft);
+   assert.ok((await read(await call('/documents'))).documents.some(d=>d.id===value.id));assert.ok(!(await read(await call('/documents?trash=1'))).documents.some(d=>d.id===value.id));
+   if(value.id===doc.id)doc=restored;
+  }
+  assert.equal(JSON.stringify((await ctx.db.prepare('SELECT * FROM client_employee_spaces').all()).results),sharedBefore);assert.equal(JSON.stringify((await ctx.db.prepare('SELECT * FROM rh_agent_projects').all()).results),linksBefore);assert.equal(JSON.stringify((await ctx.db.prepare('SELECT * FROM rh_versions').all()).results),versionsBefore);assert.equal(JSON.stringify((await ctx.db.prepare('SELECT * FROM rh_payroll_files').all()).results),payrollBefore);
+  const forged=await read(await send('PUT','/documents/'+doc.id,{...doc.draft,_workflow:'finalized',_deletedAt:stamp},doc.version));assert.equal(forged.status,'in_progress');assert.equal(forged.draft._deletedAt,undefined);doc=forged;
  });
  console.log(JSON.stringify({checks,engineCalls,status:'passed',environment:'isolated D1/R2 with synthetic payroll engine'}));
 }finally{await ctx.worker.dispose();}

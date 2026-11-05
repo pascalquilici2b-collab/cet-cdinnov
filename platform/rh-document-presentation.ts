@@ -5,6 +5,14 @@ const monthLabel=(date:string)=>new Intl.DateTimeFormat('fr-FR',{month:'long',ye
 
 export const rhAttestationTitle=(clientName:string)=>`Programme de coopération INTERREG : Attestation de paiement des ressources humaines de ${clientName}`;
 
+/** Visible labels shared by the current preview, PDF and Excel presentation. */
+export const rhPaymentTableLabels={
+ rh:['Agent','Bulletins de salaire','Montant mensuel versé par l’employeur','Projet','% de temps de travail sur le projet','Montant total rendu-compte sur le projet'],
+ groups:['Informations sur le paiement des SALAIRES','Informations sur le paiement des CHARGES'],
+ salary:['N° de mandat de paiement','Date de paiement effectif','Montant du mandat de paiement'],
+ contribution:['Organismes','Montant total versé aux organismes','Date de paiement effectif'],
+} as const;
+
 /** Each sheet has its own date range; unfinished dates remain explicit in the preview. */
 export function rhAttestationText(clientName:string,periods:PeriodDates[]):string{
  const starts=periods.map(p=>p.startDate).sort(),ends=periods.map(p=>p.endDate).sort();

@@ -6,9 +6,10 @@ import {zipSync} from 'fflate';
 const root=fileURLToPath(new URL('../',import.meta.url));
 await mkdir(path.join(root,'.build'),{recursive:true});
 const output=await mkdtemp(path.join(root,'.build','frontend-'));
-const selected=new Set(['index.html','favicon.ico','manifest.webmanifest','logo (1).png','modele_suivi_CET.xlsx']);
+const selected=new Set(['index.html','favicon.ico','manifest.webmanifest','logo (1).png','modele_suivi_CET.xlsx','templates/client-mission-v2.docx']);
 // Explicit published asset roots. Source, audits, tests, server, templates and
 // private working folders are never placed in the public deployment.
+// Only the reviewed, placeholder-only mission template above is published.
 async function tree(dir){for(const item of await readdir(path.join(root,dir),{withFileTypes:true})){
   if(item.name.startsWith('.')||item.name==='node_modules')continue;
   const rel=dir+'/'+item.name;

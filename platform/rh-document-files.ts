@@ -4,13 +4,14 @@ import {Unzip,UnzipInflate} from 'fflate';
 import type {RhSnapshot,RhLine,RhImportedPayment,RhReturnInspection,RhPaymentEntry} from './rh-domain';
 import {rhDate,rhMonth} from './rh-domain';
 import {maritimeLogoData,epcicLogoData} from './rh-workbook-branding';
-import {rhAttestationTitle,rhAttestationText} from './rh-document-presentation';
+import {rhAttestationTitle,rhAttestationText,rhPaymentTableLabels} from './rh-document-presentation';
 import {rhPaymentGroups,type RhPaymentSource,type RhPaymentLine} from './rh-payment-layout';
 
 const FORMAT='CDINNOV_RH_1';
 const COMBINED_FORMAT='CDINNOV_RH_2';
 const FINAL_FORMAT='CDINNOV_RH_3';
 const MERGED_FORMAT='CDINNOV_RH_4';
+const SHARED_LABEL_FORMAT='CDINNOV_RH_5';
 const PREVIEW_FORMAT='CDINNOV_RH_PREVIEW_1';
 const CERTIFICATION='Je soussigné ________________ en qualité de ______________________________, certifie les informations de paiements susmentionnées.';
 const CERTIFICATION_DATE='Fait à ____________    Le ___________';
@@ -91,10 +92,10 @@ function imageSize(data:string){
  if(data.startsWith('data:image/jpeg'))for(let i=2;i+9<bytes.length;){if(bytes[i]!==255){i++;continue;}const marker=bytes[i+1],len=(bytes[i+2]<<8)+bytes[i+3];if([192,193,194].includes(marker))return {height:(bytes[i+5]<<8)+bytes[i+6],width:(bytes[i+7]<<8)+bytes[i+8]};if(len<2)break;i+=len+2;}
  return {width:3,height:1};
 }
-function addLogo(workbook:ExcelTypes.Workbook,sheet:ExcelTypes.Worksheet,data:string|undefined,side:'left'|'right',rightColumn=5.5){
+function addLogo(workbook:ExcelTypes.Workbook,sheet:ExcelTypes.Worksheet,data:string|undefined,side:'left'|'right',rightColumn=5.5,enlargement=1){
  if(!data||data.length>500000||!/^data:image\/(png|jpeg);base64,[A-Za-z0-9+/]+=*$/.test(data))return;
  const size=imageSize(data);if(!size.width||!size.height)return;
- const scale=Math.min(220/size.width,60/size.height),width=size.width*scale,height=size.height*scale;
+ const scale=Math.min(220*enlargement/size.width,60*enlargement/size.height),width=size.width*scale,height=size.height*scale;
  const cached=logoCache.get(workbook)||new Map<string,number>();logoCache.set(workbook,cached);
  let id=cached.get(data);if(id===undefined){id=workbook.addImage({base64:data,extension:data.startsWith('data:image/png')?'png':'jpeg'});cached.set(data,id);}
  sheet.addImage(id,{tl:{col:side==='left'?0:rightColumn,row:.1},ext:{width,height},editAs:'oneCell'});
@@ -192,6 +193,10 @@ function combinedGridsV2(snapshot:RhGridSource):CombinedGrid[]{
 
 /** A separate immutable presentation profile keeps already-issued V2 readable. */
 function combinedGridsV3(snapshot:RhGridSource):CombinedGrid[]{
+ return finalCombinedGrids(snapshot);
+}
+
+function finalCombinedGrids(snapshot:RhGridSource,current=false):CombinedGrid[]{
  const previous=combinedGridsV2(snapshot);
  return previous.map((grid,index)=>{
   const cells=new Map<string,ExpectedValue>(),merges:string[]=[],introRows:{row:number;height:number;fontSize:number}[]=[],heading=index===0,last=index===previous.length-1;
@@ -200,8 +205,9 @@ function combinedGridsV3(snapshot:RhGridSource):CombinedGrid[]{
   if(heading){
    const title=rhAttestationTitle(snapshot.client.name),declaration=rhAttestationText(snapshot.client.name,snapshot.periods);
    put(4,1,title);put(5,1,declaration);merges.push('A4:L4','A5:L5');
-   const titleHeight=Math.max(38,Math.ceil(title.length/118)*19,wrappedHeight(title,1226,14)),declarationHeight=Math.max(48,Math.ceil(declaration.length/165)*15+10,wrappedHeight(declaration,1226,10));
-   const available=COMBINED_PAGE_HEIGHT-168-titleHeight-declarationHeight;
+   const titleHeight=Math.max(38,Math.ceil(title.length/118)*19,wrappedHeight(title,1226,14)),declarationHeight=Math.max(48,Math.ceil(declaration.length/165)*15+10,wrappedHeight(declaration,1226,current?11:10));
+   // Current labels need taller table headers; retain the historic budget for V3/V4.
+   const available=COMBINED_PAGE_HEIGHT-(current?216:168)-titleHeight-declarationHeight;
    let selected:{labels:string[];heights:number[];fontSize:number}|undefined;
    for(const limit of [Infinity,120,80,48,28]){for(const fontSize of [9,8.5,8,7.5,7]){
     const labels=snapshot.periods.map(period=>{const project=snapshot.projects.find(p=>p.id===period.projectId)!,name=project.name.length>limit?project.name.slice(0,limit-1)+'…':project.name;return `${[name,project.code].filter(Boolean).join(' · ')} · ${titleDate(period.startDate)} — ${titleDate(period.endDate)}`;}),heights:number[]=[];
@@ -221,7 +227,11 @@ function combinedGridsV3(snapshot:RhGridSource):CombinedGrid[]{
 }
 
 function combinedGridsV4(snapshot:RhGridSource):CombinedGrid[]{
- return combinedGridsV3(snapshot).map(grid=>{
+ return mergeCombinedAgents(combinedGridsV3(snapshot));
+}
+
+function mergeCombinedAgents(grids:CombinedGrid[]):CombinedGrid[]{
+ return grids.map(grid=>{
   const cells=new Map(grid.cells),firstData=grid.headerRow+2,lastData=grid.totalRow-1;
   if(grid.certificationDateRow)cells.set(address(grid.certificationDateRow,1),CERTIFICATION_DATE_V4);
   const merges=grid.merges.filter(range=>{const match=/^A(\d+):A(\d+)$/.exec(range);return !match||Number(match[1])<firstData||Number(match[2])>lastData;});
@@ -233,6 +243,16 @@ function combinedGridsV4(snapshot:RhGridSource):CombinedGrid[]{
  });
 }
 
+function combinedGridsV5(snapshot:RhGridSource):CombinedGrid[]{
+ return mergeCombinedAgents(finalCombinedGrids(snapshot,true)).map(grid=>{
+  const cells=new Map(grid.cells),row=grid.headerRow;
+  rhPaymentTableLabels.rh.forEach((label,index)=>cells.set(address(row,index+1),label));
+  rhPaymentTableLabels.groups.forEach((label,index)=>cells.set(address(row,7+index*3),label));
+  [...rhPaymentTableLabels.salary,...rhPaymentTableLabels.contribution].forEach((label,index)=>cells.set(address(row+1,7+index),label));
+  return {...grid,cells};
+ });
+}
+
 function combinedBorders(sheet:ExcelTypes.Worksheet,grid:CombinedGrid){
  const border={style:'thin' as const,color:{argb:'FF65717F'}},outline={top:border,bottom:border,left:border,right:border};
  for(let row=grid.headerRow;row<=grid.totalRow;row++)for(let column=1;column<=12;column++)sheet.getCell(row,column).border=outline;
@@ -241,7 +261,7 @@ function combinedBorders(sheet:ExcelTypes.Worksheet,grid:CombinedGrid){
 }
 
 /** Combined RH and financial columns; immutable identifiers preserve payment scope. */
-export async function exportRhWorkbook(snapshot:RhSnapshot,options:{legacy?:boolean;presentation?:'v2'|'v3'|'v4'}={}):Promise<Uint8Array>{
+export async function exportRhWorkbook(snapshot:RhSnapshot,options:{legacy?:boolean;presentation?:'v2'|'v3'|'v4'|'v5'}={}):Promise<Uint8Array>{
  if(options.legacy||snapshot.payments===undefined)return legacyRhWorkbook(snapshot);
  assertSnapshot(snapshot);return writeCombinedWorkbook(snapshot,options);
 }
@@ -256,13 +276,13 @@ export async function exportRhPreviewWorkbook(source:RhPaymentSource&{name:strin
   if(line.rateBasisPoints!==null&&line.rateBasisPoints>10000||line.allocatedCents!==null&&(line.employerCostCents===null||line.rateBasisPoints===null||Math.round(line.employerCostCents*line.rateBasisPoints/10000)!==line.allocatedCents))fail('Une imputation de l’aperçu est incohérente.');
  }
  const snapshot:RhGridSource={...source,id:'preview-'+crypto.randomUUID(),documentId:source.documentId||'',revision:source.revision??0,name:source.name.trim(),payroll:[],createdAt:new Date().toISOString(),createdBy:''};
- return writeCombinedWorkbook(snapshot,{presentation:'v4'},true);
+ return writeCombinedWorkbook(snapshot,{presentation:'v5'},true);
 }
 
-async function writeCombinedWorkbook(snapshot:RhGridSource,options:{presentation?:'v2'|'v3'|'v4'},preview=false):Promise<Uint8Array>{
+async function writeCombinedWorkbook(snapshot:RhGridSource,options:{presentation?:'v2'|'v3'|'v4'|'v5'},preview=false):Promise<Uint8Array>{
  const workbook=new ExcelJS.Workbook();workbook.creator='CDInnov';workbook.created=new Date(snapshot.createdAt);workbook.modified=new Date(snapshot.createdAt);workbook.calcProperties.fullCalcOnLoad=true;
- const v2=options.presentation==='v2',v3=options.presentation==='v3',format=preview?PREVIEW_FORMAT:v2?COMBINED_FORMAT:v3?FINAL_FORMAT:MERGED_FORMAT;
- const logo=snapshot.client.logoData||(/999021967/.test(snapshot.client.siret||'')||/etablissement public du commerce et de l.industri|\bepcic\b/i.test(snapshot.client.name)?epcicLogoData:undefined),grids=v2?combinedGridsV2(snapshot):v3?combinedGridsV3(snapshot):combinedGridsV4(snapshot);let pageNumber=1;
+ const v2=options.presentation==='v2',v3=options.presentation==='v3',v4=options.presentation==='v4',current=!v2&&!v3&&!v4,format=preview?PREVIEW_FORMAT:v2?COMBINED_FORMAT:v3?FINAL_FORMAT:v4?MERGED_FORMAT:SHARED_LABEL_FORMAT;
+ const logo=snapshot.client.logoData||(/999021967/.test(snapshot.client.siret||'')||/etablissement public du commerce et de l.industri|\bepcic\b/i.test(snapshot.client.name)?epcicLogoData:undefined),grids=v2?combinedGridsV2(snapshot):v3?combinedGridsV3(snapshot):v4?combinedGridsV4(snapshot):combinedGridsV5(snapshot);let pageNumber=1;
  for(const grid of grids){
   const sheet=workbook.addWorksheet(grid.name);sheet.columns=[19,14,17,15,8,15,12,12,14,16,14,12].map(width=>({width})).concat(Array.from({length:5},()=>({width:18,hidden:true})));
   // A draft is a point-in-time preview: static known amounts avoid Excel turning
@@ -271,11 +291,12 @@ async function writeCombinedWorkbook(snapshot:RhGridSource,options:{presentation
   for(const slot of grid.slots){const p=slot.payment,date=p.date?new Date(p.date+'T12:00:00Z'):null,values=p.kind==='salary'?[p.reference,date,euros(p.amountCents)]:[p.organism,euros(p.amountCents),date],start=p.kind==='salary'?7:10;values.forEach((value,index)=>sheet.getCell(slot.row,start+index).value=value);}
   for(const range of grid.merges)sheet.mergeCells(range);styleSheet(sheet);
   sheet.properties.defaultRowHeight=24;
-  if(v2||grid.heading){const declarationRow=v2?8:5;sheet.getRow(1).height=24;sheet.getRow(2).height=24;sheet.getRow(3).height=12;sheet.getRow(4).height=Math.max(38,Math.ceil(rhAttestationTitle(snapshot.client.name).length/118)*19);sheet.getRow(declarationRow).height=Math.max(48,Math.ceil(stringValue(grid.cells.get('A'+declarationRow)).length/165)*15+10);sheet.getCell('A4').font={name:'Calibri',size:14,bold:true,color:{argb:COLORS.ink}};sheet.getCell(declarationRow,1).font={name:'Calibri',size:10,color:{argb:COLORS.muted}};
+  if(v2||grid.heading){const declarationRow=v2?8:5;sheet.getRow(1).height=current?28:24;sheet.getRow(2).height=current?28:24;sheet.getRow(3).height=12;sheet.getRow(4).height=Math.max(38,Math.ceil(rhAttestationTitle(snapshot.client.name).length/118)*19);sheet.getRow(declarationRow).height=Math.max(48,Math.ceil(stringValue(grid.cells.get('A'+declarationRow)).length/165)*15+10);sheet.getCell('A4').font={name:'Calibri',size:14,bold:true,color:{argb:COLORS.ink}};sheet.getCell(declarationRow,1).font={name:'Calibri',size:current?11:10,color:{argb:current?'FF000000':COLORS.muted}};
    if(v2){sheet.getCell('A5').font={name:'Calibri',size:11,bold:true,color:{argb:COLORS.ink}};for(const row of [6,7])sheet.getCell(row,1).font={name:'Calibri',size:10,color:{argb:COLORS.muted}};}
   }
   for(const intro of grid.introRows||[]){sheet.getRow(intro.row).height=intro.height;for(const col of [1,7])sheet.getCell(intro.row,col).font={name:'Calibri',size:intro.fontSize,color:{argb:COLORS.ink}};}
   styleHeader(sheet,grid.headerRow,12);styleHeader(sheet,grid.headerRow+1,12);sheet.getRow(grid.headerRow).height=29;sheet.getRow(grid.headerRow+1).height=31;
+  if(current)for(const row of [grid.headerRow,grid.headerRow+1])for(let col=1;col<=12;col++)sheet.getCell(row,col).font={...sheet.getCell(row,col).font,size:8.5};
   for(const segment of grid.segments)for(let row=segment.start;row<=segment.end;row++){sheet.getRow(row).height=27;for(let col=1;col<=12;col++){const cell=sheet.getCell(row,col);cell.font={name:'Calibri',size:10,color:{argb:COLORS.ink}};cell.border={bottom:{style:row===segment.end?'thin':'hair',color:{argb:COLORS.line}}};if([3,6,9,11].includes(col))cell.numFmt=EURO;if(col===5)cell.numFmt='0.00%';}}
   for(const slot of grid.slots){const first=slot.payment.kind==='salary'?7:10;for(let col=first;col<first+3;col++){const cell=sheet.getCell(slot.row,col);cell.protection={locked:false};cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:COLORS.input}};}const amount=sheet.getCell(slot.row,slot.payment.kind==='salary'?9:11);amount.dataValidation={type:'decimal',operator:'greaterThanOrEqual',formulae:[0],allowBlank:true,showErrorMessage:true,error:'Renseignez un montant positif ou nul.'};sheet.getCell(slot.row,slot.payment.kind==='salary'?8:12).numFmt='dd/mm/yyyy';}
   sheet.getRow(grid.totalRow).font={name:'Calibri',size:10,bold:true,color:{argb:COLORS.ink}};sheet.getCell(grid.totalRow,6).numFmt=EURO;
@@ -296,7 +317,7 @@ async function writeCombinedWorkbook(snapshot:RhGridSource,options:{presentation
   // 12 columns within A4 landscape while honoring the inserted page boundaries.
   sheet.pageSetup.fitToPage=false;sheet.pageSetup.scale=84;sheet.pageSetup.printArea=`A1:L${grid.lastRow}`;sheet.pageSetup.printTitlesRow=`${grid.headerRow}:${grid.headerRow+1}`;sheet.views=[{state:'frozen',ySplit:grid.headerRow+1,showGridLines:false}];
   if(!v2){sheet.headerFooter.oddFooter='&RPage &P';sheet.pageSetup.firstPageNumber=pageNumber;pageNumber+=breaks.size+1;}
-  if(v2||grid.heading){if(/marit/i.test(grid.programme))addLogo(workbook,sheet,maritimeLogoData,'left');addLogo(workbook,sheet,logo,'right',9);}
+  if(v2||grid.heading){if(/marit/i.test(grid.programme))addLogo(workbook,sheet,maritimeLogoData,'left',5.5,current?1.18:1);addLogo(workbook,sheet,logo,'right',9,current?1.18:1);}
   await sheet.protect('CDInnov-RH-'+snapshot.id,{selectLockedCells:true,selectUnlockedCells:true,formatRows:true,spinCount:1000});
  }
  const meta=workbook.addWorksheet(META,{state:'veryHidden'});meta.addRows([[format],['versionId',snapshot.id],['documentId',snapshot.documentId],['revision',snapshot.revision],['clientId',snapshot.client.id],['rhSheets',JSON.stringify(grids.map(grid=>grid.name))]]);
@@ -351,8 +372,8 @@ function paymentDate(cell:ExcelTypes.Cell):string{
  fail('Renseignez une date Excel ou une date au format JJ/MM/AAAA.');
 }
 
-function inspectCombined(workbook:ExcelTypes.Workbook,snapshot:RhSnapshot,format:typeof COMBINED_FORMAT|typeof FINAL_FORMAT|typeof MERGED_FORMAT):RhReturnInspection{
- const issues:string[]=[],payments=new Map<string,RhImportedPayment>(),issue=(message:string)=>{if(issues.length<60&&!issues.includes(message))issues.push(message);},grids=format===COMBINED_FORMAT?combinedGridsV2(snapshot):format===FINAL_FORMAT?combinedGridsV3(snapshot):combinedGridsV4(snapshot),meta=workbook.getWorksheet(META);
+function inspectCombined(workbook:ExcelTypes.Workbook,snapshot:RhSnapshot,format:typeof COMBINED_FORMAT|typeof FINAL_FORMAT|typeof MERGED_FORMAT|typeof SHARED_LABEL_FORMAT):RhReturnInspection{
+ const issues:string[]=[],payments=new Map<string,RhImportedPayment>(),issue=(message:string)=>{if(issues.length<60&&!issues.includes(message))issues.push(message);},grids=format===COMBINED_FORMAT?combinedGridsV2(snapshot):format===FINAL_FORMAT?combinedGridsV3(snapshot):format===MERGED_FORMAT?combinedGridsV4(snapshot):combinedGridsV5(snapshot),meta=workbook.getWorksheet(META);
  if(!meta||!equalCell(normalizedCell(meta.getCell('A1')),format)||!equalCell(normalizedCell(meta.getCell('B2')),snapshot.id)||!equalCell(normalizedCell(meta.getCell('B3')),snapshot.documentId)||!equalCell(normalizedCell(meta.getCell('B4')),snapshot.revision)||!equalCell(normalizedCell(meta.getCell('B5')),snapshot.client.id)||!equalCell(normalizedCell(meta.getCell('B6')),JSON.stringify(grids.map(grid=>grid.name))))return {payments:[],issues:['Ce classeur ne correspond pas à la version RH sélectionnée.'],complete:false};
  if(workbook.worksheets.some(sheet=>![META,...grids.map(grid=>grid.name)].includes(sheet.name)))issue('Une feuille inattendue a été ajoutée au classeur.');
  for(const grid of grids){
@@ -387,7 +408,7 @@ export async function inspectRhReturnWorkbook(bytes:Uint8Array,snapshot:RhSnapsh
  const payments:RhImportedPayment[]=[],issues:string[]=[];const issue=(message:string)=>{if(issues.length<60&&!issues.includes(message))issues.push(message);};
  try{
   assertSnapshot(snapshot);guardZip(bytes);const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(bytes as unknown as ExcelTypes.Buffer);
-  const format=workbook.getWorksheet(META)?.getCell('A1').value;if(format===PREVIEW_FORMAT)return {payments:[],issues:['Ce classeur est un aperçu non validé. Exportez une version RH validée pour importer le retour financier.'],complete:false};if(format===COMBINED_FORMAT||format===FINAL_FORMAT||format===MERGED_FORMAT)return inspectCombined(workbook,snapshot,format);
+  const format=workbook.getWorksheet(META)?.getCell('A1').value;if(format===PREVIEW_FORMAT)return {payments:[],issues:['Ce classeur est un aperçu non validé. Exportez une version RH validée pour importer le retour financier.'],complete:false};if(format===COMBINED_FORMAT||format===FINAL_FORMAT||format===MERGED_FORMAT||format===SHARED_LABEL_FORMAT)return inspectCombined(workbook,snapshot,format);
   let grids=rhGrids(snapshot);
   // Files already sent to finance retain their original presentation. Select one
   // exact profile for the whole workbook; every business cell is checked as before.

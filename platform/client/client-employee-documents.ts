@@ -3,14 +3,20 @@ import {brandMission} from './client-mission-branding';
 import {allocatedAmount} from '../client-employee-money';
 import {unzipSync,zipSync,strFromU8,strToU8} from 'fflate';
 import type {ClientEmployee,ClientAllocation,ClientPaymentMonth} from '../client-employees-domain';
+import {MISSION_PROFILES} from '../mission-profiles';
 const escaped=(s:string)=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const fr=(s:string)=>s.split('-').reverse().join('/');
 export const employeeFileName=(s:string)=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9_-]/g,'_').slice(0,130);
 export async function missionDocument(client:BillingClientData,employee:ClientEmployee,a:ClientAllocation,version:number){
- if(!employee.role.trim()||!employee.supervisor.trim()||!a.tasks.trim())throw Error('Complétez la fonction, le responsable et les missions avant de générer la lettre.');
+ const role=MISSION_PROFILES.find(p=>p.id===a.projectRole)?.label||a.projectRole?.trim()||employee.role.trim();
+ if(!role||!employee.supervisor.trim()||!a.tasks.trim())throw Error('Complétez la fonction au sein du projet, le responsable signataire et les missions avant de générer la lettre.');
  const response=await fetch('/templates/client-mission-v2.docx',{cache:'no-cache'});if(!response.ok)throw Error('Modèle de lettre indisponible.');
- const parts=unzipSync(new Uint8Array(await response.arrayBuffer())),values:Record<string,string>={project:[a.project,a.projectCode].filter(Boolean).join(' / '),client:client.party.name,employee:employee.name,role:employee.role,start:fr(a.startDate),end:fr(a.endDate),version:String(version),percent:a.percent,signatures:employee.supervisor+'\t'+employee.name,tasks:a.tasks.trim()};
+ const bytes=new Uint8Array(await response.arrayBuffer());if(bytes.length>2_000_000||bytes[0]!==80||bytes[1]!==75)throw Error('Le modèle de lettre n’est pas disponible dans cette version de l’application. Actualisez la page et réessayez.');
+ let parts:Record<string,Uint8Array>;try{parts=unzipSync(bytes);if(!parts['word/document.xml'])throw Error();}catch{throw Error('Le modèle de lettre est illisible.');}
+ const values:Record<string,string>={project:[a.project,a.projectCode].filter(Boolean).join(' / '),client:client.party.name,employee:employee.name,role,start:fr(a.startDate),end:fr(a.endDate),version:String(version),percent:a.percent,signatures:employee.supervisor+'\t'+employee.name,tasks:a.tasks.trim()};
+ if(Object.values(values).some(value=>/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(value)))throw Error('Une saisie contient un caractère non pris en charge dans Word.');
  let xml=strFromU8(parts['word/document.xml']);
+ if(!['employee','project','tasks','role'].every(key=>xml.includes('{{'+key+'}}')))throw Error('Le modèle de lettre ne contient pas les champs attendus.');
  xml=xml.replace(/\{\{(\w+)\}\}/g,(_,key)=>escaped(values[key]||'').replace(/\t/g,'</w:t><w:tab/><w:t xml:space="preserve">').replace(/\r?\n/g,'</w:t><w:br/><w:t xml:space="preserve">'));
  parts['word/document.xml']=strToU8(xml);
  await brandMission(parts,client,a.programme);

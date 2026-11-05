@@ -11,7 +11,7 @@ export interface RhLine {id:string;periodId:string;agentId:string;projectId:stri
 export interface RhSnapshot {id:string;documentId:string;revision:number;name:string;client:RhClient;projects:RhProject[];periods:RhPeriod[];agents:ClientEmployee[];lines:RhLine[];payroll:RhPayrollSource[];payments?:RhPaymentEntry[];createdAt:string;createdBy:string;}
 export interface RhImportedPayment {id?:string;agentId:string;month:string;kind:'salary'|'contribution';organism:string;amountCents:number;date:string;reference:string;}
 export interface RhReturnInspection {payments:RhImportedPayment[];issues:string[];complete:boolean;}
-export interface RhDocument {id:string;version:number;draft:RhDraft;createdAt:string;updatedAt:string;payroll:RhPayrollSource[];versions:{id:string;revision:number;createdAt:string}[];}
+export interface RhDocument {status?:'draft'|'in_progress'|'finalized';id:string;version:number;draft:RhDraft;createdAt:string;updatedAt:string;payroll:RhPayrollSource[];versions:{id:string;revision:number;createdAt:string}[];}
 export function rhFail(message:string,status=422):never{throw Object.assign(new Error(message),{status});}
 export const rhId=(value:unknown):value is string=>typeof value==='string'&&/^[-\w]{1,80}$/.test(value);
 export const rhDate=(v:string)=>/^\d{4}-\d{2}-\d{2}$/.test(v)&&Number.isFinite(Date.parse(v))&&new Date(v).toISOString().slice(0,10)===v;

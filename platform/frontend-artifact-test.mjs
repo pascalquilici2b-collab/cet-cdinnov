@@ -19,6 +19,10 @@ for(const name of ['agenda/install.mjs','marches/reader.js','platform/chunks/Bro
 const disk=[];async function tree(base,prefix=''){for(const item of await readdir(base,{withFileTypes:true})){const rel=prefix+item.name;if(item.isDirectory())await tree(path.join(base,item.name),rel+'/');else disk.push(rel);}}await tree(dir);assert.deepEqual(disk.sort(),names,'Fresh output must contain exactly the archive, with no stale files');
 for(const name of names)assert.deepEqual(new Uint8Array(await readFile(path.join(dir,name))),archive[name],name);
 const required=['_worker.js','_routes.json','index.html','feuilles/index.html','budgets-projets/index.html','platform/outlook-callback.html','platform/workspace-client.js','platform/session-ui.css','platform/pdf-editor-font.ttf','marches/reader.mjs','marches/vendor/pdf.mjs','marches/vendor/pdf.worker.mjs','marches/vendor/standard_fonts/FoxitSerif.pfb','marches/vendor/ocr/worker.min.js','marches/vendor/ocr/core/tesseract-core-lstm.wasm.js','marches/vendor/ocr/lang/eng.traineddata.gz','marches/vendor/ocr/lang/fra.traineddata.gz','budgets-projets/ocr/v7/fra.traineddata.gz','marches/vendor/wasm/openjpeg.wasm','marches/vendor/wasm/jbig2.wasm','marches/vendor/wasm/qcms_bg.wasm'];
+required.push('templates/client-mission-v2.docx');
+const missionTemplate=unzipSync(archive['templates/client-mission-v2.docx']);
+assert.ok(missionTemplate['word/document.xml'],'Mission template is a real Word archive');
+assert.deepEqual(names.filter(name=>name.startsWith('templates/')),['templates/client-mission-v2.docx']);
 required.push(...['Regular','Bold','Italic','BoldItalic'].map(style=>'marches/vendor/standard_fonts/LiberationSans-'+style+'.ttf'));
 for(const name of required)assert.ok(archive[name]?.length>0,name);
 for(const name of names.filter(name=>name.endsWith('.traineddata.gz')))assert.ok(gunzipSync(archive[name]).length>100000,name);
@@ -52,7 +56,7 @@ console.log('OK archive/manifest/output identical: '+names.length+' files; '+inl
 
 const frontend=(await import(pathToFileURL(path.join(dir,'_worker.js')).href)).default;
 const requests=[],errors=[],external=[];
-const mime={'.html':'text/html','.js':'application/javascript','.mjs':'application/javascript','.css':'text/css','.wasm':'application/wasm','.gz':'application/gzip','.pfb':'application/octet-stream','.ttf':'font/ttf','.woff2':'font/woff2','.svg':'image/svg+xml','.png':'image/png','.ico':'image/x-icon'};
+const mime={'.html':'text/html','.docx':'application/vnd.openxmlformats-officedocument.wordprocessingml.document','.js':'application/javascript','.mjs':'application/javascript','.css':'text/css','.wasm':'application/wasm','.gz':'application/gzip','.pfb':'application/octet-stream','.ttf':'font/ttf','.woff2':'font/woff2','.svg':'image/svg+xml','.png':'image/png','.ico':'image/x-icon'};
 const server=createServer(async(req,res)=>{try{
   const request=new Request('http://127.0.0.1'+req.url),url=new URL(request.url);let name=decodeURIComponent(url.pathname).slice(1);
   const response=await frontend.fetch(request,{ASSETS:{fetch:async()=>name==='artifact-smoke.html'?new Response('<!doctype html><html><title>Local document test</title><body><canvas id="pdf"></canvas></body></html>',{headers:{'Content-Type':'text/html'}}):archive[name]?new Response(archive[name],{headers:{'Content-Type':mime[path.extname(name)]||'application/octet-stream'}}):new Response('Not found',{status:404})}});
@@ -65,6 +69,7 @@ try{
  const context=await browser.newContext();await context.route('**/*',route=>{if(route.request().url().startsWith(base+'/'))return route.continue();external.push(route.request().url());return route.abort();});
  const page=await context.newPage();page.on('pageerror',error=>errors.push(error.message));const response=await page.goto(base+'/artifact-smoke.html');assert.match(response.headers()['content-security-policy'],/frame-ancestors 'self'/);
  const result=await page.evaluate(async()=>{
+   const missionResponse=await fetch('/templates/client-mission-v2.docx'),missionBytes=new Uint8Array(await missionResponse.arrayBuffer());if(!missionResponse.ok||missionBytes[0]!==80||missionBytes[1]!==75)throw Error('Published mission template unavailable');
    const pdfjs=await import('/marches/vendor/pdf.mjs');pdfjs.GlobalWorkerOptions.workerSrc='/marches/vendor/pdf.worker.mjs';
    const stream='BT /F1 24 Tf 40 200 Td (DOCUMENT TEST 12345) Tj ET';
    const objects=['<< /Type /Catalog /Pages 2 0 R >>','<< /Type /Pages /Kids [3 0 R] /Count 1 >>','<< /Type /Page /Parent 2 0 R /MediaBox [0 0 500 300] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>','<< /Type /Font /Subtype /Type1 /BaseFont /Times-Roman >>','<< /Length '+stream.length+' >>\nstream\n'+stream+'\nendstream'];
@@ -74,9 +79,9 @@ try{
    const {default:Tesseract}=await import('/marches/vendor/ocr/tesseract.esm.min.js');
    const worker=await Tesseract.createWorker('fra+eng',1,{workerPath:location.origin+'/marches/vendor/ocr/worker.min.js',corePath:location.origin+'/marches/vendor/ocr/core',langPath:location.origin+'/marches/vendor/ocr/lang',workerBlobURL:false,cacheMethod:'none'});
    const image=document.createElement('canvas');image.width=700;image.height=180;const draw=image.getContext('2d');draw.fillStyle='white';draw.fillRect(0,0,700,180);draw.fillStyle='black';draw.font='bold 42px Arial';draw.fillText('DOCUMENT TEST 12345',30,95);
-   const recognized=await worker.recognize(image);await worker.terminate();return {pdfText:text,ocrText:recognized.data.text};
+   const recognized=await worker.recognize(image);await worker.terminate();return {pdfText:text,ocrText:recognized.data.text,missionTemplateBytes:missionBytes.length};
  });
- assert.match(result.pdfText,/DOCUMENT TEST 12345/);assert.match(result.ocrText,/DOCUMENT TEST 12345/);assert.deepEqual(errors,[]);assert.deepEqual(external,[]);assert.ok(requests.every(r=>r.status===200));
+ assert.ok(result.missionTemplateBytes>1000);assert.match(result.pdfText,/DOCUMENT TEST 12345/);assert.match(result.ocrText,/DOCUMENT TEST 12345/);assert.deepEqual(errors,[]);assert.deepEqual(external,[]);assert.ok(requests.every(r=>r.status===200));
  assert.ok(requests.some(r=>r.path.endsWith('pdf.worker.mjs')));assert.ok(requests.some(r=>r.path.endsWith('FoxitSerif.pfb')));assert.ok(requests.some(r=>r.path.endsWith('fra.traineddata.gz')));assert.ok(requests.some(r=>r.path.endsWith('eng.traineddata.gz')));
  await mkdir(out,{recursive:true});await page.screenshot({path:path.join(out,'artifact-pdf-render.png')});await writeFile(path.join(out,'frontend-artifact-checks.json'),JSON.stringify({artifact:dir,files:names.length,inlineScripts,compiledImports:Object.keys(resolved.metafile.inputs).length,required,result,requests,errors,external},null,2));
  console.log('PASS compiled frontend artifact: real PDF worker, Type1 font rendering and French/English OCR with HTTP CSP, no external request or missing asset.');

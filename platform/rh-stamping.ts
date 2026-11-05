@@ -59,12 +59,15 @@ export async function createRhStampingBatch(env:Environment,session:SessionIdent
    total+=raw.length;if(total>200*1024*1024)fail(413,'Le lot dépasse 200 Mo.');const documentId=crypto.randomUUID(),key=prefix+documentId+'/source.pdf';
    await storage.put(key,raw,{httpMetadata:{contentType:'application/pdf'}});written.push(key);docs.push({id:documentId,source:p.source,group:p.group,size:raw.length,key});
   }
-  const statements=[
+  const guardId=crypto.randomUUID(),statements=[
    db.prepare('DELETE FROM rh_stamp_links WHERE version_id=? AND owner=? AND NOT EXISTS(SELECT 1 FROM stamp_batches b WHERE b.id=rh_stamp_links.batch_id AND b.expires_at>?)').bind(snapshot.id,session.email,now),
    db.prepare('INSERT OR IGNORE INTO rh_stamp_links(version_id,owner,batch_id,created_at) VALUES(?,?,?,?)').bind(snapshot.id,session.email,id,now),
    db.prepare('INSERT INTO stamp_batches(id,owner,name,version,data,created_at,expires_at) SELECT ?,?,?,1,?,?,? WHERE EXISTS(SELECT 1 FROM rh_stamp_links WHERE version_id=? AND owner=? AND batch_id=?) RETURNING id').bind(id,session.email,(snapshot.name+' · RH v'+snapshot.revision).slice(0,120),JSON.stringify(batchData),now,now+30*86400000,snapshot.id,session.email,id),
    ...docs.map(d=>db.prepare("INSERT INTO stamp_documents(id,batch_id,name,sha256,size,version,status,data) SELECT ?,?,?,?,?,1,'QUEUED',? WHERE EXISTS(SELECT 1 FROM stamp_batches WHERE id=?) RETURNING id").bind(d.id,id,d.source.filename,d.source.sha256,d.size,JSON.stringify({rhPayrollId:d.source.id,rhGroupId:d.group.id,sourceUpload:{name:d.source.filename,sha256:d.source.sha256},options:batchData.options,progress:{startedAt:now,stage:'queued'}}),id)),
-   db.prepare("INSERT INTO stamp_audit(id,batch_id,document_id,actor,action,data,created_at) SELECT ?,?,NULL,?,'RH_VERSION_IMPORTED',?,? WHERE EXISTS(SELECT 1 FROM stamp_batches WHERE id=?)").bind(crypto.randomUUID(),id,session.email,JSON.stringify({versionId:snapshot.id,documentId:snapshot.documentId,source:prepared.sourceHash,files:docs.length,lines:snapshot.lines.length}),now,id)
+   db.prepare("INSERT INTO stamp_audit(id,batch_id,document_id,actor,action,data,created_at) SELECT ?,?,NULL,?,'RH_VERSION_IMPORTED',?,? WHERE EXISTS(SELECT 1 FROM stamp_batches WHERE id=?)").bind(crypto.randomUUID(),id,session.email,JSON.stringify({versionId:snapshot.id,documentId:snapshot.documentId,source:prepared.sourceHash,files:docs.length,lines:snapshot.lines.length}),now,id),
+   // The source may be trashed while PDFs are copied; roll back the entire lot.
+   db.prepare("INSERT INTO rh_write_guards(id,ok) SELECT ?,CASE WHEN EXISTS(SELECT 1 FROM rh_documents WHERE id=? AND json_extract(data_json,'$._deletedAt') IS NULL) THEN 1 ELSE 0 END").bind(guardId,snapshot.documentId),
+   db.prepare('DELETE FROM rh_write_guards WHERE id=?').bind(guardId)
   ];
   const result=await db.batch(statements) as {results?:unknown[]}[];
   if(!result[2].results?.length){await storage.delete(written);const winner=await linked(db,snapshot.id,session.email);if(!winner)fail(409,'La préparation concurrente a changé. Relancez le tamponnage.');return {batchId:winner.id,reused:true,needsPreviewApproval:true};}

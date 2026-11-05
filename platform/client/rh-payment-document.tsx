@@ -2,7 +2,7 @@ import React,{useEffect,useLayoutEffect,useMemo,useRef,useState} from 'react';
 import {Printer,ZoomIn,Pencil,FileSpreadsheet,FileDown,ChevronLeft,ChevronRight} from 'lucide-react';
 import {rhDate,type RhPaymentEntry,type RhPeriod} from '../rh-domain';
 import {rhPaymentGroups,rhPaymentSegments,type RhPaymentGroup,type RhPaymentSegment} from '../rh-payment-layout';
-import {rhAttestationTitle,rhAttestationText} from '../rh-document-presentation';
+import {rhAttestationTitle,rhAttestationText,rhPaymentTableLabels} from '../rh-document-presentation';
 import {maritimeLogoData,epcicLogoData} from '../rh-workbook-branding';
 import type {RhPaper} from './rh-preview';
 import './rh-payment-document.css';
@@ -22,7 +22,7 @@ function Table({source,segments,mergeAgents=true}:{source:RhPaper;segments:RhPay
   const merged=entries.length===1;if(merged&&index!==segment.start)return null;const p=merged?entries[0]:entries[index],span=merged?segment.end-segment.start:1;
   return kind==='salary'?<><td rowSpan={span} className="rh-payment-cell" data-payment-id={p?.id}>{p?.reference}</td><td rowSpan={span} className="rh-payment-cell">{p&&date(p.date)}</td><td rowSpan={span} className="rh-payment-cell rh-number">{money(p?.amountCents)}</td></>:<><td rowSpan={span} className="rh-payment-cell" data-payment-id={p?.id}>{p?.organism}</td><td rowSpan={span} className="rh-payment-cell rh-number">{money(p?.amountCents)}</td><td rowSpan={span} className="rh-payment-cell">{p&&date(p.date)}</td></>;
  };
- return <table className="rh-a4-table"><colgroup>{widths.map((width,i)=><col key={i} style={{width:(width/277*100)+'%'}}/>)}</colgroup><thead><tr><th rowSpan={2} scope="col">Agent</th><th rowSpan={2} scope="col">Bulletins de salaire</th><th rowSpan={2} scope="col">Montant mensuel versé par l’employeur</th><th rowSpan={2} scope="col">Projet</th><th rowSpan={2} scope="col">% de temps de travail sur le projet</th><th rowSpan={2} scope="col">Montant total rendu-compte sur le projet</th><th colSpan={3} scope="colgroup">Informations sur le paiement des SALAIRES</th><th colSpan={3} scope="colgroup">Informations sur le paiement des CHARGES</th></tr><tr><th scope="col">N° de mandat de paiement</th><th scope="col">Date de paiement effectif</th><th scope="col">Montant du mandat de paiement</th><th scope="col">Organismes</th><th scope="col">Montant total versé aux organismes</th><th scope="col">Date de paiement effectif</th></tr></thead>
+ return <table className="rh-a4-table"><colgroup>{widths.map((width,i)=><col key={i} style={{width:(width/277*100)+'%'}}/>)}</colgroup><thead><tr>{rhPaymentTableLabels.rh.map(label=><th key={label} rowSpan={2} scope="col">{label}</th>)}{rhPaymentTableLabels.groups.map(label=><th key={label} colSpan={3} scope="colgroup">{label}</th>)}</tr><tr>{[...rhPaymentTableLabels.salary,...rhPaymentTableLabels.contribution].map((label,i)=><th key={i} scope="col">{label}</th>)}</tr></thead>
  {runs.map((run,position)=><tbody key={run.agentId+'|'+position} data-segment={position} data-agent={run.agentId} data-month={run.segments.length===1?run.segments[0].block.month:undefined}>
   {run.segments.flatMap((segment,segmentIndex)=>{const block=segment.block;return Array.from({length:segment.end-segment.start},(_,offset)=>{const index=segment.start+offset,line=block.lines[index];return <tr key={block.key+'|'+index} data-line-id={line?.id} data-agent={block.agentId} data-month={block.month}>
    {!segmentIndex&&!offset&&<td rowSpan={run.segments.reduce((n,s)=>n+s.end-s.start,0)} className="rh-a4-agent"><strong>{run.name}</strong></td>}

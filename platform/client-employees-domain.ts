@@ -1,4 +1,4 @@
-export interface ClientAllocation {id:string;projectId:string;project:string;projectCode:string;programme:string;percent:string;startDate:string;endDate:string;tasks:string;}
+export interface ClientAllocation {id:string;projectId:string;project:string;projectCode:string;programme:string;percent:string;startDate:string;endDate:string;tasks:string;projectRole?:string;}
 export interface ClientEmployee {id:string;name:string;role:string;supervisor:string;allocations:ClientAllocation[];}
 export interface ClientPaymentMonth {employeeId:string;month:string;employerCost:string;mandate:string;paymentDate:string;paidAmount:string;organism:string;contributions:string;contributionDate:string;}
 export interface ClientEmployeeSpace {version:number;agents:ClientEmployee[];payments:ClientPaymentMonth[];documents:{id:string;employeeId:string;filename:string;kind:'mission'|'payment';createdAt:string;snapshot:unknown}[];}
@@ -14,8 +14,9 @@ export function normalizeClientEmployees(value:unknown):ClientEmployee[]{
   const ids=new Set();const allocations:ClientAllocation[]=agent.allocations.map((a:any)=>{
    if(!a||!id(a.id)||ids.has(a.id))fail('Affectation invalide.');ids.add(a.id);
    for(const key of ['projectId','project','projectCode','programme','percent','startDate','endDate','tasks'])if(typeof a[key]!=='string'||a[key].length>(key==='tasks'?6000:300))fail('Affectation invalide.');
+   if(a.projectRole!==undefined&&(typeof a.projectRole!=='string'||a.projectRole.length>200))fail('Fonction au sein du projet invalide.');
    if(!a.project.trim()||!/^\d{1,3}(?:[.,]\d{1,2})?$/.test(a.percent)||Number(a.percent.replace(',','.'))<=0||Number(a.percent.replace(',','.'))>100||!date(a.startDate)||!date(a.endDate)||a.endDate<a.startDate)fail('Renseignez le projet, les dates et un pourcentage entre 0 et 100.');
-   return Object.fromEntries(['id','projectId','project','projectCode','programme','percent','startDate','endDate','tasks'].map(k=>[k,a[k].trim()])) as unknown as ClientAllocation;
+   return {...Object.fromEntries(['id','projectId','project','projectCode','programme','percent','startDate','endDate','tasks'].map(k=>[k,a[k].trim()])),...(a.projectRole===undefined?{}:{projectRole:a.projectRole.trim()})} as unknown as ClientAllocation;
   });
   for(const a of allocations){const total=allocations.filter(b=>b.startDate<=a.startDate&&a.startDate<=b.endDate).reduce((n,b)=>n+Math.round(Number(b.percent.replace(',','.'))*100),0);if(total>10000)fail('Les affectations de '+agent.name+' dépassent 100 % sur une même période.');}
   return {id:agent.id,name:agent.name.trim(),role:agent.role.trim(),supervisor:agent.supervisor.trim(),allocations};

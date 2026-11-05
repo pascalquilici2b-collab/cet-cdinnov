@@ -44,7 +44,7 @@ try{
  await migrateBilling(ctx.db);await migrateRh(ctx.db);
  await ctx.db.prepare("INSERT INTO billing_directory VALUES('clients',?,1,?,?,?,'fixture',?,'fixture')").bind(clientId,JSON.stringify({archived:false,party:{name:'Client fictif'}}),'hash-test',stamp,stamp).run();
  const bucket=await ctx.worker.getR2Bucket('CET_FILES');for(let i=0;i<payroll.length;i++)await bucket.put(payroll[i].objectKey,pdfs[i]);
- const save=async s=>ctx.db.prepare('INSERT INTO rh_versions VALUES(?,?,?,?,?,?,?)').bind(s.id,s.documentId,clientId,s.revision,JSON.stringify(s),stamp,users[0]).run();await save(snapshot);
+ const save=async s=>{await ctx.db.prepare('INSERT OR IGNORE INTO rh_documents VALUES(?,?,?,1,?,?,?,?)').bind(s.documentId,clientId,s.name,JSON.stringify({name:s.name,clientId,periods:s.periods,_workflow:'finalized'}),stamp,stamp,users[0]).run();return ctx.db.prepare('INSERT INTO rh_versions VALUES(?,?,?,?,?,?,?)').bind(s.id,s.documentId,clientId,s.revision,JSON.stringify(s),stamp,users[0]).run();};await save(snapshot);
  let batchId,batch;
  await check('Version selector and authorization use the existing shared identity',async()=>{
   const other=await ctx.login(users[1]);await read(await rh('/versions/'+snapshot.id+'/stamping','POST',{}, {Cookie:other.cookie}),403);await read(await rh('/versions/'+snapshot.id+'/stamping','POST',{}, {Cookie:''}),401);assert.equal((await read(await rh('/versions'))).versions[0].id,snapshot.id);
