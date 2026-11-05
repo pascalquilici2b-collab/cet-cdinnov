@@ -78,12 +78,30 @@ def test_password_change_deletion_key_rotation_and_expiry_revoke_sessions(config
     assert auth.verify(token) is None
 
 
-def test_authentication_api_accepts_new_session_and_rejects_invalid_login(configured):
+def test_hosted_api_rejects_all_browser_sessions_and_accepts_machine_key(configured):
     with TestClient(app) as client:
+        # Retain the historical issuer only to prove even its newest valid token
+        # cannot authenticate the hosted HTTP service after convergence.
+        token = auth.login(EMAIL, PASSWORD)['token']
         response = client.post('/api/auth/login', json={'email': EMAIL.upper(), 'password': PASSWORD})
-        assert response.status_code == 200
-        token = response.json()['token']
-        assert client.get('/api/invoice-schema', headers={'Authorization': 'Bearer ' + token}).status_code == 200
+        assert response.status_code == 410
+        assert 'token' not in response.json()
+        assert response.headers['cache-control'] == 'no-store'
+        assert response.headers['x-content-type-options'] == 'nosniff'
+        assert "frame-ancestors 'none'" in response.headers['content-security-policy']
+        assert response.headers['strict-transport-security'] == 'max-age=31536000'
+        assert client.get('/api/invoice-schema', headers={'Authorization': 'Bearer ' + token}).status_code == 401
         assert client.get('/api/invoice-schema', headers={'Authorization': 'Bearer ' + token + 'bad'}).status_code == 401
-        assert client.post('/api/auth/login', json={'email': EMAIL, 'password': 'wrong'}).status_code == 401
-        assert client.post('/api/auth/login', json={'email': 'unknown@example.invalid', 'password': PASSWORD}).status_code == 401
+        assert client.post('/api/auth/login', json={'email': EMAIL, 'password': 'wrong'}).status_code == 410
+        assert client.post('/api/auth/login', json={'email': 'unknown@example.invalid', 'password': PASSWORD}).status_code == 410
+        assert client.get('/api/invoice-schema', headers={'X-API-Key': KEY}).status_code == 200
+        assert client.get('/api/invoice-schema', headers={'X-API-Key': 'wrong'}).status_code == 401
+        assert client.get('/api/health').status_code == 200
+
+
+def test_hosted_api_never_falls_back_to_browser_accounts(monkeypatch):
+    monkeypatch.setenv('FACTURX_DEPLOYMENT', 'server')
+    monkeypatch.delenv('FACTURX_API_KEY', raising=False)
+    with TestClient(app) as client:
+        assert client.get('/api/invoice-schema', headers={'Authorization': 'Bearer old-session'}).status_code == 503
+        assert client.post('/api/auth/login', json={'email': EMAIL, 'password': PASSWORD}).status_code == 410

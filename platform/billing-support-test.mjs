@@ -13,13 +13,13 @@ import {billingDisplayState} from './billing-display-state.ts';
 
 test('accepted quote → private engagement → one invoice; document snapshots stay immutable',async()=>{
  const ctx=await testEnvironment();try{
-  await migrateBilling(ctx.db);const token=(await ctx.login(users[0])).token,{call,create,send,input}=await quoteFixtureTools(ctx,token);
+  await migrateBilling(ctx.db);const token=(await ctx.login(users[0])).cookie,{call,create,send,input}=await quoteFixtureTools(ctx,token);
   let q=await create(quoteFixture());const original=q.data,pdf=samplePDF(),conversion=randomUUID();
   const convert=()=>call('/documents/'+q.id+'/convert','POST',{id:conversion},{'If-Match':String(q.version)});
   assert.equal((await convert()).status,409);
   q=await(await send(q,input(q,'sent',''))).json();assert.equal(billingDisplayState(q),'sent');
   q=await(await send(q,input(q))).json();assert.equal(billingDisplayState(q),'accepted');assert.equal((await convert()).status,409);
-  const upload=(body=pdf,headers={})=>ctx.worker.dispatchFetch('https://preview.test/api/v1/billing/documents/'+q.id+'/engagement?kind=signed_quote',{method:'PUT',headers:{Origin:'https://app.cdinnov.eu',Authorization:'Bearer '+token,'If-Match':String(q.version),'X-Filename':encodeURIComponent('Devis signé.pdf'),'Content-Type':'application/pdf',...headers},body});
+  const upload=(body=pdf,headers={})=>ctx.worker.dispatchFetch('https://preview.test/api/v1/billing/documents/'+q.id+'/engagement?kind=signed_quote',{method:'PUT',headers:{'X-CDInnov-Request':'1',Origin:'https://app.cdinnov.eu',Cookie:token,'If-Match':String(q.version),'X-Filename':encodeURIComponent('Devis signé.pdf'),'Content-Type':'application/pdf',...headers},body});
   assert.equal((await upload('malformed')).status,422);assert.equal((await upload(pdf,{'If-Match':'99'})).status,409);
   let result=await upload();assert.equal(result.status,201,await result.clone().text());q=await result.json();assert.equal(q.quote.engagement.filename,'Devis signé.pdf');assert.deepEqual(q.data,original);
   assert.equal((await upload()).status,200);assert.equal((await upload(Buffer.concat([pdf,Buffer.from('changed')]))).status,409);
@@ -27,14 +27,14 @@ test('accepted quote → private engagement → one invoice; document snapshots 
   result=await convert();assert.equal(result.status,201,await result.clone().text());const invoice=await result.json();assert.equal(invoice.sourceDocumentId,q.id);assert.equal(invoice.data.references.quoteNumber,q.issuance.number);
   assert.equal((await convert()).status,200);assert.equal((await call('/documents/'+q.id+'/convert','POST',{id:randomUUID()},{'If-Match':String(q.version)})).status,409);
   assert.deepEqual((await(await call('/documents/'+q.id)).json()).data,original);
-  const cors=await ctx.worker.dispatchFetch('https://preview.test/api/v1/billing/documents/'+q.id+'/engagement',{method:'OPTIONS',headers:{Origin:'https://app.cdinnov.eu'}});assert.match(cors.headers.get('Access-Control-Allow-Headers'),/X-Filename/);
+  const cors=await ctx.worker.dispatchFetch('https://preview.test/api/v1/billing/documents/'+q.id+'/engagement',{method:'OPTIONS',headers:{'X-CDInnov-Request':'1',Origin:'https://app.cdinnov.eu'}});assert.match(cors.headers.get('Access-Control-Allow-Headers'),/X-Filename/);
  }finally{await ctx.worker.dispose();}
 });
 
 test('legacy report has independent versioning, persists and rejects concurrent overwrites',async()=>{
  const ctx=await testEnvironment();try{
   await migrateBilling(ctx.db);await ctx.setPortal(JSON.stringify({auth:{accounts:ctx.accounts,allowed:users},factures:[{id:'legacy-test',number:'2610065',client:'Client fictif',dateFacture:'2026-10-06',title:'Suivi administratif'}]}));
-  const token=(await ctx.login(users[0])).token,{call}=await quoteFixtureTools(ctx,token),path='/imported-invoices/legacy-test/intervention-report';
+  const token=(await ctx.login(users[0])).cookie,{call}=await quoteFixtureTools(ctx,token),path='/imported-invoices/legacy-test/intervention-report';
   let r=await call(path);assert.equal(r.status,200,await r.clone().text());let report=await r.json();assert.equal(report.title,'Suivi administratif');
   const data={date:'2026-10-23',title:report.title,periods:['S1','S3'],rows:[{id:randomUUID(),priceId:'',label:'Consultant senior',description:'Animation des partenaires',days:'2.5'}]};
   r=await call(path,'PUT',data,{'If-Match':'0'});assert.equal(r.status,200,await r.clone().text());assert.equal((await r.json()).version,1);
@@ -58,14 +58,14 @@ test('invoice Outlook message includes the fixed visible copy and platform sente
 
 test('received order links market and project; consumption survives invoice trash and restoration',async()=>{
  const ctx=await testEnvironment();try{
-  await migrateBilling(ctx.db);const token=(await ctx.login(users[0])).token,{call,create,send,input}=await quoteFixtureTools(ctx,token),marketId=randomUUID(),projectId=randomUUID(),orderId=randomUUID();
+  await migrateBilling(ctx.db);const token=(await ctx.login(users[0])).cookie,{call,create,send,input}=await quoteFixtureTools(ctx,token),marketId=randomUUID(),projectId=randomUUID(),orderId=randomUUID();
   const m={...emptyMarket(),title:'Accord-cadre fictif',reference:'M-TEST',clientName:'Atelier Horizon',maximumMinor:1000000,projects:[{id:projectId,name:'Projet test',code:'P-TEST',notes:'',archived:false,orders:[{id:orderId,reference:'BC-TEST',date:'2026-10-23',amountMinor:500000,documentId:'',notes:'',archived:false}]}]};
   await ctx.db.prepare('INSERT INTO markets(id,payload,version,updated_at,updated_by) VALUES(?,?,1,?,?)').bind(marketId,JSON.stringify(m),new Date().toISOString(),users[0]).run();
   const d=quoteFixture();d.references.marketId=marketId;d.references.projectId=projectId;d.references.project='Projet test';d.references.marketReference='M-TEST';let q=await create(d);q=await(await send(q,input(q))).json();
   const params=new URLSearchParams({kind:'order',reference:'BC-TEST',date:'2026-10-23',amountMinor:'500000',marketId,projectId});
-  let r=await ctx.worker.dispatchFetch('https://preview.test/api/v1/billing/documents/'+q.id+'/engagement?'+params,{method:'PUT',headers:{Origin:'https://app.cdinnov.eu',Authorization:'Bearer '+token,'If-Match':String(q.version),'X-Filename':'BC.pdf','Content-Type':'application/pdf'},body:samplePDF()});assert.equal(r.status,201,await r.clone().text());
+  let r=await ctx.worker.dispatchFetch('https://preview.test/api/v1/billing/documents/'+q.id+'/engagement?'+params,{method:'PUT',headers:{'X-CDInnov-Request':'1',Origin:'https://app.cdinnov.eu',Cookie:token,'If-Match':String(q.version),'X-Filename':'BC.pdf','Content-Type':'application/pdf'},body:samplePDF()});assert.equal(r.status,201,await r.clone().text());
   q=await r.json();assert.equal(q.quote.engagement.details.orderId,orderId);
-  r=await ctx.call('markets/'+marketId,{headers:{Authorization:'Bearer '+token}});assert.equal(r.status,200);const market=(await r.json()).market;assert.equal(market.linkedEngagements[0].projectId,projectId);
+  r=await ctx.call('markets/'+marketId,{headers:{Cookie:token}});assert.equal(r.status,200);const market=(await r.json()).market;assert.equal(market.linkedEngagements[0].projectId,projectId);
   let tracking=await(await call('/engagements')).json();assert.equal(tracking.orders.length,1);assert.equal(tracking.markets[0].quotedMinor,225000);assert.equal(tracking.orders[0].files.length,1);
   r=await call('/documents/'+q.id+'/convert','POST',{id:randomUUID()},{'If-Match':String(q.version)});assert.equal(r.status,201,await r.clone().text());let f=await r.json();assert.equal(f.data.references.orderId,orderId);assert.equal(f.data.references.orderReference,'BC-TEST');
   tracking=await(await call('/engagements')).json();assert.equal(tracking.orders[0].invoicedMinor,0);
@@ -97,13 +97,13 @@ test('miscellaneous market information can be validated without citing a source'
 
 test('historical order keeps its original source and incomplete-history flag',async()=>{
  const ctx=await testEnvironment();try{
-  await migrateBilling(ctx.db);const token=(await ctx.login(users[0])).token,{call}=await quoteFixtureTools(ctx,token),marketId=randomUUID(),docId=randomUUID();
+  await migrateBilling(ctx.db);const token=(await ctx.login(users[0])).cookie,{call}=await quoteFixtureTools(ctx,token),marketId=randomUUID(),docId=randomUUID();
   const pdf=samplePDF(),m=validateMarket({...emptyMarket(),title:'Accord-cadre historique',clientName:'Client fictif',projects:[{id:randomUUID(),name:'Projet historique',code:'',notes:'',orders:[{id:randomUUID(),reference:'BC-ARCHIVE',date:'2024-05-15',amountMinor:747000,documentId:docId,notes:'Semestre 1',historyPending:true}]}]},[{id:docId}]);
   await ctx.db.prepare('INSERT INTO markets(id,payload,version,updated_at,updated_by) VALUES(?,?,1,?,?)').bind(marketId,JSON.stringify(m),new Date().toISOString(),users[0]).run();
   await ctx.db.prepare('INSERT INTO market_documents(id,market_id,name,kind,mime,size,sha256,uploaded_at,uploaded_by,extracted_text) VALUES(?,?,?,?,?,?,?,?,?,?)').bind(docId,marketId,'BC.pdf','order','application/pdf',pdf.length,createHash('sha256').update(pdf).digest('hex'),new Date().toISOString(),users[0],'Bon de commande').run();
   await ctx.db.prepare('INSERT INTO market_document_chunks(document_id,sequence,data) VALUES(?,0,?)').bind(docId,pdf.toString('base64')).run();
   const r=await call('/engagements');assert.equal(r.status,200);const order=(await r.json()).orders[0];assert.equal(order.historyPending,true);assert.equal(order.amountMinor,747000);assert.deepEqual(order.files,[{marketId,documentId:docId,filename:'BC.pdf'}]);
-  const download=await ctx.call('markets/'+marketId+'/documents/'+docId,{headers:{Authorization:'Bearer '+token}});assert.equal(download.status,200);assert.deepEqual(Buffer.from(await download.arrayBuffer()),pdf);
+  const download=await ctx.call('markets/'+marketId+'/documents/'+docId,{headers:{Cookie:token}});assert.equal(download.status,200);assert.deepEqual(Buffer.from(await download.arrayBuffer()),pdf);
  }finally{await ctx.worker.dispose();}
 });
 
@@ -115,7 +115,7 @@ test('linked orders count once and start markets configured on their first order
 
 test('one global order is selectable by two projects and aggregates invoices once',async()=>{
  const ctx=await testEnvironment();try{
-  await migrateBilling(ctx.db);const token=(await ctx.login(users[0])).token,{call,create}=await quoteFixtureTools(ctx,token),marketId=randomUUID(),orderId=randomUUID();
+  await migrateBilling(ctx.db);const token=(await ctx.login(users[0])).cookie,{call,create}=await quoteFixtureTools(ctx,token),marketId=randomUUID(),orderId=randomUUID();
   const projects=['Projet A','Projet B'].map(name=>({id:randomUUID(),name,orders:[]}));
   const m=validateMarket({...emptyMarket(),title:'Marché global',clientName:'Client fictif',projects,orders:[{id:orderId,reference:'BC-GLOBAL',date:'2025-07-24',amountMinor:3990000}]});
   assert.equal(marketTracking(m).orderCount,1);assert.equal(marketTracking(m).orderedMinor,3990000);

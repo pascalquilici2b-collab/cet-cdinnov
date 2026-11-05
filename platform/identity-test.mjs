@@ -13,9 +13,9 @@ const adminAccess={dashboard:true,mouvements:true,salaries:true,notesfrais:true,
 const collaboratorAccess={dashboard:true,mouvements:true,salaries:false,notesfrais:true,agenda:true,tamponnage:false,facturier:false,budgetsprojets:true,sheets:true};
 const accounts={...ctx.accounts,[external]:{...ctx.accounts[users[1]],name:'External test'},[accounting]:{...ctx.accounts[users[0]],name:'Accounting test'}};
 const portal={auth:{accounts,allowed:[...users,external,accounting]},salaries:[{matricule:'004',nom:'Private employee',salaire:4000}],privateUnknown:{preserved:true}};
-const call=(path='/api/v1/session',options={})=>ctx.worker.dispatchFetch('https://test'+path,{...options,headers:{Origin:'https://app.cdinnov.eu','Content-Type':'application/json','cf-connecting-ip':'192.0.2.1',...options.headers}});
+const call=(path='/api/v1/session',options={})=>ctx.worker.dispatchFetch('https://test'+path,{...options,headers:{Origin:'https://app.cdinnov.eu','X-CDInnov-Request':'1','Content-Type':'application/json','cf-connecting-ip':'192.0.2.1',...options.headers}});
 const post=(body,path='/api/v1/session',headers={})=>call(path,{method:'POST',headers,body:JSON.stringify(body)});
-const get=(token,path='/api/v1/session')=>call(path,{headers:{Authorization:'Bearer '+token}});
+const get=(cookie,path='/api/v1/session')=>call(path,{headers:{Cookie:cookie.startsWith('__Host-cdi_session=')?cookie:'__Host-cdi_session='+cookie}});
 const proof=c=>createHmac('sha256',pbkdf2Sync(ctx.password,Buffer.from(c.salt,'hex'),c.iter,32,'sha256')).update(c.challenge).digest('hex');
 const challenge=async(email=users[0],path='/api/v1/session')=>{
   const r=await post({email,action:'challenge'},path);assert.equal(r.status,200);return r.json();
@@ -32,42 +32,43 @@ try {
     assert.equal((await call()).status,401);
     assert.equal((await call(undefined,{method:'OPTIONS'})).status,204);
     assert.equal((await call(undefined,{headers:{Origin:'https://other.invalid'}})).status,403);
-    assert.equal((await call(undefined,{method:'DELETE'})).status,401);
+    const logout=await call(undefined,{method:'DELETE'});assert.equal(logout.status,200);assert.match(logout.headers.get('set-cookie'),/Max-Age=0/);
     for(const body of [null,[],{},42,{email:{},action:'challenge'},{email:users[0],action:[]},{email:users[0],action:['challenge']},{email:'invalid',action:'challenge'}])assert.equal((await post(body)).status,400);
     assert.equal((await call(undefined,{method:'POST',body:'{'})).status,400);
     assert.equal((await call(undefined,{method:'POST',headers:{'Content-Type':'text/plain'},body:'{}'})).status,415);
     assert.equal((await post({email:users[0],action:'challenge',extra:'a'.repeat(4096)})).status,413);
   });
   let adminSession,employeeSession;
-  await check('Old and new login routes exchange challenges and keep the existing protocol',async()=>{
+  await check('Old and new login routes share the HttpOnly cookie and expose only session metadata',async()=>{
     const old=await challenge(users[0],'/budgets/session');
-    const result=await verify(old);assert.equal(result.status,200);adminSession=await result.json();
-    assert.deepEqual(Object.keys(adminSession).sort(),['expiresAt','token']);
+    const result=await verify(old);assert.equal(result.status,200);adminSession={...await result.json(),cookie:result.headers.get('set-cookie').split(';')[0]};assert.match(result.headers.get('set-cookie'),/^__Host-cdi_session=[A-Za-z0-9_.-]+; Path=\/; Secure; HttpOnly; SameSite=Strict; Max-Age=28[0-9]{3}; Expires=/);
+    assert.deepEqual(Object.keys(adminSession).sort(),['cookie','email','expiresAt','sessionId']);
     assert.ok(adminSession.expiresAt>Date.now()+7.9*3600000 && adminSession.expiresAt<=Date.now()+8*3600000);
     const modern=await challenge(users[1]);
-    const second=await verify(modern,users[1],'/budgets/session');assert.equal(second.status,200);employeeSession=await second.json();
+    const second=await verify(modern,users[1],'/budgets/session');assert.equal(second.status,200);employeeSession={...await second.json(),cookie:second.headers.get('set-cookie').split(';')[0]};
   });
   await check('Identity response discloses only the connected account summary',async()=>{
     for(const [session,email,admin] of [[adminSession,users[0],true],[employeeSession,users[1],false]]) {
-      const response=await get(session.token),data=await response.json();
+      const response=await get(session.cookie),data=await response.json();
       assert.equal(response.status,200);assert.equal(response.headers.get('Cache-Control'),'no-store');
-      assert.deepEqual(data,{email,name:accounts[email].name,expiresAt:session.expiresAt,admin,access:admin?adminAccess:collaboratorAccess});
+      assert.deepEqual(data,{email,name:accounts[email].name,expiresAt:session.expiresAt,sessionId:session.sessionId,admin,access:admin?adminAccess:collaboratorAccess});
       assert.ok(!JSON.stringify(data).includes(accounts[email].hash));
     }
-    const data=await(await get((await ctx.login(accounting)).token)).json();assert.equal(data.admin,true);assert.deepEqual(data.access,adminAccess);
+    const data=await(await get((await ctx.login(accounting)).cookie)).json();assert.equal(data.admin,true);assert.deepEqual(data.access,adminAccess);
   });
   await check('Old verifier-based session tokens require login again across every authenticated module',async()=>{
     const token=signed(oldClaims(users[0]));
     for(const path of ['/api/v1/session','/budgets/workspace','/budgets/markets','/budgets/agenda','/sheets/session','/api/v1/dashboard','/api/v1/budget-records?collection=clients'])assert.equal((await get(token,path)).status,401,path);
-    assert.equal((await get(employeeSession.token,'/budgets/markets')).status,403);
-    assert.equal((await get(employeeSession.token,'/sheets/session')).status,200);
+    assert.equal((await get(employeeSession.cookie,'/budgets/markets')).status,403);
+    assert.equal((await get(employeeSession.cookie,'/sheets/session')).status,200);
   });
   await check('Strict token parsing rejects forged, incomplete, expired and wrong-audience claims',async()=>{
-    const base=oldClaims(users[0]);
+    const base=JSON.parse(Buffer.from(adminSession.cookie.split('=')[1].split('.')[0],'base64url').toString());
     for(const data of [null,[],{}, {...base,exp:undefined},{...base,exp:null},{...base,exp:String(base.exp)},{...base,exp:0},{...base,exp:1.1},{...base,aud:'cdinnov-budget-login'},{...base,nonce:undefined},{...base,nonce:''},{...base,email:'wrong@example.invalid'},{...base,fingerprint:'😀'.repeat(32)}])assert.equal((await get(signed(data))).status,401);
-    for(const token of [adminSession.token+'.',adminSession.token+'x','a.é','a.b',''])assert.equal((await get(token)).status,401);
-    assert.equal((await call(undefined,{headers:{Authorization:adminSession.token}})).status,401);
-    assert.equal((await call(undefined,{headers:{Authorization:'bearer '+adminSession.token}})).status,200);
+    for(const token of [adminSession.cookie+'.',adminSession.cookie+'x','a.é','a.b',''])assert.equal((await get(token)).status,401);
+    assert.equal((await call(undefined,{headers:{Authorization:adminSession.cookie}})).status,401);
+    assert.equal((await call(undefined,{headers:{Authorization:'Bearer '+adminSession.cookie.split('=')[1]}})).status,401);
+    assert.equal((await call(undefined,{headers:{Cookie:adminSession.cookie+'; '+adminSession.cookie}})).status,401);
   });
   await check('Single-use challenges allow exactly one concurrent login',async()=>{
     const c=await challenge();const responses=await Promise.all([verify(c),verify(c)]);
@@ -99,19 +100,19 @@ try {
   await check('Account removal and credential changes invalidate existing sessions on the next request',async()=>{
     const custom=await ctx.login(external);
     await ctx.setPortal(JSON.stringify({...portal,auth:{...portal.auth,allowed:users}}));
-    assert.equal((await get(custom.token)).status,401);
+    assert.equal((await get(custom.cookie)).status,401);
     await ctx.setPortal(JSON.stringify({...portal,auth:{...portal.auth,accounts:{...accounts,[users[1]]:{...accounts[users[1]],hash:'f'.repeat(64)}}}}));
-    for(const path of ['/api/v1/session','/budgets/workspace','/sheets/session','/api/v1/dashboard'])assert.equal((await get(employeeSession.token,path)).status,401,path);
-    assert.equal((await get(adminSession.token)).status,200);
+    for(const path of ['/api/v1/session','/budgets/workspace','/sheets/session','/api/v1/dashboard'])assert.equal((await get(employeeSession.cookie,path)).status,401,path);
+    assert.equal((await get(adminSession.cookie)).status,200);
     const removed={...accounts};delete removed[users[0]];
     await ctx.setPortal(JSON.stringify({...portal,auth:{...portal.auth,accounts:removed}}));
-    assert.equal((await get(adminSession.token)).status,401);
+    assert.equal((await get(adminSession.cookie)).status,401);
     await ctx.setPortal(before);
   });
   await check('Session lookup uses one account read, zero SQL writes and never shares an identity cache',async()=>{
     let reads=0;let current=structuredClone(portal);
     const env={BUDGETS_DB:{withSession:()=>({prepare:()=>({bind:()=>({first:async()=>null})})})},BUDGETS_SESSION_SECRET:ctx.sessionSecret,CET_WORKSPACE_KEY:'test',CET_KV:{get:async()=>{reads++;return current;}}};
-    const req=new Request('https://test',{headers:{Authorization:'Bearer '+adminSession.token}});
+    const req=new Request('https://test',{headers:{Cookie:adminSession.cookie}});
     assert.equal((await sessionIdentity(req,env)).email,users[0]);assert.equal(reads,1);
     current.auth.accounts[users[0]].hash='0'.repeat(64);
     assert.equal(await sessionIdentity(req,env),null);assert.equal(reads,2);

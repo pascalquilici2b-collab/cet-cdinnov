@@ -9,7 +9,7 @@ import {quoteFixture,quoteFixtureTools,samplePDF} from './billing-quote-fixture.
 
 await test('révisions liées : intégrité des versions, abandon, concurrence et facturation unique',async t=>{
  const ctx=await testEnvironment();try{
-  await migrateBilling(ctx.db);const admin=await ctx.login(users[0]),reader=await ctx.login(users[1]);const {call,create,send,input,finalize,series}=await quoteFixtureTools(ctx,admin.token);
+  await migrateBilling(ctx.db);const admin=await ctx.login(users[0]),reader=await ctx.login(users[1]);const {call,create,send,input,finalize,series}=await quoteFixtureTools(ctx,admin.cookie);
   const read=async(r,status=200)=>{assert.equal(r.status,status,await r.clone().text());return r.json();};
   const fresh=(title='Proposition à réviser')=>create({...quoteFixture(title),issueDate:billingToday()});
   const get=id=>call('/documents/'+id).then(r=>read(r));
@@ -18,12 +18,12 @@ await test('révisions liées : intégrité des versions, abandon, concurrence e
   const abandon=(d,v=data(d,'Proposition maintenue dans sa version précédente'),version=d.version)=>call('/documents/'+d.id+'/abandon-revision','POST',v,{'If-Match':String(version)});
   const accept=d=>send(d,input(d,'accepted','Accord reçu par e-mail',billingToday())).then(r=>read(r,201));
   const save=d=>call('/documents/'+d.id,'PUT',{data:{...d.data,validUntil:'2099-12-31'}},{'If-Match':String(d.version)}).then(r=>read(r));
-  const engage=async d=>{const r=await ctx.worker.dispatchFetch('https://preview.test/api/v1/billing/documents/'+d.id+'/engagement?'+new URLSearchParams({kind:'signed_quote',reference:d.issuance.number,date:billingToday()}),{method:'PUT',headers:{Origin:'https://app.cdinnov.eu',Authorization:'Bearer '+admin.token,'If-Match':String(d.version),'X-Filename':'Devis-signe.pdf','Content-Type':'application/pdf'},body:samplePDF()});return read(r,201);};
+  const engage=async d=>{const r=await ctx.worker.dispatchFetch('https://preview.test/api/v1/billing/documents/'+d.id+'/engagement?'+new URLSearchParams({kind:'signed_quote',reference:d.issuance.number,date:billingToday()}),{method:'PUT',headers:{'X-CDInnov-Request':'1',Origin:'https://app.cdinnov.eu',Cookie:admin.cookie,'If-Match':String(d.version),'X-Filename':'Devis-signe.pdf','Content-Type':'application/pdf'},body:samplePDF()});return read(r,201);};
   const convert=d=>call('/documents/'+d.id+'/convert','POST',{id:randomUUID()},{'If-Match':String(d.version)});
   let source=await fresh(),child;
   const original=await ctx.db.prepare('SELECT * FROM billing_issuances WHERE document_id=?').bind(source.id).first();
   await t.test('droits, version source et intention stricte ; aucune migration HTTP',async()=>{
-   for(const auth of ['', 'Bearer '+reader.token])for(const suffix of ['/quote-versions','/revise','/abandon-revision'])assert.equal((await call('/documents/'+source.id+suffix,suffix==='/quote-versions'?'GET':'POST',suffix==='/quote-versions'?undefined:data(source),{Authorization:auth,'If-Match':'1'})).status,auth?403:401);
+   for(const auth of ['', reader.cookie])for(const suffix of ['/quote-versions','/revise','/abandon-revision'])assert.equal((await call('/documents/'+source.id+suffix,suffix==='/quote-versions'?'GET':'POST',suffix==='/quote-versions'?undefined:data(source),{Cookie:auth,'If-Match':'1'})).status,auth?403:401);
    await read(await call('/documents/'+source.id+'/revise','POST',data(source)),428);
    for(const patch of [{reason:''},{reason:' '.repeat(3)},{familyVersion:-1},{familyVersion:0.5},{id:'bad'},{extra:1}])await read(await revise(source,{...data(source),...patch}),400);
    await read(await revise(source,data(source),2),409);

@@ -7,7 +7,7 @@ import './rh.css';
 import {RhPDFPreview} from './rh-pdf-preview';
 import {maritimeLogoData,epcicLogoData} from '../rh-workbook-branding';
 
-export type RhProps={baseUrl:string;getToken:()=>Promise<string>;isActive:()=>boolean;onStampBatch:(id:string)=>void;onStamping:()=>void;send?:typeof fetch};
+export type RhProps={baseUrl:string;getSession:()=>Promise<string>;isActive:()=>boolean;onStampBatch:(id:string)=>void;onStamping:()=>void;send?:typeof fetch};
 const money=(n:number|null|undefined)=>n==null?'—':new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR'}).format(n/100);
 const date=(s:string)=>s?new Date(s.slice(0,10)+'T12:00:00').toLocaleDateString('fr-FR'):'—';
 const month=(s:string)=>s?new Date(s+'-01T12:00:00').toLocaleDateString('fr-FR',{month:'long',year:'numeric'}):'Mois à préciser';
@@ -38,7 +38,7 @@ function App(props:RhProps){
  const [pendingBatch,setPendingBatch]=useState('');
  useEffect(()=>{if(pendingBatch&&!busy){setPendingBatch('');props.onStampBatch(pendingBatch);}},[pendingBatch,busy]);
  const dirty=!!draft&&!!doc&&JSON.stringify(draft)!==JSON.stringify(doc.draft);dirtyRef.current=dirty;draftRef.current=draft;
- const request=async(path:string,init:RequestInit={})=>{const token=await props.getToken();if(!alive.current||!props.isActive())throw Error('Session fermée.');const response=await (props.send||fetch)(props.baseUrl+'/api/v1/rh'+path,{...init,credentials:'include',headers:{...(token?{Authorization:'Bearer '+token}:{}),...(init.body&&typeof init.body==='string'?{'Content-Type':'application/json'}:{}),...init.headers},cache:'no-store',signal:AbortSignal.timeout(600000)});if(!alive.current||!props.isActive())throw Error('Session fermée.');if(!response.ok){let data:any={};try{data=await response.json();}catch{}throw Error(data.error||'Le service est indisponible. Réessayez.');}return response;};
+ const request=async(path:string,init:RequestInit={})=>{const sessionId=await props.getSession();if(!alive.current||!props.isActive())throw Error('Session fermée.');const response=await (props.send||fetch)(props.baseUrl+'/api/v1/rh'+path,{...init,credentials:'same-origin',headers:{'X-CDInnov-Request':'1',...(init.body&&typeof init.body==='string'?{'Content-Type':'application/json'}:{}),...init.headers},cache:'no-store',signal:AbortSignal.timeout(600000)});if(!alive.current||!props.isActive())throw Error('Session fermée.');if(response.status===401)window.dispatchEvent(new CustomEvent('cdinnov-session-expired',{detail:{sessionId}}));if(!response.ok){let data:any={};try{data=await response.json();}catch{}throw Error(data.error||'Le service est indisponible. Réessayez.');}return response;};
  const json=async(path:string,init:RequestInit={})=>(await request(path,init)).json();
  const run=async(label:string,fn:()=>Promise<unknown>,success='')=>{if(running.current)return;running.current=true;setBusy(label);setError('');setNotice('');try{await fn();if(alive.current&&success)setNotice(success);}catch(e){if(alive.current)setError((e as Error).message);}finally{running.current=false;if(alive.current)setBusy('');}};
  const putDoc=(value:RhDocument)=>{latest.current=value;setDoc(value);setDraft(structuredClone(value.draft));};

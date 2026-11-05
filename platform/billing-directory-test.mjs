@@ -19,12 +19,12 @@ test('catalogue : calculs exacts et copies indépendantes',()=>{
 
 await test('répertoire réel D1 : clients partagés, catalogue, versions et conservation des documents',async t=>{
  const ctx=await testEnvironment();let header;
- const call=(path,method='GET',body,headers={})=>ctx.worker.dispatchFetch('https://preview.test/api/v1/billing'+path,{method,headers:{Origin:'https://app.cdinnov.eu','Content-Type':'application/json',...header,...headers},...(body===undefined?{}:{body:JSON.stringify(body)})});
+ const call=(path,method='GET',body,headers={})=>ctx.worker.dispatchFetch('https://preview.test/api/v1/billing'+path,{method,headers:{'X-CDInnov-Request':'1',Origin:'https://app.cdinnov.eu','Content-Type':'application/json',...header,...headers},...(body===undefined?{}:{body:JSON.stringify(body)})});
  try{
   await migrateBilling(ctx.db);await seedBusinessDocument(ctx.db,'budgets',{clients:[{id:'existing-client',name:'Client partagé',unknown:{keep:true}}]},1);
-  const admin=await ctx.login(users[0]),reader=await ctx.login(users[1]);header={Authorization:'Bearer '+admin.token};
+  const admin=await ctx.login(users[0]),reader=await ctx.login(users[1]);header={Cookie:admin.cookie};
   await t.test('seule la direction accède au répertoire, aucun secret dans les réponses',async()=>{
-   for(const [token,status] of [['',401],['Bearer '+reader.token,403]])for(const path of ['/clients','/services','/clients/existing-client'])assert.equal((await call(path,'GET',undefined,{Authorization:token})).status,status);
+   for(const [token,status] of [['',401],[reader.cookie,403]])for(const path of ['/clients','/services','/clients/existing-client'])assert.equal((await call(path,'GET',undefined,{Cookie:token})).status,status);
    const result=await call('/clients');assert.equal(result.status,200,await result.clone().text());assert.doesNotMatch(await result.clone().text(),/hash|salt|unknown/);const list=await result.json();assert.equal(list.total,1);assert.equal(list.records[0].version,0);assert.equal(list.records[0].id,'existing-client');assert.equal(list.records[0].data.party.addressLine1,'');
   });
   let client;
@@ -75,7 +75,7 @@ await test('répertoire réel D1 : clients partagés, catalogue, versions et con
    const found=await (await call('/services?q=tech-01&limit=1&offset=0')).json();assert.equal(found.total,1);assert.equal(found.records[0].id,item.id);
    assert.equal((await (await call('/services?q='+encodeURIComponent("%' OR 1=1--"))).json()).total,0);
    for(const query of ['limit=0','limit=101','offset=-1','archived=1','q=a&q=b','unknown=1'])assert.equal((await call('/clients?'+query)).status,400);
-   assert.equal((await call('/clients','POST',{id:randomUUID(),data:blankClient()},{Origin:'https://untrusted.test'})).status,403);
+   assert.equal((await call('/clients','POST',{id:randomUUID(),data:blankClient()},{'X-CDInnov-Request':'1',Origin:'https://untrusted.test'})).status,403);
    assert.equal((await call('/clients/missing','PUT',{data:client.data},{'If-Match':'0'})).status,404);
   });
  }finally{await ctx.worker.dispose();}

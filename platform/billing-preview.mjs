@@ -8,7 +8,6 @@ import {dashboardFixture} from './dashboard-fixture.mjs';
 import {migrateBilling} from './billing-schema.mjs';
 import {seedBusinessDocument} from './business-migration.mjs';
 export async function billingPreview(testOptions={}){
-  process.env.MARCHES_TEST_WORKER=fileURLToPath(new URL('../.build/entry.mjs',import.meta.url));
   process.env.MARCHES_TEST_COMPATIBILITY_DATE='2026-06-09';
   // UI fixtures expose the configured path; each PDF test supplies its own outbound service.
   const ctx=await testEnvironment({...testOptions,bindings:{BILLING_PDF_SERVICE_URL:'https://billing-fixture.invalid',BILLING_PDF_SERVICE_KEY:'synthetic-billing-fixture-key-0123456789',...testOptions.bindings}});
@@ -22,10 +21,11 @@ export async function billingPreview(testOptions={}){
     await ctx.setPortal(JSON.stringify(fixture));
     await seedBusinessDocument(ctx.db,'budgets',{clients:[{id:'client-test',name:'Client fictif'}]},1);
     const sessions=await Promise.all(users.map(email=>ctx.login(email)));
+    const publicSessions=sessions.map(({cookie,...metadata})=>metadata);
     const root=fileURLToPath(new URL('../',import.meta.url)).replace(/[\\/]$/,'');
     const boot=`state={...freshState(),...${JSON.stringify(fixture)}};
       cloudEnabled=()=>false;budgetsObserveClients=()=>{};budgetsApi=()=>location.origin+'/budgets';
-      budgetsEnsureSession=async()=>AUTH_USER===${JSON.stringify(users[0])}?${JSON.stringify(sessions[0])}:${JSON.stringify(sessions[1])};
+      budgetsEnsureSession=async()=>AUTH_USER===${JSON.stringify(users[0])}?${JSON.stringify(publicSessions[0])}:${JSON.stringify(publicSessions[1])};
       window.qaNotifications=[];notify=(...args)=>qaNotifications.push(args);
       window.qaFacturx=[];window.qaOpenFacturX=openFacturX;openFacturX=id=>{qaFacturx.push(id);toast('Aperçu local : aucun document fictif envoyé au convertisseur.');};
       const consultant=new URLSearchParams(location.search).has('consultant');
@@ -40,7 +40,7 @@ export async function billingPreview(testOptions={}){
       if(url.pathname.startsWith('/api/')||url.pathname.startsWith('/budgets/')){
         const chunks=[];for await(const chunk of req)chunks.push(chunk);
         const headers={Origin:'https://app.cdinnov.eu'};
-        for(const key of ['authorization','content-type','if-match','if-none-match','x-filename'])if(req.headers[key])headers[key]=req.headers[key];
+        for(const key of ['cookie','content-type','if-match','if-none-match','x-filename','x-cdinnov-request'])if(req.headers[key])headers[key]=req.headers[key];
         const response=await ctx.worker.dispatchFetch('https://preview.example'+url.pathname+url.search,{method:req.method,headers,...(chunks.length?{body:Buffer.concat(chunks)}:{})});
         requests.push({path:url.pathname,method:req.method,status:response.status});
         res.writeHead(response.status,Object.fromEntries(response.headers));res.end(Buffer.from(await response.arrayBuffer()));return;
@@ -48,6 +48,7 @@ export async function billingPreview(testOptions={}){
       const name=url.pathname==='/'?'/index.html':url.pathname,path=resolve(root,'.'+decodeURIComponent(name));
       if(!path.startsWith(root+sep)||!types[extname(path)]||/[/\\](?:\.git|node_modules|\.build|\.private)[/\\]/i.test(path))throw new Error('Outside public tree');
       res.setHeader('Content-Type',types[extname(path)]||'application/octet-stream');
+      if(name==='/index.html')res.setHeader('Set-Cookie',sessions[url.searchParams.has('consultant')?1:0].cookie+'; Path=/; HttpOnly; Secure; SameSite=Strict');
       res.end(name==='/index.html'?html:await readFile(path));
     }catch{res.writeHead(404);res.end('Not found');}});
     await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve);});

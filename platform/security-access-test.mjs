@@ -7,7 +7,7 @@ delete process.env.MARCHES_TEST_WORKER;
 process.env.MARCHES_TEST_COMPATIBILITY_DATE='2026-06-09';
 const prove=process.argv.includes('--prove-before-fix');
 const ctx=await testEnvironment();
-const call=(path,body,session,method=body?'POST':'GET',version)=>ctx.worker.dispatchFetch('https://test'+path,{method,headers:{Origin:'https://app.cdinnov.eu','Content-Type':'application/json','cf-connecting-ip':'192.0.2.77',...(session?{Authorization:'Bearer '+session.token}:{}),...(version?{'If-Match':String(version)}:{})},...(body?{body:JSON.stringify(body)}:{})});
+const call=(path,body,session,method=body?'POST':'GET',version)=>ctx.worker.dispatchFetch('https://test'+path,{method,headers:{'X-CDInnov-Request':'1',Origin:'https://app.cdinnov.eu','Content-Type':'application/json','cf-connecting-ip':'192.0.2.77',...(session?{Cookie:session.cookie}:{}),...(version?{'If-Match':String(version)}:{})},...(body?{body:JSON.stringify(body)}:{})});
 const getPortal=async session=>(await call('/api/v1/portal',null,session)).json();
 const challenge=async email=>{const response=await call('/api/v1/session',{email,action:'challenge'});assert.equal(response.status,200);return response.json();};
 const fingerprint=challenge=>JSON.parse(Buffer.from(challenge.challenge.split('.')[0],'base64url').toString()).fingerprint;

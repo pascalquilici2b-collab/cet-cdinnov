@@ -15,13 +15,15 @@ export function portalAdmin(portal:Record<string,any>,email:string):boolean {
   return allowed && !!portal.auth?.accounts?.[email] && accountRole(email,portal.auth.accounts[email])==='admin';
 }
 const seededAccounts = [...admins,'calendini.matthieu@cdinnov.com','vincenti.paulmichel@cdinnov.com'];
-const sessionAudience = 'cdinnov-budgets';
+// A new audience deliberately invalidates every legacy browser-readable bearer.
+const sessionAudience = 'cdinnov-cookie-session-v3';
+export const sessionCookieName = '__Host-cdi_session';
 const challengeAudience = 'cdinnov-budget-login';
 const sessionDuration = 8 * 60 * 60 * 1000;
 type ObjectValue = Record<string, unknown>;
 interface Account {salt:string; iter:number; hash:string; name?:string;role:'admin'|'collaborator';access:ModuleAccess;}
 interface Claims {aud:string; email:string; exp:number; fingerprint:string; nonce:string;}
-export interface SessionIdentity {email:string; name:string; expiresAt:number; admin:boolean;access:ModuleAccess;}
+export interface SessionIdentity {email:string; name:string; expiresAt:number; sessionId:string; admin:boolean;access:ModuleAccess;}
 const object = (value:unknown):ObjectValue|null => value !== null && typeof value==='object' && !Array.isArray(value) ? value as ObjectValue : null;
 const normalize = (value:unknown) => typeof value==='string' ? value.trim().toLowerCase() : '';
 const validEmail = (value:string) => value.length<=254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
@@ -49,6 +51,26 @@ const encode = (claims:Claims,key:string) => {
   const body=Buffer.from(JSON.stringify(claims)).toString('base64url');
   return body+'.'+sign(body,key);
 };
+
+/** Never accept Authorization as a portal session, even alongside old storage. */
+export function sessionCookieValue(request:Request):string|null {
+  const matches=(request.headers.get('cookie')||'').split(';').map(value=>value.trim()).filter(value=>value.startsWith(sessionCookieName+'='));
+  if(matches.length!==1)return null;
+  const value=matches[0].slice(sessionCookieName.length+1);
+  return value.length<=2000&&/^[A-Za-z0-9_.-]+$/.test(value)?value:null;
+}
+function withSessionCookie(response:Response,value:string,expiresAt:number):Response {
+  response.headers.append('Set-Cookie',sessionCookieName+'='+value+'; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age='+Math.max(0,Math.floor((expiresAt-Date.now())/1000))+'; Expires='+new Date(expiresAt).toUTCString());
+  return response;
+}
+export const clearSessionCookie=(response:Response)=>withSessionCookie(response,'',0);
+export async function revokeSession(request:Request,env:Environment,now=Date.now()):Promise<void> {
+  const token=sessionCookieValue(request);if(!token)return;
+  const claims=decode(token,secret(env),sessionAudience,now);if(!claims)return;
+  const db=env.BUDGETS_DB.withSession('first-primary');
+  await db.prepare('INSERT OR IGNORE INTO app_session_revocations(token_hash,expires_at) VALUES (?,?)').bind(createHash('sha256').update(token).digest('hex'),claims.exp).run();
+  await db.prepare('DELETE FROM app_session_revocations WHERE expires_at<?').bind(now).run();
+}
 
 function decode(value:unknown,key:string,audience:string,now:number):Claims|null {
   if(typeof value!=='string' || value.length>2000) return null;
@@ -84,15 +106,14 @@ async function account(env:Environment,email:string):Promise<Account|null> {
 
 /** Read the account on every request: no identity or permission cache across users. */
 export async function sessionIdentity(request:Request,env:Environment,now=Date.now()):Promise<SessionIdentity|null> {
-  const authorization=request.headers.get('authorization');
-  if(!authorization || !/^Bearer [A-Za-z0-9_.-]+$/i.test(authorization)) return null;
-  const key=secret(env),claims=decode(authorization.slice(7),key,sessionAudience,now);
+  const token=sessionCookieValue(request);if(!token)return null;
+  const key=secret(env),claims=decode(token,key,sessionAudience,now);
   if(!claims) return null;
-  const revoked=await env.BUDGETS_DB.withSession('first-primary').prepare('SELECT token_hash FROM app_session_revocations WHERE token_hash=?').bind(createHash('sha256').update(authorization.slice(7)).digest('hex')).first();
+  const revoked=await env.BUDGETS_DB.withSession('first-primary').prepare('SELECT token_hash FROM app_session_revocations WHERE token_hash=?').bind(createHash('sha256').update(token).digest('hex')).first();
   if(revoked)return null;
   const current=await account(env,claims.email);
   if(!current || !equal(claims.fingerprint,sessionFingerprint(current,claims.email,key))) return null;
-  return {email:claims.email,name:current.name || claims.email,expiresAt:claims.exp,admin:current.role==='admin',access:current.access};
+  return {email:claims.email,name:current.name || claims.email,expiresAt:claims.exp,sessionId:claims.nonce,admin:current.role==='admin',access:current.access};
 }
 
 /** Compatibility contract used by Budgets, Agenda, Marchés, Smartsheet and Dashboard. */
@@ -143,7 +164,9 @@ export async function login(request:Request,env:Environment,db:Database,reply:Re
   const proof=createHmac('sha256',Buffer.from(current.hash,'hex')).update(input.challenge as string).digest('hex');
   if(!equal(proof,input.proof))return denied();
   const expiresAt=now+sessionDuration;
-  const token=encode({aud:sessionAudience,email,exp:expiresAt,fingerprint:sessionFingerprint(current,email,key),nonce:randomBytes(16).toString('hex')},key);
+  const sessionId=randomBytes(16).toString('hex');
+  const token=encode({aud:sessionAudience,email,exp:expiresAt,fingerprint:sessionFingerprint(current,email,key),nonce:sessionId},key);
+  await revokeSession(request,env,now);
   await db.prepare('DELETE FROM budgets_login_limits WHERE id=? OR until_at<?').bind(limitKeys[0],now).run();
-  return reply(200,{token,expiresAt});
+  return withSessionCookie(reply(200,{email,expiresAt,sessionId}),token,expiresAt);
 }

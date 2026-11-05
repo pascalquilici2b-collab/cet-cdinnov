@@ -5,7 +5,7 @@ import {dashboardFixture} from './dashboard-fixture.mjs';
 process.env.MARCHES_TEST_WORKER=fileURLToPath(new URL('../.build/entry.mjs',import.meta.url));
 process.env.MARCHES_TEST_COMPATIBILITY_DATE='2026-06-09';
 const ctx=await testEnvironment();
-const call=(session,path,body,version)=>ctx.worker.dispatchFetch('https://test'+path,{method:body?'POST':'GET',headers:{Origin:'https://app.cdinnov.eu',Authorization:'Bearer '+session.token,'Content-Type':'application/json',...(version!==undefined?{'If-Match':String(version)}:{})},...(body?{body:JSON.stringify(body)}:{})});
+const call=(session,path,body,version)=>ctx.worker.dispatchFetch('https://test'+path,{method:body?'POST':'GET',headers:{'X-CDInnov-Request':'1',Origin:'https://app.cdinnov.eu',Cookie:session.cookie,'Content-Type':'application/json',...(version!==undefined?{'If-Match':String(version)}:{})},...(body?{body:JSON.stringify(body)}:{})});
 const portal=session=>call(session,'/api/v1/portal').then(r=>r.json());
 const role=(session,email,role,version)=>call(session,'/api/v1/portal/accounts',{action:'role',email,role},version);
 try{
@@ -19,7 +19,7 @@ try{
  assert.equal((await role(admin,'missing@example.invalid','admin',initial.version)).status,404);
  assert.equal((await role(admin,users[0],'collaborator',initial.version)).status,409,'last administrator protected');
  const forged=await portal(staff);forged.workspace.auth.accounts[users[1]].role='admin';
- const escalation=await ctx.worker.dispatchFetch('https://test/api/v1/portal',{method:'PUT',headers:{Authorization:'Bearer '+staff.token,'Content-Type':'application/json','If-Match':String(forged.version)},body:JSON.stringify(forged.workspace)});
+ const escalation=await ctx.worker.dispatchFetch('https://test/api/v1/portal',{method:'PUT',headers:{Cookie:staff.cookie,Origin:'https://app.cdinnov.eu','X-CDInnov-Request':'1','Content-Type':'application/json','If-Match':String(forged.version)},body:JSON.stringify(forged.workspace)});
  assert.equal(escalation.status,403);
  console.log('OK collaborators cannot grant roles, invalid/stale writes are guarded, final administrator protected');
  assert.equal((await role(admin,users[1],'admin',initial.version)).status,200);

@@ -187,18 +187,29 @@ var CDIPlatform = (() => {
     let cached;
     let baseline;
     let generation = 0;
-    const clear = () => {
+    const suspend = () => {
       cached = void 0;
-      baseline = void 0;
       generation++;
+    };
+    const clear = () => {
+      baseline = void 0;
+      suspend();
     };
     return {
       clear,
+      // A same-account reconnect retains the original record versions for conflict
+      // checks, so an unsaved edit can be retried without overwriting newer work.
+      suspend,
       async request(url, session, method, workspace, version) {
-        const key = JSON.stringify([url, session.email, session.token]);
-        if (baseline && baseline.key !== key) clear();
+        const key = JSON.stringify([url, session.email, session.sessionId]);
+        const owner = JSON.stringify([url, session.email]);
+        if (baseline && baseline.owner !== owner) clear();
+        else if (baseline && baseline.key !== key) {
+          suspend();
+          baseline = { ...baseline, key };
+        }
         const start = ++generation;
-        const headers = { Authorization: "Bearer " + session.token };
+        const headers = { "X-CDInnov-Request": "1" };
         if (method === "GET" && cached?.key === key) headers["If-None-Match"] = cached.tag;
         if (method === "PUT" && (!baseline || !workspace)) throw new Error("Rechargez le budget avant de modifier un enregistrement.");
         const submitted = method === "PUT" ? structuredClone(workspace) : void 0;
@@ -209,7 +220,7 @@ var CDIPlatform = (() => {
         }
         let response;
         try {
-          response = await send(url, { method: method === "PUT" ? "PATCH" : "GET", headers, body: method === "PUT" ? JSON.stringify({ changes }) : void 0, cache: "no-store", signal: AbortSignal.timeout(3e4) });
+          response = await send(url, { method: method === "PUT" ? "PATCH" : "GET", credentials: "same-origin", headers, body: method === "PUT" ? JSON.stringify({ changes }) : void 0, cache: "no-store", signal: AbortSignal.timeout(3e4) });
         } catch (error) {
           if (generation === start) cached = void 0;
           throw error;
@@ -219,20 +230,21 @@ var CDIPlatform = (() => {
           if (!cached || cached.key !== key) throw new Error("La copie locale a expir\xE9. Rechargez les donn\xE9es.");
           return structuredClone(cached.value);
         }
+        if (response.status === 401 && typeof window !== "undefined") window.dispatchEvent(new CustomEvent("cdinnov-session-expired", { detail: { sessionId: session.sessionId } }));
         const value = await response.json();
         if (generation !== start) throw new Error("La session ou le budget a chang\xE9. Rechargez les donn\xE9es.");
         if (!response.ok) {
           cached = void 0;
-          if (response.status === 401) clear();
+          if (response.status === 401) suspend();
           throw Object.assign(new Error(value.error || "Enregistrement impossible. R\xE9essayez."), { status: response.status });
         }
         if (method === "GET") {
           const tag = response.headers.get("ETag");
           if (tag && value.workspace && Number.isSafeInteger(value.version)) cached = { key, tag, value: structuredClone(value) };
-          if (value.workspace && Number.isSafeInteger(value.version)) baseline = { key, workspace: structuredClone(value.workspace) };
+          if (value.workspace && Number.isSafeInteger(value.version)) baseline = { key, owner, workspace: structuredClone(value.workspace) };
         } else {
           if (!Number.isSafeInteger(value.version)) throw new Error("Confirmation de sauvegarde invalide.");
-          baseline = { key, workspace: submitted };
+          baseline = { key, owner, workspace: submitted };
         }
         return value;
       }

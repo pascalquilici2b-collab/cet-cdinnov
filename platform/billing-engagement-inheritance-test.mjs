@@ -8,12 +8,12 @@ import {emptyMarket} from '../marches/domain.mjs';
 
 test('global quote engagement and service follow invoice, project selection, tracking and rectification',async()=>{
  const ctx=await testEnvironment();try{
-  await migrateBilling(ctx.db);const token=(await ctx.login(users[0])).token,q=await quoteFixtureTools(ctx,token),f=await quoteFixtureTools(ctx,token,{kind:'invoice',prefix:'INV-'});
+  await migrateBilling(ctx.db);const token=(await ctx.login(users[0])).cookie,q=await quoteFixtureTools(ctx,token),f=await quoteFixtureTools(ctx,token,{kind:'invoice',prefix:'INV-'});
   const marketId=randomUUID(),projectId=randomUUID(),market={...emptyMarket(),reference:'M-TEST',clientName:'Atelier Horizon',projects:[{id:projectId,name:'MARIN AI',orders:[]}]};
   await ctx.db.prepare('INSERT INTO markets VALUES(?,?,1,?,?)').bind(marketId,JSON.stringify(market),new Date().toISOString(),users[0]).run();
   const data=quoteFixture();data.references={...data.references,marketId,marketReference:'M-TEST'};
   let quote=await q.create(data);quote=await(await q.send(quote)).json();
-  const upload=await ctx.worker.dispatchFetch('https://local/api/v1/billing/documents/'+quote.id+'/engagement?'+new URLSearchParams({kind:'order',reference:'22500277',marketId,amountMinor:'540250',engagement:'22500277',serviceCode:'PORT DE PLAISANCE TINO ROSSI'}),{method:'PUT',headers:{Origin:'https://app.cdinnov.eu',Authorization:'Bearer '+token,'If-Match':String(quote.version),'X-Filename':'Bon.pdf','Content-Type':'application/pdf'},body:samplePDF()});
+  const upload=await ctx.worker.dispatchFetch('https://local/api/v1/billing/documents/'+quote.id+'/engagement?'+new URLSearchParams({kind:'order',reference:'22500277',marketId,amountMinor:'540250',engagement:'22500277',serviceCode:'PORT DE PLAISANCE TINO ROSSI'}),{method:'PUT',headers:{'X-CDInnov-Request':'1',Origin:'https://app.cdinnov.eu',Cookie:token,'If-Match':String(quote.version),'X-Filename':'Bon.pdf','Content-Type':'application/pdf'},body:samplePDF()});
   assert.equal(upload.status,201,await upload.clone().text());
   let response=await q.call('/documents/'+quote.id+'/convert','POST',{id:randomUUID()},{'If-Match':String(quote.version)});assert.equal(response.status,201,await response.clone().text());
   let invoice=await response.json(),orderId='engagement:'+quote.id;

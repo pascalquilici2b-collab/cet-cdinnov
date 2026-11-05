@@ -52,3 +52,16 @@ Références techniques consultées : [limites Cloudflare Queues](https://develo
 Contrôle en lecture seule à **10:01:15 UTC** : Worker et paramètres identiques au relevé de 09:53:05 UTC ; `origin/main` reste `91726ce979769962bf006914d914eb768da1a4fa`. SHA-256 Worker : `7c60519517274ca4022557bbdc5640c279db2513c2653b898396d4e9ca93d4a4`.
 
 Les sauvegardes de comparaison restent privées sous `.private/rh-release-baseline`. Ce relevé doit être refait immédiatement avant publication afin de préserver les évolutions d’authentification menées dans un autre chantier. Aucune écriture de production n’a été effectuée par l’agent chargé de cette revue.
+
+
+## Revue finale et intégration des sessions
+
+La version de sécurité publiée `cd83c26` est fusionnée : cookies HttpOnly, en-tête anti-CSRF, événement commun de session expirée et nettoyage RH au changement de compte. Les 9 scénarios backend RH, 9 scénarios de tamponnage réel, capacité 300, navigateur tamponnage et TypeScript ont été revalidés après fusion.
+
+Contrôle manuel CUA avec API Miniflare et moteur d’extraction fictif : création du document, choix client/projet/période, création d’un agent commun, deux bulletins, vérification, taux 25 % et 10 %, total 1 512,59 €, gel de version, téléchargement Excel, réimport du classeur complété et PDF signé fictif, puis validation du retour. Un second document retrouve les deux agents et réutilise les deux PDF sans téléversement. Les vues claires/sombres et les largeurs 390/320 px ont été inspectées sans débordement du module. Captures sous `.private/rh-visual-qa`.
+
+Ce serveur de test manuel n’active pas la file de tamponnage : son message de configuration est attendu. Le raccordement complet à la file et au moteur PDF réel est vérifié séparément par les 9 scénarios d’intégration et le test navigateur du pont.
+
+Le lecteur de bulletins utilise désormais PDF.js local, sans iframe. `node platform/rh-pdf-preview-test.mjs` vérifie un PDF de deux pages, les pixels de texte effectivement dessinés, pagination, zoom, reprise après erreur et mobile. Le rendu a aussi été inspecté en CUA dans la fenêtre de rapprochement.
+
+Les 8 tests Excel couvrent retours, intégrité, versements multiples et limites ZIP. La migration reste explicite, sans écriture de documents métier de production.

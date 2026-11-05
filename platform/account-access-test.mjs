@@ -4,7 +4,7 @@ import {users} from '../marches/test.mjs';
 const preview=await billingPreview(),{ctx,sessions:[admin,staff]}=preview;
 const keys=['dashboard','mouvements','salaries','notesfrais','agenda','tamponnage','facturier','budgetsprojets','sheets'];
 const denied=Object.fromEntries(keys.map(k=>[k,false]));
-const call=(s,path,body,version,method=body?'POST':'GET')=>ctx.worker.dispatchFetch('https://test'+path,{method,headers:{Origin:'https://app.cdinnov.eu',Authorization:'Bearer '+s.token,'Content-Type':'application/json',...(version!==undefined?{'If-Match':String(version)}:{})},...(body?{body:JSON.stringify(body)}:{})});
+const call=(s,path,body,version,method=body?'POST':'GET')=>ctx.worker.dispatchFetch('https://test'+path,{method,headers:{'X-CDInnov-Request':'1',Origin:'https://app.cdinnov.eu',Cookie:s.cookie,'Content-Type':'application/json',...(version!==undefined?{'If-Match':String(version)}:{})},...(body?{body:JSON.stringify(body)}:{})});
 const portal=async(s=admin)=>(await call(s,'/api/v1/portal')).json();
 const set=async(access,email=users[1],s=admin,version)=>(await call(s,'/api/v1/portal/accounts',{action:'access',email,access},version??(await portal()).version));
 try{
@@ -47,7 +47,7 @@ try{
  const invitation=await call(admin,'/api/v1/portal/accounts',{action:'reset',email:users[1]}).then(r=>r.json());
  assert.equal((await call(staff,'/api/v1/session')).status,401);
  const account=ctx.accounts[users[1]];
- const enrol=await ctx.worker.dispatchFetch('https://test/api/v1/portal/enrol',{method:'POST',headers:{'Content-Type':'application/json',Origin:'https://app.cdinnov.eu'},body:JSON.stringify({email:users[1],token:invitation.token,name:'Consultant',salt:account.salt,hash:account.hash,iter:150000})});assert.equal(enrol.status,200);
+ const enrol=await ctx.worker.dispatchFetch('https://test/api/v1/portal/enrol',{method:'POST',headers:{'Content-Type':'application/json','X-CDInnov-Request':'1',Origin:'https://app.cdinnov.eu'},body:JSON.stringify({email:users[1],token:invitation.token,name:'Consultant',salt:account.salt,hash:account.hash,iter:150000})});assert.equal(enrol.status,200);
  const renewed=await ctx.login(users[1]);assert.deepEqual((await call(renewed,'/api/v1/session').then(r=>r.json())).access,grant);
  assert.equal((await call(admin,'/api/v1/portal/restore',{auth:{accounts:{}}},(await portal()).version,'PUT')).status,200);
  assert.deepEqual((await call(renewed,'/api/v1/session').then(r=>r.json())).access,grant);

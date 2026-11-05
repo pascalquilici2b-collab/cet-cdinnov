@@ -22,7 +22,7 @@ function renderBillingWorkspace(){
   const active=()=>epoch===billingEpoch&&AUTH_USER===user&&currentView==='facturier'&&billingMode==='modern'&&element.isConnected;
   billingModule().then(module=>{
     if(!active())return;
-    billingTransport=module.createBillingTransport({baseUrl:budgetsApi().replace(/\/budgets\/?$/,''),getToken:async()=>(await budgetsEnsureSession()).token,isActive:active});
+    billingTransport=module.createBillingTransport({baseUrl:budgetsApi().replace(/\/budgets\/?$/,''),getSession:async()=>(await budgetsEnsureSession()).sessionId,isActive:active});
     billingMounted=module.mountBilling(element,billingWorkspaceProps());
   }).catch(()=>{
     if(!active())return;

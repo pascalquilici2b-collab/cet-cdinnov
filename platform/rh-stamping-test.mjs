@@ -39,7 +39,7 @@ await check('Frozen lines from different worksheet periods retain exact provenan
 
 const ctx=await stampEnvironment();
 const read=async(response,status=200)=>{assert.equal(response.status,status,await response.clone().text());return response.json();};
-const rh=async(path,method='GET',body,headers={})=>ctx.worker.dispatchFetch('https://preview.example/api/v1/rh'+path,{method,headers:{Origin:'http://127.0.0.1:5196',Authorization:'Bearer '+ctx.admin.token,'Content-Type':'application/json',...headers},...(body?{body:JSON.stringify(body)}:{})});
+const rh=async(path,method='GET',body,headers={})=>ctx.worker.dispatchFetch('https://preview.example/api/v1/rh'+path,{method,headers:{Origin:'http://127.0.0.1:5196',Cookie:ctx.admin.cookie,'X-CDInnov-Request':'1','Content-Type':'application/json',...headers},...(body?{body:JSON.stringify(body)}:{})});
 try{
  await migrateBilling(ctx.db);await migrateRh(ctx.db);
  await ctx.db.prepare("INSERT INTO billing_directory VALUES('clients',?,1,?,?,?,'fixture',?,'fixture')").bind(clientId,JSON.stringify({archived:false,party:{name:'Client fictif'}}),'hash-test',stamp,stamp).run();
@@ -47,7 +47,7 @@ try{
  const save=async s=>ctx.db.prepare('INSERT INTO rh_versions VALUES(?,?,?,?,?,?,?)').bind(s.id,s.documentId,clientId,s.revision,JSON.stringify(s),stamp,users[0]).run();await save(snapshot);
  let batchId,batch;
  await check('Version selector and authorization use the existing shared identity',async()=>{
-  const other=await ctx.login(users[1]);await read(await rh('/versions/'+snapshot.id+'/stamping','POST',{}, {Authorization:'Bearer '+other.token}),403);await read(await rh('/versions/'+snapshot.id+'/stamping','POST',{}, {Authorization:''}),401);assert.equal((await read(await rh('/versions'))).versions[0].id,snapshot.id);
+  const other=await ctx.login(users[1]);await read(await rh('/versions/'+snapshot.id+'/stamping','POST',{}, {Cookie:other.cookie}),403);await read(await rh('/versions/'+snapshot.id+'/stamping','POST',{}, {Cookie:''}),401);assert.equal((await read(await rh('/versions'))).versions[0].id,snapshot.id);
  });
  await check('Concurrent preparation creates one native batch and uses immutable server amounts',async()=>{
   const responses=await Promise.all([rh('/versions/'+snapshot.id+'/stamping','POST',{groups:[],reviewed:true}),rh('/versions/'+snapshot.id+'/stamping','POST',{})]);const values=await Promise.all(responses.map(r=>read(r,201)));assert.equal(values[0].batchId,values[1].batchId);assert.ok(values.every(v=>v.needsPreviewApproval));batchId=values[0].batchId;assert.equal((await ctx.db.prepare('SELECT count(*) n FROM stamp_batches').first()).n,1);assert.equal((await ctx.db.prepare('SELECT count(*) n FROM rh_stamp_links').first()).n,1);batch=await read(await ctx.call('/batches/'+batchId));assert.equal(batch.data.rhVersionId,snapshot.id);assert.equal(batch.data.import.groups[1].total_cents,251199);assert.equal(batch.documents.length,2);assert.ok(batch.documents.every(d=>d.data.rhGroupId&&d.data.rhPayrollId));

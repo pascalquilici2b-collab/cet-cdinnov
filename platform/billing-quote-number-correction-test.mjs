@@ -7,12 +7,12 @@ import {createNumberSeries,billingCanonicalJSON} from './billing-issuance.ts';
 import {renameIssuedQuote} from './maintenance/rename-issued-quote.mjs';
 const p=await billingPreview(),db=p.ctx.db,actor='direction@example.test';
 try{
- const q=await quoteFixtureTools(p.ctx,p.sessions[0].token),f=await quoteFixtureTools(p.ctx,p.sessions[0].token,{kind:'invoice',prefix:'TEST-FAC-'}),call=q.call;
+ const q=await quoteFixtureTools(p.ctx,p.sessions[0].cookie),f=await quoteFixtureTools(p.ctx,p.sessions[0].cookie,{kind:'invoice',prefix:'TEST-FAC-'}),call=q.call;
  const ok=async r=>{assert.ok(r.ok,await r.clone().text());return r.json();};
  const data={...invoiceFixture(),kind:'quote',validUntil:'2099-12-31',dueDate:''};let quote=await q.create(data,false);
  await db.prepare('INSERT INTO billing_draft_numbers VALUES(?,?,?,?,?,?,?,?)').bind(quote.id,q.series.id,q.series.issuerSiren,1,'TEST-DEVIS-0001','2020-01-01',new Date().toISOString(),actor).run();
  quote=await q.finalize(quote);quote=await ok(await q.send(quote,q.input(quote)));
- const pdf=samplePDF();await ok(await p.ctx.worker.dispatchFetch('https://local/api/v1/billing/documents/'+quote.id+'/engagement?kind=signed_quote',{method:'PUT',headers:{Origin:'https://app.cdinnov.eu',Authorization:'Bearer '+p.sessions[0].token,'If-Match':String(quote.version),'X-Filename':'accord.pdf','Content-Type':'application/pdf'},body:pdf}));
+ const pdf=samplePDF();await ok(await p.ctx.worker.dispatchFetch('https://local/api/v1/billing/documents/'+quote.id+'/engagement?kind=signed_quote',{method:'PUT',headers:{'X-CDInnov-Request':'1',Origin:'https://app.cdinnov.eu',Cookie:p.sessions[0].cookie,'If-Match':String(quote.version),'X-Filename':'accord.pdf','Content-Type':'application/pdf'},body:pdf}));
  let invoice=await ok(await call('/documents/'+quote.id+'/convert','POST',{id:randomUUID()},{'If-Match':String(quote.version)}));
  invoice=await ok(await call('/documents/'+invoice.id,'PUT',{data:{...invoice.data,paymentMeans:'10',legalNotes:data.legalNotes}},{'If-Match':String(invoice.version)}));
  invoice=await f.finalize(invoice);

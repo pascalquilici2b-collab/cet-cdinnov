@@ -7,15 +7,15 @@ import {fixture as marketFixture} from '../marches/test.mjs';
 let sent=[],mode='ok';
 const p=await billingPreview({bindings:{BREVO_API_KEY:'synthetic-test-key',NOTIFY_FROM:'sender@example.test'},outboundService:async req=>{assert.equal(new URL(req.url).hostname,'api.brevo.com');sent.push(await req.json());return mode==='ok'?Response.json({messageId:'test-message'},{status:201}):new Response('Unavailable',{status:503});}});
 try{
- const token=p.sessions[0].token,headers={Authorization:'Bearer '+token,Origin:'https://app.cdinnov.eu','Content-Type':'application/json'};
+ const token=p.sessions[0].cookie,headers={Cookie:token,'X-CDInnov-Request':'1',Origin:'https://app.cdinnov.eu','Content-Type':'application/json'};
  const api=(path,method='GET',body,extra={})=>p.ctx.worker.dispatchFetch('https://preview.test'+path,{method,headers:{...headers,...extra},...(body?{body:JSON.stringify(body)}:{})});
  const m={...marketFixture(),projects:[{id:'project-1',name:'Projet test',code:'PT',notes:'Privé',archived:false,orders:[{id:'order-1',reference:'BC-1',date:'2020-01-01',amountMinor:100,documentId:'',archived:false,notes:''}]}]};
  assert.equal((await api('/budgets/markets','POST',{id:'market-1',market:m})).status,201);
  let projects=(await(await api('/api/v1/projects')).json()).projects;assert.equal(projects.length,1);
  const input={id:'project-1',marketId:'market-1',marketVersion:1,name:'Projet renommé',code:'PR',programme:'Interreg Euro-Med',notes:'Privé',archived:false};
  assert.equal((await api('/api/v1/projects','PUT',input)).status,200);assert.equal((await api('/api/v1/projects','PUT',input)).status,409);
- assert.equal((await api('/api/v1/projects','PUT',{...input,marketVersion:2},{Authorization:'Bearer '+p.sessions[1].token})).status,403);
- const employee=(await(await api('/api/v1/projects','GET',undefined,{Authorization:'Bearer '+p.sessions[1].token})).json()).projects[0];assert.equal(employee.programme,'Interreg Euro-Med');assert.equal(employee.notes,undefined);assert.equal(employee.orders,undefined);
+ assert.equal((await api('/api/v1/projects','PUT',{...input,marketVersion:2},{Cookie:p.sessions[1].cookie})).status,403);
+ const employee=(await(await api('/api/v1/projects','GET',undefined,{Cookie:p.sessions[1].cookie})).json()).projects[0];assert.equal(employee.programme,'Interreg Euro-Med');assert.equal(employee.notes,undefined);assert.equal(employee.orders,undefined);
  assert.equal((await(await api('/budgets/markets/market-1')).json()).market.projects[0].orders.length,1);
  const {programme,...legacyProject}=input;assert.equal((await api('/api/v1/projects','PUT',{...legacyProject,marketVersion:2})).status,200);
  assert.equal((await(await api('/api/v1/projects')).json()).projects[0].programme,'Interreg Euro-Med');

@@ -1,52 +1,53 @@
 import type { Session } from "./contracts";
+import '../../../platform/client/session-ui.js';
 export const isCloud = true;
-export const apiBase = "https://cet-data.pascalquilici2b.workers.dev";
+export const apiBase = "";
 export const sessionKey = "cet_auth_session";
 export function readSession(): Session | null {
+  return window.CDISession.read();
+}
+export function expireSession(sessionId?: string) {
+  window.CDISession.expire({sessionId});
+}
+let signingOut = false, loginAttempt = 0, pendingLogin: Promise<Session> | null = null;
+export async function signOut() {
+  if (signingOut) return;
+  signingOut = true; loginAttempt++;
+  window.CDISession.logout();
   try {
-    const stored = JSON.parse(localStorage.getItem(sessionKey) || "null"),
-      session = stored?.budgets;
-    return stored &&
-      Date.now() - stored.t < 8 * 3600000 &&
-      session?.email === stored.email &&
-      session.expiresAt > Date.now() + 1000 &&
-      typeof session.token === "string"
-      ? session
-      : null;
-  } catch {
-    return null;
-  }
-}
-export function expireSession() {
-  window.dispatchEvent(new Event("cdinnov-session-expired"));
-}
-export function signOut() {
-  localStorage.removeItem(sessionKey);
-  expireSession();
+    await pendingLogin?.catch(() => {});
+    await fetch('/api/v1/session', {method:'DELETE', credentials:'same-origin', headers:{'X-CDInnov-Request':'1'}, signal:AbortSignal.timeout(10000)});
+  } finally { signingOut = false; }
 }
 export async function requestState(
   options: RequestInit = {},
   owner?: string,
 ): Promise<Response> {
   const session = readSession();
-  if (!session || (owner && session.email !== owner)) {
+  if (session && owner && session.email !== owner) {
+    throw new Error('La session a changé. Reconnectez-vous pour continuer.');
+  }
+  if (!session) {
     expireSession();
     throw new Error(
       "Reconnectez-vous à votre compte CDInnov pour enregistrer.",
     );
   }
   const headers = new Headers(options.headers);
-  headers.set("Authorization", "Bearer " + session.token);
+  headers.delete("Authorization");
+  if (!['GET','HEAD','OPTIONS'].includes((options.method || 'GET').toUpperCase())) headers.set('X-CDInnov-Request','1');
   const response = await fetch(apiBase + "/sheets/state", {
     ...options,
+    credentials: 'same-origin',
     cache: "no-store",
     signal: options.signal || AbortSignal.timeout(30000),
     headers,
   });
-  if (response.status === 401 || response.status === 403) expireSession();
-  if (readSession()?.email !== session.email)
+  const body = await response.arrayBuffer();
+  if (readSession()?.sessionId !== session.sessionId)
     throw new Error("La session a changé. Reconnectez-vous pour continuer.");
-  return response;
+  if (response.status === 401) expireSession(session.sessionId);
+  return new Response([204,304].includes(response.status) ? null : body, {status:response.status, statusText:response.statusText, headers:response.headers});
 }
 export const hexToBytes = (text: string): Uint8Array<ArrayBuffer> =>
   Uint8Array.from(text.match(/.{2}/g) || [], (part) => parseInt(part, 16));
@@ -57,12 +58,18 @@ export const bytesToHex = (bytes: ArrayBuffer) =>
 export async function signIn(
   email: string,
   password: string,
+  commit = true,
+  application: 'sheets' | 'budgets' = 'sheets',
 ): Promise<Session> {
+  if (signingOut || pendingLogin) throw new Error('Une connexion est déjà en cours. Réessayez dans un instant.');
+  const attempt = ++loginAttempt;
+  const pending = (async () => {
   email = email.trim().toLowerCase();
   const exchange = async (payload: Record<string, unknown>) => {
     const response = await fetch(apiBase + "/budgets/session", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      credentials: 'same-origin',
+      headers: { "Content-Type": "application/json", 'X-CDInnov-Request':'1' },
       body: JSON.stringify({ email, ...payload }),
       signal: AbortSignal.timeout(30000),
     });
@@ -110,19 +117,30 @@ export async function signIn(
       new TextEncoder().encode(challenge.challenge),
     ),
   );
-  const session: Session = {
-    ...(await exchange({
+  if (attempt !== loginAttempt || signingOut) throw new Error('La demande de connexion a changé.');
+  const result = await exchange({
       action: "verify",
       challenge: challenge.challenge,
       proof,
-    })),
-    email,
-  };
-  localStorage.setItem(
-    sessionKey,
-    JSON.stringify({ email, t: Date.now(), budgets: session }),
-  );
-  const access=await fetch(apiBase+'/sheets/session',{headers:{Authorization:'Bearer '+session.token},cache:'no-store'});
-  if(!access.ok)throw new Error(access.status===403?'Votre compte n’a pas accès à CDInnovSheets.':'Impossible de vérifier votre accès. Réessayez.');
+    });
+  if (attempt !== loginAttempt || signingOut) {
+    await fetch('/api/v1/session', {method:'DELETE',credentials:'same-origin',headers:{'X-CDInnov-Request':'1'}}).catch(() => {});
+    throw new Error('La demande de connexion a changé.');
+  }
+  const session: Session = {email, expiresAt:result.expiresAt, sessionId:result.sessionId};
+  // The cookie already changed: retire the former account even if this new
+  // account is subsequently denied access to the requested application.
+  if (window.CDISession.current()?.email !== email && window.CDISession.current()) window.CDISession.accept(session);
+  await verifySession(application);
+  if (attempt !== loginAttempt || signingOut) throw new Error('La demande de connexion a changé.');
+  if (commit) window.CDISession.accept(session);
   return session;
+  })();
+  pendingLogin = pending;
+  try { return await pending; } finally { if (pendingLogin === pending) pendingLogin = null; }
+}
+export async function verifySession(application: 'sheets' | 'budgets' = 'sheets'): Promise<void> {
+  const response = await fetch(apiBase + (application === 'sheets' ? '/sheets/session' : '/api/v1/session'), {credentials:'same-origin', cache:'no-store',signal:AbortSignal.timeout(30000)});
+  if (response.ok && application === 'budgets') {const identity = await response.json(); if (!identity.admin && identity.access?.budgetsprojets !== true) throw Object.assign(new Error('Votre compte n’a pas accès aux budgets projets.'), {status:403});}
+  if (!response.ok) throw Object.assign(new Error(response.status === 403 ? 'Votre compte n’a pas accès à CDInnovSheets.' : response.status === 401 ? 'Reconnectez-vous avec votre compte CDInnov.' : 'Le service est indisponible. Réessayez dans un instant.'), {status:response.status});
 }

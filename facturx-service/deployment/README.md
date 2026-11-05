@@ -7,18 +7,21 @@ avec `Dockerfile`, le contexte `.` et le contrôle de santé `/api/health`.
 ## Configuration privée
 
 - `FACTURX_API_KEY` : secret aléatoire de 32 caractères minimum, réservé au serveur.
-- `FACTURX_USERS_JSON` : comptes autorisés, sous forme `{email: {salt, iter, hash}}`.
-  Le mot de passe est vérifié par PBKDF2-HMAC-SHA256. Ne publier ni les empreintes
-  ni la clé dans GitHub, les journaux ou le HTML.
+- `FACTURX_USERS_JSON` : ancien réglage inutilisé ; les comptes sont désormais
+  administrés dans le portail et cette copie peut être retirée de Render.
 - `FACTURX_ALLOWED_ORIGINS=https://app.cdinnov.eu`
 - `FACTURX_ALLOWED_HOSTS` : nom du serveur ; sur Render, le lanceur reprend
   automatiquement `RENDER_EXTERNAL_HOSTNAME`.
 
-Le navigateur obtient une session signée de huit heures en présentant le mot de
-passe par HTTPS. Le serveur vérifie l'identité, limite les tentatives de connexion
-et refuse les traitements sans authentification. Modifier ou retirer un compte
-côté serveur révoque ses sessions. Une modification du mot de passe dans l'application
-nécessite de mettre à jour sa configuration privée sur Render.
+Le navigateur utilise exclusivement la session HttpOnly du portail sur le même
+domaine et les routes `/api/v1/facturx/*`. Le Worker contrôle le compte et son droit
+Facturier à chaque requête, puis appelle uniquement les opérations documentaires
+autorisées avec `BILLING_PDF_SERVICE_KEY` (la même valeur que `FACTURX_API_KEY`).
+`BILLING_PDF_SERVICE_URL` désigne ce service HTTPS. Le secret reste entre serveurs.
+La déconnexion, la suppression du compte, le changement de mot de passe et le
+retrait du droit Facturier sont donc appliqués au convertisseur par le portail.
+La connexion directe `/api/auth/login` est fermée (410) et tous les anciens
+jetons Bearer sont refusés, même encore valides. Le contrôle de santé reste public.
 
 Les fichiers PDF sont traités dans un répertoire temporaire, supprimé à la fin de
 la requête. Aucune facture ni configuration privée ne fait partie de l'image.
@@ -30,7 +33,8 @@ Schematron, règles France, montants, intégration XML et PDF/A-3b via veraPDF.
 
 1. Construire l'image sur Render, configurer les secrets privés et vérifier la santé.
 2. Vérifier les refus d'accès anonymes et la conversion complète d'un document fictif.
-3. Raccorder l'application à l'URL HTTPS effective puis publier l'index.
+3. Configurer le Worker avec l'URL HTTPS et le secret du moteur puis publier
+   le frontal du portail, avec l'API accessible sur son propre domaine.
 4. Contrôler lecture, aperçu et conversion depuis le navigateur sans moteur local.
 
 Le forfait gratuit peut se mettre en veille et son réveil peut prendre environ une
@@ -42,21 +46,46 @@ du dossier serveur.
 Le paquet est produit par `scripts/build_server_bundle.py` avec une liste explicite
 de fichiers autorisés. `Dockerfile` installe les versions verrouillées Python,
 Ghostscript, Java 21 et veraPDF 1.30.2 avec vérification SHA-256 de l'installateur.
-La base est `python:3.12-slim-trixie` (Debian 13). Le build refuse une version
-Debian de Ghostscript/libgs10 inférieure à `10.05.1~dfsg-1+deb13u3`, Java 21
-inférieur à `21.0.13+9-1~deb13u2` ou Tesseract inférieur à `5.5.0-1`.
-Les révisions de sécurité plus récentes restent acceptées. Ce contrôle se fait
-sur les versions des paquets Debian : `gs --version` ne permet pas de distinguer
-les correctifs rétroportés. Pour contrôler l'image reconstruite sans document
-privé, exécuter `python -m deployment.verify_native_packages`.
+La base est `python:3.12-slim-trixie` (Debian 13). Ghostscript est reconstruit en
+étape Docker séparée depuis la source officielle Debian
+`10.05.1~dfsg-1+deb13u3`, avec les deux correctifs Artifex inchangés pour
+`CVE-2026-110133` et `CVE-2026-112922`. Les quatre paquets résultants portent la
+version locale `10.05.1~dfsg-1+deb13u3+cdi1` : ce suffixe désigne notre
+rétroportage, pas une nouvelle publication officielle Debian. La configuration
+Debian et ses tests restent actifs ; seul le profil `nodoc` évite la génération
+de la documentation. Les compilateurs et sources restent dans l'étape de build.
+
+Les SHA-256 des sources, des patches et des trois fichiers C corrigés sont
+verrouillés dans `deployment/ghostscript/lock.json`. La préparation refuse une
+empreinte différente ou un patch incompatible. Le build vérifie ensuite la
+provenance, les versions exactes des quatre paquets et les empreintes de
+l'exécutable, de la bibliothèque partagée et du profil couleur installés.
+La preuve embarquée est `/usr/share/cdi-native-security/ghostscript.json`.
+`gs --version` affiche toujours `10.05.1` ; ce numéro seul ne prouve pas le correctif.
+Une version Debian ultérieure sera à examiner avant de remplacer ce rétroportage.
+Ce verrouillage évite de considérer automatiquement une révision non vérifiée
+comme corrigée.
+
+Java 21 doit rester au moins à `21.0.13+9-1~deb13u2` et Tesseract à `5.5.0-1` ;
+leurs révisions Debian plus récentes restent acceptées. Pour contrôler l'image
+reconstruite sans document privé, exécuter
+`python -m deployment.verify_native_packages`.
 Les tests obligatoires de sécurité documentaire, conversion PDF/A-3b/Factur-X
 et OCR/tamponnage restent exécutés au build sous l'utilisateur non privilégié.
+La conversion inclut trois pages, deux polices TrueType incorporées, les accents,
+une comparaison visuelle du rendu et les annotations transparentes. Aucune image
+ne doit être publiée si un contrôle échoue. Inclure dans le contexte Docker
+`deployment/build_ghostscript.py` et tout le dossier `deployment/ghostscript/`,
+en plus des vérificateurs déjà prévus. Les sources et patches sont épinglés ;
+la base et les bibliothèques système suivent les mises à jour Trixie, donc cette
+procédure n'affirme pas une identité binaire entre deux builds à des dates différentes.
 
 
 ## Suivi de conversion
 
 POST /api/facturx/generate?output=stream accepte les mêmes PDF, données et
-sessions que la réponse JSON habituelle. La réponse application/x-ndjson émet
+clé serveur que la réponse JSON habituelle. Le navigateur y accède par
+`/api/v1/facturx/facturx/generate?output=stream`. La réponse application/x-ndjson émet
 six événements progress (completed 0 à 5, total 6), puis result avec le fichier
 validé, ou error sans fichier. Les battements heartbeat ne changent pas la barre.
 Le navigateur n'affiche 6/6 qu'après réception du résultat et des sept contrôles

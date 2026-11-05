@@ -1,0 +1,535 @@
+{
+  "checks": [
+    {
+      "name": "dashboard",
+      "theme": "light",
+      "width": 1440,
+      "focused": true,
+      "x": 510,
+      "right": 930,
+      "color": "rgb(255, 255, 255)",
+      "svg": true
+    },
+    {
+      "name": "dashboard",
+      "theme": "dark",
+      "width": 1440,
+      "focused": true,
+      "x": 510,
+      "right": 930,
+      "color": "rgb(36, 36, 38)",
+      "svg": true
+    },
+    {
+      "name": "mouvements",
+      "theme": "light",
+      "width": 1440,
+      "focused": true,
+      "x": 510,
+      "right": 930,
+      "color": "rgb(255, 255, 255)",
+      "svg": true
+    },
+    {
+      "name": "mouvements",
+      "theme": "dark",
+      "width": 1440,
+      "focused": true,
+      "x": 510,
+      "right": 930,
+      "color": "rgb(36, 36, 38)",
+      "svg": true
+    },
+    {
+      "name": "salaries",
+      "theme": "light",
+      "width": 1440,
+      "focused": true,
+      "x": 510,
+      "right": 930,
+      "color": "rgb(255, 255, 255)",
+      "svg": true
+    },
+    {
+      "name": "salaries",
+      "theme": "dark",
+      "width": 1440,
+      "focused": true,
+      "x": 510,
+      "right": 930,
+      "color": "rgb(36, 36, 38)",
+      "svg": true
+    },
+    {
+      "name": "cet",
+      "theme": "light",
+      "width": 1440,
+      "focused": true,
+      "x": 510,
+      "right": 930,
+      "color": "rgb(255, 255, 255)",
+      "svg": true
+    },
+    {
+      "name": "cet",
+      "theme": "dark",
+      "width": 1440,
+      "focused": true,
+      "x": 510,
+      "right": 930,
+      "color": "rgb(36, 36, 38)",
+      "svg": true
+    },
+    {
+      "name": "notesfrais",
+      "theme": "light",
+      "width": 1440,
+      "focused": true,
+      "x": 510,
+      "right": 930,
+      "color": "rgb(255, 255, 255)",
+      "svg": true
+    },
+    {
+      "name": "notesfrais",
+      "theme": "dark",
+      "width": 1440,
+      "focused": true,
+      "x": 510,
+      "right": 930,
+      "color": "rgb(36, 36, 38)",
+      "svg": true
+    },
+    {
+      "name": "agenda",
+      "theme": "light",
+      "width": 1440,
+      "focused": true,
+      "x": 510,
+      "right": 930,
+      "color": "rgb(255, 255, 255)",
+      "svg": true
+    },
+    {
+      "name": "agenda",
+      "theme": "dark",
+      "width": 1440,
+      "focused": true,
+      "x": 510,
+      "right": 930,
+      "color": "rgb(36, 36, 38)",
+      "svg": true
+    },
+    {
+      "name": "tamponnage",
+      "theme": "light",
+      "width": 1440,
+      "focused": true,
+      "x": 510,
+      "right": 930,
+      "color": "rgb(255, 255, 255)",
+      "svg": true
+    },
+    {
+      "name": "tamponnage",
+      "theme": "dark",
+      "width": 1440,
+      "focused": true,
+      "x": 510,
+      "right": 930,
+      "color": "rgb(36, 36, 38)",
+      "svg": true
+    },
+    {
+      "name": "facturier",
+      "theme": "light",
+      "width": 1440,
+      "focused": true,
+      "x": 510,
+      "right": 930,
+      "color": "rgb(255, 255, 255)",
+      "svg": true
+    },
+    {
+      "name": "facturier",
+      "theme": "dark",
+      "width": 1440,
+      "focused": true,
+      "x": 510,
+      "right": 930,
+      "color": "rgb(36, 36, 38)",
+      "svg": true
+    },
+    {
+      "name": "marches",
+      "theme": "light",
+      "width": 1440,
+      "focused": true,
+      "x": 510,
+      "right": 930,
+      "color": "rgb(255, 255, 255)",
+      "svg": true
+    },
+    {
+      "name": "marches",
+      "theme": "dark",
+      "width": 1440,
+      "focused": true,
+      "x": 510,
+      "right": 930,
+      "color": "rgb(36, 36, 38)",
+      "svg": true
+    },
+    {
+      "name": "budgetsprojets",
+      "theme": "light",
+      "width": 1440,
+      "focused": true,
+      "x": 510,
+      "right": 930,
+      "color": "rgb(255, 255, 255)",
+      "svg": true
+    },
+    {
+      "name": "budgetsprojets",
+      "theme": "dark",
+      "width": 1440,
+      "focused": true,
+      "x": 510,
+      "right": 930,
+      "color": "rgb(36, 36, 38)",
+      "svg": true
+    },
+    {
+      "name": "parametres",
+      "theme": "light",
+      "width": 1440,
+      "focused": true,
+      "x": 510,
+      "right": 930,
+      "color": "rgb(255, 255, 255)",
+      "svg": true
+    },
+    {
+      "name": "parametres",
+      "theme": "dark",
+      "width": 1440,
+      "focused": true,
+      "x": 510,
+      "right": 930,
+      "color": "rgb(36, 36, 38)",
+      "svg": true
+    },
+    {
+      "name": "portal-mobile",
+      "theme": "light",
+      "width": 390,
+      "focused": true,
+      "x": 17,
+      "right": 373,
+      "color": "rgb(255, 255, 255)",
+      "svg": true
+    },
+    {
+      "name": "portal-mobile",
+      "theme": "dark",
+      "width": 390,
+      "focused": true,
+      "x": 17,
+      "right": 373,
+      "color": "rgb(36, 36, 38)",
+      "svg": true
+    },
+    {
+      "name": "actual-timer-and-same-account-reconnect",
+      "passed": true
+    },
+    {
+      "name": "403-versus-401",
+      "passed": true
+    },
+    {
+      "name": "sheets",
+      "theme": "light",
+      "width": 390,
+      "focused": true,
+      "x": 16,
+      "right": 374,
+      "color": "rgb(255, 255, 255)",
+      "svg": true
+    },
+    {
+      "name": "sheets",
+      "theme": "dark",
+      "width": 390,
+      "focused": true,
+      "x": 16,
+      "right": 374,
+      "color": "rgb(36, 36, 38)",
+      "svg": true
+    },
+    {
+      "name": "sheets-real-reconnect",
+      "passed": true
+    },
+    {
+      "name": "budgets",
+      "theme": "light",
+      "width": 390,
+      "focused": true,
+      "x": 17,
+      "right": 373,
+      "color": "rgb(255, 255, 255)",
+      "svg": true
+    },
+    {
+      "name": "budgets",
+      "theme": "dark",
+      "width": 390,
+      "focused": true,
+      "x": 17,
+      "right": 373,
+      "color": "rgb(36, 36, 38)",
+      "svg": true
+    },
+    {
+      "name": "budgets-real-reconnect",
+      "passed": true
+    },
+    {
+      "name": "late-sheets-body-cannot-update-replacement-session",
+      "passed": true
+    },
+    {
+      "name": "different-account-clears-private-dom",
+      "passed": true
+    },
+    {
+      "name": "intentional-logout-no-dialog",
+      "passed": true
+    }
+  ],
+  "requests": [
+    {
+      "path": "/budgets/session",
+      "method": "POST",
+      "status": 200
+    },
+    {
+      "path": "/budgets/session",
+      "method": "POST",
+      "status": 200
+    },
+    {
+      "path": "/api/v1/portal",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/api/v1/dashboard",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/budgets/agenda",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/api/v1/stamping/batches",
+      "method": "GET",
+      "status": 503
+    },
+    {
+      "path": "/api/v1/stamping/profiles",
+      "method": "GET",
+      "status": 503
+    },
+    {
+      "path": "/api/v1/stamping/context",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/api/v1/billing/documents",
+      "method": "GET",
+      "status": 503
+    },
+    {
+      "path": "/api/v1/billing/documents",
+      "method": "GET",
+      "status": 503
+    },
+    {
+      "path": "/api/v1/billing/documents",
+      "method": "GET",
+      "status": 503
+    },
+    {
+      "path": "/api/v1/billing/documents",
+      "method": "GET",
+      "status": 503
+    },
+    {
+      "path": "/api/v1/billing/context",
+      "method": "GET",
+      "status": 503
+    },
+    {
+      "path": "/budgets/markets",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/budgets/session",
+      "method": "POST",
+      "status": 200
+    },
+    {
+      "path": "/budgets/session",
+      "method": "POST",
+      "status": 200
+    },
+    {
+      "path": "/api/v1/session",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/sheets/session",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/sheets/state",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/sheets/session",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/sheets/session",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/budgets/session",
+      "method": "POST",
+      "status": 200
+    },
+    {
+      "path": "/budgets/session",
+      "method": "POST",
+      "status": 200
+    },
+    {
+      "path": "/sheets/session",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/sheets/session",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/api/v1/session",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/budgets/workspace",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/api/v1/session",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/api/v1/session",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/budgets/session",
+      "method": "POST",
+      "status": 200
+    },
+    {
+      "path": "/budgets/session",
+      "method": "POST",
+      "status": 200
+    },
+    {
+      "path": "/api/v1/session",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/api/v1/session",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/sheets/state",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/api/v1/session",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/api/v1/session",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/api/v1/session",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/api/v1/portal",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/budgets/session",
+      "method": "POST",
+      "status": 200
+    },
+    {
+      "path": "/budgets/session",
+      "method": "POST",
+      "status": 200
+    },
+    {
+      "path": "/api/v1/session",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/api/v1/portal",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/api/v1/dashboard",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/api/v1/session",
+      "method": "DELETE",
+      "status": 200
+    }
+  ],
+  "errors": []
+}

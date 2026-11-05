@@ -6,7 +6,7 @@ import {invoiceFixture} from './billing-payments-fixture.mjs';
 import {blankDocumentDetails} from './billing-domain.ts';
 import {emptyMarket} from '../marches/domain.mjs';
 import {migrateBilling} from './billing-schema.mjs';
-const p=await billingPreview(),db=p.ctx.db,token=p.sessions[0].token;
+const p=await billingPreview(),db=p.ctx.db,token=p.sessions[0].cookie;
 const ok=async(r,status=200)=>{assert.equal(r.status,status,await r.clone().text());return r.json();};
 try{
  const q=await quoteFixtureTools(p.ctx,token),f=await quoteFixtureTools(p.ctx,token,{kind:'invoice',prefix:'TEST-FAC-'}),call=q.call;
@@ -14,7 +14,7 @@ try{
  await db.prepare('INSERT INTO markets(id,payload,version,updated_at,updated_by) VALUES(?,?,1,?,?)').bind(marketId,JSON.stringify(market),new Date().toISOString(),'test').run();
  const data={...invoiceFixture(),kind:'quote',validUntil:'2099-12-31',dueDate:''};data.details={...blankDocumentDetails(),...data.details,periods:['S5','S6'],period:''};data.lines[0].quantity='20';data.references={...data.references,marketId,projectId,project:'DEVELOP'};
  let quote=await q.create(data);quote=await ok(await q.send(quote),201);
- await ok(await p.ctx.worker.dispatchFetch('https://local/api/v1/billing/documents/'+quote.id+'/engagement?'+new URLSearchParams({kind:'order',reference:'BC-56',marketId,projectId,amountMinor:'1500000'}),{method:'PUT',headers:{Origin:'https://app.cdinnov.eu',Authorization:'Bearer '+token,'If-Match':String(quote.version),'X-Filename':'Bon.pdf','Content-Type':'application/pdf'},body:samplePDF()}),201);
+ await ok(await p.ctx.worker.dispatchFetch('https://local/api/v1/billing/documents/'+quote.id+'/engagement?'+new URLSearchParams({kind:'order',reference:'BC-56',marketId,projectId,amountMinor:'1500000'}),{method:'PUT',headers:{'X-CDInnov-Request':'1',Origin:'https://app.cdinnov.eu',Cookie:token,'If-Match':String(quote.version),'X-Filename':'Bon.pdf','Content-Type':'application/pdf'},body:samplePDF()}),201);
  const before=await db.prepare('SELECT * FROM billing_issuances WHERE document_id=?').bind(quote.id).first();
  const selection=(quantity,period)=>({periods:[period],customPeriod:'',quantities:[{id:data.lines[0].id,quantity}]});
  const firstId=randomUUID(),convert=(id,s)=>call('/documents/'+quote.id+'/convert','POST',{id,selection:s},{'If-Match':String(quote.version)});

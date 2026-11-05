@@ -15,10 +15,10 @@ export function samplePDF(){
  let result='%PDF-1.4\n',offsets=[0];for(const [i,object] of objects.entries()){offsets.push(Buffer.byteLength(result));result+=`${i+1} 0 obj\n${object}\nendobj\n`;}
  const xref=Buffer.byteLength(result);result+=`xref\n0 6\n0000000000 65535 f \n${offsets.slice(1).map(n=>String(n).padStart(10,'0')+' 00000 n \n').join('')}trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;return Buffer.from(result);
 }
-export async function quoteFixtureTools(ctx,token,seriesPeriod={}){
+export async function quoteFixtureTools(ctx,cookie,seriesPeriod={}){
  const email='direction@example.test',series={id:randomUUID(),issuerSiren:'732829320',kind:'quote',prefix:'TEST-DEVIS-',width:4,firstValue:1,startDate:'2020-01-01',endDate:'2099-12-31',...seriesPeriod};
  await createNumberSeries(ctx.db,series,email);
- const call=(path,method='GET',body,headers={})=>ctx.worker.dispatchFetch('https://preview.test/api/v1/billing'+path,{method,headers:{Origin:'https://app.cdinnov.eu','Content-Type':'application/json',Authorization:'Bearer '+token,...headers},...(body===undefined?{}:{body:JSON.stringify(body)})});
+ const call=(path,method='GET',body,headers={})=>ctx.worker.dispatchFetch('https://preview.test/api/v1/billing'+path,{method,headers:{'X-CDInnov-Request':'1',Origin:'https://app.cdinnov.eu','Content-Type':'application/json',Cookie:cookie,...headers},...(body===undefined?{}:{body:JSON.stringify(body)})});
  const finalize=async doc=>{
   const issue=await reserveIssuance(ctx.db,{id:randomUUID(),documentId:doc.id,documentVersion:doc.version,seriesId:series.id},email);
   const lease=randomUUID();assert.ok(await claimIssuanceJob(ctx.db,issue.id,lease,email));

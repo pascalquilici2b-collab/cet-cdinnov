@@ -127,9 +127,8 @@ export type WorkspaceUpdate =
   | ((state: WorkspaceState) => WorkspaceState);
 export interface Session {
   email: string;
-  token: string;
+  sessionId: string;
   expiresAt: number;
-  [field: string]: unknown;
 }
 export interface CellAddress {
   rowId: string;

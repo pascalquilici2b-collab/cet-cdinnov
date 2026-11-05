@@ -3,19 +3,19 @@ import {hasAccess} from './access';
 import type {AccessKey} from './access';
 import {orderLimitMessage} from './billing-order-budget';
 import legacy from '../server/legacy-runtime.mjs';
-import {identity, sessionIdentity, login} from './identity.ts';
+import {identity, sessionIdentity, login, revokeSession, clearSessionCookie} from './identity.ts';
 import type {Environment} from './contracts';
 import {responseHeaders} from './http';
 import {readWorkspace, readRecords, syncClientNames} from './budgets';
 import {dashboardEnvironment, readDashboard} from './dashboard';
 import {portalEnvironment,portalRoute,filesRoute,notificationRequest} from './portal';
-import {createHash} from 'node:crypto';
 import {workspaceRecords,workspacePut} from './workspace-records';
 import {billingRoute} from './billing';
 import {projectsRoute} from './projects';
 import {stampingRoute,stampingQueue,purgeStamping} from './stamping';
 import {dataExport} from './data-export';
 import {rhRoute} from './rh-service';
+import {facturxRoute} from './facturx-proxy';
 
 /** One deployable entry; modern and compatibility routes share the typed identity module. */
 export default {
@@ -29,6 +29,7 @@ export default {
       headers = responseHeaders(request,env);
       if(request.method==='OPTIONS') return new Response(null,{status:204,headers});
       env=portalEnvironment(env);
+      if(path.startsWith('/api/v1/facturx/'))return await facturxRoute(request,env,headers,reply);
       if(path==='/api/v1/data-export')return await dataExport(request,env,reply);
       if(path.startsWith('/api/v1/rh/'))return await rhRoute(request,env,reply);
       // Check direct application URLs before delegating to compatibility handlers.
@@ -45,18 +46,15 @@ export default {
         if(!email)return reply(401,{error:'Votre connexion CDInnov a expiré. Reconnectez-vous.'});
         return await (request.method==='PATCH'?workspaceRecords:workspacePut)(request,env.BUDGETS_DB.withSession('first-primary'),path==='/sheets/state'?'sheets':'budgets',email,reply);
       }
-      if(!['/api/v1/session','/budgets/workspace','/budgets/clients','/api/v1/budget-records','/api/v1/dashboard'].includes(path)){
+      if(!['/api/v1/session','/budgets/session','/budgets/workspace','/budgets/clients','/api/v1/budget-records','/api/v1/dashboard'].includes(path)){
         if(path.startsWith('/budgets/')||path==='/sheets/state'||path==='/sheets/session')return await legacy.fetch(request,env,ctx);
         return reply(410,{error:'Cet ancien accès est fermé. Utilisez le portail CDInnov et connectez-vous.'});
       }
-      if(path==='/api/v1/session') {
+      if(path==='/api/v1/session'||path==='/budgets/session') {
         if(request.method==='POST')return await login(request,env,env.BUDGETS_DB.withSession('first-primary'),reply);
         if(request.method==='DELETE'){
-          const session=await sessionIdentity(request,env);if(!session)return reply(401,{error:'Connexion requise.'});
-          const hash=createHash('sha256').update(request.headers.get('authorization')!.slice(7)).digest('hex');
-          await env.BUDGETS_DB.prepare('INSERT OR IGNORE INTO app_session_revocations(token_hash,expires_at) VALUES (?,?)').bind(hash,session.expiresAt).run();
-          await env.BUDGETS_DB.prepare('DELETE FROM app_session_revocations WHERE expires_at<?').bind(Date.now()).run();
-          return reply(200,{ok:true});
+          await revokeSession(request,env);
+          return clearSessionCookie(reply(200,{ok:true}));
         }
         if(request.method!=='GET')return reply(405,{error:'Méthode non autorisée.'});
         const session=await sessionIdentity(request,env);

@@ -40,8 +40,9 @@ async function api(path = "", options = {}) {
     throw new Error("La session a changé.");
   const response = await fetch(budgetsApi() + "/markets" + path, {
     ...options,
+    credentials: 'same-origin',
     headers: {
-      Authorization: "Bearer " + session.token,
+      'X-CDInnov-Request': '1',
       ...(options.body instanceof FormData
         ? {}
         : { "Content-Type": "application/json" }),
@@ -69,7 +70,7 @@ async function api(path = "", options = {}) {
   if (user !== AUTH_USER || epoch !== s.epoch)
     throw new Error("La session a changé.");
   if (!response.ok) {
-    if (response.status === 401) budgetsClearSession();
+    if (response.status === 401) window.CDISession.expire({sessionId: session.sessionId, reason: 'unauthorized'});
     throw new Error(data.error || "Opération impossible.");
   }
   return data;
@@ -433,7 +434,7 @@ function bind() {
     }
     if (s.busy) return;
     if(b.dataset.engagementFile){
-      setBusy(true);try{const session=await budgetsEnsureSession();const r=await fetch(budgetsApi()+'/billing/documents/'+encodeURIComponent(b.dataset.engagementFile)+'/engagement',{headers:{Authorization:'Bearer '+session.token},cache:'no-store'});if(!r.ok)throw new Error('La pièce ne peut pas être chargée.');const blob=await r.blob(),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=s.current.linkedEngagements?.find(x=>x.documentId===b.dataset.engagementFile)?.filename||'engagement.pdf';a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);}catch(e){error(e.message);}finally{setBusy(false);}return;
+      setBusy(true);try{const session=await budgetsEnsureSession();const r=await fetch(budgetsApi()+'/billing/documents/'+encodeURIComponent(b.dataset.engagementFile)+'/engagement',{credentials:'same-origin',cache:'no-store'});if(r.status===401)window.CDISession.expire({sessionId:session.sessionId,reason:'unauthorized'});if(!r.ok)throw new Error('La pièce ne peut pas être chargée.');const blob=await r.blob(),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=s.current.linkedEngagements?.find(x=>x.documentId===b.dataset.engagementFile)?.filename||'engagement.pdf';a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);}catch(e){error(e.message);}finally{setBusy(false);}return;
     }
     if(b.dataset.action==='import'){el('mkImportFiles')?.click();return;}
     if(b.dataset.action==='analyse-all'){await runAnalysis(s.docs.map(d=>d.id),true);return;}

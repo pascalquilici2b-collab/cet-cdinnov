@@ -15,12 +15,12 @@ const ctx=await testEnvironment({bindings:{BILLING_PDF_SERVICE_URL:'https://rh-e
 }});
 try{
  const admin=await ctx.login(users[0]),other=await ctx.login(users[1]);
- const call=async(path,options={})=>{if(options.body instanceof FormData){const r=new Request('https://preview.example',{method:'POST',body:options.body});options={...options,body:Buffer.from(await r.arrayBuffer()),headers:{...options.headers,'Content-Type':r.headers.get('content-type')}};}return ctx.worker.dispatchFetch('https://preview.example/api/v1/rh'+path,{...options,headers:{Origin:'http://127.0.0.1:5196','Content-Type':'application/json',Authorization:'Bearer '+admin.token,...options.headers}});};
+ const call=async(path,options={})=>{if(options.body instanceof FormData){const r=new Request('https://preview.example',{method:'POST',body:options.body});options={...options,body:Buffer.from(await r.arrayBuffer()),headers:{...options.headers,'Content-Type':r.headers.get('content-type')}};}return ctx.worker.dispatchFetch('https://preview.example/api/v1/rh'+path,{...options,headers:{Origin:'http://127.0.0.1:5196','X-CDInnov-Request':'1','Content-Type':'application/json',Cookie:admin.cookie,...options.headers}});};
  const send=(method,path,body,version)=>call(path,{method,headers:version!==undefined?{'If-Match':String(version)}:{},body:JSON.stringify(body)});
  const read=async(response,status=200)=>{assert.equal(response.status,status,await response.clone().text());return response.json();};
  const upload=(path,parts,version)=>{const body=new FormData();for(const [key,value] of Object.entries(parts))body.append(key,value instanceof Blob?value:String(value),...(value instanceof Blob?[key==='file'?'bulletin-test.pdf':key==='excel'?'retour.xlsx':'retour.pdf']:[]));return call(path,{method:'POST',headers:{'If-Match':String(version)},body});};
  await check('Authorization, origin and explicit migration',async()=>{
-  await read(await call('/documents',{headers:{Authorization:''}}),401);await read(await call('/documents',{headers:{Authorization:'Bearer '+other.token}}),403);await read(await call('/documents',{headers:{Origin:'https://hostile.example'}}),403);await read(await call('/documents'),503);
+  await read(await call('/documents',{headers:{Cookie:''}}),401);await read(await call('/documents',{headers:{Cookie:other.cookie}}),403);await read(await call('/documents',{headers:{Origin:'https://hostile.example'}}),403);await read(await call('/documents',{method:'POST',headers:{'X-CDInnov-Request':''},body:'{}'}),403);await read(await call('/documents'),503);
   await migrateBilling(ctx.db);await migrateRh(ctx.db);await migrateRh(ctx.db);assert.equal((await read(await call('/documents'))).documents.length,0);
  });
  const clientId='client-rh-test',otherClient='other-client-test',projectId='project-rh-test',foreignProject='project-foreign-test',agentId=randomUUID(),periodId=randomUUID(),documentId=randomUUID(),stamp=new Date().toISOString();
@@ -54,7 +54,7 @@ try{
   await read(await send('PATCH',`/documents/${doc.id}/payroll/${sourceId}`,{agentId,month:'2026-02',confirmed:true},doc.version),422);
   doc=await read(await send('PATCH',`/documents/${doc.id}/payroll/${sourceId}`,{agentId,month:'2026-01',netBeforeTaxCents:280000,employerCostCents:1,confirmed:true},doc.version));assert.equal(doc.payroll[0].employerCostCents,432167);assert.equal(doc.payroll[0].netBeforeTaxCents,280000);
   const source=await call(`/payroll/${sourceId}/source`);assert.equal(source.status,200);assert.deepEqual(Buffer.from(await source.arrayBuffer()),Buffer.from(await pdf.arrayBuffer()));
-  const denied=await ctx.worker.dispatchFetch('https://preview.example/files/'+doc.payroll[0].objectKey,{headers:{Origin:'http://127.0.0.1:5196',Authorization:'Bearer '+admin.token}});assert.equal(denied.status,403);
+  const denied=await ctx.worker.dispatchFetch('https://preview.example/files/'+doc.payroll[0].objectKey,{headers:{Origin:'http://127.0.0.1:5196',Cookie:admin.cookie}});assert.equal(denied.status,403);
  });
  await check('Frozen exact cents, source hash and immutable history',async()=>{
   const frozen=await read(await send('POST',`/documents/${doc.id}/freeze`,{},doc.version),201);versionId=frozen.version.id;doc=frozen.document;assert.equal(frozen.version.lines[0].allocatedCents,Math.round(432167*3333/10000));assert.equal(frozen.version.payroll[0].sha256,createHash('sha256').update(Buffer.from(await pdf.arrayBuffer())).digest('hex'));

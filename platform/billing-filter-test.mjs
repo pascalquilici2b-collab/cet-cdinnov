@@ -11,7 +11,7 @@ const ctx=await testEnvironment();
 try{
  await migrateBilling(ctx.db);
  const auth=await ctx.login(users[0]);
- const headers={Origin:'https://app.cdinnov.eu',Authorization:'Bearer '+auth.token,'Content-Type':'application/json'};
+ const headers={'X-CDInnov-Request':'1',Origin:'https://app.cdinnov.eu',Cookie:auth.cookie,'Content-Type':'application/json'};
  const call=(path,options={})=>ctx.worker.dispatchFetch('https://preview.test/api/v1/billing'+path,{...options,headers:{...headers,...options.headers}});
  const list=async params=>{const r=await call('/documents?'+new URLSearchParams(params));assert.equal(r.status,200,await r.clone().text());return r.json();};
  const ids=[];
@@ -49,6 +49,6 @@ try{
  for(const params of ['client=a&client=b','project=a&project=b','client='+('a'.repeat(601)),'project='+('a'.repeat(601))]){
   assert.equal((await call('/documents?'+params)).status,400);
  }
- assert.equal((await call('/documents?client=id:client-a',{headers:{Authorization:''}})).status,401);
+ assert.equal((await call('/documents?client=id:client-a',{headers:{Cookie:''}})).status,401);
  console.log('PASS exact client/project filters, stable facets, cross-page counts, combined text/status, quote isolation, literal characters and authentication.');
 }finally{await ctx.worker.dispose();}

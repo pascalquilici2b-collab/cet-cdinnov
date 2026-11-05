@@ -16,8 +16,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response, StreamingRes
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.cors import CORSMiddleware
 from starlette.datastructures import Headers
-from pydantic import BaseModel, Field, ValidationError
-from . import server_auth
+from pydantic import ValidationError
 from .models import GenerationRequest
 from .billing_document import PreviewRequest
 from .document_pdf import render_document, DocumentPDFError
@@ -104,32 +103,27 @@ async def access(request: Request, call_next):
         origin = request.headers.get('origin')
         if origin and origin not in ALLOWED_ORIGINS and (urlsplit(origin).netloc != request.url.netloc or urlsplit(origin).scheme != request.url.scheme):
             return JSONResponse({'detail': 'Origine non autorisée.'}, status_code=403)
-    login_route = server_mode and request.url.path == '/api/auth/login' and request.method == 'POST'
-    if (request.method == 'POST' and not login_route) or (server_mode and not login_route and request.method != 'OPTIONS' and request.url.path != '/api/health'):
+    # Hosted browser identity is owned by the portal. Historical signed bearers,
+    # including unexpired ones, must not bypass account changes or logout there.
+    if request.url.path == '/api/auth/login':
+        return JSONResponse({'detail': 'Connectez-vous depuis le portail CDInnov.'}, status_code=410)
+    if request.method == 'POST' or (server_mode and request.method != 'OPTIONS' and request.url.path != '/api/health'):
         key = os.getenv('FACTURX_API_KEY')
         if server_mode and len(key or '') < 32:
             return JSONResponse({'detail': 'Service en ligne non configuré.'}, status_code=503)
         if key and not secrets.compare_digest(request.headers.get('x-api-key', ''), key):
-            authorization = request.headers.get('authorization', '')
-            identity = server_auth.verify(authorization[7:]) if server_mode and authorization.startswith('Bearer ') else None
-            if not identity:
-                return JSONResponse({'detail': 'Connectez-vous pour utiliser la conversion en ligne.' if server_mode else 'Clé API requise.'}, status_code=401)
-            request.state.facturx_user = identity
+            return JSONResponse({'detail': 'Accès serveur requis.' if server_mode else 'Clé API requise.'}, status_code=401)
     # Preflight for the explicitly allowed management app. Private Network Access
     # is only needed for the legacy loopback mode, never for server deployments.
     if request.method == 'OPTIONS' and request.headers.get('origin') in ALLOWED_ORIGINS:
         response = Response(status_code=204, headers={
             'Access-Control-Allow-Origin': request.headers['origin'],
             'Access-Control-Allow-Methods': 'GET, POST',
-            'Access-Control-Allow-Headers': 'Content-Type, X-API-Key, Authorization', 'Vary': 'Origin'})
+            'Access-Control-Allow-Headers': 'Content-Type, X-API-Key', 'Vary': 'Origin'})
         if not server_mode:
             response.headers['Access-Control-Allow-Private-Network'] = 'true'
     else:
         response = await call_next(request)
-    response.headers.setdefault('Cache-Control', 'no-store')
-    response.headers['X-Content-Type-Options'] = 'nosniff'
-    response.headers['Referrer-Policy'] = 'no-referrer'
-    response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; frame-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
     return response
 
 
@@ -150,32 +144,21 @@ class ServiceCORSMiddleware(CORSMiddleware):
 
 # Outermost CORS layer also covers authentication errors returned by access().
 app.add_middleware(ServiceCORSMiddleware, allow_origins=list(ALLOWED_ORIGINS),
-                   allow_methods=['GET', 'POST'], allow_headers=['Content-Type', 'X-API-Key', 'Authorization'], max_age=600)
+                   allow_methods=['GET', 'POST'], allow_headers=['Content-Type', 'X-API-Key'], max_age=600)
 
 
-class LoginRequest(BaseModel):
-    email: str = Field(min_length=3, max_length=254)
-    password: str = Field(min_length=1, max_length=1024, repr=False)
-
-
-@app.post('/api/auth/login')
-def authenticate(credentials: LoginRequest, request: Request):
-    if os.getenv('FACTURX_DEPLOYMENT') != 'server':
-        raise HTTPException(404, 'Connexion non nécessaire pour le moteur local.')
-    try:
-        server_auth.signing_key()
-        if not server_auth.users():
-            raise ValueError('No configured users')
-    except (ValueError, TypeError):
-        raise HTTPException(503, 'La connexion au service en ligne n’est pas encore configurée.') from None
-    email = credentials.email.strip().lower()
-    remote = request.client.host if request.client else 'unknown'
-    if not server_auth.allow_attempt(remote, email):
-        raise HTTPException(429, 'Trop de tentatives. Réessayez dans cinq minutes.')
-    result = server_auth.login(email, credentials.password)
-    if not result:
-        raise HTTPException(401, 'Adresse ou mot de passe incorrect, ou accès au Facturier non autorisé.')
-    return result
+@app.middleware('http')
+async def security_headers(request: Request, call_next):
+    # This outer layer also covers rejected hosts, authentication and preflight.
+    response = await call_next(request)
+    response.headers.setdefault('Cache-Control', 'no-store')
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['Referrer-Policy'] = 'no-referrer'
+    response.headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=()'
+    response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; frame-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+    if os.getenv('FACTURX_DEPLOYMENT') == 'server':
+        response.headers['Strict-Transport-Security'] = 'max-age=31536000'
+    return response
 
 
 @app.get('/')

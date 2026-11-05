@@ -1,13 +1,14 @@
 import type {BillingTransport,BillingInvoiceSelection,BillingDraft,BillingDocument,BillingContext,BillingPage,BillingSettings,BillingNumberSeries,BillingDirectoryRecord,BillingDirectoryPage,BillingQuoteEvent,BillingQuoteRevisionItem,BillingPaymentEntry} from '../billing-contracts';
-export function createBillingTransport(options:{baseUrl:string;getToken:()=>Promise<string>;isActive:()=>boolean}):BillingTransport & {dispose:()=>void} {
+export function createBillingTransport(options:{baseUrl:string;getSession:()=>Promise<string>;isActive:()=>boolean}):BillingTransport & {dispose:()=>void} {
   let disposed=false;const controllers=new Set<AbortController>();
   const active=()=>{if(disposed||!options.isActive())throw new Error('Votre session ou la page a changé.');};
   async function request<T>(path:string,method='GET',body?:unknown,version?:number,binary=false,extraHeaders?:Record<string,string>):Promise<T>{
-    active();const token=await options.getToken();active();
+    active();const sessionId=await options.getSession();active();
     const controller=new AbortController();controllers.add(controller);
     const timer=setTimeout(()=>controller.abort(),path.endsWith('/engagement-analysis')?90000:path.endsWith('/finalize')?210000:path.endsWith('/issue')||path.endsWith('.pdf')?90000:30000);
     try{
-      const response=await fetch(options.baseUrl.replace(/\/$/,'')+(path.startsWith('/api/v1/')||path.startsWith('/budgets/')?'':'/api/v1/billing')+path,{method,cache:'no-store',signal:controller.signal,headers:{Authorization:'Bearer '+token,...(body===undefined||body instanceof Blob?{}:{'Content-Type':'application/json'}),...extraHeaders,...(version===undefined?{}:{'If-Match':String(version)})},...(body===undefined?{}:{body:body instanceof Blob?body:JSON.stringify(body)})});
+      const response=await fetch(options.baseUrl.replace(/\/$/,'')+(path.startsWith('/api/v1/')||path.startsWith('/budgets/')?'':'/api/v1/billing')+path,{method,credentials:'same-origin',cache:'no-store',signal:controller.signal,headers:{'X-CDInnov-Request':'1',...(body===undefined||body instanceof Blob?{}:{'Content-Type':'application/json'}),...extraHeaders,...(version===undefined?{}:{'If-Match':String(version)})},...(body===undefined?{}:{body:body instanceof Blob?body:JSON.stringify(body)})});
+      if(response.status===401)window.dispatchEvent(new CustomEvent('cdinnov-session-expired',{detail:{sessionId}}));
       const data=response.ok&&binary?await response.blob():await response.json();active();
       if(!response.ok)throw Object.assign(new Error(data.error||'La sauvegarde n’a pas abouti. Vos modifications sont conservées.'),{status:response.status});
       return data as T;

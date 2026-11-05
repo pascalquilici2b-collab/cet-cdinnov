@@ -19,11 +19,11 @@ test('PDF brouillon : identité, version figée, clé privée et erreurs sans mu
  }});
  try{
   await migrateBilling(ctx.db);const admin=await ctx.login(users[0]),consultant=await ctx.login(users[1]),id=randomUUID(),data=blankDraft('invoice');
-  const headers={Origin:'https://app.cdinnov.eu',Authorization:'Bearer '+admin.token,'Content-Type':'application/json'};
+  const headers={'X-CDInnov-Request':'1',Origin:'https://app.cdinnov.eu',Cookie:admin.cookie,'Content-Type':'application/json'};
   const create=await ctx.worker.dispatchFetch('https://preview.example/api/v1/billing/documents',{method:'POST',headers,body:JSON.stringify({id,data})});assert.equal(create.status,201);
   const pdf=(version='1',overrides={},method='GET')=>ctx.worker.dispatchFetch('https://preview.example/api/v1/billing/documents/'+id+'/preview.pdf',{method,headers:{...headers,...(version===null?{}:{'If-Match':version}),...overrides}});
-  for(const [token,status] of [['',401],['Bearer '+consultant.token,403]])assert.equal((await pdf('1',{Authorization:token})).status,status);
-  assert.equal((await pdf('1',{Origin:'https://evil.test'})).status,403);
+  for(const [token,status] of [['',401],[consultant.cookie,403]])assert.equal((await pdf('1',{Cookie:token})).status,status);
+  assert.equal((await pdf('1',{'X-CDInnov-Request':'1',Origin:'https://evil.test'})).status,403);
   assert.equal((await pdf(null)).status,428);assert.equal((await pdf('0')).status,400);assert.equal((await pdf('2')).status,409);assert.equal((await pdf('1',{},'POST')).status,405);assert.equal(requests.length,0);
   const response=await pdf();assert.equal(response.status,200,(await response.clone().text())+'; outbound requests: '+requests.length);assert.equal(response.headers.get('content-type'),'application/pdf');assert.equal(response.headers.get('access-control-allow-origin'),'https://app.cdinnov.eu');assert.equal(response.headers.get('cache-control'),'no-store');
   assert.match(response.headers.get('content-disposition'),new RegExp(id+'-v1\\.pdf'));assert.match(await response.text(),/^%PDF-/);

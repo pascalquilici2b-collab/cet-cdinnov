@@ -18,7 +18,7 @@ try{
  assert.deepEqual(Buffer.from(await(await ctx.call(base+'/table/source')).arrayBuffer()),raw);
  assert.equal((await ctx.send(base+'/table/reinspect',{},b.version-1)).status,409);
  const other=await ctx.login(users[1]);
- assert.equal((await ctx.call(base+'/table/reinspect',{method:'POST',headers:{Authorization:'Bearer '+other.token,'If-Match':String(b.version)}})).status,403);
+ assert.equal((await ctx.call(base+'/table/reinspect',{method:'POST',headers:{Cookie:other.cookie,'If-Match':String(b.version)}})).status,403);
  await read(await ctx.send(base+'/review',{changes:[],confirmed:true},b.version));
  b=await read(await ctx.call(base));
  assert.equal(b.data.importConfirmed,true);

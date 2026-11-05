@@ -1,0 +1,64 @@
+{
+  "checks": [
+    "historical and current R2 PDF route same-origin with cookie; foreign URL rejected",
+    "actual embedded app delegates to parent.facturxApi",
+    "401 opens exactly one shared modal",
+    "PDF source/hash and entered buyer retained",
+    "real same-account reconnect preserves iframe",
+    "NDJSON progress and validated result parsed after reconnect",
+    "same-origin cookie transport and no Authorization"
+  ],
+  "fileChecks": {
+    "old": 18,
+    "current": 18,
+    "refused": true
+  },
+  "initial": {
+    "name": "facture-fictive.pdf",
+    "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "bytes": 23
+  },
+  "streamed": {
+    "events": [
+      {
+        "type": "progress",
+        "completed": 1,
+        "total": 6,
+        "label": "Validation locale"
+      }
+    ],
+    "valid": true,
+    "pdf": "JVBERi1sb2NhbC10ZXN0",
+    "source": "facture-fictive.pdf",
+    "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "buyer": "Client saisi avant expiration"
+  },
+  "converterRequests": [
+    {
+      "path": "/api/v1/facturx/health",
+      "csrf": "1",
+      "authorization": null
+    },
+    {
+      "path": "/api/v1/facturx/health",
+      "csrf": "1",
+      "authorization": null
+    },
+    {
+      "path": "/api/v1/facturx/facturx/import-pdf",
+      "csrf": "1",
+      "authorization": null
+    },
+    {
+      "path": "/api/v1/facturx/facturx/generate",
+      "csrf": "1",
+      "authorization": null
+    },
+    {
+      "path": "/api/v1/facturx/facturx/generate",
+      "csrf": "1",
+      "authorization": null
+    }
+  ],
+  "errors": []
+}

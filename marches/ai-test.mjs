@@ -9,7 +9,7 @@ let calls=0,bad=false,gate=null,tooLong=false;
 const ctx=await testEnvironment({ai:async input=>{assert.equal(input.response_format.type,'json_object');assert.ok(input.messages[0].content.endsWith('/no_think'));calls++;if(gate)await gate;if(bad)return {response:'invalid json'};if(tooLong){tooLong=false;return {choices:[{finish_reason:'length'}]};}return {response:result};}});
 let count=0;function ok(name){count++;console.log('OK '+name);}
 try{
- const login=await ctx.login(users[0]),consultant=await ctx.login(users[1]),headers={Authorization:'Bearer '+login.token},other={Authorization:'Bearer '+consultant.token};
+ const login=await ctx.login(users[0]),consultant=await ctx.login(users[1]),headers={Cookie:login.cookie},other={Cookie:consultant.cookie};
  const configuration=await(await ctx.call('markets/ai-status',{headers})).json();assert.equal(configuration.dailyBudget,DAILY_BUDGET);assert.equal(DAILY_BUDGET,5000);assert.ok(configuration.model.includes('Qwen3'));assert.ok(Date.parse(configuration.resetsAt)>Date.now());
  assert.equal((await ctx.call('markets/ai-status',{headers})).status,200);assert.equal((await ctx.call('markets/ai-status',{headers:other})).status,403);ok('Configuration IA réservée à la direction');
  const market={...emptyMarket(),title:'Dossier fictif',clientName:'Client fictif'};let r=await ctx.call('markets',{method:'POST',headers,body:JSON.stringify({id:'ai-test',market})});assert.equal(r.status,201);

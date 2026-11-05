@@ -21,7 +21,7 @@ export async function stampEnvironment(options={}){
  const admin=await ctx.login(users[0]);
  const call=async(path,options={})=>{
   if(options.body instanceof FormData){const request=new Request('https://preview.example',{method:'POST',body:options.body});options={...options,body:Buffer.from(await request.arrayBuffer()),headers:{...options.headers,'Content-Type':request.headers.get('content-type')}};}
-  return ctx.worker.dispatchFetch('https://preview.example/api/v1/stamping'+path,{...options,headers:{Authorization:'Bearer '+admin.token,Origin:'http://127.0.0.1:5196','Content-Type':'application/json',...options.headers}});
+  return ctx.worker.dispatchFetch('https://preview.example/api/v1/stamping'+path,{...options,headers:{Cookie:admin.cookie,'X-CDInnov-Request':'1',Origin:'http://127.0.0.1:5196','Content-Type':'application/json',...options.headers}});
  };
  const send=(path,payload={},version)=>call(path,{method:'POST',headers:version?{'If-Match':String(version)}:{},body:JSON.stringify(payload)});
  const upload=(path,bytes,name,version)=>{const form=new FormData();form.append('file',new Blob([bytes]),name);return call(path,{method:'POST',headers:version?{'If-Match':String(version)}:{},body:form});};

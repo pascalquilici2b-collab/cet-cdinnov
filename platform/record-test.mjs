@@ -8,7 +8,7 @@ process.env.MARCHES_TEST_WORKER=fileURLToPath(new URL('../.build/entry.mjs',impo
 process.env.MARCHES_TEST_COMPATIBILITY_DATE='2026-06-09';
 const ctx=await testEnvironment();let checks=0;
 const check=async(name,fn)=>{await fn();checks++;console.log('OK '+name);};
-const call=(path,session,options={})=>ctx.worker.dispatchFetch('https://test'+path,{...options,headers:{Origin:'https://app.cdinnov.eu','Content-Type':'application/json',...(session?{Authorization:'Bearer '+session.token}:{}),...options.headers}});
+const call=(path,session,options={})=>ctx.worker.dispatchFetch('https://test'+path,{...options,headers:{'X-CDInnov-Request':'1',Origin:'https://app.cdinnov.eu','Content-Type':'application/json',...(session?{Cookie:session.cookie}:{}),...options.headers}});
 const patch=(path,session,changes)=>call(path,session,{method:'PATCH',body:JSON.stringify({changes})});
 const ok=async r=>{assert.equal(r.status,200,await r.clone().text());return r.json();};
 try{
@@ -45,7 +45,7 @@ try{
    const next=structuredClone(base);mutate(next);assert.equal((await patch('/api/v1/portal',staff,recordChanges(base,next))).status,403);
   }
   for(const path of ['/api/v1/portal','/budgets/workspace','/sheets/state'])assert.equal((await patch(path,null,[])).status,401);
-  assert.equal((await call('/api/v1/portal',admin,{method:'PATCH',headers:{Origin:'https://evil.invalid'},body:'{"changes":[]}'})).status,403);
+  assert.equal((await call('/api/v1/portal',admin,{method:'PATCH',headers:{'X-CDInnov-Request':'1',Origin:'https://evil.invalid'},body:'{"changes":[]}'})).status,403);
   const valid=structuredClone(base);valid.conges.push({id:'own-leave',matricule:'004',date:'2026-12-01',statut:'En attente'});await ok(await patch('/api/v1/portal',staff,recordChanges(base,valid)));
  });
  const budget={demo:false,clients:[{id:'c1',name:'Client 1',logo:'data:image/png;base64,'+'a'.repeat(800000)},{id:'c2',name:'Client 2'}],projects:[{id:'p1',clientId:'c1',name:'Project'}],budgetLines:[{id:'b1',projectId:'p1',amount:10},{id:'b2',projectId:'p1',amount:20}],expenses:[],drs:[],imports:[],partnerReports:[{id:'duplicate',x:1},{id:'duplicate',x:2}],reportExpenseLinks:[{noId:'preserved'}],future:{bool:true,null:null}};
@@ -75,8 +75,10 @@ try{
   await ok(await patch('/budgets/workspace',admin,recordChanges(special,modified)));assert.deepEqual(await getBudget(),modified);
  });
  await check('Concurrent insertions and queued browser edits preserve all colleagues’ changes',async()=>{
-  const send=(url,o)=>ctx.worker.dispatchFetch(url,{...o,headers:{...o.headers,Origin:'https://app.cdinnov.eu'}}),a=createBudgetTransport(send),b=createBudgetTransport(send),url='https://test/budgets/workspace';
-  const sa={email:users[0],token:admin.token},sb={email:users[1],token:staff.token};
+  // Emulate two browser cookie jars; JS receives only non-secret session metadata.
+  const sendFor=session=>(url,o)=>{assert.equal(o.credentials,'same-origin');assert.equal(o.headers.Authorization,undefined);return ctx.worker.dispatchFetch(url,{...o,headers:{...o.headers,Cookie:session.cookie,'X-CDInnov-Request':'1',Origin:'https://app.cdinnov.eu'}});};
+  const a=createBudgetTransport(sendFor(admin)),b=createBudgetTransport(sendFor(staff)),url='https://test/budgets/workspace';
+  const sa={email:users[0],sessionId:admin.sessionId},sb={email:users[1],sessionId:staff.sessionId};
   const ba=await a.request(url,sa,'GET'),bb=await b.request(url,sb,'GET');ba.workspace.clients.push({id:'ca',name:'A'});bb.workspace.clients.push({id:'cb',name:'B'});
   await Promise.all([a.request(url,sa,'PUT',ba.workspace),b.request(url,sb,'PUT',bb.workspace)]);
   ba.workspace.clients[0].name='Next local edit';await a.request(url,sa,'PUT',ba.workspace);

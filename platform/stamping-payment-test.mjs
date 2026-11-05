@@ -14,20 +14,20 @@ try{
  await check('Payment source: exact original, MIME, owner isolation, hash verification',async()=>{
   const response=await ctx.call(path+'/table/source');assert.equal(response.status,200);assert.match(response.headers.get('content-type'),/text\/csv/);assert.deepEqual(Buffer.from(await response.arrayBuffer()),Buffer.from(f.table,'base64'));
   await ctx.setPortal(JSON.stringify({auth:{accounts:{...ctx.accounts,[users[1]]:{...ctx.accounts[users[1]],role:'admin'}},allowed:users}}));other=await ctx.login(users[1]);
-  assert.equal((await ctx.call(path+'/table/source',{headers:{Authorization:'Bearer '+other.token}})).status,404);
-  assert.equal((await ctx.call(path+'/table/source',{headers:{Authorization:''}})).status,401);
+  assert.equal((await ctx.call(path+'/table/source',{headers:{Cookie:other.cookie}})).status,404);
+  assert.equal((await ctx.call(path+'/table/source',{headers:{Cookie:''}})).status,401);
   await bucket.put(b.data.table.key,'tampered');assert.equal((await ctx.call(path+'/table/source')).status,503);await bucket.put(b.data.table.key,Buffer.from(f.table,'base64'));
  });
  const first=(await read(await ctx.upload(path+'/documents',Buffer.from(f.pdf,'base64'),'payroll.pdf'),201)).id;
  const second=(await read(await ctx.upload(path+'/documents',Buffer.from(f.invoice,'base64'),'invoice.pdf'),201)).id;
  await check('Individual deletion: stale request and running job blocked, other owner rejected',async()=>{
-  assert.equal((await del('/documents/'+first,0)).status,409);assert.equal((await del('/documents/'+first,1,{Authorization:'Bearer '+other.token})).status,404);
+  assert.equal((await del('/documents/'+first,0)).status,409);assert.equal((await del('/documents/'+first,1,{Cookie:other.cookie})).status,404);
   await ctx.db.prepare("UPDATE stamp_documents SET status='PROCESSING',lease_until=? WHERE id=?").bind(Date.now()+60000,first).run();
   assert.equal((await del('/documents/'+first,1)).status,409);assert.ok(await bucket.get(prefix+first+'/source.pdf'));
  });
  await check('Payment removal cannot race a running job; compare-and-swap stays atomic',async()=>{
   assert.equal((await del('/table',b.version)).status,409);assert.equal((await refresh()).version,b.version);
-  assert.equal((await del('/table',b.version,{Authorization:'Bearer '+other.token})).status,404);
+  assert.equal((await del('/table',b.version,{Cookie:other.cookie})).status,404);
   assert.equal((await del('/table',0)).status,409);
  });
  await check('Delete one piece removes its files, releases its allocation and preserves neighbours',async()=>{

@@ -21,7 +21,7 @@ try{
  const duplicate=await read(await ctx.upload(path+'/documents',bundle,'same.pdf'));assert.equal(duplicate.added,0);assert.equal(duplicate.duplicates,3);
  await read(await ctx.send(path+'/documents/'+d.id+'/stamp',{},confirmed.version));
  await ctx.setPortal(JSON.stringify({auth:{accounts:{...ctx.accounts,[users[1]]:{...ctx.accounts[users[1]],role:'collaborator',access:{tamponnage:true}}},allowed:users}}));
- const other=await ctx.login(users[1]),headers={Authorization:'Bearer '+other.token};
+ const other=await ctx.login(users[1]),headers={Cookie:other.cookie};
  const list=await read(await ctx.call('/batches',{headers}));assert.equal(list.batches.find(b=>b.id===id).canEdit,false);
  for(const route of [path,path+'/table/source',path+'/documents/'+d.id+'/source',path+'/documents/'+d.id+'/preview',path+'/documents/'+d.id+'/output',path+'/export'])assert.equal((await ctx.call(route,{headers})).status,200,route);
  assert.equal((await ctx.call(path,{method:'DELETE',headers})).status,403);
