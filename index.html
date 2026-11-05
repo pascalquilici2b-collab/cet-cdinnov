@@ -586,6 +586,7 @@ body:has(.agenda-shell) .topbar{flex-wrap:wrap;row-gap:12px}
       Congés et déplacements
     </div>
     <div class="nav-label applications-label">Applications</div>
+    <div class="nav-item cdi-application app-rh" data-view="rh"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 3h9l4 4v14H6zM14 3v5h5M9 12h7M9 16h7"/></svg><span class="cdi-nav-name">Documents RH</span><span class="cdi-beta">Bêta</span></div>
     <div class="nav-item cdi-application app-stamping" data-view="tamponnage" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();setView('tamponnage');toggleSidebar(false)}">
       <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M5 17h14v4H5zM8 17v-3c0-2 2-3 2-5V5a2 2 0 0 1 4 0v4c0 2 2 3 2 5v3M3 21h18"/></svg>
       <span class="cdi-nav-name">Tamponnage des pièces</span><span class="cdi-beta">Bêta</span>
@@ -969,6 +970,7 @@ function availableYears(){
 /* Symbole CDInnov du 21 septembre 2026 : SVG intégré, PNG pour les exports PDF. */
 
 const VIEW_META = {
+  rh:{title:'Documents RH',sub:'',action:null},
   tamponnage:{title:'Tamponnage des pièces',sub:'Bulletins, factures et imputations par projet',action:null},
   marches:{title:'Logiciel de facturation',sub:'Marchés et contrats · prix, plafonds et périodes',action:null},
   agenda:{title:'Agenda',sub:'Déplacements et congés de l’équipe',action:'Nouveau déplacement',actFn:()=>openAgendaTrip()},
@@ -1005,11 +1007,12 @@ function setView(v,billingSection='modern'){
   if(AUTH_USER&&!canAccess(v)){toast('Votre compte n’a pas accès à cette rubrique.');return;}
   const nextBillingMode=billingSection==='modern'?'modern':'legacy';
   if(currentView==='facturier'&&(v!==currentView||billingMode!==nextBillingMode)&&!billingLeave())return;
+  if(currentView==='rh'&&v!==currentView&&!rhLeave())return;
   if(currentView==='marches'&&v!==currentView&&!marchesLeave())return;
   if(v!=='marches')marchesUnmount();
   if(v==='conges')v='agenda';
   if(typeof budgetsDirty!=='undefined'&&currentView==='budgetsprojets'&&v!==currentView&&!budgetsLeave())return;
-  document.querySelector('.year-pick').style.display=['dashboard','budgetsprojets','marches','facturier','tamponnage'].includes(v)?'none':'';
+  document.querySelector('.year-pick').style.display=['dashboard','budgetsprojets','marches','facturier','tamponnage','rh'].includes(v)?'none':'';
   if(v!=='agenda'){clearInterval(agendaTimer);agendaTimer=null;}
   if(v==='facturier'){billingMode=nextBillingMode;if(nextBillingMode==='legacy')factTab=billingSection;}
   currentView=v;document.body.dataset.view=v;
@@ -1038,6 +1041,7 @@ $('#yearSelect').addEventListener('change', e=>{ currentYear=Number(e.target.val
 /* ---------- render dispatch ---------- */
 function render(){
   if(AUTH_USER&&!canAccess(currentView)){currentView=firstAllowedView();document.body.dataset.view=currentView;}
+  if(currentView!=='rh')rhForget();
   if(currentView!=='tamponnage')stampingForget();
   if(currentView!=='agenda')agendaReactForget();
   if(currentView!=='dashboard')dashboardForget();
@@ -1059,6 +1063,7 @@ function render(){
   else if(currentView==='marches') renderMarches();
   else if(currentView==='facturier') renderFacturier();
   else if(currentView==='budgetsprojets') renderBudgetsProjets();
+  else if(currentView==='rh') renderRh();
   else if(currentView==='tamponnage') renderStamping();
   else if(currentView==='parametres') renderParametres();
   injectStorageWarning();
@@ -2780,7 +2785,7 @@ function unlockApp(email){
   renderUserChip();
   render();
   /* Markets deep link */ if(new URLSearchParams(location.search).get('view')==='marches'&&canAccess('facturier'))setTimeout(()=>setView('marches'),0);
-  setTimeout(()=>{if(new URLSearchParams(location.search).get('view')==='agenda'&&currentView!=='agenda')setView('agenda');else if(currentView==='agenda')agendaEnter();},0);
+  setTimeout(()=>{if(new URLSearchParams(location.search).get('view')==='rh'&&canAccess('rh')){setView('rh');return;}if(new URLSearchParams(location.search).get('view')==='agenda'&&currentView!=='agenda')setView('agenda');else if(currentView==='agenda')agendaEnter();},0);
 }
 
 function renderUserChip(){
@@ -5715,7 +5720,7 @@ const portalBlobs=new Map();
 let portalLogoutPending=false,portalSuspendedUser=null,portalSigninPending=null,portalReconnecting=false;
 function portalForgetUser(){
   try{if(AUTH_USER)localStorage.removeItem(STORE_KEY+':draft:'+AUTH_USER);}catch{}
-  dashboardForget();financeForget();billingForget();stampingForget();personnelForget();closeModal();nfDraft=null;marchesForget();agendaForget();budgetsForget();facturxForgetAuth();
+  dashboardForget();financeForget();billingForget();stampingForget();rhForget();personnelForget();closeModal();nfDraft=null;marchesForget();agendaForget();budgetsForget();facturxForgetAuth();
   AUTH_USER=null;movAccess=null;salariesUnlocked=false;portalClear();document.body.classList.remove('authed');renderUserChip();
 }
 window.CDISession.configure({
@@ -5816,7 +5821,7 @@ async function portalReconnect(email,password){
 }
 async function authLogout(){
   if(portalLogoutPending||billingLogoutPending)return;
-  if(!billingLeave()||!marchesLeave()||!budgetsLeave())return;
+  if(!billingLeave()||!rhLeave()||!marchesLeave()||!budgetsLeave())return;
   billingLockForLogout();
   try{
     if(cloudEnabled()&&portalClean&&JSON.stringify(state)!==portalClean&&!await cloudPush()){toast('Enregistrement impossible. Conservez vos modifications avant de vous déconnecter.');return;}
@@ -5836,7 +5841,7 @@ function accountModules(email=AUTH_USER){return CDIPlatform.accountAccess(state.
 function canAccess(view){
  if(!AUTH_USER)return false;
  if(view==='parametres'||view==='cet')return isAdmin(AUTH_USER);
- const key=({marches:'facturier',conges:'agenda'})[view]||view;
+ const key=({marches:'facturier',rh:'facturier',conges:'agenda'})[view]||view;
  return accountModules()[key]===true;
 }
 function applyAccessNavigation(){
@@ -5889,7 +5894,7 @@ async function cloudLoad(options={}){
     await portalLoadPhotos();if(AUTH_USER!==user||portalEpoch!==epoch)return false;
     setSync('ok','Synchronisé');
     if(document.body.classList.contains('authed')&&(wasAdmin!==isAdmin(user)||previousAccess!==JSON.stringify(accountModules(user)))){
-      dashboardForget();financeForget();billingForget();stampingForget();personnelForget();marchesForget();agendaForget();budgetsForget();facturxForgetAuth();closeModal();nfDraft=null;
+      dashboardForget();financeForget();billingForget();stampingForget();rhForget();personnelForget();marchesForget();agendaForget();budgetsForget();facturxForgetAuth();closeModal();nfDraft=null;
       currentView=firstAllowedView();unlockApp(user);
     }else render();
     return true;
@@ -6243,16 +6248,34 @@ function billingFacturxGuardScript(record){
   return '<script>'+facturxMatchesRecord.toString()+'\n'+billingFacturxMatchesSnapshot.toString()+'\n('+attach.toString()+')('+JSON.stringify(bound).replace(/</g,'\\u003c')+');<\/script>';
 }
 
-let stampingMounted=null,stampingEpoch=0;
+let stampingMounted=null,stampingEpoch=0,stampingInitialBatchId='';
+function openRhStampingBatch(id){
+ if(typeof id!=='string'||!/^[-a-f0-9]{36}$/i.test(id))return;
+ stampingInitialBatchId=id;stampingForget();setView('tamponnage');
+}
+window.openRhStampingBatch=openRhStampingBatch;
 function stampingForget(){stampingEpoch++;stampingMounted?.dispose();stampingMounted=null;}
 function renderStamping(){
  if(stampingMounted&&document.getElementById('stampingRoot'))return;
  stampingForget();const epoch=++stampingEpoch,user=AUTH_USER;
  if(!user||!canAccess('tamponnage')){$('#content').innerHTML='<div class="card card-pad">Le tamponnage est réservé à la direction.</div>';return;}
- if(!document.getElementById('stampingStyle')){const css=document.createElement('link');css.id='stampingStyle';css.rel='stylesheet';css.href='platform/stamping.css?v=shared-imports-20261027';document.head.append(css);}
+ if(!document.getElementById('stampingStyle')){const css=document.createElement('link');css.id='stampingStyle';css.rel='stylesheet';css.href='platform/stamping.css?v=rh-documents-20261105';document.head.append(css);}
  $('#content').innerHTML='<div id="stampingRoot">'+loadingMarkup('Chargement du tamponnage…')+'</div>';
  const element=document.getElementById('stampingRoot'),active=()=>epoch===stampingEpoch&&AUTH_USER===user&&currentView==='tamponnage'&&element.isConnected;
- import('./platform/stamping.js?v=shared-imports-20261027').then(module=>{if(active())stampingMounted=module.mountStamping(element,{baseUrl:budgetsApi().replace(/\/budgets\/?$/,''),getSession:async()=>(await budgetsEnsureSession()).sessionId,isActive:active,creator:owner=>({name:agendaName(owner),photo:agendaPortrait(owner)})});}).catch(()=>{if(active())element.innerHTML='<div role="alert">Chargement impossible. Revenez dans le module pour réessayer.</div>';});
+ import('./platform/stamping.js?v=rh-documents-20261105').then(module=>{if(active()){const initialBatchId=stampingInitialBatchId;stampingInitialBatchId='';stampingMounted=module.mountStamping(element,{baseUrl:budgetsApi().replace(/\/budgets\/?$/,''),getSession:async()=>(await budgetsEnsureSession()).sessionId,isActive:active,initialBatchId,creator:owner=>({name:agendaName(owner),photo:agendaPortrait(owner)})});}}).catch(()=>{if(active())element.innerHTML='<div role="alert">Chargement impossible. Revenez dans le module pour réessayer.</div>';});
+}
+
+let rhMounted=null,rhEpoch=0;
+function rhForget(){rhEpoch++;rhMounted?.dispose();rhMounted=null;}
+function rhLeave(){return rhMounted?.canLeave?.()!==false;}
+function renderRh(){
+ if(rhMounted&&document.getElementById('rhRoot'))return;
+ rhForget();const epoch=++rhEpoch,user=AUTH_USER;
+ if(!user||!canAccess('facturier')){$('#content').innerHTML='<div class="card card-pad">Accès aux documents RH requis.</div>';return;}
+ if(!document.getElementById('rhStyle')){const css=document.createElement('link');css.id='rhStyle';css.rel='stylesheet';css.href='platform/rh.css?v=rh-20261105';document.head.append(css);}
+ $('#content').innerHTML='<div id="rhRoot">'+loadingMarkup('Chargement des documents RH…')+'</div>';
+ const element=document.getElementById('rhRoot'),active=()=>epoch===rhEpoch&&AUTH_USER===user&&currentView==='rh'&&element.isConnected;
+ import('./platform/rh.js?v=rh-20261105').then(module=>{if(active())rhMounted=module.mountRh(element,{baseUrl:budgetsApi().replace(/\/budgets\/?$/,''),getSession:async()=>(await budgetsEnsureSession()).sessionId,isActive:active,onStamping:()=>setView('tamponnage'),onStampBatch:id=>openRhStampingBatch(id)});}).catch(()=>{if(active())element.innerHTML='<div role="alert">Chargement impossible. Revenez dans le module pour réessayer.</div>';});
 }
 
 setView('dashboard');

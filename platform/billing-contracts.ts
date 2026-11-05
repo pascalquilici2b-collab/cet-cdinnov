@@ -121,6 +121,8 @@ export interface BillingFollowupLink {serviceCode?:string;engagement?:string;oth
 export interface BillingTransport {
   updateFollowup(id:string,version:number,input:{title?:string;orderId?:string;marketId?:string}):Promise<BillingDocument>;
   clientEmployees(id:string):Promise<import('./client-employees-domain').ClientEmployeeSpace>;
+  rhClientAgents?(id:string):Promise<{version:number;agents:import('./client-employees-domain').ClientEmployee[];links:{agentId:string;projectId:string}[]}>;
+  rhProjectAgents?(id:string):Promise<{agents:{id:string;name:string;role:string;clientId:string}[]}>;
   saveClientEmployees(id:string,version:number,data:{agents:import('./client-employees-domain').ClientEmployee[];payments:import('./client-employees-domain').ClientPaymentMonth[]}):Promise<import('./client-employees-domain').ClientEmployeeSpace>;
   saveClientEmployeeDocument(id:string,version:number,kind:'mission'|'payment',employeeId:string,file:File):Promise<import('./client-employees-domain').ClientEmployeeSpace>;
   clientEmployeeDocument(id:string,documentId:string):Promise<Blob>;

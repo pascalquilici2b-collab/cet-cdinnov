@@ -14,6 +14,7 @@ import {billingRoute} from './billing';
 import {projectsRoute} from './projects';
 import {stampingRoute,stampingQueue,purgeStamping} from './stamping';
 import {dataExport} from './data-export';
+import {rhRoute} from './rh-service';
 import {facturxRoute} from './facturx-proxy';
 
 /** One deployable entry; modern and compatibility routes share the typed identity module. */
@@ -30,6 +31,7 @@ export default {
       env=portalEnvironment(env);
       if(path.startsWith('/api/v1/facturx/'))return await facturxRoute(request,env,headers,reply);
       if(path==='/api/v1/data-export')return await dataExport(request,env,reply);
+      if(path.startsWith('/api/v1/rh/'))return await rhRoute(request,env,reply);
       // Check direct application URLs before delegating to compatibility handlers.
       const module:AccessKey|null=path.startsWith('/budgets/markets')?'facturier':path.startsWith('/budgets/agenda')?'agenda':path.startsWith('/sheets/')?'sheets':path==='/api/v1/dashboard'?'dashboard':path==='/api/v1/budget-records'||path.startsWith('/budgets/')&&path!=='/budgets/session'?'budgetsprojets':null;
       if(module){const session=await sessionIdentity(request,env);if(!session)return reply(401,{error:'Connexion requise.'});if(!hasAccess(session,module)&&!(path==='/budgets/clients'&&hasAccess(session,'facturier')))return reply(403,{error:'Votre compte n’a pas accès à cette rubrique.'});}

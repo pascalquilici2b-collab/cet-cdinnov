@@ -108,6 +108,7 @@ export async function processStampJob(job:Job,env:Environment){
   }
   await progress('saving',{...result,ai,pdf:undefined});
   if(result.error)throw Object.assign(new Error(result.error.message),{code:result.error.code});
+  if(batch.rhVersionId&&result.groupId!==data.rhGroupId)throw Object.assign(new Error('Le rapprochement ne correspond pas au bulletin de la version RH figée.'),{code:'RH_GROUP_MISMATCH'});
   result.progress={startedAt,stage:'complete',elapsedMs:Date.now()-startedAt};
   const raw=Buffer.from(result.pdf,'base64');delete result.pdf;
   if(hash(raw)!==result.output_sha256||result.source_sha256!==d.sha256||Object.values(result.checks).some(v=>v!==true))throw new Error('verification');
@@ -154,6 +155,7 @@ export async function stampingRoute(request:Request,env:Environment,reply:Reply)
  const b=await db.prepare('SELECT * FROM stamp_batches WHERE id=? AND expires_at>?').bind(route[1],Date.now()).first<Batch>();if(!b)return reply(404,{error:'Lot introuvable.'});
  const tail=route[2]||'',data=JSON.parse(b.data),canEdit=b.owner===session.email||session.admin;
  if(method!=='GET'&&!canEdit)return reply(403,{error:'Ce lot est consultable par l’équipe. Sa modification est réservée au créateur et aux administrateurs.'});
+ if(data.rhVersionId&&method!=='GET'&&(tail==='direct'||tail.startsWith('table')||tail==='mapping'||tail==='review'||tail==='documents'||/^documents\/[^/]+$/.test(tail)))return fail(409,'Ce lot reprend une version RH figée. Modifiez le document RH puis créez une nouvelle version pour changer les pièces ou les imputations.');
  if(!tail&&method==='GET'){
   await db.prepare("UPDATE stamp_documents SET status='REVIEW_REQUIRED',lease_until=0,data=json_set(data,'$.error',json(?)) WHERE batch_id=? AND status='PROCESSING' AND lease_until<?").bind(JSON.stringify({code:'INTERRUPTED',message:'Le traitement a été interrompu. Relancez cette pièce.'}),b.id,Date.now()).run();
   const docs=await documents(db,b.id),used=new Set(docs.map(d=>d.match_group));
@@ -294,7 +296,8 @@ export async function stampingRoute(request:Request,env:Environment,reply:Reply)
  if(request.headers.get('if-match')!==String(d.version))return fail(409,'La pièce a changé. Actualisez le lot.');
  if(action==='confirm'){
   if(!data.importConfirmed||!['UPLOADED','REVIEW_REQUIRED'].includes(d.status))return fail(409,'Confirmez la répartition et attendez la fin de l’analyse avant correction.');
-  const p=await json(request,50000),raw=await object(env,sourceKey(b,d));if(hash(raw)!==d.sha256)return fail(503,'Empreinte du fichier invalide.');
+  const p=await json(request,50000);if(data.rhVersionId&&(p.choice?.groupId!==result.rhGroupId||(p.overrides||[]).length))return fail(409,'Conservez le rapprochement et les imputations de la version RH figée.');
+  const raw=await object(env,sourceKey(b,d));if(hash(raw)!==d.sha256)return fail(503,'Empreinte du fichier invalide.');
   const directInvoice=data.directInvoice?normalizeDirectInvoice({...data.directInvoice,...result.directInvoice,...p.directInvoice},true):null;
   const options={...data.options,fontSize:5,allowOverlap:true};
   const confirmed=await service(env,raw,{action:'confirm',groups:data.import?.groups||[],choice:p.choice,directInvoice,options,overrides:p.overrides||[]});
@@ -308,7 +311,7 @@ export async function stampingRoute(request:Request,env:Environment,reply:Reply)
    // Fence reference changes before writing a result based on that reference version.
    const updated=await db.batch([
     db.prepare("UPDATE stamp_batches SET data=json_set(data,'$.sealed',json('true'),'$.lastManualConfirmation',?),version=version+1 WHERE id=? AND version=? AND expires_at>? RETURNING id").bind(confirmation,b.id,b.version,Date.now()),
-    db.prepare("UPDATE stamp_documents SET status='APPROVED',version=version+1,data=?,match_group=? WHERE id=? AND version=? AND status=? AND EXISTS(SELECT 1 FROM stamp_batches WHERE id=? AND version=? AND json_extract(data,'$.lastManualConfirmation')=?) RETURNING id").bind(JSON.stringify(next),confirmed.groupId,d.id,d.version,d.status,b.id,b.version+1,confirmation)
+    db.prepare("UPDATE stamp_documents SET status=?,version=version+1,data=?,match_group=? WHERE id=? AND version=? AND status=? AND EXISTS(SELECT 1 FROM stamp_batches WHERE id=? AND version=? AND json_extract(data,'$.lastManualConfirmation')=?) RETURNING id").bind(data.rhVersionId?'NEEDS_APPROVAL':'APPROVED',JSON.stringify(next),confirmed.groupId,d.id,d.version,d.status,b.id,b.version+1,confirmation)
    ]) as {results:{id:string}[]}[];
    if(updated.some(r=>!r.results?.length))throw new Error('changed');
   }catch{await bucket(env).delete(key);return fail(409,'La pièce ou sa répartition a changé, ou ces imputations sont déjà utilisées. Actualisez le lot.');}
@@ -318,6 +321,7 @@ export async function stampingRoute(request:Request,env:Environment,reply:Reply)
  if(action==='revise'){
   if(!['NEEDS_APPROVAL','APPROVED','VERIFIED'].includes(d.status)||!result.candidateKey)return fail(409,'Un aperçu contrôlé est requis avant modification.');
   const p=await json(request,70000);
+  if(data.rhVersionId&&((p.overrides||[]).length||(p.additions||[]).length))return fail(409,'Les montants proviennent de la version RH figée. Créez une nouvelle version RH pour les corriger.');
   if(Object.keys(p).some(k=>!['placements','overrides','additions'].includes(k))||['placements','overrides','additions'].some(k=>p[k]!==undefined&&(!Array.isArray(p[k])||p[k].length>200)))return fail(400,'Modification invalide.');
   const raw=await object(env,sourceKey(b,d));if(hash(raw)!==d.sha256)return fail(503,'Empreinte du fichier invalide.');
   // The previous result is authoritative private server state; callers cannot
@@ -344,7 +348,9 @@ export async function stampingRoute(request:Request,env:Environment,reply:Reply)
   if(!env.STAMPING_QUEUE)return fail(503,'La file de traitement doit être activée.');
   if(!data.sealed){const sealed=await db.prepare("UPDATE stamp_batches SET data=json_set(data,'$.sealed',json('true')),version=version+1 WHERE id=? AND version=? RETURNING id").bind(b.id,b.version).first();if(!sealed)return fail(409,'Le lot a changé. Relancez l’analyse.');}
   if(['PROCESSING','VERIFIED','APPROVED'].includes(d.status))return fail(409,'Pièce en cours ou déjà validée.');
-  const p=await json(request,50000);if(p.overrides!==undefined&&!Array.isArray(p.overrides))return fail(400,'Corrections invalides.');const next={sourceUpload:result.sourceUpload,...(data.directInvoice?{directInvoice:normalizeDirectInvoice({...data.directInvoice,...result.directInvoice,...p.directInvoice},true)}:{}),choice:p.choice||null,options:{...data.options,fontSize:5,allowOverlap:true,...p.options},overrides:p.overrides||[],cachedReading:result.cachedReading||null,progress:{startedAt:Date.now(),stage:'queued'}};
+  const p=await json(request,50000);if(p.overrides!==undefined&&!Array.isArray(p.overrides))return fail(400,'Corrections invalides.');
+  if(data.rhVersionId&&((p.choice&&p.choice.groupId!==result.rhGroupId)||(p.overrides||[]).length))return fail(409,'Conservez le rapprochement et les imputations de la version RH figée.');
+  const next={sourceUpload:result.sourceUpload,...(data.rhVersionId?{rhPayrollId:result.rhPayrollId,rhGroupId:result.rhGroupId}:{}),...(data.directInvoice?{directInvoice:normalizeDirectInvoice({...data.directInvoice,...result.directInvoice,...p.directInvoice},true)}:{}),choice:p.choice||null,options:{...data.options,fontSize:5,allowOverlap:true,...p.options},overrides:p.overrides||[],cachedReading:result.cachedReading||null,progress:{startedAt:Date.now(),stage:'queued'}};
   if(p.choice&&(typeof p.choice.reason!=='string'||p.choice.reason.trim().length<5))return fail(422,'Justifiez le rapprochement manuel.');
   const row=await db.prepare("UPDATE stamp_documents SET status='QUEUED',data=?,match_group=NULL,version=version+1 WHERE id=? AND version=? AND status NOT IN ('PROCESSING','VERIFIED','APPROVED') RETURNING version").bind(JSON.stringify(next),d.id,d.version).first<{version:number}>();if(!row)return fail(409,'La pièce a changé.');
   try{await (env.STAMPING_QUEUE as {send(body:Job):Promise<void>}).send({batchId:b.id,documentId:d.id,version:row.version,owner:b.owner});}
@@ -353,7 +359,8 @@ export async function stampingRoute(request:Request,env:Environment,reply:Reply)
  }
  if(action==='cancel'){
   if(d.status==='PROCESSING')return fail(409,'La pièce en cours finit en sécurité. Les autres peuvent être annulées.');
-  const changed=await db.prepare("UPDATE stamp_documents SET status='UPLOADED',version=version+1,data=json_object('sourceUpload',json_extract(data,'$.sourceUpload')),match_group=NULL WHERE id=? AND version=? AND status NOT IN ('VERIFIED','PROCESSING') RETURNING id").bind(d.id,d.version).first();if(!changed)return fail(409,'La pièce est en cours ou déjà tamponnée.');return reply(200,{ok:true});
+  const clean={sourceUpload:result.sourceUpload,...(data.rhVersionId?{rhPayrollId:result.rhPayrollId,rhGroupId:result.rhGroupId}:{})};
+  const changed=await db.prepare("UPDATE stamp_documents SET status='UPLOADED',version=version+1,data=?,match_group=NULL WHERE id=? AND version=? AND status NOT IN ('VERIFIED','PROCESSING') RETURNING id").bind(JSON.stringify(clean),d.id,d.version).first();if(!changed)return fail(409,'La pièce est en cours ou déjà tamponnée.');return reply(200,{ok:true});
  }
  if(action==='approve'){
   if(d.status!=='NEEDS_APPROVAL')return fail(409,'La pièce doit avoir un aperçu contrôlé.');const p=await json(request,2000);

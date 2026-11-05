@@ -5,7 +5,7 @@ const portalBlobs=new Map();
 let portalLogoutPending=false,portalSuspendedUser=null,portalSigninPending=null,portalReconnecting=false;
 function portalForgetUser(){
   try{if(AUTH_USER)localStorage.removeItem(STORE_KEY+':draft:'+AUTH_USER);}catch{}
-  dashboardForget();financeForget();billingForget();stampingForget();personnelForget();closeModal();nfDraft=null;marchesForget();agendaForget();budgetsForget();facturxForgetAuth();
+  dashboardForget();financeForget();billingForget();stampingForget();rhForget();personnelForget();closeModal();nfDraft=null;marchesForget();agendaForget();budgetsForget();facturxForgetAuth();
   AUTH_USER=null;movAccess=null;salariesUnlocked=false;portalClear();document.body.classList.remove('authed');renderUserChip();
 }
 window.CDISession.configure({
@@ -106,7 +106,7 @@ async function portalReconnect(email,password){
 }
 async function authLogout(){
   if(portalLogoutPending||billingLogoutPending)return;
-  if(!billingLeave()||!marchesLeave()||!budgetsLeave())return;
+  if(!billingLeave()||!rhLeave()||!marchesLeave()||!budgetsLeave())return;
   billingLockForLogout();
   try{
     if(cloudEnabled()&&portalClean&&JSON.stringify(state)!==portalClean&&!await cloudPush()){toast('Enregistrement impossible. Conservez vos modifications avant de vous déconnecter.');return;}
@@ -126,7 +126,7 @@ function accountModules(email=AUTH_USER){return CDIPlatform.accountAccess(state.
 function canAccess(view){
  if(!AUTH_USER)return false;
  if(view==='parametres'||view==='cet')return isAdmin(AUTH_USER);
- const key=({marches:'facturier',conges:'agenda'})[view]||view;
+ const key=({marches:'facturier',rh:'facturier',conges:'agenda'})[view]||view;
  return accountModules()[key]===true;
 }
 function applyAccessNavigation(){
@@ -179,7 +179,7 @@ async function cloudLoad(options={}){
     await portalLoadPhotos();if(AUTH_USER!==user||portalEpoch!==epoch)return false;
     setSync('ok','Synchronisé');
     if(document.body.classList.contains('authed')&&(wasAdmin!==isAdmin(user)||previousAccess!==JSON.stringify(accountModules(user)))){
-      dashboardForget();financeForget();billingForget();stampingForget();personnelForget();marchesForget();agendaForget();budgetsForget();facturxForgetAuth();closeModal();nfDraft=null;
+      dashboardForget();financeForget();billingForget();stampingForget();rhForget();personnelForget();marchesForget();agendaForget();budgetsForget();facturxForgetAuth();closeModal();nfDraft=null;
       currentView=firstAllowedView();unlockApp(user);
     }else render();
     return true;
