@@ -30,7 +30,7 @@ function renderBillingWorkspace(){
   });
 }
 function billingWorkspaceProps(){
-  return {transport:billingTransport,onFacturX:billingOpenFacturX,imported:{invoices:factures().map(f=>({...f,validFacturx:facturxSnapshotMatches(f)})),act:(action,id)=>{
+  return {transport:billingTransport,onOpenRhDocument:id=>openRhPaymentDocument(id),onFacturX:billingOpenFacturX,imported:{invoices:factures().map(f=>({...f,validFacturx:facturxSnapshotMatches(f)})),act:(action,id)=>{
     if(!AUTH_USER||!facturierAdmin())return;
     const handlers={edit:openFacture,delete:delFacture,pdf:billingImportedPdf,facturx:openFacturX,downloadFacturx:facturxFinal,upload:openFacturePdf};
     handlers[action]?.(id);

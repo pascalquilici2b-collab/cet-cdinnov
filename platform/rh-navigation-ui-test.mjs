@@ -25,6 +25,10 @@ await ctx.setPortal(JSON.stringify(fixture));const before=await ctx.kv.get('mark
 const client=blankClient();client.party.name='Organisme RH fictif';const now=new Date().toISOString();
 await ctx.db.prepare("INSERT INTO billing_directory VALUES('clients',?,1,?,?,?,'fixture',?,'fixture')").bind('client-navigation',JSON.stringify(client),'fixture',now,now).run();
 await ctx.db.prepare('INSERT INTO rh_documents VALUES(?,?,?,1,?,?,?,?)').bind('doc-navigation','client-navigation','Document de navigation',JSON.stringify({name:'Document de navigation',clientId:'client-navigation',periods:[],payments:[]}),now,now,'fixture').run();
+const archivedAgent={id:'11111111-1111-4111-a111-111111111111',name:'Agent de navigation',role:'Fonction fictive',supervisor:'',allocations:[]},archiveBytes=await readFile(join(root,'templates/client-mission-v2.docx'));
+await ctx.db.prepare('INSERT INTO client_employee_spaces VALUES(?,1,?,?,?)').bind('client-navigation',JSON.stringify({agents:[archivedAgent],payments:[]}),now,'fixture').run();
+await(await ctx.worker.getR2Bucket('CET_FILES')).put('fixture/navigation-letter.docx',archiveBytes);
+await ctx.db.prepare('INSERT INTO client_employee_documents VALUES(?,?,?,?,?,?,?,?,?,?,?)').bind('navigation-letter','client-navigation',archivedAgent.id,'mission','Lettre de navigation.docx','application/vnd.openxmlformats-officedocument.wordprocessingml.document','fixture/navigation-letter.docx','fixture',JSON.stringify({version:1,agents:[archivedAgent]}),now,'fixture').run();
 // Keep real UI login, PBKDF2, challenge/HMAC proof and browser-managed HttpOnly cookie; isolate external integrations.
 const boot=`state={...freshState(),...${JSON.stringify(fixture)}};cloudEnabled=()=>true;budgetsObserveClients=()=>{};budgetsSyncClients=async()=>[];budgetsApi=()=>location.origin+'/budgets';facturxWarmLogin=()=>{};authSaveCredential=async()=>{};notify=()=>{throw Error('External notifications disabled')};bootAuth();`;
 const assetRoot=process.env.FRONTEND_ARTIFACT?resolve(process.env.FRONTEND_ARTIFACT):root;
@@ -32,7 +36,7 @@ const frontend=process.env.FRONTEND_ARTIFACT?(await import(pathToFileURL(join(as
 const assets=frontend?new Map():await sessionTestAssets(root);
 const html=(assets.get('/index.html')||await readFile(join(assetRoot,'index.html'),'utf8')).replace(/const CLOUD_ENDPOINT\s*=\s*['"][^'"]+['"]/,'const CLOUD_ENDPOINT=location.origin').replace('\nbootAuth();','\n'+boot);assert.ok(html.includes(boot));
 const requests=[],errors=[],blocked=[],mime={'.html':'text/html; charset=utf-8','.js':'application/javascript','.mjs':'application/javascript','.css':'text/css','.svg':'image/svg+xml','.png':'image/png','.woff2':'font/woff2'};
-let holdVerify=null,verifyReached=null;
+let holdVerify=null,verifyReached=null,holdClientFile=null,clientFileReached=null;
 const server=createServer(async(req,res)=>{try{
   const url=new URL(req.url,'http://localhost');
   if(url.pathname.startsWith('/budgets/')||url.pathname.startsWith('/api/v1/')||url.pathname.startsWith('/sheets/')||url.pathname.startsWith('/files/')||url.pathname.startsWith('/files/')) {
@@ -41,6 +45,7 @@ const server=createServer(async(req,res)=>{try{
     const r=await ctx.worker.dispatchFetch('https://test'+url.pathname+url.search,{method:req.method,headers,...(body.length?{body}:{})});
     requests.push({path:url.pathname,method:req.method,status:r.status,bearer:!!req.headers.authorization});
     if(holdVerify&&['/budgets/session','/api/v1/session'].includes(url.pathname)&&req.method==='POST'&&JSON.parse(body.toString()).action==='verify'){verifyReached();await holdVerify;}
+    if(holdClientFile&&url.pathname==='/api/v1/billing/client-employees/client-navigation/documents/navigation-letter'){clientFileReached();await holdClientFile;}
     const served=frontend?await frontend.fetch(new Request(base+req.url,{method:req.method,headers,...(body.length?{body}:{})}),{CET_API:{fetch:async()=>r}}):r;
     res.writeHead(served.status,Object.fromEntries(served.headers));res.end(Buffer.from(await served.arrayBuffer()));return;
   }
@@ -74,6 +79,21 @@ try {
  await page.getByRole('button',{name:'Déconnexion',exact:true}).click();assert.equal(await page.evaluate(()=>!!AUTH_USER),true);assert.equal(await page.evaluate(()=>currentView),'missions');
  await page.evaluate(()=>{missionLettersMounted.canLeave=window.__missionCanLeave;delete window.__missionCanLeave;openRhPaymentDocument('doc-navigation');});
  await page.locator('#rhRoot [aria-current="step"]').filter({hasText:'Document'}).waitFor();assert.equal(await page.evaluate(()=>currentView),'rh');
+ // Exercise the actual client/employee dialogs inside billing before the cross-module callback.
+ await page.locator('.nav-item[data-view="facturier"]').click();await page.waitForFunction(()=>!!billingMounted);
+ await page.locator('#billingRoot').getByRole('button',{name:'Clients',exact:true}).click();await page.locator('.bill-directory-name').filter({hasText:'Organisme RH fictif'}).click();
+ await page.getByRole('button',{name:'Espace salariés',exact:true}).click();const employees=page.getByRole('dialog',{name:'Salariés du client',exact:true});await employees.waitFor();
+ await page.waitForFunction(()=>document.querySelector('dialog.client-employees fieldset')?.disabled===false);await employees.getByRole('button',{name:'Ajouter un salarié',exact:true}).click();await employees.getByLabel('Nom et prénom',{exact:true}).fill('Saisie locale à conserver');
+ let guardMessage='';page.once('dialog',async dialog=>{guardMessage=dialog.message();await dialog.dismiss();});await page.evaluate(()=>setView('rh'));assert.match(guardMessage,/modifications non enregistrées/i);assert.equal(await page.evaluate(()=>currentView),'facturier');assert.equal(await employees.getByLabel('Nom et prénom',{exact:true}).inputValue(),'Saisie locale à conserver');
+ await employees.getByRole('button',{name:'Documents',exact:true}).click();await employees.locator('.client-payment-document>summary').filter({hasText:'Document de navigation'}).click();await employees.getByRole('button',{name:'Ouvrir le document RH',exact:true}).click();assert.equal(await page.evaluate(()=>currentView),'facturier');assert.match(await employees.getByRole('alert').innerText(),/Enregistrez les modifications des salariés/);
+ page.once('dialog',dialog=>dialog.dismiss());await employees.getByRole('button',{name:'Fermer l’espace salariés',exact:true}).click();assert.equal(await employees.isVisible(),true);
+ page.once('dialog',dialog=>dialog.accept());await employees.getByRole('button',{name:'Fermer l’espace salariés',exact:true}).click();await employees.waitFor({state:'hidden'});
+ await page.getByRole('button',{name:'Espace salariés',exact:true}).click();await employees.waitFor();await page.waitForFunction(()=>document.querySelector('dialog.client-employees fieldset')?.disabled===false);await employees.getByRole('button',{name:'Documents',exact:true}).click();
+ let releaseClientFile;holdClientFile=new Promise(resolve=>releaseClientFile=resolve);const fileReached=new Promise(resolve=>clientFileReached=resolve),downloaded=page.waitForEvent('download');await employees.getByRole('button',{name:'Télécharger Lettre de navigation.docx',exact:true}).click();await fileReached;
+ let busyDialogs=0;const onBusyDialog=async dialog=>{busyDialogs++;await dialog.dismiss();};page.on('dialog',onBusyDialog);assert.equal(await page.evaluate(()=>billingMounted.canLeave()),false);await page.evaluate(()=>setView('rh'));assert.equal(await page.evaluate(()=>currentView),'facturier');assert.equal(busyDialogs,0);page.off('dialog',onBusyDialog);
+ releaseClientFile();holdClientFile=null;const downloadedFile=await downloaded;assert.deepEqual(await readFile(await downloadedFile.path()),archiveBytes);await page.waitForFunction(()=>document.querySelector('dialog.client-employees fieldset')?.disabled===false);assert.equal(await page.evaluate(()=>billingMounted.canLeave()),true);
+ await employees.locator('.client-payment-document>summary').filter({hasText:'Document de navigation'}).click();await employees.getByRole('button',{name:'Ouvrir le document RH',exact:true}).click();
+ await page.locator('#rhRoot [aria-current="step"]').filter({hasText:'Document'}).waitFor();assert.equal(await page.evaluate(()=>currentView),'rh');assert.equal(await page.getByRole('dialog',{name:'Salariés du client',exact:true}).count(),0);await page.screenshot({path:join(out,'client-archive-to-rh.png'),fullPage:true});
  await group.locator('[data-view="missions"]').click();await page.waitForFunction(()=>!!missionLettersMounted);
  // UI visibility honours the same existing permissions; no account settings are persisted.
  const navAccess=await page.evaluate(()=>{const original=state.auth.accounts[AUTH_USER];try{const access=Object.fromEntries(CDIPlatform.accessModules.map(m=>[m.key,false]));state.auth.accounts[AUTH_USER]={...original,role:'collaborator',access:{...access,tamponnage:true}};applyAccessNavigation();const stampingOnly={group:!document.getElementById('rhNavigation').hidden,rh:!document.querySelector('[data-view="rh"]').hidden,mission:!document.querySelector('.nav-item[data-view="missions"]').hidden,stamp:!document.querySelector('[data-view="tamponnage"]').hidden};state.auth.accounts[AUTH_USER].access=access;applyAccessNavigation();return {stampingOnly,none:document.getElementById('rhNavigation').hidden};}finally{state.auth.accounts[AUTH_USER]=original;applyAccessNavigation();}});
@@ -83,5 +103,5 @@ try {
  await group.locator('[data-view="rh"]').click();await page.waitForFunction(()=>!!rhMounted);assert.equal(await page.locator('.sidebar').evaluate(e=>e.classList.contains('open')),false);
  assert.equal(await ctx.kv.get('markets-test'),before,'Navigation does not mutate shared business data');assert.deepEqual(errors,[]);
  const businessWrites=requests.filter(r=>r.method!=='GET'&&!['/api/v1/session','/budgets/session'].includes(r.path));assert.deepEqual(businessWrites,[]);
- await writeFile(join(out,'checks.json'),JSON.stringify({checks:8,errors,requests},null,2));console.log('PASS RH navigation: 8 checks, real portal authentication, module switching/guard, source deep link, permissions, desktop/mobile; no business writes.');
+ await writeFile(join(out,'checks.json'),JSON.stringify({checks:11,errors,requests},null,2));console.log('PASS RH navigation: 11 checks, real portal authentication, module switching/guard, client employee dirty and busy protection, archive link, source deep link, permissions, desktop/mobile; no business writes.');
 }catch(error){if(auditPage){await auditPage.screenshot({path:join(out,'failure.png'),fullPage:true}).catch(()=>{});await writeFile(join(out,'failure.json'),JSON.stringify({error:String(error),errors,requests,text:await auditPage.locator('body').innerText().catch(()=> '')},null,2));}throw error;}finally{await browser.close();server.close();await ctx.worker.dispose();}

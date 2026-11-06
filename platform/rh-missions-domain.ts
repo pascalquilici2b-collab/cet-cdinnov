@@ -27,6 +27,8 @@ export function missionSegments(draft:RhDraft,lines?:RhLine[]){
  if(!segments.length&&!issues.length)issues.push('Aucune affectation avec un taux supérieur à zéro n’est renseignée.');return {segments,issues:[...new Set(issues)]};
 }
 export const missionAllocationCore=(a:ClientAllocation)=>JSON.stringify([a.projectId,a.project,a.projectCode,a.programme,a.startDate,a.endDate,Math.round(Number(a.percent.replace(',','.'))*100)]);
+/** Letter validity is editable independently of the payment reporting period. */
+export const missionSourceIdentity=(a:ClientAllocation)=>JSON.stringify([a.projectId,a.project,a.projectCode,a.programme,Math.round(Number(a.percent.replace(',','.'))*100)]);
 /** A past assignment is a suggestion only when its function and missions are unambiguous. */
 export function missionPriorAllocation(agent:ClientEmployee,projectId:string,startDate:string,endDate:string){
  const project=agent.allocations.filter(a=>a.projectId===projectId),covering=project.filter(a=>a.startDate<=startDate&&a.endDate>=endDate),candidates=covering.length?covering:project;

@@ -5,7 +5,7 @@ import {boundedBody} from './portal';
 import {normalizeClientEmployees,type ClientEmployee,type ClientEmployeeSpace,type ClientAllocation} from './client-employees-domain';
 import {rhFail,rhId,type RhClient,type RhProject,type RhSnapshot,type RhDraft,type RhPayrollSource} from './rh-domain';
 import {rhDocumentStatus,rhPublicDraft} from './rh-lifecycle';
-import {missionSegments,missionAllocationCore,missionPriorAllocation,applyManualMission,type MissionContext,type MissionPreparation,type MissionSource,type MissionArchiveInput} from './rh-missions-domain';
+import {missionSegments,missionSourceIdentity,missionPriorAllocation,applyManualMission,type MissionContext,type MissionPreparation,type MissionSource,type MissionArchiveInput} from './rh-missions-domain';
 
 type References=()=>Promise<{clients:RhClient[];projects:RhProject[]}>;
 type DocumentRow={id:string;client_id:string;version:number;data_json:string};
@@ -67,11 +67,12 @@ async function archive(request:Request,db:Database,env:Environment,user:string,r
  const response=async(status:number)=>{const [saved,all]=await Promise.all([space(db,input.clientId),documents(db,input.clientId)]);return reply(status,{version:saved.version,document:all.find(d=>d.id===input.id),documents:all});};
  const prior=await existing();if(prior){if(prior.client_id===input.clientId&&prior.sha256===fileHash&&JSON.parse(prior.snapshot_json).mission?.requestHash===requestHash)return response(200);rhFail('Cet identifiant est déjà utilisé pour une autre lettre.',409);}
  if(common.version!==employees.version||request.headers.get('if-match')!==String(employees.version))rhFail('La fiche agent a changé. Actualisez avant de générer la lettre.',409);
- let selectedEmployee=currentEmployee,selectedClient=common.client,finalAllocation=allocation,updatedAgents=employees.agents,changed=false,projectVersion:number|undefined,expectedToken=common.generationTokens[input.employeeId];
+ let selectedEmployee=currentEmployee,selectedClient=common.client,finalAllocation=allocation,updatedAgents=employees.agents,changed=false,projectVersion:number|undefined,expectedToken=common.generationTokens[input.employeeId],sourcePeriod:{startDate:string;endDate:string}|undefined;
  if(source){
   const prepared=await prepare(db,{documentId:source.documentId,...source.kind==='version'?{versionId:source.versionId}:{}},references);
   if(prepared.clientId!==input.clientId||JSON.stringify(prepared.source)!==JSON.stringify(source))rhFail('Le document de paiement a changé. Reprenez la préparation de la lettre.',409);
-  const letter=prepared.letters.find(l=>l.id===input.letterId&&l.employeeId===input.employeeId);if(!letter||allocation.id!==letter.allocation.id||missionAllocationCore(allocation)!==missionAllocationCore(letter.allocation))rhFail('Les agents, projets, dates et taux doivent correspondre au document de paiement.');
+  const letter=prepared.letters.find(l=>l.id===input.letterId&&l.employeeId===input.employeeId);if(!letter||allocation.id!==letter.allocation.id||missionSourceIdentity(allocation)!==missionSourceIdentity(letter.allocation))rhFail('Les agents, projets et taux doivent correspondre au document de paiement.');
+  sourcePeriod={startDate:letter.allocation.startDate,endDate:letter.allocation.endDate};
   selectedEmployee=prepared.agents.find(a=>a.id===input.employeeId)!;selectedClient=prepared.client;expectedToken=prepared.generationTokens[input.employeeId];
  }else{
   const project=common.projects.find(p=>p.id===allocation.projectId);if(!project)rhFail('Ce projet n’est pas rattaché au client.');
@@ -80,7 +81,7 @@ async function archive(request:Request,db:Database,env:Environment,user:string,r
  }
  if(input.generationToken!==expectedToken)rhFail('La fiche du client ou de l’agent a changé depuis la préparation du Word. Reprenez cette lettre pour actualiser son aperçu.',409);
  if(!(allocation.projectRole||selectedEmployee.role).trim())rhFail('Renseignez la fonction dans le projet.');
- const date=new Date().toISOString(),version=employees.version+(changed?1:0),person={...selectedEmployee,supervisor:supervisor??selectedEmployee.supervisor,allocations:[finalAllocation]},snapshot={version,agents:[person],client:selectedClient,mission:{schemaVersion:1,allocation:finalAllocation,generationToken:input.generationToken,source:source||null,letterId:input.letterId||null,requestHash}};
+ const date=new Date().toISOString(),version=employees.version+(changed?1:0),person={...selectedEmployee,supervisor:supervisor??selectedEmployee.supervisor,allocations:[finalAllocation]},snapshot={version,agents:[person],client:selectedClient,mission:{schemaVersion:1,allocation:finalAllocation,generationToken:input.generationToken,source:source||null,...sourcePeriod?{sourcePeriod}:{},letterId:input.letterId||null,requestHash}};
  const condition="coalesce((SELECT version FROM client_employee_spaces WHERE client_id=?),0)=? AND EXISTS(SELECT 1 FROM billing_directory WHERE kind='clients' AND id=? AND version=? AND coalesce(json_extract(data_json,'$.archived'),0)=0)"+(source?" AND EXISTS(SELECT 1 FROM rh_documents WHERE id=? AND version=? AND json_extract(data_json,'$._deletedAt') IS NULL)":" AND EXISTS(SELECT 1 FROM commercial_projects WHERE id=? AND archived=0 AND market_version=?)"),params:unknown[]=[input.clientId,employees.version,input.clientId,common.clientVersion,...source?[source.documentId,source.documentVersion]:[allocation.projectId,projectVersion]];
  const guardId=crypto.randomUUID(),statements:Statement[]=[db.prepare(`INSERT INTO rh_write_guards(id,ok) SELECT ?,CASE WHEN ${condition} THEN 1 ELSE 0 END`).bind(guardId,...params)];
  if(changed)statements.push(db.prepare('UPDATE client_employee_spaces SET version=version+1,data_json=?,updated_at=?,updated_by=? WHERE client_id=? AND version=?').bind(JSON.stringify({...employees.stored,agents:updatedAgents}),date,user,input.clientId,employees.version));

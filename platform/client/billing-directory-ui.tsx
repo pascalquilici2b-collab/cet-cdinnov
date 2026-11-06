@@ -8,7 +8,7 @@ import {BlueCheck} from './billing-steps';
 import {CompanyLookup} from './billing-company-lookup';
 import {ClientLogoField} from './billing-client-logo-field';
 import {ClientAvatar} from './billing-client-avatar';
-import {useEffect,useRef,useState} from 'react';
+import {useCallback,useEffect,useRef,useState} from 'react';
 import type {KeyboardEvent} from 'react';
 import type {ReactNode} from 'react';
 import {Search,Plus,Pencil,Trash2,RotateCcw,Users} from 'lucide-react';
@@ -22,7 +22,7 @@ import {saleUnits,unitLabels as units} from '../billing-units';
 const name=(r:BillingDirectoryRecord)=>r.kind==='clients'?r.data.party.name:r.data.label;
 const message=(e:unknown)=>e instanceof Error?e.message:'Le répertoire est indisponible. Votre saisie est conservée.';
 type Edit={id:string;version:number|null;data:BillingDirectoryData;saved:string|null};
-type Props={kind:BillingDirectoryKind;transport:BillingTransport;busy:boolean;onBusy:(value:string)=>void;onDirty:(value:boolean)=>void;onChanged:()=>void;onPick?:(record:BillingDirectoryRecord)=>void;onNewDocument?:(record:BillingDirectoryRecord,kind:BillingKind)=>void;contextualServices?:ReactNode|((query:string)=>ReactNode);};
+type Props={kind:BillingDirectoryKind;transport:BillingTransport;busy:boolean;onBusy:(value:string)=>void;onDirty:(value:boolean)=>void;onChanged:()=>void;onPick?:(record:BillingDirectoryRecord)=>void;onNewDocument?:(record:BillingDirectoryRecord,kind:BillingKind)=>void;onOpenRhDocument?:(id:string)=>void;contextualServices?:ReactNode|((query:string)=>ReactNode);};
 
 function ServiceFields({data,onChange}:{data:BillingServiceData;onChange:(data:BillingServiceData)=>void}){
  const patch=(value:Partial<BillingServiceData>)=>onChange({...data,...value});
@@ -37,18 +37,19 @@ function ServiceFields({data,onChange}:{data:BillingServiceData;onChange:(data:B
  </div>;
 }
 
-export function DirectoryPanel({kind,transport,busy,onBusy,onDirty,onChanged,onPick,onNewDocument,contextualServices}:Props){
- const [employees,setEmployees]=useState(false);
+export function DirectoryPanel({kind,transport,busy,onBusy,onDirty,onChanged,onPick,onNewDocument,onOpenRhDocument,contextualServices}:Props){
+ const [employees,setEmployees]=useState(false),[employeeDirty,setEmployeeDirty]=useState(false);
+ const employeeBusy=useCallback((value:boolean)=>onBusy(value?'employees':''),[onBusy]);
  const [query,setQuery]=useState(''),[search,setSearch]=useState(''),[archived,setArchived]=useState(false),[offset,setOffset]=useState(0),[total,setTotal]=useState(0),[rows,setRows]=useState<BillingDirectoryRecord[]>([]),[loading,setLoading]=useState(true),[revision,setRevision]=useState(0);
  const [editor,setEditor]=useState<Edit|null>(null),[error,setError]=useState(''),[notice,setNotice]=useState(''),[listError,setListError]=useState(''),[conflict,setConflict]=useState(false),[pending,setPending]=useState('');
  const live=useRef(true),running=useRef(false),editRef=useRef(editor),root=useRef<HTMLElement>(null),copy=useRef<{key:string;id:string}|null>(null);editRef.current=editor;
  const dirty=!!editor&&(editor.saved===null||JSON.stringify(editor.data)!==editor.saved);
  useEffect(()=>{live.current=true;return()=>{live.current=false;onDirty(false);};},[onDirty]);
- useEffect(()=>{onDirty(dirty);},[dirty,onDirty]);
+ useEffect(()=>{onDirty(dirty||employeeDirty);},[dirty,employeeDirty,onDirty]);
  useEffect(()=>{const next=query.trim();if(next===search)return;const timer=setTimeout(()=>{setSearch(next);setOffset(0);},200);return()=>clearTimeout(timer);},[query,search]);
  useEffect(()=>{let active=true;setLoading(true);setListError('');transport.directoryList(kind,{q:search,offset,limit:10,archived}).then(result=>{if(!active||!live.current)return;setRows(result.records);setTotal(result.total);if(offset&&offset>=result.total)setOffset(Math.max(0,Math.floor((result.total-1)/10)*10));},e=>{if(active&&live.current)setListError(message(e));}).finally(()=>{if(active&&live.current)setLoading(false);});return()=>{active=false;};},[kind,transport,search,offset,archived,revision]);
  useEffect(()=>{if(editor)root.current?.querySelector<HTMLInputElement>('.bill-directory-editor input')?.focus();},[editor?.id]);
- const canLeave=()=>!dirty||window.confirm('Cette fiche contient des modifications non enregistrées. Quitter sans les enregistrer ?');
+ const canLeave=()=>!(dirty||employeeDirty)||window.confirm('Cette fiche contient des modifications non enregistrées. Quitter sans les enregistrer ?');
  const change=(data:BillingDirectoryData)=>{setEditor(value=>value?{...value,data}:value);onDirty(true);setNotice('');};
  const adopt=(value:BillingDirectoryRecord)=>{const next={id:value.id,version:value.version,data:structuredClone(value.data),saved:JSON.stringify(value.data)};editRef.current=next;setEditor(next);onDirty(false);setError('');setConflict(false);};
  const newEntry=()=>{if(busy||!canLeave())return;setEditor({id:crypto.randomUUID(),version:null,data:kind==='clients'?blankClient():blankService(),saved:null});onDirty(true);setError('');setNotice('');setConflict(false);};
@@ -132,7 +133,7 @@ export function DirectoryPanel({kind,transport,busy,onBusy,onDirty,onChanged,onP
     {onPick?<button type="button" className="bill-icon-button bill-directory-edit" disabled={busy} aria-label={'Modifier la fiche '+name(row)} title="Modifier la fiche" onClick={()=>open(row.id)}><Pencil size={16} aria-hidden="true"/></button>:kind==='clients'?<button type="button" className={'bill-icon-button'+(archived?'':' bill-icon-danger')} disabled={busy} aria-label={(archived?'Restaurer le client ':'Supprimer le client ')+name(row)} title={archived?'Restaurer':'Supprimer'} onClick={()=>removeClient(row)}>{archived?<RotateCcw size={17}/>:<Trash2 size={17}/>}</button>:<span className="bill-directory-row-arrow" aria-hidden="true">›</span>}
    </div>)}</div><div className="bill-pagination"><span>{offset+1}–{Math.min(offset+rows.length,total)} sur {total}</span><div><button type="button" disabled={offset===0||busy} onClick={()=>setOffset(n=>Math.max(0,n-10))}>Précédent</button><button type="button" disabled={offset+10>=total||busy} onClick={()=>setOffset(n=>n+10)}>Suivant</button></div></div></>:<div className="bill-empty"><h3>{search?'Aucun résultat':archived?(kind==='clients'?'La corbeille est vide':'Aucune fiche archivée'):kind==='clients'?'Votre carnet clients commence ici':'Composez votre catalogue'}</h3><p>{search?'Essayez un autre nom.':kind==='clients'?'Ajoutez un client pour retrouver ses coordonnées dans vos prochains documents.':'Enregistrez vos prestations habituelles pour préparer vos documents plus rapidement.'}</p>{!archived&&<button type="button" className="bill-button" disabled={busy} onClick={newEntry}>{titles[kind].create}</button>}</div>}
   </>}
- {employees&&current?.kind==='clients'&&<ClientEmployees clientId={current.id} client={current.data} transport={transport} onClose={()=>setEmployees(false)}/>}
+ {employees&&current?.kind==='clients'&&<ClientEmployees clientId={current.id} client={current.data} transport={transport} onDirty={setEmployeeDirty} onBusy={employeeBusy} onOpenRhDocument={onOpenRhDocument} onClose={()=>{setEmployees(false);setEmployeeDirty(false);}}/>}
  </section>;
 }
 

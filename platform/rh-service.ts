@@ -10,6 +10,7 @@ import {exportRhWorkbook,inspectRhReturnWorkbook} from './rh-document-files';
 import {createRhStampingBatch} from './rh-stamping';
 import {rhDocumentStatus,rhPublicDraft,type RhDocumentStatus} from './rh-lifecycle';
 import {rhMissionsRoute} from './rh-missions';
+import {rhClientRecordsRoute} from './rh-client-records-service';
 
 type Row={id:string;client_id:string;name:string;version:number;data_json:string;created_at:string;updated_at:string;updated_by:string};
 const sha=(value:Uint8Array|string)=>createHash('sha256').update(value).digest('hex');
@@ -98,6 +99,7 @@ async function route(request:Request,env:Environment,reply:Reply):Promise<Respon
  const session=await sessionIdentity(request,env);if(!session)return reply(401,{error:'Connexion requise.'});if(!hasAccess(session,'facturier'))return reply(403,{error:'Accès aux documents RH réservé à la facturation.'});
  const db=env.BUDGETS_DB.withSession('first-primary'),path=new URL(request.url).pathname.slice('/api/v1/rh'.length),method=request.method;
  if(path.startsWith('/missions/'))return rhMissionsRoute(request,db,env,session.email,reply,()=>context(db));
+ const clientRecords=await rhClientRecordsRoute(request,db,session.email,reply,{references:()=>context(db),employees:id=>employees(db,id),activeClient:id=>activeClient(db,id)});if(clientRecords)return clientRecords;
  if(path==='/context'&&method==='GET')return reply(200,await context(db));
  if(/^\/clients\/[^/]+\/payroll$/.test(path)&&method==='GET'){const clientId=path.split('/')[2];await activeClient(db,clientId);const files=(await db.prepare('SELECT data_json FROM rh_payroll_files WHERE client_id=? ORDER BY created_at DESC LIMIT 1000').bind(clientId).all<{data_json:string}>()).results.map(r=>JSON.parse(r.data_json) as RhPayrollSource);return reply(200,{payroll:files.filter(p=>p.confirmed)});}
  let match=path.match(/^\/clients\/([^/]+)\/agents$/);
@@ -126,8 +128,6 @@ async function route(request:Request,env:Environment,reply:Reply):Promise<Respon
  }
  if(path==='/versions'&&method==='GET'){const records=(await db.prepare('SELECT id,revision,created_at AS createdAt,json_extract(data_json,\'$.name\') AS name,json_extract(data_json,\'$.client.name\') AS clientName FROM rh_versions WHERE document_id IN (SELECT id FROM rh_documents WHERE json_extract(data_json,\'$._deletedAt\') IS NULL) ORDER BY created_at DESC LIMIT 300').all()).results;return reply(200,{versions:records});}
  if(path==='/returns'&&method==='GET'){const records=(await db.prepare('SELECT r.id,r.version_id AS versionId,r.revision,r.status,r.created_at AS createdAt,json_extract(v.data_json,\'$.name\') AS documentName,json_extract(v.data_json,\'$.client.name\') AS clientName FROM rh_returns r JOIN rh_versions v ON v.id=r.version_id ORDER BY r.created_at DESC LIMIT 300').all()).results;return reply(200,{returns:records});}
- match=path.match(/^\/projects\/([^/]+)\/agents$/);
- if(match&&method==='GET'){const refs=await context(db),p=refs.projects.find(p=>p.id===match![1]);if(!p)rhFail('Projet introuvable.',404);const result=[];for(const clientId of p!.clientIds){const s=await employees(db,clientId);for(const a of s.agents)if(s.links.some(l=>l.agentId===a.id&&l.projectId===p!.id))result.push({id:a.id,name:a.name,role:a.role,clientId});}return reply(200,{agents:result});}
  match=path.match(/^\/payroll\/([^/]+)\/source$/);
  if(match&&method==='GET'){const file=await db.prepare('SELECT client_id,data_json FROM rh_payroll_files WHERE id=?').bind(match[1]).first<any>();if(!file)rhFail('Bulletin introuvable.',404);await activeClient(db,file.client_id);const p=JSON.parse(file.data_json);return binary(env,p.objectKey,p.filename,'application/pdf',reply);}
  match=path.match(/^\/documents\/([^/]+)(?:\/(payroll|freeze|reuse-payroll|restore)(?:\/([^/]+))?)?$/);

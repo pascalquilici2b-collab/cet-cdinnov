@@ -5,7 +5,7 @@ import {validateMarket} from '../marches/domain.mjs';
 import {validClientLogoData} from './billing-client-logo';
 import {projectMarketIds} from './project-links';
 import {clientDirectoryChoices} from './client-directory-projection';
-export interface SharedProject {id:string;marketId:string;marketVersion:number;marketIds?:string[];clientIds?:string[];clientNames?:string[];marketLabels?:string[];logoData?:string;name:string;code:string;programme?:string;startDate?:string;endDate?:string;notes:string;archived:boolean;marketTitle:string;marketReference:string;clientName:string;}
+export interface SharedProject {id:string;marketId:string;marketVersion:number;marketIds?:string[];clientIds?:string[];effectiveClientIds?:string[];clientNames?:string[];marketLabels?:string[];logoData?:string;name:string;code:string;programme?:string;startDate?:string;endDate?:string;notes:string;archived:boolean;marketTitle:string;marketReference:string;clientName:string;}
 export type ProjectInput=Pick<SharedProject,'id'|'marketId'|'marketVersion'|'marketIds'|'clientIds'|'logoData'|'name'|'code'|'programme'|'startDate'|'endDate'|'notes'|'archived'>;
 export async function projectsRoute(request:Request,env:Environment,reply:Reply){
  const session=await sessionIdentity(request,env);if(!session)return reply(401,{error:'Connexion requise.'});
@@ -23,8 +23,8 @@ export async function projectsRoute(request:Request,env:Environment,reply:Reply)
  const clients=new Map(clientDirectoryChoices(budgetClients.results,directoryClients.results,true).map(c=>[c.id,c.name]));
  const describe=(ownerId:string,d:any)=>{
   const owner=markets.get(ownerId),marketIds=projectMarketIds(ownerId,d),linkedMarkets=marketIds.map(id=>markets.get(id)).filter(Boolean);
-  return {marketIds,clientIds:d.clientIds||[],logoData:d.logoData||'',marketTitle:owner?.title||'',marketReference:owner?.reference||'',clientName:owner?.clientName||'',
-   clientNames:[...new Set([...linkedMarkets.map(m=>m.clientName),...(d.clientIds||[]).map((id:string)=>clients.get(id))].filter(Boolean))],
+  return {marketIds,clientIds:d.clientIds||[],effectiveClientIds:[...new Set<string>([...(d.clientIds||[]),...linkedMarkets.map(m=>m.clientId)].filter(Boolean))],logoData:d.logoData||'',marketTitle:owner?.title||'',marketReference:owner?.reference||'',clientName:clients.get(owner?.clientId)||owner?.clientName||'',
+   clientNames:[...new Set([...linkedMarkets.map(m=>clients.get(m.clientId)||m.clientName),...(d.clientIds||[]).map((id:string)=>clients.get(id))].filter(Boolean))],
    marketLabels:linkedMarkets.map(m=>[m.reference,m.title].filter(Boolean).join(' · '))};
  };
  if(request.method==='GET'){
