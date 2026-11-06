@@ -9,6 +9,7 @@ import type {RhClient,RhProject,RhDraft,RhPayrollSource,RhSnapshot,RhDocument,Rh
 import {exportRhWorkbook,inspectRhReturnWorkbook} from './rh-document-files';
 import {createRhStampingBatch} from './rh-stamping';
 import {rhDocumentStatus,rhPublicDraft,type RhDocumentStatus} from './rh-lifecycle';
+import {rhMissionsRoute} from './rh-missions';
 
 type Row={id:string;client_id:string;name:string;version:number;data_json:string;created_at:string;updated_at:string;updated_by:string};
 const sha=(value:Uint8Array|string)=>createHash('sha256').update(value).digest('hex');
@@ -96,6 +97,7 @@ export async function rhRoute(request:Request,env:Environment,reply:Reply):Promi
 async function route(request:Request,env:Environment,reply:Reply):Promise<Response>{
  const session=await sessionIdentity(request,env);if(!session)return reply(401,{error:'Connexion requise.'});if(!hasAccess(session,'facturier'))return reply(403,{error:'Accès aux documents RH réservé à la facturation.'});
  const db=env.BUDGETS_DB.withSession('first-primary'),path=new URL(request.url).pathname.slice('/api/v1/rh'.length),method=request.method;
+ if(path.startsWith('/missions/'))return rhMissionsRoute(request,db,env,session.email,reply,()=>context(db));
  if(path==='/context'&&method==='GET')return reply(200,await context(db));
  if(/^\/clients\/[^/]+\/payroll$/.test(path)&&method==='GET'){const clientId=path.split('/')[2];await activeClient(db,clientId);const files=(await db.prepare('SELECT data_json FROM rh_payroll_files WHERE client_id=? ORDER BY created_at DESC LIMIT 1000').bind(clientId).all<{data_json:string}>()).results.map(r=>JSON.parse(r.data_json) as RhPayrollSource);return reply(200,{payroll:files.filter(p=>p.confirmed)});}
  let match=path.match(/^\/clients\/([^/]+)\/agents$/);

@@ -12,7 +12,7 @@ import {RhAvatar} from './rh-avatar';
 import {captureSuccess} from './action-feedback';
 import {rhStatusLabels,type RhDocumentStatus} from '../rh-lifecycle';
 
-export type RhProps={baseUrl:string;getSession:()=>Promise<string>;isActive:()=>boolean;onStampBatch:(id:string)=>void;onStamping:()=>void;send?:typeof fetch};
+export type RhProps={initialDocumentId?:string;baseUrl:string;getSession:()=>Promise<string>;isActive:()=>boolean;onStampBatch:(id:string)=>void;onStamping:()=>void;send?:typeof fetch};
 const money=(n:number|null|undefined)=>n==null?'—':new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR'}).format(n/100);
 const date=(s:string)=>s&&rhDate(s.slice(0,10))?new Date(s.slice(0,10)+'T12:00:00').toLocaleDateString('fr-FR'):'À préciser';
 const month=(s:string)=>s?new Date(s+'-01T12:00:00').toLocaleDateString('fr-FR',{month:'long',year:'numeric'}):'Mois à préciser';
@@ -64,7 +64,7 @@ function App(props:RhProps){
  const list=async(showTrash=trash)=>{const data=await json('/documents'+(showTrash?'?trash=1':''));setDocuments(data.documents);setTrashCount(data.trashCount||0);};
  const refs=async(clientId:string)=>{const data=await json('/clients/'+clientId+'/agents');setPeople(data);return data;};
  const load=async()=>{const [c,d]=await Promise.all([json('/context'),json('/documents')]);setContext(c);setDocuments(d.documents);setTrashCount(d.trashCount||0);};
- useEffect(()=>{void run('Chargement…',load);const warn=(e:BeforeUnloadEvent)=>{if(dirtyRef.current||paymentDirtyRef.current||reviewDirtyRef.current){e.preventDefault();e.returnValue='';}};window.addEventListener('beforeunload',warn);return()=>{alive.current=false;window.removeEventListener('beforeunload',warn);};},[]);
+ useEffect(()=>{void run('Chargement…',async()=>{await load();if(props.initialDocumentId)await open(props.initialDocumentId,'open',4);});const warn=(e:BeforeUnloadEvent)=>{if(dirtyRef.current||paymentDirtyRef.current||reviewDirtyRef.current){e.preventDefault();e.returnValue='';}};window.addEventListener('beforeunload',warn);return()=>{alive.current=false;window.removeEventListener('beforeunload',warn);};},[]);
  const save=async()=>{const d=latest.current,value=draftRef.current;if(!d||!value)return d;if(!dirtyRef.current)return d;const saved=await json('/documents/'+d.id,{method:'PUT',headers:{'If-Match':String(d.version)},body:JSON.stringify(value)});putDoc(saved);dirtyRef.current=false;return saved as RhDocument;};
  const leave=()=>!busy&&(!(dirtyRef.current||paymentDirtyRef.current||reviewDirtyRef.current)||confirm('Quitter sans enregistrer les dernières modifications ?'));
  const navigate=(target:'documents'|'returns')=>{if(busy||!leave())return;reviewEdits.current.clear();setReviewChanged(false);setReview(null);setScreen(target);setDoc(null);setDraft(null);latest.current=null;setArchive(null);setReturnChoice(null);setError('');setTrash(false);void run('Chargement…',()=>list(false));};

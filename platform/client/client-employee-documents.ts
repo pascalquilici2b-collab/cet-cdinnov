@@ -9,7 +9,7 @@ const fr=(s:string)=>s.split('-').reverse().join('/');
 export const employeeFileName=(s:string)=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9_-]/g,'_').slice(0,130);
 export async function missionDocument(client:BillingClientData,employee:ClientEmployee,a:ClientAllocation,version:number){
  const role=MISSION_PROFILES.find(p=>p.id===a.projectRole)?.label||a.projectRole?.trim()||employee.role.trim();
- if(!role||!employee.supervisor.trim()||!a.tasks.trim())throw Error('Complétez la fonction au sein du projet, le responsable signataire et les missions avant de générer la lettre.');
+ if(!role||!a.tasks.trim())throw Error('Complétez la fonction au sein du projet et les missions avant de générer la lettre.');
  const response=await fetch('/templates/client-mission-v2.docx',{cache:'no-cache'});if(!response.ok)throw Error('Modèle de lettre indisponible.');
  const bytes=new Uint8Array(await response.arrayBuffer());if(bytes.length>2_000_000||bytes[0]!==80||bytes[1]!==75)throw Error('Le modèle de lettre n’est pas disponible dans cette version de l’application. Actualisez la page et réessayez.');
  let parts:Record<string,Uint8Array>;try{parts=unzipSync(bytes);if(!parts['word/document.xml'])throw Error();}catch{throw Error('Le modèle de lettre est illisible.');}

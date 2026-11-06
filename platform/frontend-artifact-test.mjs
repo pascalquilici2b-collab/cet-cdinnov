@@ -19,7 +19,7 @@ for(const name of ['agenda/install.mjs','marches/reader.js','platform/chunks/Bro
 const disk=[];async function tree(base,prefix=''){for(const item of await readdir(base,{withFileTypes:true})){const rel=prefix+item.name;if(item.isDirectory())await tree(path.join(base,item.name),rel+'/');else disk.push(rel);}}await tree(dir);assert.deepEqual(disk.sort(),names,'Fresh output must contain exactly the archive, with no stale files');
 for(const name of names)assert.deepEqual(new Uint8Array(await readFile(path.join(dir,name))),archive[name],name);
 const required=['_worker.js','_routes.json','index.html','feuilles/index.html','budgets-projets/index.html','platform/outlook-callback.html','platform/workspace-client.js','platform/session-ui.css','platform/pdf-editor-font.ttf','marches/reader.mjs','marches/vendor/pdf.mjs','marches/vendor/pdf.worker.mjs','marches/vendor/standard_fonts/FoxitSerif.pfb','marches/vendor/ocr/worker.min.js','marches/vendor/ocr/core/tesseract-core-lstm.wasm.js','marches/vendor/ocr/lang/eng.traineddata.gz','marches/vendor/ocr/lang/fra.traineddata.gz','budgets-projets/ocr/v7/fra.traineddata.gz','marches/vendor/wasm/openjpeg.wasm','marches/vendor/wasm/jbig2.wasm','marches/vendor/wasm/qcms_bg.wasm'];
-required.push('templates/client-mission-v2.docx');
+required.push('templates/client-mission-v2.docx','platform/mission-letters.js','platform/mission-letters.css','design/rh-navigation.css');
 const missionTemplate=unzipSync(archive['templates/client-mission-v2.docx']);
 assert.ok(missionTemplate['word/document.xml'],'Mission template is a real Word archive');
 assert.deepEqual(names.filter(name=>name.startsWith('templates/')),['templates/client-mission-v2.docx']);
@@ -40,7 +40,7 @@ for(const name of names.filter(name=>name.endsWith('.html'))){
     inlineScripts++;
   }
 }
-const entryPoints=['dashboard','finance','billing','personnel','agenda','markets','stamping','rh','workspace-client','outlook-callback','theme','icons','frame-guard'].map(name=>'platform/'+name+'.js');
+const entryPoints=['dashboard','finance','billing','personnel','agenda','markets','stamping','rh','mission-letters','workspace-client','outlook-callback','theme','icons','frame-guard'].map(name=>'platform/'+name+'.js');
 entryPoints.push('marches/reader.mjs','marches/vendor/pdf.mjs','marches/vendor/pdf.worker.mjs');
 for(const name of ['feuilles/index.html','budgets-projets/index.html'])for(const match of text(name).matchAll(/<script\b[^>]*src="([^"]+)"[^>]*>/g)){const value=match[1];entryPoints.push(path.posix.normalize(value.startsWith('/')?value.slice(1):path.posix.join(path.posix.dirname(name),value)));}
 const resolved=await build({entryPoints,bundle:true,write:false,outdir:path.join(dir,'.unused-import-check'),platform:'browser',format:'esm',splitting:true,metafile:true,logLevel:'silent',plugins:[{name:'published-files-only',setup(builder){

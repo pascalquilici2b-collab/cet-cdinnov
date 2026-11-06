@@ -586,11 +586,14 @@ body:has(.agenda-shell) .topbar{flex-wrap:wrap;row-gap:12px}
       Congés et déplacements
     </div>
     <div class="nav-label applications-label">Applications</div>
-    <div class="nav-item cdi-application app-rh" data-view="rh"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 3h9l4 4v14H6zM14 3v5h5M9 12h7M9 16h7"/></svg><span class="cdi-nav-name">Documents RH</span><span class="cdi-beta">Bêta</span></div>
-    <div class="nav-item cdi-application app-stamping" data-view="tamponnage" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();setView('tamponnage');toggleSidebar(false)}">
-      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M5 17h14v4H5zM8 17v-3c0-2 2-3 2-5V5a2 2 0 0 1 4 0v4c0 2 2 3 2 5v3M3 21h18"/></svg>
-      <span class="cdi-nav-name">Tamponnage des pièces</span><span class="cdi-beta">Bêta</span>
-    </div>
+    <section class="rh-nav-group" id="rhNavigation" aria-label="RH">
+      <button type="button" class="rh-nav-toggle" id="rhNavigationToggle" aria-expanded="true" aria-controls="rhNavigationChildren" onclick="toggleRhNavigation()"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="9" cy="7" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3M17 4a3 3 0 0 1 0 6M21 21v-3a6 6 0 0 0-3-5"/></svg><span>RH</span><svg class="rh-nav-chevron" aria-hidden="true" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></svg></button>
+      <div class="rh-nav-children" id="rhNavigationChildren">
+        <div class="nav-item" data-view="rh"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6zM14 3v5h5M9 12h7M9 16h7"/></svg><span>Documents de paiement RH</span></div>
+        <div class="nav-item" data-view="tamponnage"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 17h14v4H5zM8 17v-3c0-2 2-3 2-5V5a2 2 0 0 1 4 0v4c0 2 2 3 2 5v3M3 21h18"/></svg><span>Tamponnage de documents</span></div>
+        <div class="nav-item" data-view="missions"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M14 3H5v18h14v-8M9 12l9-9 3 3-9 9-4 1zM9 19h6"/></svg><span>Lettres de mission</span></div>
+      </div>
+    </section>
     <div class="nav-item cdi-application app-billing" data-view="facturier" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();setView('facturier');toggleSidebar(false)}">
       <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14l-3-2-3 2-3-2-4 2V3Z"/><path d="M14 3v5h5M9 12h7M9 16h4"/></svg>
       <span class="cdi-nav-name">Logiciel de facturation</span><span class="cdi-beta">Bêta</span>
@@ -709,6 +712,7 @@ body.authed .auth-gate{display:none}
 <link rel="stylesheet" href="design/apple.css?v=stamping-allocation-20261025">
 <link rel="stylesheet" href="design/interface-refresh.css?v=stamping-allocation-20261025">
 <link rel="stylesheet" href="design/interactions.css?v=stamping-allocation-20261025">
+<link rel="stylesheet" href="design/rh-navigation.css?v=rh-workspace-20261106">
 <script src="platform/icons.js?v=pdf-markets-followup-20261029"></script>
 
 <div id="authGate" class="auth-gate" data-loading="true" aria-busy="true">
@@ -970,7 +974,8 @@ function availableYears(){
 /* Symbole CDInnov du 21 septembre 2026 : SVG intégré, PNG pour les exports PDF. */
 
 const VIEW_META = {
-  rh:{title:'Documents RH',sub:'',action:null},
+  rh:{title:'Documents de paiement RH',sub:'',action:null},
+  missions:{title:'Lettres de mission',sub:'',action:null},
   tamponnage:{title:'Tamponnage des pièces',sub:'Bulletins, factures et imputations par projet',action:null},
   marches:{title:'Logiciel de facturation',sub:'Marchés et contrats · prix, plafonds et périodes',action:null},
   agenda:{title:'Agenda',sub:'Déplacements et congés de l’équipe',action:'Nouveau déplacement',actFn:()=>openAgendaTrip()},
@@ -985,6 +990,11 @@ const VIEW_META = {
   parametres:{title:'Paramètres & données', sub:'Plafonds, types de mouvements, sauvegardes', action:null}
 };
 
+function toggleRhNavigation(open){
+ const button=document.getElementById('rhNavigationToggle'),children=document.getElementById('rhNavigationChildren');if(!button||!children)return;
+ const expanded=open===undefined?button.getAttribute('aria-expanded')!=='true':!!open;
+ button.setAttribute('aria-expanded',String(expanded));children.hidden=!expanded;
+}
 let sidebarFocus=null;
 function toggleSidebar(open){
  const sb=$('.sidebar'),bd=$('#sidebarBackdrop'),button=$('.menu-btn');if(!sb)return;
@@ -1008,14 +1018,16 @@ function setView(v,billingSection='modern'){
   const nextBillingMode=billingSection==='modern'?'modern':'legacy';
   if(currentView==='facturier'&&(v!==currentView||billingMode!==nextBillingMode)&&!billingLeave())return;
   if(currentView==='rh'&&v!==currentView&&!rhLeave())return;
+  if(currentView==='missions'&&v!==currentView&&!missionLettersLeave())return;
   if(currentView==='marches'&&v!==currentView&&!marchesLeave())return;
   if(v!=='marches')marchesUnmount();
   if(v==='conges')v='agenda';
   if(typeof budgetsDirty!=='undefined'&&currentView==='budgetsprojets'&&v!==currentView&&!budgetsLeave())return;
-  document.querySelector('.year-pick').style.display=['dashboard','budgetsprojets','marches','facturier','tamponnage','rh'].includes(v)?'none':'';
+  document.querySelector('.year-pick').style.display=['dashboard','budgetsprojets','marches','facturier','tamponnage','rh','missions'].includes(v)?'none':'';
   if(v!=='agenda'){clearInterval(agendaTimer);agendaTimer=null;}
   if(v==='facturier'){billingMode=nextBillingMode;if(nextBillingMode==='legacy')factTab=billingSection;}
   currentView=v;document.body.dataset.view=v;
+  const inRh=['rh','tamponnage','missions'].includes(v);document.getElementById('rhNavigation')?.setAttribute('data-active',String(inRh));if(inRh)toggleRhNavigation(true);
   $$('.nav-item').forEach(n=>{const active=n.dataset.view===v||(v==='marches'&&n.dataset.view==='facturier')||(v==='cet'&&n.dataset.view==='mouvements');n.classList.toggle('active',active);if(active)n.setAttribute('aria-current','page');else n.removeAttribute('aria-current');});
   const meta=VIEW_META[v];
   $('#pageTitle').textContent=meta.title;
@@ -1042,6 +1054,7 @@ $('#yearSelect').addEventListener('change', e=>{ currentYear=Number(e.target.val
 function render(){
   if(AUTH_USER&&!canAccess(currentView)){currentView=firstAllowedView();document.body.dataset.view=currentView;}
   if(currentView!=='rh')rhForget();
+  if(currentView!=='missions')missionLettersForget();
   if(currentView!=='tamponnage')stampingForget();
   if(currentView!=='agenda')agendaReactForget();
   if(currentView!=='dashboard')dashboardForget();
@@ -1064,6 +1077,7 @@ function render(){
   else if(currentView==='facturier') renderFacturier();
   else if(currentView==='budgetsprojets') renderBudgetsProjets();
   else if(currentView==='rh') renderRh();
+  else if(currentView==='missions') renderMissionLetters();
   else if(currentView==='tamponnage') renderStamping();
   else if(currentView==='parametres') renderParametres();
   injectStorageWarning();
@@ -2785,7 +2799,7 @@ function unlockApp(email){
   renderUserChip();
   render();
   /* Markets deep link */ if(new URLSearchParams(location.search).get('view')==='marches'&&canAccess('facturier'))setTimeout(()=>setView('marches'),0);
-  setTimeout(()=>{if(new URLSearchParams(location.search).get('view')==='rh'&&canAccess('rh')){setView('rh');return;}if(new URLSearchParams(location.search).get('view')==='agenda'&&currentView!=='agenda')setView('agenda');else if(currentView==='agenda')agendaEnter();},0);
+  setTimeout(()=>{const rhView=new URLSearchParams(location.search).get('view');if(['rh','tamponnage','missions'].includes(rhView)&&canAccess(rhView)){setView(rhView);return;}if(new URLSearchParams(location.search).get('view')==='agenda'&&currentView!=='agenda')setView('agenda');else if(currentView==='agenda')agendaEnter();},0);
 }
 
 function renderUserChip(){
@@ -5720,7 +5734,7 @@ const portalBlobs=new Map();
 let portalLogoutPending=false,portalSuspendedUser=null,portalSigninPending=null,portalReconnecting=false;
 function portalForgetUser(){
   try{if(AUTH_USER)localStorage.removeItem(STORE_KEY+':draft:'+AUTH_USER);}catch{}
-  dashboardForget();financeForget();billingForget();stampingForget();rhForget();personnelForget();closeModal();nfDraft=null;marchesForget();agendaForget();budgetsForget();facturxForgetAuth();
+  dashboardForget();financeForget();billingForget();stampingForget();rhForget();missionLettersForget();personnelForget();closeModal();nfDraft=null;marchesForget();agendaForget();budgetsForget();facturxForgetAuth();
   AUTH_USER=null;movAccess=null;salariesUnlocked=false;portalClear();document.body.classList.remove('authed');renderUserChip();
 }
 window.CDISession.configure({
@@ -5821,7 +5835,7 @@ async function portalReconnect(email,password){
 }
 async function authLogout(){
   if(portalLogoutPending||billingLogoutPending)return;
-  if(!billingLeave()||!rhLeave()||!marchesLeave()||!budgetsLeave())return;
+  if(!billingLeave()||!rhLeave()||!missionLettersLeave()||!marchesLeave()||!budgetsLeave())return;
   billingLockForLogout();
   try{
     if(cloudEnabled()&&portalClean&&JSON.stringify(state)!==portalClean&&!await cloudPush()){toast('Enregistrement impossible. Conservez vos modifications avant de vous déconnecter.');return;}
@@ -5841,13 +5855,14 @@ function accountModules(email=AUTH_USER){return CDIPlatform.accountAccess(state.
 function canAccess(view){
  if(!AUTH_USER)return false;
  if(view==='parametres'||view==='cet')return isAdmin(AUTH_USER);
- const key=({marches:'facturier',rh:'facturier',conges:'agenda'})[view]||view;
+ const key=({marches:'facturier',rh:'facturier',missions:'facturier',conges:'agenda'})[view]||view;
  return accountModules()[key]===true;
 }
 function applyAccessNavigation(){
  document.querySelectorAll('.nav-item[data-view]').forEach(n=>{n.hidden=!canAccess(n.dataset.view);n.style.display=n.hidden?'none':'';});
+ const rhGroup=document.getElementById('rhNavigation');if(rhGroup)rhGroup.hidden=!['rh','tamponnage','missions'].some(canAccess);
  const sheets=document.getElementById('cdiSheetsLink');if(sheets){sheets.hidden=!canAccess('sheets');sheets.style.display=sheets.hidden?'none':'';}
- document.querySelectorAll('.sidebar>.nav-label').forEach(label=>{let next=label.nextElementSibling,visible=false;while(next&&!next.classList.contains('nav-label')&&!next.classList.contains('spacer')){if(next.classList.contains('nav-item')&&!next.hidden)visible=true;next=next.nextElementSibling;}label.hidden=!visible;});
+ document.querySelectorAll('.sidebar>.nav-label').forEach(label=>{let next=label.nextElementSibling,visible=false;while(next&&!next.classList.contains('nav-label')&&!next.classList.contains('spacer')){if((next.classList.contains('nav-item')||next.id==='rhNavigation')&&!next.hidden)visible=true;next=next.nextElementSibling;}label.hidden=!visible;});
 }
 function firstAllowedView(){return CDIPlatform.accessModules.find(m=>m.key!=='sheets'&&canAccess(m.key))?.key||'access';}
 function renderAccessHome(){
@@ -5894,7 +5909,7 @@ async function cloudLoad(options={}){
     await portalLoadPhotos();if(AUTH_USER!==user||portalEpoch!==epoch)return false;
     setSync('ok','Synchronisé');
     if(document.body.classList.contains('authed')&&(wasAdmin!==isAdmin(user)||previousAccess!==JSON.stringify(accountModules(user)))){
-      dashboardForget();financeForget();billingForget();stampingForget();rhForget();personnelForget();marchesForget();agendaForget();budgetsForget();facturxForgetAuth();closeModal();nfDraft=null;
+      dashboardForget();financeForget();billingForget();stampingForget();rhForget();missionLettersForget();personnelForget();marchesForget();agendaForget();budgetsForget();facturxForgetAuth();closeModal();nfDraft=null;
       currentView=firstAllowedView();unlockApp(user);
     }else render();
     return true;
@@ -6334,17 +6349,35 @@ function renderStamping(){
  import('./platform/stamping.js?v=rh-documents-20261105').then(module=>{if(active()){const initialBatchId=stampingInitialBatchId;stampingInitialBatchId='';stampingMounted=module.mountStamping(element,{baseUrl:budgetsApi().replace(/\/budgets\/?$/,''),getSession:async()=>(await budgetsEnsureSession()).sessionId,isActive:active,initialBatchId,creator:owner=>({name:agendaName(owner),photo:agendaPortrait(owner)})});}}).catch(()=>{if(active())element.innerHTML='<div role="alert">Chargement impossible. Revenez dans le module pour réessayer.</div>';});
 }
 
-let rhMounted=null,rhEpoch=0;
-function rhForget(){rhEpoch++;rhMounted?.dispose();rhMounted=null;}
+let rhMounted=null,rhEpoch=0,rhInitialDocumentId='';
+function openRhPaymentDocument(id){
+ if(typeof id!=='string'||!/^[-a-zA-Z0-9_]{1,128}$/.test(id))return;
+ if(currentView==='rh'){if(!rhLeave())return;rhForget();rhInitialDocumentId=id;renderRh();return;}
+ rhInitialDocumentId=id;setView('rh');if(currentView!=='rh')rhInitialDocumentId='';
+}
+function rhForget(){rhInitialDocumentId='';rhEpoch++;rhMounted?.dispose();rhMounted=null;}
 function rhLeave(){return rhMounted?.canLeave?.()!==false;}
 function renderRh(){
  if(rhMounted&&document.getElementById('rhRoot'))return;
- rhForget();const epoch=++rhEpoch,user=AUTH_USER;
+ const initialDocumentId=rhInitialDocumentId;rhForget();const epoch=++rhEpoch,user=AUTH_USER;
  if(!user||!canAccess('facturier')){$('#content').innerHTML='<div class="card card-pad">Accès aux documents RH requis.</div>';return;}
- if(!document.getElementById('rhStyle')){const css=document.createElement('link');css.id='rhStyle';css.rel='stylesheet';css.href='platform/rh.css?v=rh-documents-missions-20261106';document.head.append(css);}
+ if(!document.getElementById('rhStyle')){const css=document.createElement('link');css.id='rhStyle';css.rel='stylesheet';css.href='platform/rh.css?v=rh-workspace-20261106';document.head.append(css);}
  $('#content').innerHTML='<div id="rhRoot">'+loadingMarkup('Chargement des documents RH…')+'</div>';
  const element=document.getElementById('rhRoot'),active=()=>epoch===rhEpoch&&AUTH_USER===user&&currentView==='rh'&&element.isConnected;
- import('./platform/rh.js?v=rh-documents-missions-20261106').then(module=>{if(active())rhMounted=module.mountRh(element,{baseUrl:budgetsApi().replace(/\/budgets\/?$/,''),getSession:async()=>(await budgetsEnsureSession()).sessionId,isActive:active,onStamping:()=>setView('tamponnage'),onStampBatch:id=>openRhStampingBatch(id)});}).catch(()=>{if(active())element.innerHTML='<div role="alert">Chargement impossible. Revenez dans le module pour réessayer.</div>';});
+ import('./platform/rh.js?v=rh-workspace-20261106').then(module=>{if(active()){rhMounted=module.mountRh(element,{initialDocumentId,baseUrl:budgetsApi().replace(/\/budgets\/?$/,''),getSession:async()=>(await budgetsEnsureSession()).sessionId,isActive:active,onStamping:()=>setView('tamponnage'),onStampBatch:id=>openRhStampingBatch(id)});}}).catch(()=>{if(active())element.innerHTML='<div role="alert">Chargement impossible. Revenez dans le module pour réessayer.</div>';});
+}
+
+let missionLettersMounted=null,missionLettersEpoch=0;
+function missionLettersForget(){missionLettersEpoch++;missionLettersMounted?.dispose();missionLettersMounted=null;}
+function missionLettersLeave(){return missionLettersMounted?.canLeave?.()!==false;}
+function renderMissionLetters(){
+ if(missionLettersMounted&&document.getElementById('missionLettersRoot'))return;
+ missionLettersForget();const epoch=++missionLettersEpoch,user=AUTH_USER;
+ if(!user||!canAccess('missions')){$('#content').innerHTML='<div class="card card-pad" role="alert">Accès aux lettres de mission requis.</div>';return;}
+ if(!document.getElementById('missionLettersStyle')){const css=document.createElement('link');css.id='missionLettersStyle';css.rel='stylesheet';css.href='platform/mission-letters.css?v=rh-workspace-20261106';document.head.append(css);}
+ $('#content').innerHTML='<div id="missionLettersRoot">'+loadingMarkup('Chargement des lettres de mission…')+'</div>';
+ const element=document.getElementById('missionLettersRoot'),active=()=>epoch===missionLettersEpoch&&AUTH_USER===user&&currentView==='missions'&&element.isConnected;
+ import('./platform/mission-letters.js?v=rh-workspace-20261106').then(module=>{if(active())missionLettersMounted=module.mountMissionLetters(element,{baseUrl:budgetsApi().replace(/\/budgets\/?$/,''),getSession:async()=>(await budgetsEnsureSession()).sessionId,isActive:active,onPaymentDocument:id=>openRhPaymentDocument(id)});}).catch(()=>{if(active())element.innerHTML='<div role="alert">Chargement impossible. Revenez dans le module pour réessayer.</div>';});
 }
 
 setView('dashboard');

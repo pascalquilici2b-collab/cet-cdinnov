@@ -5,7 +5,7 @@ const portalBlobs=new Map();
 let portalLogoutPending=false,portalSuspendedUser=null,portalSigninPending=null,portalReconnecting=false;
 function portalForgetUser(){
   try{if(AUTH_USER)localStorage.removeItem(STORE_KEY+':draft:'+AUTH_USER);}catch{}
-  dashboardForget();financeForget();billingForget();stampingForget();rhForget();personnelForget();closeModal();nfDraft=null;marchesForget();agendaForget();budgetsForget();facturxForgetAuth();
+  dashboardForget();financeForget();billingForget();stampingForget();rhForget();missionLettersForget();personnelForget();closeModal();nfDraft=null;marchesForget();agendaForget();budgetsForget();facturxForgetAuth();
   AUTH_USER=null;movAccess=null;salariesUnlocked=false;portalClear();document.body.classList.remove('authed');renderUserChip();
 }
 window.CDISession.configure({
@@ -106,7 +106,7 @@ async function portalReconnect(email,password){
 }
 async function authLogout(){
   if(portalLogoutPending||billingLogoutPending)return;
-  if(!billingLeave()||!rhLeave()||!marchesLeave()||!budgetsLeave())return;
+  if(!billingLeave()||!rhLeave()||!missionLettersLeave()||!marchesLeave()||!budgetsLeave())return;
   billingLockForLogout();
   try{
     if(cloudEnabled()&&portalClean&&JSON.stringify(state)!==portalClean&&!await cloudPush()){toast('Enregistrement impossible. Conservez vos modifications avant de vous déconnecter.');return;}
@@ -126,13 +126,14 @@ function accountModules(email=AUTH_USER){return CDIPlatform.accountAccess(state.
 function canAccess(view){
  if(!AUTH_USER)return false;
  if(view==='parametres'||view==='cet')return isAdmin(AUTH_USER);
- const key=({marches:'facturier',rh:'facturier',conges:'agenda'})[view]||view;
+ const key=({marches:'facturier',rh:'facturier',missions:'facturier',conges:'agenda'})[view]||view;
  return accountModules()[key]===true;
 }
 function applyAccessNavigation(){
  document.querySelectorAll('.nav-item[data-view]').forEach(n=>{n.hidden=!canAccess(n.dataset.view);n.style.display=n.hidden?'none':'';});
+ const rhGroup=document.getElementById('rhNavigation');if(rhGroup)rhGroup.hidden=!['rh','tamponnage','missions'].some(canAccess);
  const sheets=document.getElementById('cdiSheetsLink');if(sheets){sheets.hidden=!canAccess('sheets');sheets.style.display=sheets.hidden?'none':'';}
- document.querySelectorAll('.sidebar>.nav-label').forEach(label=>{let next=label.nextElementSibling,visible=false;while(next&&!next.classList.contains('nav-label')&&!next.classList.contains('spacer')){if(next.classList.contains('nav-item')&&!next.hidden)visible=true;next=next.nextElementSibling;}label.hidden=!visible;});
+ document.querySelectorAll('.sidebar>.nav-label').forEach(label=>{let next=label.nextElementSibling,visible=false;while(next&&!next.classList.contains('nav-label')&&!next.classList.contains('spacer')){if((next.classList.contains('nav-item')||next.id==='rhNavigation')&&!next.hidden)visible=true;next=next.nextElementSibling;}label.hidden=!visible;});
 }
 function firstAllowedView(){return CDIPlatform.accessModules.find(m=>m.key!=='sheets'&&canAccess(m.key))?.key||'access';}
 function renderAccessHome(){
@@ -179,7 +180,7 @@ async function cloudLoad(options={}){
     await portalLoadPhotos();if(AUTH_USER!==user||portalEpoch!==epoch)return false;
     setSync('ok','Synchronisé');
     if(document.body.classList.contains('authed')&&(wasAdmin!==isAdmin(user)||previousAccess!==JSON.stringify(accountModules(user)))){
-      dashboardForget();financeForget();billingForget();stampingForget();rhForget();personnelForget();marchesForget();agendaForget();budgetsForget();facturxForgetAuth();closeModal();nfDraft=null;
+      dashboardForget();financeForget();billingForget();stampingForget();rhForget();missionLettersForget();personnelForget();marchesForget();agendaForget();budgetsForget();facturxForgetAuth();closeModal();nfDraft=null;
       currentView=firstAllowedView();unlockApp(user);
     }else render();
     return true;
