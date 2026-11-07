@@ -15,6 +15,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+from contextlib import ExitStack
 from pathlib import Path
 
 import pypdfium2 as pdfium
@@ -28,6 +29,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 from .stamping_import import cents, key, month
 from .stamping_payroll import employer_cost
 from .pdf_safety import ensure_static_pdf
+from .stamping_geometry import PLACEMENT_VERSION, MAX_PLACEMENT_SEARCHES, free_rectangle, page_object_bounds
 from .ocr_bridge import (validate_ocr_pages, merge_text, ocr_warnings, ocr_fingerprint,
                          has_visual_annotations, MAX_IMAGE_PIXELS, MAX_IMAGE_SIDE, MAX_IMAGE_BYTES)
 
@@ -327,7 +329,7 @@ def occupancy(page,source_page,image):
     draw=ImageDraw.Draw(mask);left=float(source_page.cropbox.left);top=float(source_page.cropbox.top)
     bounds=[]
     for obj in page.get_objects(max_depth=8):
-        l,b,r,t=obj.get_bounds();rect=(l-left,top-t,r-left,top-b)
+        l,b,r,t=page_object_bounds(obj);rect=(l-left,top-t,r-left,top-b)
         # A scan covering the page is segmented by its visible pixels; smaller images are protected as a whole.
         # Draw actual path ink, not the filled bounding box of an empty frame.
         # Text, small logos and annotations remain protected as whole objects.
@@ -344,27 +346,13 @@ def safe(mask,x,y,width,height,margin=7):
     if any(not math.isfinite(v) for v in [x,y,width,height]):return False
     box=(math.floor(x-margin),math.floor(y-margin),math.ceil(x+width+margin),math.ceil(y+height+margin))
     if box[0]<0 or box[1]<0 or box[2]>mask.width or box[3]>mask.height:return False
-    return mask.crop(box).getbbox() is None
+    with mask.crop(box) as area:
+        return area.getbbox() is None
 
 def find_space(mask,l):
-    # Sliding column counts find narrow gaps missed by the previous 6 pt grid.
-    width,height=math.ceil(l['width'])+14,math.ceil(l['height'])+14
-    if width>mask.width-10 or height>mask.height-10:return None
-    pixels=mask.tobytes();stride=mask.width;columns=[0]*stride
-    for y in range(5,5+height):
-        for x,p in enumerate(pixels[y*stride:(y+1)*stride]):columns[x]+=bool(p)
-    for top in range(5,mask.height-height-4):
-        if top>5:
-            old=pixels[(top-1)*stride:top*stride]
-            new=pixels[(top+height-1)*stride:(top+height)*stride]
-            for x in range(stride):columns[x]+=bool(new[x])-bool(old[x])
-        run=0
-        for x in range(5,stride-5):
-            run=0 if columns[x] else run+1
-            if run>=width:
-                point=(x-width+8,top+7)
-                if safe(mask,*point,l['width'],l['height']):return point
-    return None
+    point=free_rectangle(mask,l['width'],l['height'])
+    # Keep the independent crop-based check at this API boundary.
+    return point if point and safe(mask,*point,l['width'],l['height']) else None
 
 
 def inside(mask,x,y,width,height,margin=7):
@@ -464,9 +452,20 @@ def process(raw,groups,options=None,choice=None,suggestions=None,overrides=None,
     allowed=[i for i in range(len(source.pages)) if not payroll or (i<len(page_kinds) and page_kinds[i]=='payslip')]
     if not allowed:raise StampError('NO_PAYSLIP_PAGE','Aucune page de bulletin identifiée avec certitude. Les annexes ne peuvent pas être tamponnées.')
     options={**options,'allowAppendix':bool(options.get('allowAppendix')) and not payroll}
-    with pdfium.PdfDocument(normal) as doc:
+    searches=0
+    def locate(mask,l):
+        # A hostile or exceptionally fragmented piece must leave time for the
+        # independent final PDF checks inside the isolated 85-second CPU budget.
+        nonlocal searches
+        if searches>=MAX_PLACEMENT_SEARCHES:return None
+        searches+=1
+        return find_space(mask,l)
+    with pdfium.PdfDocument(normal) as doc, ExitStack() as geometry_resources:
         for i,page in enumerate(doc):
+            if i not in allowed:
+                occupied.append((None,[]));page.close();continue
             image=render_page(page,2);mask,bounds=occupancy(page,writer.pages[i],image);image.close();page.close()
+            geometry_resources.callback(mask.close)
             occupied.append((mask,bounds))
         widths=[float(options.get('width',180))];sizes=[float(options.get('fontSize',5))]
         if options.get('compact',True):widths+= [150,200,240];sizes += [5] if sizes[0]!=5 else []
@@ -503,24 +502,40 @@ def process(raw,groups,options=None,choice=None,suggestions=None,overrides=None,
             blocks=[{'page':i,'x':x,'y':y,'layout':l,'overlap':not safe(occupied[i][0],x,y,l['width'],l['height'])}]
         else:
             for size in sizes:
-                for width in widths:
-                    l=layout(allocations,width,size,header)
-                    for i in order:
-                        point=find_space(occupied[i][0],l)
+                for i in order:
+                    for width in dict.fromkeys(widths):
+                        if searches>=MAX_PLACEMENT_SEARCHES:break
+                        l=layout(allocations,width,size,header)
+                        point=locate(occupied[i][0],l)
                         if point:blocks=[{'page':i,'x':point[0],'y':point[1],'layout':l}];break
-                    if blocks:break
-                if blocks:break
-            if not blocks and options.get('split',True):
-                # Retry smaller groups on copies of the maps, preserving source order and every line once.
-                masks=[p[0].copy() for p in occupied]
-                for start in range(0,len(allocations),3):
-                    l=layout(allocations[start:start+3],180,5,header)
-                    for i in order:
-                        point=find_space(masks[i],l)
-                        if point:
-                            x,y=point;blocks.append({'page':i,'x':x,'y':y,'layout':l});ImageDraw.Draw(masks[i]).rectangle((x,y,x+l['width'],y+l['height']),fill=255);break
-                    else:blocks=[];break
-                for m in masks:m.close()
+                    if blocks or searches>=MAX_PLACEMENT_SEARCHES:break
+                if blocks or searches>=MAX_PLACEMENT_SEARCHES:break
+            if not blocks and options.get('split',True) and searches<MAX_PLACEMENT_SEARCHES:
+                # Retry partitions of three, two, then one. Narrow holes must
+                # also receive the compact widths tried for the complete stamp.
+                # Each attempt owns fresh masks; a failed partition leaves no
+                # reservation behind and the source row order never changes.
+                for size in sizes:
+                    for count in (3,2,1):
+                        trial=[]
+                        with ExitStack() as split_resources:
+                            masks={i:split_resources.enter_context(occupied[i][0].copy()) for i in order}
+                            for start in range(0,len(allocations),count):
+                                placed=False
+                                for i in order:
+                                    for width in dict.fromkeys(widths):
+                                        if searches>=MAX_PLACEMENT_SEARCHES:break
+                                        l=layout(allocations[start:start+count],width,size,header)
+                                        point=locate(masks[i],l)
+                                        if point:
+                                            x,y=point;trial.append({'page':i,'x':x,'y':y,'layout':l})
+                                            ImageDraw.Draw(masks[i]).rectangle((x,y,x+l['width'],y+l['height']),fill=255)
+                                            placed=True;break
+                                    if placed or searches>=MAX_PLACEMENT_SEARCHES:break
+                                if not placed:trial=[];break
+                        if trial:blocks=trial;break
+                        if searches>=MAX_PLACEMENT_SEARCHES:break
+                    if blocks or searches>=MAX_PLACEMENT_SEARCHES:break
         if not blocks and options.get('allowAppendix'):
             writer.add_blank_page(width=595,height=842)
             i=len(writer.pages)-1;y=24
@@ -536,14 +551,16 @@ def process(raw,groups,options=None,choice=None,suggestions=None,overrides=None,
                     l=layout(allocations,width,5,header);point=least_occupied(occupied[i][0],l)
                     if point:candidates.append((point[0],{'page':i,'x':point[1],'y':point[2],'layout':l,'overlap':True}))
             if candidates:blocks=[min(candidates,key=lambda c:c[0])[1]]
-        if not blocks:raise StampError('NO_SAFE_AREA','Aucune zone libre sur le bulletin. Déplacez le tampon dans l’aperçu.' if payroll else 'Aucune zone libre. Choisissez une autre disposition ou autorisez une annexe.')
+        if not blocks:
+            message='Cette pièce nécessite un placement manuel. Déplacez le tampon dans l’aperçu.' if searches>=MAX_PLACEMENT_SEARCHES else ('Aucune zone libre sur le bulletin. Déplacez le tampon dans l’aperçu.' if payroll else 'Aucune zone libre. Choisissez une autre disposition ou autorisez une annexe.')
+            raise StampError('NO_SAFE_AREA',message)
         for i,page in enumerate(writer.pages):
             selected_blocks=[b for b in blocks if b['page']==i]
             if not selected_blocks:continue
             buf=io.BytesIO();c=canvas.Canvas(buf,pagesize=(float(page.mediabox.right),float(page.mediabox.top)),pageCompression=1)
             for block in selected_blocks:draw_stamp(c,block,page)
             c.save();page.merge_page(PdfReader(io.BytesIO(buf.getvalue())).pages[0])
-        writer.add_metadata({'/CDIStampVersion':VERSION,'/CDIStampSourceSHA256':digest(raw)})
+        writer.add_metadata({'/CDIStampVersion':VERSION,'/CDIStampPlacementVersion':PLACEMENT_VERSION,'/CDIStampSourceSHA256':digest(raw)})
         output=io.BytesIO();writer.write(output);result=output.getvalue()
         check=PdfReader(io.BytesIO(result));output_text='\n'.join(p.extract_text() or '' for p in check.pages)
         if len(check.pages)!=len(writer.pages):raise StampError('VERIFY_FAILED','Nombre de pages modifié.')
@@ -571,11 +588,10 @@ def process(raw,groups,options=None,choice=None,suggestions=None,overrides=None,
                         paint.rectangle((math.floor(b['x']-4),math.floor(b['y']-4),math.ceil(b['x']+w+4),math.ceil(b['y']+h+4)),fill=(0,0,0))
                 if diff.getbbox():raise StampError('VERIFY_FAILED','Le visuel source a changé hors du tampon.')
                 before.close();after.close();diff.close()
-        for mask,_ in occupied:mask.close()
     total=sum(a['amount_cents'] for a in allocations)
     return {'reading':reading,'allowedPages':allowed,'pageKinds':page_kinds,'groupId':selected['id'],'base_cents':base,'total_cents':total,'remainder_cents':base-total,'rounding_cents':None if overrides else selected.get('rounding_cents'),
             'allocations':selected['allocations'],'manual':bool(choice),'conflicts':conflicts,'blocks':[{'page':b['page'],'x':b['x'],'y':b['y'],'width':b['layout']['width']*b.get('scale',1),'height':b['layout']['height']*b.get('scale',1),'layoutWidth':b['layout']['width'],'scale':b.get('scale',1),'fontSize':b['layout']['size']*b.get('scale',1),'allocationIds':[r['allocation']['id'] for r in b['layout']['rows']],'image':stamp_image(b),'overlap':bool(b.get('overlap'))} for b in blocks],
-            'source_sha256':digest(raw),'output_sha256':digest(result),'algorithm':VERSION,'overridden':bool(overrides),'checks':{'geometry':True,'source_text':True,'source_visual':True,'allocations':True,'annotations':True},'pdf':base64.b64encode(result).decode()}
+            'source_sha256':digest(raw),'output_sha256':digest(result),'algorithm':VERSION,'placementVersion':PLACEMENT_VERSION,'overridden':bool(overrides),'checks':{'geometry':True,'source_text':True,'source_visual':True,'allocations':True,'annotations':True},'pdf':base64.b64encode(result).decode()}
 
 def revise(raw,previous,options=None,overrides=None,additions=None):
     """Server-only redraw from the persisted successful result. Never OCR or AI.

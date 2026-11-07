@@ -75,7 +75,7 @@ def test_geometry(rotation,crop):
 
 def test_collision_dense_and_signature():
     with pytest.raises(StampError,match='recouvre'):process(pdf(),groups(1),{'placement':{'page':0,'x':30,'y':400}})
-    with pytest.raises(StampError) as e:process(pdf(dense=True),groups())
+    with pytest.raises(StampError) as e:process(pdf(dense=True),groups(),{'split':False})
     assert e.value.code=='NO_SAFE_AREA'
     reader=PdfReader(io.BytesIO(pdf()));w=PdfWriter(clone_from=reader)
     field=DictionaryObject({NameObject('/FT'):NameObject('/Sig'),NameObject('/T'):TextStringObject('signature')})
