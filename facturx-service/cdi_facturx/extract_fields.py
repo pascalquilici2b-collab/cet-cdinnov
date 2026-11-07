@@ -226,7 +226,7 @@ def read_lines(text, vat_rate, net):
     return results,warnings
 
 
-def extract_fields(text):
+def extract_fields(text, conservative=False, ambiguities=None):
     lines = [clean(x) for x in text.splitlines() if x.strip()]
     # Printed dot leaders must not be confused with thousands separators in amounts.
     p = re.sub(r'\.{2,}', ' ', plain(text).replace('…','...'))
@@ -238,6 +238,13 @@ def extract_fields(text):
         inv['number']=clean(re.split(r'\s{3,}|\s+date\s*:',found.group(1),flags=re.I)[0])
     document_number=re.search(r'(?m)^[ \t]*num[eé]ro[ \t]+du(?:[ \t]+document)?[ \t]*:?[ \t]+([A-Z0-9][A-Z0-9./_-]*\d[A-Z0-9./_-]*|\d+)[ \t]*(?:$|[ \t]{2,})',text,re.I)
     if document_number: inv['number']=document_number.group(1)
+    if conservative:
+        numbers={clean(re.split(r'\s{3,}|\s+date\s*:',m.group(1),flags=re.I)[0]) for m in
+                 re.finditer(r'\b(?:facture|avoir)[ \t]*(?:num[eé]ro\b|n[°º]|n[o]?\b|#)[ \t]*[:.\-]?[ \t]*([^\r\n]+)',text,re.I)}
+        numbers.update(m.group(1) for m in re.finditer(r'(?m)^[ \t]*num[eé]ro[ \t]+du(?:[ \t]+document)?[ \t]*:?[ \t]+([A-Z0-9][A-Z0-9./_-]*\d[A-Z0-9./_-]*|\d+)[ \t]*(?:$|[ \t]{2,})',text,re.I))
+        if len(numbers)>1:
+            inv.pop('number',None);warnings.append('Plusieurs numéros de facture différents dans la lecture OCR : vérifiez le document.')
+            if ambiguities is not None:ambiguities.add('number')
     dated=[]
     for line in lines:
         l=plain(line)
@@ -246,13 +253,19 @@ def extract_fields(text):
     if not dated:
         dated=[line for line in lines if re.search(DATE,plain(line)) and not re.search(r'echeance|reglement|paiement|penalit|corrigee',plain(line))]
     if dated and read_date(dated[0]): inv['issue_date']=read_date(dated[0])
+    if conservative:
+        explicit_dates={read_date(line) for line in lines if re.match(r'^date\s*(?:de\s*)?(?:facture|emission)?\s*:',plain(line)) and read_date(line)}
+        if len(explicit_dates)>1:
+            inv.pop('issue_date',None);warnings.append('Plusieurs dates de facture différentes dans la lecture OCR : vérifiez le document.')
+            if ambiguities is not None:ambiguities.add('issue_date')
     inv.update(company_blocks(text))
     totals={}
     # Labels must start a line and lead to an amount on that same line (or
     # an amount-only following line). A table heading followed by "1. ..."
     # is not a total. Prefer the net total after a printed discount.
     amount_end = AMOUNT + r'[ \t]*(?:€|eur)?[ \t]*$'
-    def labelled_amount(label):
+    conflicting_totals=set()
+    def labelled_amount(label,kind):
         rows = p.splitlines()
         values = []
         for i, row in enumerate(rows):
@@ -262,6 +275,9 @@ def extract_fields(text):
                 found = re.fullmatch(r'[ \t]*' + amount_end, following)
             if found:
                 values.append(money(found.group(1)))
+        if conservative and len(set(values))>1:
+            conflicting_totals.add(kind)
+            return None
         return values[-1] if values else None
     labels={
         'net': [r'total[ \t]+h\.?[ \t]*t\.?[ \t]+net', r'(?:total|montant(?:[ \t]+(?:total|global))?)[ \t]+(?:h\.?[ \t]*t\.?|hors[ \t]*taxes)(?:[ \t]+de[ \t]+la[ \t]+situation)?'],
@@ -270,10 +286,11 @@ def extract_fields(text):
         'vat': [r'(?:total[ \t]+)?t\.?[ \t]*v\.?[ \t]*a\.?']}
     for key, patterns in labels.items():
         for label in patterns:
-            value = labelled_amount(label)
+            value = labelled_amount(label,key)
             if value is not None:
                 totals[key] = value
                 break
+            if key in conflicting_totals:break
     rates=[]
     taxes=[]
     # A VAT breakdown can contain both the taxable base and the tax amount.
@@ -284,7 +301,7 @@ def extract_fields(text):
             rate, first, last = found.groups()
             rates.append(str(number(rate)))
             taxes.append(number(last if last is not None else first))
-    if taxes and 'vat' not in totals:
+    if taxes and 'vat' not in totals and 'vat' not in conflicting_totals:
         totals['vat']=str(sum(taxes).quantize(Decimal('.01')))
     vat_rate=rates[0] if len(set(rates))==1 else None
     # A single positive rate beside an exempt/zero-rated base is not the
@@ -343,6 +360,10 @@ def extract_fields(text):
     found=re.search(r'cadre\s+de\s+facturation\s*:\s*([SBM]1)\b',text,re.I)
     if found: inv['business_process']=found.group(1).upper()
     inv['lines'],line_warnings=read_lines(text,vat_rate,totals.get('net'))
+    if conflicting_totals:
+        for name in conflicting_totals:inv.get('totals',{}).pop(name,None)
+        if ambiguities is not None:ambiguities.update('totals.'+name for name in conflicting_totals)
+        warnings.append('Montants OCR contradictoires pour un même total : '+', '.join(sorted(conflicting_totals))+'. Vérifiez les corrections manuscrites.')
     if len(inv['lines'])==1 and inv['lines'][0]['description'].lower() in ('prestation de','prestation','prestations de') and notes.get('description'):
         inv['lines'][0]['description']=notes['description']
     warnings.extend(line_warnings)

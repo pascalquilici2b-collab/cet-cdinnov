@@ -1,6 +1,7 @@
 import {Buffer} from 'node:buffer';
 import {createHash} from 'node:crypto';
 import {MODEL,MODEL_LABEL,ANALYSIS_VERSION,DAILY_BUDGET as DAILY,OUTPUT_TOKENS as OUTPUT,INPUT_NEURONS_PER_TOKEN,OUTPUT_NEURONS_PER_TOKEN,instruction,decode,consolidate} from './ai-domain.mjs';
+import {OCR_MODELS,OCR_DEFAULT_MODEL,OCR_PROMPT_VERSION,ocrReservation} from '../platform/document-ocr-domain.mjs';
 const hash=s=>createHash('sha256').update(s).digest('hex');
 const expose=r=>r&&({id:r.id,status:r.status,total:r.total,completed:r.completed,baseVersion:r.base_version,createdAt:r.created_at,error:r.error,documentIds:JSON.parse(r.result).coverage?.filter(d=>d.selected).map(d=>d.id)||[],result:r.status==='ready'?JSON.parse(r.result):null});
 const stamp=()=>new Date().toISOString();
@@ -14,14 +15,14 @@ export function chunks(text){
  }
  return out;
 }
-export async function aiStatus(db,env){const row=await db.prepare('SELECT reserved FROM market_ai_daily WHERE day=?').bind(stamp().slice(0,10)).first();return {configured:!!env?.MARKETS_AI,model:MODEL_LABEL,remaining:Math.max(0,DAILY-(row?.reserved||0)),dailyBudget:DAILY,resetsAt:new Date(Date.parse(stamp().slice(0,10)+'T00:00:00Z')+86400000).toISOString()};}
+export async function aiStatus(db,env){const row=await db.prepare('SELECT reserved FROM market_ai_daily WHERE day=?').bind(stamp().slice(0,10)).first(),visionModel=env?.DOCUMENT_OCR_MODEL??OCR_DEFAULT_MODEL;return {configured:!!env?.MARKETS_AI,model:MODEL_LABEL,visionConfigured:!!env?.MARKETS_AI&&typeof visionModel==='string'&&Object.hasOwn(OCR_MODELS,visionModel)&&ocrReservation(visionModel)<=DAILY,visionVersion:OCR_PROMPT_VERSION,remaining:Math.max(0,DAILY-(row?.reserved||0)),dailyBudget:DAILY,resetsAt:new Date(Date.parse(stamp().slice(0,10)+'T00:00:00Z')+86400000).toISOString()};}
 export async function handleReading(request,db,email,current,did,reply,jsonBody){
  const doc=await db.prepare('SELECT id,name FROM market_documents WHERE id=? AND market_id=?').bind(did,current.id).first();if(!doc)return reply(404,{error:'Pièce introuvable.'});
  if(request.method==='GET'){const reading=await db.prepare('SELECT * FROM market_document_readings WHERE document_id=?').bind(did).first();return reply(200,{reading:reading?{...reading,warnings:JSON.parse(reading.warnings)}:null});}
  if(request.method!=='PUT')return reply(405,{error:'Méthode non autorisée.'});
  if(JSON.parse(current.payload).status==='archived')return reply(409,{error:'Marché archivé.'});
  const data=await jsonBody(request,1800000);
- if(typeof data.text!=='string'||data.text.length>500000||typeof data.complete!=='boolean'||!['pdf','ocr','office','text','manual'].includes(data.method)||!Number.isInteger(data.pages)||data.pages<0||data.pages>150||!Array.isArray(data.warnings)||data.warnings.length>150||data.warnings.some(v=>typeof v!=='string'||v.length>500))return reply(400,{error:'Lecture documentaire invalide.'});
+ if(typeof data.text!=='string'||data.text.length>500000||typeof data.complete!=='boolean'||!['pdf','ocr','vision','office','text','manual'].includes(data.method)||!Number.isInteger(data.pages)||data.pages<0||data.pages>150||!Array.isArray(data.warnings)||data.warnings.length>150||data.warnings.some(v=>typeof v!=='string'||v.length>500))return reply(400,{error:'Lecture documentaire invalide.'});
  await db.prepare('INSERT INTO market_document_readings(document_id,text,method,complete,pages,warnings,updated_at,updated_by) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(document_id) DO UPDATE SET text=excluded.text,method=excluded.method,complete=excluded.complete,pages=excluded.pages,warnings=excluded.warnings,updated_at=excluded.updated_at,updated_by=excluded.updated_by').bind(did,data.text,data.method,data.complete?1:0,data.pages,JSON.stringify(data.warnings),stamp(),email).run();
  return reply(200,{saved:true,complete:data.complete,characters:data.text.length});
 }

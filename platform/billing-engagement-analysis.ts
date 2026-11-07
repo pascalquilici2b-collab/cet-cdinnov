@@ -1,6 +1,27 @@
 import type {Database,Environment,Reply} from './contracts';
 import {boundedBody} from './portal';
 import {MODEL,DAILY_BUDGET,INPUT_NEURONS_PER_TOKEN,OUTPUT_NEURONS_PER_TOKEN,amountInQuote,dateInQuote} from '../marches/ai-domain.mjs';
+const roleLabels={
+ marketReference:/^(?:(?:reference|ref\.?|numero|n[°ºo])(?:\s+(?:du|de|de la))?\s+)?(?:marche(?:\s+public)?|contrat|accord[- ]cadre)(?:\s+(?:n[°ºo]|numero|reference|ref\.?))?\s*[:#=–-]?$/,
+ serviceCode:/^(?:(?:code|numero|n[°ºo])(?:\s+(?:du|de))?\s+)?service(?:\s+(?:chorus|destinataire|gestionnaire|prescripteur))?(?:\s+(?:code|numero|n[°ºo]))?\s*[:#=–-]?$/
+};
+/** An exact quotation proves the characters, not the business role. A bare
+ * value is acceptable only when its own source line has the qualified label;
+ * an unrelated label on an adjacent line cannot supply that qualification. */
+function qualifiedReference(text:string,quote:string,value:string,field:keyof typeof roleLabels):boolean{
+ if(/[\r\n]/.test(value))return false;
+ const occurrences=[...quote.matchAll(new RegExp(value.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'giu'))];
+ for(let offset=text.indexOf(quote);offset!==-1;offset=text.indexOf(quote,offset+1))for(const match of occurrences){
+  const position=offset+match.index!,start=Math.max(text.lastIndexOf('\n',position-1),text.lastIndexOf('\r',position-1))+1;
+  // PDF/OCR rows may contain tab-separated cells or consecutive field sentences.
+  // Restrict the prefix to this actual cell/sentence; never borrow another row.
+  const cells=text.slice(start,position).split(/[|\t]/),current=cells.at(-1)!;
+  const cell=!current.trim()&&cells.length>1?cells.at(-2)!:current;
+  const label=cell.trimEnd().split(/\.\s+(?=[A-ZÀ-ÖØ-Þ])/u).at(-1)!.trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('fr');
+  if(roleLabels[field].test(label))return true;
+ }
+ return false;
+}
 /** Suggestions only. Untrusted document text never becomes an instruction or an executed action. */
 export async function analyzeEngagement(request:Request,db:Database,env:Environment,reply:Reply){
  if(request.method!=='POST')return reply(405,{error:'Méthode non autorisée.'});
@@ -21,7 +42,7 @@ export async function analyzeEngagement(request:Request,db:Database,env:Environm
   for(const fact of Array.isArray(value?.facts)?value.facts:[]){
    const {field,quote}=fact;if(!['reference','date','amountMinor','marketReference','engagement','serviceCode','otherReference'].includes(field)||typeof quote!=='string'||quote.length<5||quote.length>2000||!input.text.includes(quote))continue;
    if(field==='amountMinor'){if(Number.isSafeInteger(fact.value)&&fact.value>=0&&fact.value<=1e14&&amountInQuote(fact.value,quote)&&/\bHT\b|hors taxes/i.test(quote))assign(field,fact.value);}
-   else if(typeof fact.value==='string'&&fact.value.trim()&&fact.value.length<=300){if(field==='date'?!dateInQuote(fact.value,quote):!quote.toLocaleLowerCase('fr').includes(fact.value.toLocaleLowerCase('fr')))continue;assign(field,fact.value.trim());}
+   else if(typeof fact.value==='string'&&fact.value.trim()&&fact.value.length<=300){if(field==='date'?!dateInQuote(fact.value,quote):!quote.toLocaleLowerCase('fr').includes(fact.value.toLocaleLowerCase('fr')))continue;if((field==='marketReference'||field==='serviceCode')&&!qualifiedReference(input.text,quote,fact.value,field))continue;assign(field,fact.value.trim());}
   }
   return reply(200,{fields:result});
  }catch{return reply(503,{error:'L’analyse n’a pas fourni de références vérifiables. Réessayez ou complétez manuellement.'});}finally{clearTimeout(timer);}

@@ -28,6 +28,8 @@ from reportlab.pdfbase.ttfonts import TTFont
 from .stamping_import import cents, key, month
 from .stamping_payroll import employer_cost
 from .pdf_safety import ensure_static_pdf
+from .ocr_bridge import (validate_ocr_pages, merge_text, ocr_warnings, ocr_fingerprint,
+                         has_visual_annotations, MAX_IMAGE_PIXELS, MAX_IMAGE_SIDE, MAX_IMAGE_BYTES)
 
 VERSION = 'stamping-2.7-payroll-pages-20261029'
 FONT = 'CDIStamp'
@@ -187,22 +189,27 @@ def payroll_page_kind(text):
     return 'payslip' if header and body else 'unknown'
 
 
-def extract(raw):
+def extract(raw,ocr_pages=None):
     reader=open_source(raw); _,normal=canonical(reader); pages=[];texts=[]; warnings=[]
+    vision=validate_ocr_pages(raw,len(reader.pages),ocr_pages)
     with pdfium.PdfDocument(normal) as pdf:
         for i,page in enumerate(pdf):
             textpage=page.get_textpage()
             text=textpage.get_text_range(); textpage.close()
-            method='text'
+            method='text';complete=True
             from .stamping_vision import needs_ocr, render_ocr
-            if needs_ocr(page,text,extract_fields(text)):
+            if i in vision:
+                # The Worker supplied a vision transcription for this exact PDF.
+                # Do not add a second, potentially contradictory Tesseract pass.
+                text=merge_text(text,vision[i]['text']);method='ocr';complete=vision[i]['complete']
+            elif needs_ocr(page,text,extract_fields(text)):
                 image=render_ocr(page)
                 scanned,error=local_ocr(image);image.close();method='ocr'
                 # Preserve native evidence. Field parsers require a unique
                 # value, so a contradictory OCR amount stays a manual review.
                 if scanned.strip():text=text+'\n'+scanned
-                if error: warnings.append(f'Page {i+1} : {error}')
-            pages.append({'width':page.get_width(),'height':page.get_height(),'method':method,'kind':payroll_page_kind(text)})
+                if error: warnings.append(f'Page {i+1} : {error}');complete=False
+            pages.append({'width':page.get_width(),'height':page.get_height(),'method':method,'kind':payroll_page_kind(text),'complete':complete})
             texts.append(text);page.close()
     text='\n'.join(texts)
     fields=extract_fields(text)
@@ -212,7 +219,11 @@ def extract(raw):
         fields['bases'].pop('EMPLOYER_COST',None)
         cost=employer_cost(text,normal)
         if cost:fields['bases']['EMPLOYER_COST']=cost
-    return {**fields,'pages':pages,'warnings':warnings,'evidence':evidence_lines(text),'source_sha256':digest(raw),'algorithm':VERSION,'ocr':any(p['method']=='ocr' for p in pages)}
+    reading={**fields,'pages':pages,'warnings':warnings+ocr_warnings(vision),'evidence':evidence_lines(text),'source_sha256':digest(raw),'algorithm':VERSION,'ocr':any(p['method']=='ocr' for p in pages)}
+    if vision:
+        reading.update(ocr_complete=all(p['complete'] for p in pages),ocr_fingerprint=ocr_fingerprint(vision),
+                       ocr_pages=[{'page':p,'model':vision[p]['model'],'complete':vision[p]['complete']} for p in sorted(vision)])
+    return reading
 
 def sourced_ai(reading,suggestions):
     fields=dict(reading['fields']);proofs=dict(reading['proofs'])
@@ -416,6 +427,7 @@ def stamp_image(block):
 def process(raw,groups,options=None,choice=None,suggestions=None,overrides=None,reading=None,resolved=None):
     options=options or {};reading=sourced_ai(reading if reading is not None else extract(raw),suggestions or [])
     if reading.get('source_sha256')!=digest(raw) or (resolved is None and reading.get('algorithm')!=VERSION):raise StampError('INVALID_READING','La lecture ne correspond pas à cet original.')
+    if reading.get('ocr_complete') is False:raise StampError('REVIEW_REQUIRED','La lecture OCR est incomplète. Contrôlez la pièce et confirmez les champs manuellement.')
     selected,base,conflicts=resolved if resolved is not None else select_group(reading,groups,choice)
     if overrides:
         from copy import deepcopy
@@ -614,14 +626,14 @@ def reading_receipt(reading):
     return hmac.new(secret.encode(),json.dumps(reading,sort_keys=True,ensure_ascii=False,separators=(',',':')).encode(),hashlib.sha256).hexdigest()
 
 
-def analyze(raw,groups,options=None,choice=None,suggestions=None,overrides=None,cached=None,direct=None):
+def analyze(raw,groups,options=None,choice=None,suggestions=None,overrides=None,cached=None,direct=None,ocr_pages=None):
     # Only the authenticated service can attest to a cached extraction. Never
     # accept client-authored fields, or reuse a reading from a different PDF.
     reading=None
-    if isinstance(cached,dict) and isinstance(cached.get('reading'),dict):
+    if ocr_pages is None and isinstance(cached,dict) and isinstance(cached.get('reading'),dict):
         candidate=cached['reading'];expected=reading_receipt(candidate)
         if expected and hmac.compare_digest(expected,str(cached.get('receipt',''))) and candidate.get('source_sha256')==digest(raw) and candidate.get('algorithm')==VERSION:reading=candidate
-    if reading is None:reading=extract(raw)
+    if reading is None:reading=extract(raw) if ocr_pages is None else extract(raw,ocr_pages)
     receipt=reading_receipt(reading)
     try:
         if direct:
@@ -631,11 +643,38 @@ def analyze(raw,groups,options=None,choice=None,suggestions=None,overrides=None,
         else:result=process(raw,groups,options,choice,suggestions,overrides,reading=reading)
     except StampError as error:
         resolved=sourced_ai(reading,suggestions or []);matches=identity_matches(resolved,groups)
-        result={'reading':resolved,'needsAI':error.code=='REVIEW_REQUIRED' and not choice and not direct,'error':{'code':error.code,'message':str(error)},'proposedGroupId':matches[0]['id'] if len(matches)==1 else None}
+        result={'reading':resolved,'needsAI':error.code=='REVIEW_REQUIRED' and not choice and not direct and reading.get('ocr_complete') is not False,'error':{'code':error.code,'message':str(error)},'proposedGroupId':matches[0]['id'] if len(matches)==1 else None}
     # Retain the original extraction as the signed cache; suggestions have their
     # own quoted evidence and never become trusted extraction data.
     result['cachedReading']={'reading':reading,'receipt':receipt} if receipt else None
     return result
+
+
+def ocr_page(raw,page=0):
+    """One bounded colour page for the authenticated Worker; never changes PDF."""
+    reader=open_source(raw,max_pages=100)
+    if type(page) is not int or not 0<=page<len(reader.pages):
+        raise StampError('INVALID_PAGE','Page non disponible.')
+    _,normal=canonical(reader)
+    with pdfium.PdfDocument(normal) as doc:
+        selected=doc[page];width,height=selected.get_width(),selected.get_height()
+        scale=min(300/72,(MAX_IMAGE_SIDE-1)/max(width,height),math.sqrt((MAX_IMAGE_PIXELS-10000)/(width*height)))
+        image=render_page(selected,scale)
+        try:
+            output=io.BytesIO();image.save(output,format='JPEG',quality=88)
+            content=output.getvalue()
+            if len(content)>MAX_IMAGE_BYTES or image.width*image.height>MAX_IMAGE_PIXELS:
+                raise StampError('OCR_IMAGE_TOO_LARGE','Image OCR trop volumineuse.')
+            textpage=selected.get_textpage()
+            try:native=textpage.get_text_range()
+            finally:textpage.close()
+            raster=sum(max(0,r-l)*max(0,t-b) for obj in selected.get_objects(max_depth=8)
+                       if obj.type==pdfium.raw.FPDF_PAGEOBJ_IMAGE for l,b,r,t in [obj.get_bounds()])
+            return {'source_sha256':digest(raw),'page':page,'pages':len(doc),
+                    'image':'data:image/jpeg;base64,'+base64.b64encode(content).decode(),
+                    'width':image.width,'height':image.height,'nativeText':native[:10000],
+                    'needsOCR':len(native.strip())<40 or raster>width*height*.2 or has_visual_annotations(reader.pages[page])}
+        finally:image.close();selected.close()
 
 
 def preview(raw,page=0):

@@ -2,6 +2,7 @@ import { mergeProposal } from "./ai-domain.mjs";
 import { emptyMarket, validateMarket, minor } from "./domain.mjs";
 import {expandImportFiles,classifyDocument} from './import-files.js';
 import {needsPdfOcr,joinPriceTableRows} from './pdf-text.mjs';
+import {createOcrPageClient} from './ocr-page-client.mjs';
 let s = {
   rows: [],
   clients: [],
@@ -74,6 +75,11 @@ async function api(path = "", options = {}) {
     throw new Error(data.error || "Opération impossible.");
   }
   return data;
+}
+function readerOcrOptions(epoch=s.epoch){
+ if(!s.ai?.visionConfigured)return undefined;
+ const user=AUTH_USER;
+ return {ocrPage:createOcrPageClient({getSession:budgetsEnsureSession,isActive:()=>epoch===s.epoch&&user===AUTH_USER&&!s.stop,onUnauthorized:session=>window.CDISession.expire({sessionId:session.sessionId,reason:'unauthorized'})})};
 }
 function setBusy(value) {
   s.busy = value;
@@ -356,7 +362,7 @@ async function upload(files) {
       if(s.stop||epoch!==s.epoch)break;
       progress('Lecture : '+file.name);
       let reading=null;
-      try{reading=await readDocument(file,message=>progress(file.name+' · '+message),()=>s.stop||epoch!==s.epoch);}
+      try{reading=await readDocument(file,message=>progress(file.name+' · '+message),()=>s.stop||epoch!==s.epoch,readerOcrOptions(epoch));}
       catch(e){if(s.stop||epoch!==s.epoch)break;warnings.push(file.name+' : '+e.message);}
       if(epoch!==s.epoch)return;
       const form = new FormData();
@@ -391,7 +397,7 @@ async function upload(files) {
   } finally {if(epoch===s.epoch){s.uploadStatus='';s.busy=false;render();}}
 }
 async function analyse(id) {
-  await runAnalysis([id],true);
+  await runAnalysis([id],true,true);
 }
 function bind() {
   const root = el("marketRoot");
@@ -649,7 +655,7 @@ async function resolveIssue(index) {
     render();
   }
 }
-async function runAnalysis(documentIds,autoApply=true) {
+async function runAnalysis(documentIds,autoApply=true,refreshReading=false) {
   const selected = documentIds || [
     ...document.querySelectorAll("[data-ai-document]:checked"),
   ].map((e) => e.dataset.aiDocument);
@@ -681,15 +687,20 @@ async function runAnalysis(documentIds,autoApply=true) {
     for (const did of selected) {
       if (s.stop) break;
       const d = s.docs.find((d) => d.id === did);
-      if (s.readings.find((r) => r.id === did)?.read && s.readings.find((r) => r.id === did)?.complete) {
-        if(!/\.pdf$/i.test(d.name))continue;
+      // An explicitly corrected reading remains authoritative, even when the
+      // user asks to refresh OCR of the source attachment.
+      if(s.readings.find(r=>r.id===did)?.method==='manual')continue;
+      if ((!refreshReading||!(/\.(pdf|png|jpe?g)$/i.test(d.name)))&&s.readings.find((r) => r.id === did)?.read && s.readings.find((r) => r.id === did)?.complete) {
+        const previous=s.readings.find(r=>r.id===did),upgradeVision=s.ai?.visionConfigured&&previous?.method==='ocr';
+        if(!/\.pdf$/i.test(d.name)&&!upgradeVision)continue;
         const stored=await api('/'+id+'/reading/'+did);
-        if(stored.reading?.method==='ocr'){
+        if(stored.reading?.method==='vision')continue;
+        if(stored.reading?.method==='ocr'&&!upgradeVision){
           const text=joinPriceTableRows(stored.reading.text);
           if(text!==stored.reading.text)await api('/'+id+'/reading/'+did,{method:'PUT',body:JSON.stringify({...stored.reading,text,complete:!!stored.reading.complete})});
           continue;
         }
-        if(stored.reading?.method!=='pdf'||!needsPdfOcr(stored.reading.text))continue;
+        if(!upgradeVision&&(stored.reading?.method!=='pdf'||!needsPdfOcr(stored.reading.text)))continue;
       }
       progress("Lecture : " + d.name);
       const blob = await api("/" + id + "/documents/" + did, { binary: true });
@@ -697,6 +708,7 @@ async function runAnalysis(documentIds,autoApply=true) {
         new File([blob], d.name, { type: d.mime }),
         (message) => progress(d.name + " · " + message),
         () => s.stop || epoch !== s.epoch,
+        readerOcrOptions(epoch),
       );
       await api("/" + id + "/reading/" + did, {
         method: "PUT",

@@ -16,6 +16,7 @@ import {stampingRoute,stampingQueue,purgeStamping} from './stamping';
 import {dataExport} from './data-export';
 import {rhRoute} from './rh-service';
 import {facturxRoute} from './facturx-proxy';
+import {documentOCRRoute} from './document-ocr';
 
 /** One deployable entry; modern and compatibility routes share the typed identity module. */
 export default {
@@ -29,6 +30,7 @@ export default {
       headers = responseHeaders(request,env);
       if(request.method==='OPTIONS') return new Response(null,{status:204,headers});
       env=portalEnvironment(env);
+      if(path==='/api/v1/ai/ocr-page')return await documentOCRRoute(request,env,reply);
       if(path.startsWith('/api/v1/facturx/'))return await facturxRoute(request,env,headers,reply);
       if(path==='/api/v1/data-export')return await dataExport(request,env,reply);
       if(path.startsWith('/api/v1/rh/'))return await rhRoute(request,env,reply);

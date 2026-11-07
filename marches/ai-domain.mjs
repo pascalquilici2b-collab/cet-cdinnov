@@ -3,7 +3,10 @@ import {sourcedVatRate} from './price-tax.mjs';
 export const MODEL='@cf/qwen/qwen3-30b-a3b-fp8';
 export const MODEL_LABEL='Qwen3 30B A3B · modèle ouvert (Apache 2.0)';
 export const ANALYSIS_VERSION='2026-10-23-qwen-bpu-tax-v3';
-export const DAILY_BUDGET=5000;
+// Shared application reserve below the account's 10,000-neuron free allowance.
+// The remaining 1,000 neurons are a margin for other account consumers, not a
+// guarantee: those consumers must be monitored at the Cloudflare account level.
+export const DAILY_BUDGET=9000;
 export const OUTPUT_TOKENS=6000;
 export const INPUT_NEURONS_PER_TOKEN=.004625,OUTPUT_NEURONS_PER_TOKEN=.030475;
 export const normalize=s=>String(s??'').normalize('NFKC').toLowerCase().replace(/\s+/g,' ').trim();

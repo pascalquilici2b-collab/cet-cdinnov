@@ -3,7 +3,7 @@ import base64
 import json
 import sys
 from .stamping_import import inspect, normalize, review_import, combine_inspections
-from .stamping_pdf import extract, process, analyze, revise, preview, StampError
+from .stamping_pdf import extract, process, analyze, revise, preview, ocr_page, StampError
 
 def main():
     sys.stdout.reconfigure(encoding='utf-8')
@@ -30,16 +30,17 @@ def main():
         elif action=='import':result=normalize(raw,request['name'],options)
         elif action in ('document-info','document-page'):
             from .stamping_intake import inspect_documents
-            result=inspect_documents(raw,request.get('page') if action=='document-page' else None)
+            result=inspect_documents(raw,request.get('page') if action=='document-page' else None,request.get('ocrPages'))
+        elif action=='ocr-page':result=ocr_page(raw,request.get('page',0))
         elif action=='document-split':
             from .stamping_intake import split_documents
-            result=split_documents(raw,request['pages'])
+            result=split_documents(raw,request['pages'],request.get('ocrPages'))
         elif action=='confirm':
             from .stamping_manual import confirm
             result=confirm(raw,request['groups'],request.get('choice'),request.get('directInvoice'),options,request.get('overrides'))
-        elif action=='extract':result=extract(raw)
-        elif action=='process':result=process(raw,request['groups'],options,request.get('choice'),request.get('suggestions'),request.get('overrides'))
-        elif action=='analyze':result=analyze(raw,request['groups'],options,request.get('choice'),request.get('suggestions'),request.get('overrides'),request.get('cachedReading'),request.get('directInvoice'))
+        elif action=='extract':result=extract(raw,request.get('ocrPages'))
+        elif action=='process':result=process(raw,request['groups'],options,request.get('choice'),request.get('suggestions'),request.get('overrides'),reading=extract(raw,request['ocrPages']) if request.get('ocrPages') is not None else None)
+        elif action=='analyze':result=analyze(raw,request['groups'],options,request.get('choice'),request.get('suggestions'),request.get('overrides'),request.get('cachedReading'),request.get('directInvoice'),request.get('ocrPages'))
         elif action=='revise':result=revise(raw,request['previous'],options,request.get('overrides'),request.get('additions'))
         elif action=='preview':result={'image':base64.b64encode(preview(raw,options.get('page',0))).decode()}
         else:raise ValueError('Action inconnue.')

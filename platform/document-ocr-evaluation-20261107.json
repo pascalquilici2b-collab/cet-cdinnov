@@ -1,0 +1,1869 @@
+{
+  "schemaVersion": 1,
+  "evaluatedAt": "2026-11-07",
+  "synthetic": true,
+  "containsCustomerData": false,
+  "decision": {
+    "ocrModel": "@cf/google/gemma-4-26b-a4b-it",
+    "existingTextModel": "@cf/qwen/qwen3-30b-a3b-fp8",
+    "textModelChanged": false,
+    "textModelDeprecationDate": "2026-11-20",
+    "textComparison": "platform/ai-benchmark-20261107.json",
+    "fasterThanTesseract": false,
+    "userPreference": "Reliability preferred; approximately 6–8 seconds per short page accepted. Dense table measured 17.424 seconds with Gemma; no general latency guarantee.",
+    "basis": [
+      "Same critical fields recovered by both vision models on the three fixtures.",
+      "Gemma has lower measured neuron use and latency than Qwen3.8 on this sample.",
+      "Tesseract remains faster; synthetic field recovery supports the optional visual path.",
+      "Additional 40-row fictitious price table: both models preserve all 80 HT/TTC amount/code associations; Gemma measured 17.424 s and 51.864 neurons, Qwen3.8 42.167 s and 614.741 neurons.",
+      "On the recorded purchase-order business response, source-role validation removes two unsupported suggestions while retaining the three expected fields. This is an offline validation fix, not a new model inference."
+    ]
+  },
+  "limits": [
+    "Three short fictitious French pages plus one printed 40-row price table; one run per model and image.",
+    "Caveat cursive font and simulated pen gestures; no real human handwriting or signatures tested.",
+    "No signature identity, authenticity or legal-validity assessment.",
+    "No real-customer PDF quality, dense-table, long-output or end-to-end latency guarantee.",
+    "Recorded OCR-to-business-model evidence plus offline validation does not establish universal extraction reliability or full browser-to-production behavior."
+  ],
+  "reproduction": {
+    "manifest": "facturx-service/tests/fixtures/ocr/manifest.json",
+    "prepareCommand": "node platform/document-ocr-evaluation.mjs prepare",
+    "output": ".private/ocr-evaluation/requests.json",
+    "inferenceAutomatic": false,
+    "apiKeyRequiredForPrepare": false,
+    "productionInputBuilder": "platform/document-ocr-domain.mjs#buildOCRInput",
+    "promptVersion": "document-ocr-2026-11-07-v1",
+    "promptSha256": "6e3a4fd1bfa2576c462684772b7749c80449ba4c01f3428a7f84ce479e16dd54",
+    "historicalRequestsMatchCurrentBuilder": true,
+    "requestHashes": {
+      "invoice-printed-signed": "97ae27c4940ed05b803113d9265e4ba08c32f8c6bf7d789cd6f6318dae244cbf",
+      "order-handwritten-fields": "0c7d0aabb5a340f470b139bef602ee791c47dcec0d05aa496d0590a6f843fd3c",
+      "invoice-handwritten-fields": "8873dc620460a49bc35f47c14fb8d604de1d188d25e86c8940ee701dc9c8e30e",
+      "dense-price-table": "479dab231ae77c261d60c1c953bb0c8a280d220da0e87d83dfb8404cce618951"
+    },
+    "sourceEvidenceSha256": {
+      "tesseract-baseline.json": "1c849b5ce0396c28461bcfba38668fa5efbb33b491c8ecce2f40ef9429a9ae1a",
+      "actual-vision-python-fields.json": "67a34251407275780143697b870d5f70ad0ee250caf9540e34ba1bd6424d5eae",
+      "results-gemma.json": "7573b1d2c4081885b1390706e6b95dfc473f7495d4a2fd7e443d4ff47c8bd38b",
+      "results-qwen.json": "11fe560ca5f7167667505e66e29d7af6c6f3cc52b28a8ef485d6f6f12fe476e7",
+      "usage.json": "7cb99455f970f98f74b44c80b6717af1b1d015d8329baa28f1ac22a55853642c",
+      "requests.json": "fd191fb3f862c7ed5d4438b27418b9376906da0b87637517ab570a76d5bc1fe6",
+      "dense-request.json": "479dab231ae77c261d60c1c953bb0c8a280d220da0e87d83dfb8404cce618951",
+      "dense-results.json": "ae0eff24c4eb9ff88944204e75f41ad1632733861ee88d57a892790a2b9f18c3",
+      "dense-score.json": "f44515819cc2882bc1c16bb0c8da0926c4a92f0366efdc068c895e72182bf0ea",
+      "fixtures/dense-price-table-expected.json": "46f81a5162505404f622673e02cb794a786e2c43ef574c201668ac27f6b252c1",
+      "engagement-replay-request.json": "80623760aa6820eedf1ef72836372468bbb3b55d5c2320ccf1ef30bceb61b0e4",
+      "engagement-replay-output.json": "421818af34a69ef3651a3bd3e0fe4acfeb10db5760dbab061158dceef790087a",
+      "engagement-replay-before-local.json": "a7b02fae51d9202959ff8ee182764b3bf74c1eb8fccb76859a1cd4df15380c0b",
+      "engagement-replay-after-local.json": "fd7fc11a7ba493ce7c759051e208ea53d4aa5e94cd6a67a450e922726c7ec052",
+      "engagement-replay-revalidated.json": "4a1d965ac7f72b2055be7998cbd780b374923b17a47fce94d0745f9f4a95f8be"
+    },
+    "cloudCiInferenceRequired": false,
+    "manifestSha256": "59bb4b8ef290709aa0052484f07e176cfb1fc67878c1a5c0f898645efa40d005",
+    "recordedDenseRequestMatchesCurrentBuilder": true,
+    "businessReplayUsesRecordedResponseOnly": true
+  },
+  "models": [
+    {
+      "model": "@cf/google/gemma-4-26b-a4b-it",
+      "usdPerMillionTokens": {
+        "input": 0.1,
+        "output": 0.3,
+        "cachedInput": 0.05
+      },
+      "neuronsPerMillionTokens": {
+        "input": 9091,
+        "output": 27273
+      },
+      "contextTokens": 256000,
+      "maxCompletionTokens": 4096,
+      "conservativeReservationNeurons": 2927,
+      "reservationFitsSharedDailyBudget": true
+    },
+    {
+      "model": "@cf/qwen/qwen3.8-27b",
+      "usdPerMillionTokens": {
+        "input": 0.45,
+        "output": 3.2,
+        "cachedInput": 0.05
+      },
+      "neuronsPerMillionTokens": {
+        "input": 40909,
+        "output": 290909
+      },
+      "contextTokens": 262144,
+      "maxCompletionTokens": 4096,
+      "conservativeReservationNeurons": 14299,
+      "reservationFitsSharedDailyBudget": false
+    }
+  ],
+  "comparison": {
+    "scoring": "Fixed fixture labels; dates normalized to ISO and money to integer cents. Critical score: six invoice fields per invoice, five order fields. Signature excluded from common text scores.",
+    "latencyScope": "One observed provider request or local Tesseract OCR only; excludes PDF rendering and full UI/network orchestration.",
+    "baseline": {
+      "engine": "tesseract 5.5.0",
+      "parameters": "fra+eng --psm 3 --dpi 300",
+      "traineddataSha256": {
+        "fra": "ced037562e8c80c13122dece28dd477d399af80911a28791a66a63ac1e3445ca",
+        "eng": "7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2"
+      },
+      "differences": "Docker stamping uses fra+eng+ita. Italian traineddata absent in this repository. Browser version7 vs system5. Shared image variant uses exact fixture JPEG; stamping300dpi variant matches Python render_ocr geometry/grayscale.",
+      "signaturePresenceSupported": false
+    },
+    "summaries": [
+      {
+        "engine": "tesseract-shared-image",
+        "pages": 3,
+        "criticalExact": {
+          "passed": 11,
+          "total": 17
+        },
+        "textFieldsExact": {
+          "passed": 14,
+          "total": 20
+        },
+        "signaturePresenceExact": {
+          "passed": 0,
+          "total": 0
+        },
+        "latencyMs": {
+          "min": 673,
+          "median": 698,
+          "mean": 714.3333333333334,
+          "max": 772
+        }
+      },
+      {
+        "engine": "tesseract-stamping-300dpi",
+        "pages": 3,
+        "criticalExact": {
+          "passed": 12,
+          "total": 17
+        },
+        "textFieldsExact": {
+          "passed": 15,
+          "total": 20
+        },
+        "signaturePresenceExact": {
+          "passed": 0,
+          "total": 0
+        },
+        "latencyMs": {
+          "min": 672,
+          "median": 706,
+          "mean": 697.3333333333334,
+          "max": 714
+        }
+      },
+      {
+        "engine": "@cf/google/gemma-4-26b-a4b-it",
+        "pages": 3,
+        "criticalExact": {
+          "passed": 17,
+          "total": 17
+        },
+        "textFieldsExact": {
+          "passed": 20,
+          "total": 20
+        },
+        "signaturePresenceExact": {
+          "passed": 3,
+          "total": 3
+        },
+        "latencyMs": {
+          "min": 5677,
+          "median": 6681,
+          "mean": 6589.666666666667,
+          "max": 7411
+        },
+        "reportedNeurons": {
+          "sum": 41.56363582611084,
+          "meanPerPage": 13.85454527537028,
+          "minPerPage": 13.263635635375977,
+          "maxPerPage": 14.736363410949707
+        }
+      },
+      {
+        "engine": "@cf/qwen/qwen3.8-27b",
+        "pages": 3,
+        "criticalExact": {
+          "passed": 17,
+          "total": 17
+        },
+        "textFieldsExact": {
+          "passed": 20,
+          "total": 20
+        },
+        "signaturePresenceExact": {
+          "passed": 3,
+          "total": 3
+        },
+        "latencyMs": {
+          "min": 6819,
+          "median": 7201,
+          "mean": 7188.666666666667,
+          "max": 7546
+        },
+        "reportedNeurons": {
+          "sum": 723.9317932128906,
+          "meanPerPage": 241.31059773763022,
+          "minPerPage": 234.81362915039062,
+          "maxPerPage": 249.64999389648438
+        }
+      }
+    ],
+    "cases": [
+      {
+        "id": "invoice-printed-signed",
+        "expected": {
+          "document_type": "INVOICE",
+          "invoice_number": "FICT-2026-0042",
+          "invoice_date": "2026-11-07",
+          "supplier_ref": "ATELIER-FICTIF",
+          "HT": 128050,
+          "TTC": 153660,
+          "handwritten_note": "Bon pour accord le 07/11/2026",
+          "signature_present": true
+        },
+        "observations": [
+          {
+            "engine": "tesseract-shared-image",
+            "latencyMs": 772,
+            "observed": {
+              "document_type": "INVOICE",
+              "invoice_number": "FICT-2026-0042",
+              "invoice_date": "2026-11-07",
+              "supplier_ref": "ATELIER-FICTIF",
+              "HT": 128050,
+              "TTC": 153660,
+              "handwritten_note": "Bon pour accord le 07/11/2026",
+              "signature_present": null
+            },
+            "exactChecks": {
+              "document_type": true,
+              "invoice_number": true,
+              "invoice_date": true,
+              "supplier_ref": true,
+              "HT": true,
+              "TTC": true,
+              "handwritten_note": true
+            },
+            "criticalExact": {
+              "passed": 6,
+              "total": 6
+            },
+            "signaturePresenceScored": false,
+            "sourceLines": [
+              "Facture n° : FICT-2026-0042",
+              "Fournisseur : ATELIER-FICTIF",
+              "Date : 2026-11-07",
+              "Objet : Maintenance de matériel de démonstration",
+              "Total HT : 1 280,50 EUR",
+              "Total TTC : 1 536,60 EUR",
+              "Bon pour accord le 07/11/2026"
+            ]
+          },
+          {
+            "engine": "tesseract-stamping-300dpi",
+            "latencyMs": 706,
+            "observed": {
+              "document_type": "INVOICE",
+              "invoice_number": "FICT-2026-0042",
+              "invoice_date": "2026-11-07",
+              "supplier_ref": "ATELIER-FICTIF",
+              "HT": 128050,
+              "TTC": null,
+              "handwritten_note": "Bon pour accord le 07/11/2026",
+              "signature_present": null
+            },
+            "exactChecks": {
+              "document_type": true,
+              "invoice_number": true,
+              "invoice_date": true,
+              "supplier_ref": true,
+              "HT": true,
+              "TTC": false,
+              "handwritten_note": true
+            },
+            "criticalExact": {
+              "passed": 5,
+              "total": 6
+            },
+            "signaturePresenceScored": false,
+            "sourceLines": [
+              "Facture n° : FICT-2026-0042",
+              "Fournisseur : ATELIER-FICTIF",
+              "Date : 2026-11-07",
+              "Objet : Maintenance de matériel de démonstration",
+              "Total HT : 1 280,50 EUR",
+              "Total TIC : 1 536,60 EUR",
+              "Bon pour accord le 07/11/2026"
+            ]
+          },
+          {
+            "engine": "@cf/google/gemma-4-26b-a4b-it",
+            "latencyMs": 7411,
+            "observed": {
+              "document_type": "INVOICE",
+              "invoice_number": "FICT-2026-0042",
+              "invoice_date": "2026-11-07",
+              "supplier_ref": "ATELIER-FICTIF",
+              "HT": 128050,
+              "TTC": 153660,
+              "handwritten_note": "Bon pour accord le 07/11/2026",
+              "signature_present": true
+            },
+            "exactChecks": {
+              "document_type": true,
+              "invoice_number": true,
+              "invoice_date": true,
+              "supplier_ref": true,
+              "HT": true,
+              "TTC": true,
+              "handwritten_note": true,
+              "signature_present": true
+            },
+            "criticalExact": {
+              "passed": 6,
+              "total": 6
+            },
+            "signaturePresenceScored": true,
+            "sourceLines": [
+              "Facture n° : FICT-2026-0042",
+              "Fournisseur : ATELIER-FICTIF",
+              "Date : 2026-11-07",
+              "Objet : Maintenance de matériel de démonstration",
+              "Total HT : 1 280,50 EUR",
+              "Total TTC : 1 536,60 EUR",
+              "Bon pour accord le 07/11/2026"
+            ],
+            "providerUsage": {
+              "prompt_tokens": 805,
+              "completion_tokens": 272,
+              "total_tokens": 1077,
+              "neurons": 14.736363410949707
+            },
+            "unreadableText": false,
+            "warnings": [],
+            "finishReason": "stop",
+            "transcriptionSha256": "dcdde864083a7ae5f1b651ccf922ca5afe09652cf5dfa7f2889ac56865de1c99"
+          },
+          {
+            "engine": "@cf/qwen/qwen3.8-27b",
+            "latencyMs": 7201,
+            "observed": {
+              "document_type": "INVOICE",
+              "invoice_number": "FICT-2026-0042",
+              "invoice_date": "2026-11-07",
+              "supplier_ref": "ATELIER-FICTIF",
+              "HT": 128050,
+              "TTC": 153660,
+              "handwritten_note": "Bon pour accord le 07/11/2026",
+              "signature_present": true
+            },
+            "exactChecks": {
+              "document_type": true,
+              "invoice_number": true,
+              "invoice_date": true,
+              "supplier_ref": true,
+              "HT": true,
+              "TTC": true,
+              "handwritten_note": true,
+              "signature_present": true
+            },
+            "criticalExact": {
+              "passed": 6,
+              "total": 6
+            },
+            "signaturePresenceScored": true,
+            "sourceLines": [
+              "Facture n° : FICT-2026-0042",
+              "Fournisseur : ATELIER-FICTIF",
+              "Date : 2026-11-07",
+              "Objet : Maintenance de matériel de démonstration",
+              "Total HT : 1 280,50 EUR",
+              "Total TTC : 1 536,60 EUR",
+              "Bon pour accord le 07/11/2026"
+            ],
+            "providerUsage": {
+              "prompt_tokens": 4339,
+              "completion_tokens": 248,
+              "total_tokens": 4587,
+              "neurons": 249.64999389648438
+            },
+            "unreadableText": false,
+            "warnings": [],
+            "finishReason": "stop",
+            "transcriptionSha256": "bf6cf47cd359b4739783ff1859c681ee17e9a7f8159abb17a79b0a0ed746e9b0"
+          }
+        ]
+      },
+      {
+        "id": "order-handwritten-fields",
+        "expected": {
+          "document_type": "PURCHASE_ORDER",
+          "references": [
+            "BC-FICT-2026-018"
+          ],
+          "date": "2026-11-07",
+          "amount_ht_cents": 486075,
+          "client": "Commune Fictive de Démonstration",
+          "object": "Assistance et entretien du site de démonstration",
+          "signature_present": true
+        },
+        "observations": [
+          {
+            "engine": "tesseract-shared-image",
+            "latencyMs": 698,
+            "observed": {
+              "document_type": "PURCHASE_ORDER",
+              "references": [
+                "&C-FICT-2026-018"
+              ],
+              "date": "2026-11-02",
+              "amount_ht_cents": null,
+              "client": "Commune Fictive de Démonstration",
+              "object": "Assistance et entretien du site de démonstration",
+              "signature_present": null
+            },
+            "exactChecks": {
+              "document_type": true,
+              "references": false,
+              "date": false,
+              "amount_ht_cents": false,
+              "client": true,
+              "object": true
+            },
+            "criticalExact": {
+              "passed": 2,
+              "total": 5
+            },
+            "signaturePresenceScored": false,
+            "sourceLines": [
+              "Acheteur : Commune Fictive de Démonstration",
+              "Référence du bon : &C-FICT-2026-018",
+              "Date du bon : 02/11/2026",
+              "Objet : Assistance et entretien du site de démonstration",
+              "Montant HT : Y 860, 25 EUR",
+              "Bon pour accord"
+            ]
+          },
+          {
+            "engine": "tesseract-stamping-300dpi",
+            "latencyMs": 672,
+            "observed": {
+              "document_type": "PURCHASE_ORDER",
+              "references": [
+                "BC-FICT-2026-018"
+              ],
+              "date": "2026-11-07",
+              "amount_ht_cents": null,
+              "client": "Commune Fictive de Démonstration",
+              "object": "Assistance et entretien du site de démonstration",
+              "signature_present": null
+            },
+            "exactChecks": {
+              "document_type": true,
+              "references": true,
+              "date": true,
+              "amount_ht_cents": false,
+              "client": true,
+              "object": true
+            },
+            "criticalExact": {
+              "passed": 4,
+              "total": 5
+            },
+            "signaturePresenceScored": false,
+            "sourceLines": [
+              "Acheteur : Commune Fictive de Démonstration",
+              "Référence du bon : BC-FICT-2026-018",
+              "Date du bon: 07/11/2026",
+              "Objet : Assistance et entretien du site de démonstration",
+              "Montant HT : Y 660, 25 EUR",
+              "Bon pour accord"
+            ]
+          },
+          {
+            "engine": "@cf/google/gemma-4-26b-a4b-it",
+            "latencyMs": 6681,
+            "observed": {
+              "document_type": "PURCHASE_ORDER",
+              "references": [
+                "BC-FICT-2026-018"
+              ],
+              "date": "2026-11-07",
+              "amount_ht_cents": 486075,
+              "client": "Commune Fictive de Démonstration",
+              "object": "Assistance et entretien du site de démonstration",
+              "signature_present": true
+            },
+            "exactChecks": {
+              "document_type": true,
+              "references": true,
+              "date": true,
+              "amount_ht_cents": true,
+              "client": true,
+              "object": true,
+              "signature_present": true
+            },
+            "criticalExact": {
+              "passed": 5,
+              "total": 5
+            },
+            "signaturePresenceScored": true,
+            "sourceLines": [
+              "Acheteur : Commune Fictive de Démonstration",
+              "Référence du bon : BC-FICT-2026-018",
+              "Date du bon : 07/11/2026",
+              "Objet : Assistance et entretien du site de démonstration",
+              "Montant HT : 4 860,75 EUR",
+              "Bon pour accord"
+            ],
+            "providerUsage": {
+              "prompt_tokens": 805,
+              "completion_tokens": 229,
+              "total_tokens": 1034,
+              "neurons": 13.563636779785156
+            },
+            "unreadableText": false,
+            "warnings": [],
+            "finishReason": "stop",
+            "transcriptionSha256": "984af9d94181694c1bbd0333cafdfb8e67a74375b6cc5e77644a22a6066a96e6"
+          },
+          {
+            "engine": "@cf/qwen/qwen3.8-27b",
+            "latencyMs": 7546,
+            "observed": {
+              "document_type": "PURCHASE_ORDER",
+              "references": [
+                "BC-FICT-2026-018"
+              ],
+              "date": "2026-11-07",
+              "amount_ht_cents": 486075,
+              "client": "Commune Fictive de Démonstration",
+              "object": "Assistance et entretien du site de démonstration",
+              "signature_present": true
+            },
+            "exactChecks": {
+              "document_type": true,
+              "references": true,
+              "date": true,
+              "amount_ht_cents": true,
+              "client": true,
+              "object": true,
+              "signature_present": true
+            },
+            "criticalExact": {
+              "passed": 5,
+              "total": 5
+            },
+            "signaturePresenceScored": true,
+            "sourceLines": [
+              "Acheteur : Commune Fictive de Démonstration",
+              "Référence du bon : BC-FICT-2026-018",
+              "Date du bon : 07/11/2026",
+              "Objet : Assistance et entretien du site de démonstration",
+              "Montant HT : 4 860,75 EUR",
+              "Bon pour accord"
+            ],
+            "providerUsage": {
+              "prompt_tokens": 4339,
+              "completion_tokens": 213,
+              "total_tokens": 4552,
+              "neurons": 239.46817016601562
+            },
+            "unreadableText": false,
+            "warnings": [],
+            "finishReason": "stop",
+            "transcriptionSha256": "984af9d94181694c1bbd0333cafdfb8e67a74375b6cc5e77644a22a6066a96e6"
+          }
+        ]
+      },
+      {
+        "id": "invoice-handwritten-fields",
+        "expected": {
+          "document_type": "INVOICE",
+          "invoice_number": "FICT-MAN-0087",
+          "invoice_date": "2026-10-31",
+          "supplier_ref": "FOURNISSEUR-FICTIF",
+          "HT": 97540,
+          "TTC": 117048,
+          "deposit_cents": 25000,
+          "signature_present": true
+        },
+        "observations": [
+          {
+            "engine": "tesseract-shared-image",
+            "latencyMs": 673,
+            "observed": {
+              "document_type": "INVOICE",
+              "invoice_number": "FICT-MAN-0082",
+              "invoice_date": "2026-10-31",
+              "supplier_ref": "FOURNISSEUR-FICTIF",
+              "HT": null,
+              "TTC": null,
+              "deposit_cents": 25000,
+              "signature_present": null
+            },
+            "exactChecks": {
+              "document_type": true,
+              "invoice_number": false,
+              "invoice_date": true,
+              "supplier_ref": true,
+              "HT": false,
+              "TTC": false,
+              "deposit_cents": true
+            },
+            "criticalExact": {
+              "passed": 3,
+              "total": 6
+            },
+            "signaturePresenceScored": false,
+            "sourceLines": [
+              "Facture n° : FICT-MAN-0082",
+              "Fournisseur : FOURNISSEUR-FICTIF",
+              "Date : 2026-10-31",
+              "Total HT : 103; 40 EUR",
+              "Total TIC : vf 120, 48 EUR",
+              "Acompte : 250,00 EUR"
+            ]
+          },
+          {
+            "engine": "tesseract-stamping-300dpi",
+            "latencyMs": 714,
+            "observed": {
+              "document_type": "INVOICE",
+              "invoice_number": "FICT-MAN-0087",
+              "invoice_date": "2020-10-51",
+              "supplier_ref": "FOURNISSEUR-FICTIF",
+              "HT": 92540,
+              "TTC": null,
+              "deposit_cents": 25000,
+              "signature_present": null
+            },
+            "exactChecks": {
+              "document_type": true,
+              "invoice_number": true,
+              "invoice_date": false,
+              "supplier_ref": true,
+              "HT": false,
+              "TTC": false,
+              "deposit_cents": true
+            },
+            "criticalExact": {
+              "passed": 3,
+              "total": 6
+            },
+            "signaturePresenceScored": false,
+            "sourceLines": [
+              "Facture n° : FICT-MAN-0087",
+              "Fournisseur : FOURNISSEUR-FICTIF",
+              "Date : 2020-10-51",
+              "Total HT : 925,40 EUR",
+              "Total TIC : 7 120, 46 EUR",
+              "Acompte : 250,00 EUR"
+            ]
+          },
+          {
+            "engine": "@cf/google/gemma-4-26b-a4b-it",
+            "latencyMs": 5677,
+            "observed": {
+              "document_type": "INVOICE",
+              "invoice_number": "FICT-MAN-0087",
+              "invoice_date": "2026-10-31",
+              "supplier_ref": "FOURNISSEUR-FICTIF",
+              "HT": 97540,
+              "TTC": 117048,
+              "deposit_cents": 25000,
+              "signature_present": true
+            },
+            "exactChecks": {
+              "document_type": true,
+              "invoice_number": true,
+              "invoice_date": true,
+              "supplier_ref": true,
+              "HT": true,
+              "TTC": true,
+              "deposit_cents": true,
+              "signature_present": true
+            },
+            "criticalExact": {
+              "passed": 6,
+              "total": 6
+            },
+            "signaturePresenceScored": true,
+            "sourceLines": [
+              "Facture n° : FICT-MAN-0087",
+              "Fournisseur : FOURNISSEUR-FICTIF",
+              "Date : 2026-10-31",
+              "Total HT : 975,40 EUR",
+              "Total TTC : 1 170,48 EUR",
+              "Acompte : 250,00 EUR"
+            ],
+            "providerUsage": {
+              "prompt_tokens": 805,
+              "completion_tokens": 218,
+              "total_tokens": 1023,
+              "neurons": 13.263635635375977
+            },
+            "unreadableText": false,
+            "warnings": [],
+            "finishReason": "stop",
+            "transcriptionSha256": "e426ae51e7381de64208bf00b472b16b45ff21adb19e7d63c19e1a9512a129a8"
+          },
+          {
+            "engine": "@cf/qwen/qwen3.8-27b",
+            "latencyMs": 6819,
+            "observed": {
+              "document_type": "INVOICE",
+              "invoice_number": "FICT-MAN-0087",
+              "invoice_date": "2026-10-31",
+              "supplier_ref": "FOURNISSEUR-FICTIF",
+              "HT": 97540,
+              "TTC": 117048,
+              "deposit_cents": 25000,
+              "signature_present": true
+            },
+            "exactChecks": {
+              "document_type": true,
+              "invoice_number": true,
+              "invoice_date": true,
+              "supplier_ref": true,
+              "HT": true,
+              "TTC": true,
+              "deposit_cents": true,
+              "signature_present": true
+            },
+            "criticalExact": {
+              "passed": 6,
+              "total": 6
+            },
+            "signaturePresenceScored": true,
+            "sourceLines": [
+              "Facture n° : FICT-MAN-0087",
+              "Fournisseur : FOURNISSEUR-FICTIF",
+              "Date : 2026-10-31",
+              "Total HT : 975,40 EUR",
+              "Total TTC : 1 170,48 EUR",
+              "Acompte : 250,00 EUR"
+            ],
+            "providerUsage": {
+              "prompt_tokens": 4339,
+              "completion_tokens": 197,
+              "total_tokens": 4536,
+              "neurons": 234.81362915039062
+            },
+            "unreadableText": false,
+            "warnings": [],
+            "finishReason": "stop",
+            "transcriptionSha256": "e426ae51e7381de64208bf00b472b16b45ff21adb19e7d63c19e1a9512a129a8"
+          }
+        ]
+      }
+    ],
+    "shortPageSample": {
+      "pages": 3,
+      "scope": "Existing summaries and cases refer only to the three original short pages. Dense table follows separately."
+    },
+    "denseTable": {
+      "id": "dense-price-table",
+      "image": "facturx-service/tests/fixtures/ocr/dense-price-table.jpg",
+      "imageSha256": "f3d0873223a754783f72a4c5decdd139871b032b4edc2b8fa05b214ff5968b44",
+      "pixels": [
+        1654,
+        2339
+      ],
+      "fictitiousTitle": "BORDEREAU FICTIF – ESSAI OCR UNIQUEMENT",
+      "scope": "One printed 40-row BPU transcription; HT/TTC amounts must remain associated with their code. No downstream business extraction scored.",
+      "expectedRows": 40,
+      "amountsPerRowScored": 2,
+      "observations": [
+        {
+          "model": "@cf/google/gemma-4-26b-a4b-it",
+          "latencyMs": 17424,
+          "providerUsage": {
+            "prompt_tokens": 806,
+            "completion_tokens": 1633,
+            "total_tokens": 2439,
+            "neurons": 51.86363983154297
+          },
+          "expectedRows": 40,
+          "correctRows": 40,
+          "correctAmountCodeAssociations": 80,
+          "expectedAmountCodeAssociations": 80,
+          "unreadableText": false,
+          "signaturePresent": false,
+          "warnings": [],
+          "finishReason": "stop",
+          "transcriptionSha256": "1efb695e6bb6a5477e353b95526b91daa3d1a845a2febc2c7dd3806995f8e7e5"
+        },
+        {
+          "model": "@cf/qwen/qwen3.8-27b",
+          "latencyMs": 42167,
+          "providerUsage": {
+            "prompt_tokens": 4339,
+            "completion_tokens": 1503,
+            "total_tokens": 5842,
+            "neurons": 614.7409057617188
+          },
+          "expectedRows": 40,
+          "correctRows": 40,
+          "correctAmountCodeAssociations": 80,
+          "expectedAmountCodeAssociations": 80,
+          "unreadableText": false,
+          "signaturePresent": false,
+          "warnings": [],
+          "finishReason": "stop",
+          "transcriptionSha256": "6cbd5d5fcc2c1ae5f403d2685d0ee5df558491b2737b9eb3d1e127c6f15dce39"
+        }
+      ],
+      "rowComparison": {
+        "columns": [
+          "code",
+          "expectedHT",
+          "expectedTTC",
+          "gemmaHT",
+          "gemmaTTC",
+          "qwenHT",
+          "qwenTTC"
+        ],
+        "rows": [
+          [
+            "FICT-001",
+            "258,26",
+            "309,91",
+            "258,26",
+            "309,91",
+            "258,26",
+            "309,91"
+          ],
+          [
+            "FICT-002",
+            "259,39",
+            "311,27",
+            "259,39",
+            "311,27",
+            "259,39",
+            "311,27"
+          ],
+          [
+            "FICT-003",
+            "260,52",
+            "312,62",
+            "260,52",
+            "312,62",
+            "260,52",
+            "312,62"
+          ],
+          [
+            "FICT-004",
+            "261,65",
+            "313,98",
+            "261,65",
+            "313,98",
+            "261,65",
+            "313,98"
+          ],
+          [
+            "FICT-005",
+            "262,78",
+            "315,34",
+            "262,78",
+            "315,34",
+            "262,78",
+            "315,34"
+          ],
+          [
+            "FICT-006",
+            "263,91",
+            "316,69",
+            "263,91",
+            "316,69",
+            "263,91",
+            "316,69"
+          ],
+          [
+            "FICT-007",
+            "265,04",
+            "318,05",
+            "265,04",
+            "318,05",
+            "265,04",
+            "318,05"
+          ],
+          [
+            "FICT-008",
+            "266,17",
+            "319,40",
+            "266,17",
+            "319,40",
+            "266,17",
+            "319,40"
+          ],
+          [
+            "FICT-009",
+            "267,30",
+            "320,76",
+            "267,30",
+            "320,76",
+            "267,30",
+            "320,76"
+          ],
+          [
+            "FICT-010",
+            "268,43",
+            "322,12",
+            "268,43",
+            "322,12",
+            "268,43",
+            "322,12"
+          ],
+          [
+            "FICT-011",
+            "269,56",
+            "323,47",
+            "269,56",
+            "323,47",
+            "269,56",
+            "323,47"
+          ],
+          [
+            "FICT-012",
+            "270,69",
+            "324,83",
+            "270,69",
+            "324,83",
+            "270,69",
+            "324,83"
+          ],
+          [
+            "FICT-013",
+            "271,82",
+            "326,18",
+            "271,82",
+            "326,18",
+            "271,82",
+            "326,18"
+          ],
+          [
+            "FICT-014",
+            "272,95",
+            "327,54",
+            "272,95",
+            "327,54",
+            "272,95",
+            "327,54"
+          ],
+          [
+            "FICT-015",
+            "274,08",
+            "328,90",
+            "274,08",
+            "328,90",
+            "274,08",
+            "328,90"
+          ],
+          [
+            "FICT-016",
+            "275,21",
+            "330,25",
+            "275,21",
+            "330,25",
+            "275,21",
+            "330,25"
+          ],
+          [
+            "FICT-017",
+            "276,34",
+            "331,61",
+            "276,34",
+            "331,61",
+            "276,34",
+            "331,61"
+          ],
+          [
+            "FICT-018",
+            "277,47",
+            "332,96",
+            "277,47",
+            "332,96",
+            "277,47",
+            "332,96"
+          ],
+          [
+            "FICT-019",
+            "278,60",
+            "334,32",
+            "278,60",
+            "334,32",
+            "278,60",
+            "334,32"
+          ],
+          [
+            "FICT-020",
+            "279,73",
+            "335,68",
+            "279,73",
+            "335,68",
+            "279,73",
+            "335,68"
+          ],
+          [
+            "FICT-021",
+            "280,86",
+            "337,03",
+            "280,86",
+            "337,03",
+            "280,86",
+            "337,03"
+          ],
+          [
+            "FICT-022",
+            "281,99",
+            "338,39",
+            "281,99",
+            "338,39",
+            "281,99",
+            "338,39"
+          ],
+          [
+            "FICT-023",
+            "283,12",
+            "339,74",
+            "283,12",
+            "339,74",
+            "283,12",
+            "339,74"
+          ],
+          [
+            "FICT-024",
+            "284,25",
+            "341,10",
+            "284,25",
+            "341,10",
+            "284,25",
+            "341,10"
+          ],
+          [
+            "FICT-025",
+            "285,38",
+            "342,46",
+            "285,38",
+            "342,46",
+            "285,38",
+            "342,46"
+          ],
+          [
+            "FICT-026",
+            "286,51",
+            "343,81",
+            "286,51",
+            "343,81",
+            "286,51",
+            "343,81"
+          ],
+          [
+            "FICT-027",
+            "287,64",
+            "345,17",
+            "287,64",
+            "345,17",
+            "287,64",
+            "345,17"
+          ],
+          [
+            "FICT-028",
+            "288,77",
+            "346,52",
+            "288,77",
+            "346,52",
+            "288,77",
+            "346,52"
+          ],
+          [
+            "FICT-029",
+            "289,90",
+            "347,88",
+            "289,90",
+            "347,88",
+            "289,90",
+            "347,88"
+          ],
+          [
+            "FICT-030",
+            "291,03",
+            "349,24",
+            "291,03",
+            "349,24",
+            "291,03",
+            "349,24"
+          ],
+          [
+            "FICT-031",
+            "292,16",
+            "350,59",
+            "292,16",
+            "350,59",
+            "292,16",
+            "350,59"
+          ],
+          [
+            "FICT-032",
+            "293,29",
+            "351,95",
+            "293,29",
+            "351,95",
+            "293,29",
+            "351,95"
+          ],
+          [
+            "FICT-033",
+            "294,42",
+            "353,30",
+            "294,42",
+            "353,30",
+            "294,42",
+            "353,30"
+          ],
+          [
+            "FICT-034",
+            "295,55",
+            "354,66",
+            "295,55",
+            "354,66",
+            "295,55",
+            "354,66"
+          ],
+          [
+            "FICT-035",
+            "296,68",
+            "356,02",
+            "296,68",
+            "356,02",
+            "296,68",
+            "356,02"
+          ],
+          [
+            "FICT-036",
+            "297,81",
+            "357,37",
+            "297,81",
+            "357,37",
+            "297,81",
+            "357,37"
+          ],
+          [
+            "FICT-037",
+            "298,94",
+            "358,73",
+            "298,94",
+            "358,73",
+            "298,94",
+            "358,73"
+          ],
+          [
+            "FICT-038",
+            "300,07",
+            "360,08",
+            "300,07",
+            "360,08",
+            "300,07",
+            "360,08"
+          ],
+          [
+            "FICT-039",
+            "301,20",
+            "361,44",
+            "301,20",
+            "361,44",
+            "301,20",
+            "361,44"
+          ],
+          [
+            "FICT-040",
+            "302,33",
+            "362,80",
+            "302,33",
+            "362,80",
+            "302,33",
+            "362,80"
+          ]
+        ]
+      },
+      "limits": [
+        "One image and one run per model.",
+        "Printed fictitious table; no handwriting, low-contrast scans, merged cells or other layouts tested.",
+        "No Tesseract baseline measured for this dense table.",
+        "OCR transcription only; additional business extraction and retries are excluded from time and neuron measurements."
+      ],
+      "vatRateIncludedInAmountScore": false
+    }
+  },
+  "pythonReplay": {
+    "usesAlreadyRecordedProviderOutputs": true,
+    "additionalInference": false,
+    "scope": "Real Python decoders and existing invoice/stamping parsers; two invoice fixtures scored, order observations retained unscored.",
+    "cases": [
+      {
+        "id": "invoice-printed-signed",
+        "model": "@cf/google/gemma-4-26b-a4b-it",
+        "decoderMs": 306,
+        "providerPlusDecoderMs": 7717,
+        "observed": {
+          "facturx": {
+            "number": "FICT-2026-0042",
+            "issue_date": "2026-11-07",
+            "totals": {
+              "net": "1280.50",
+              "gross": "1536.60",
+              "vat": "256.10"
+            },
+            "client": "Association Exemple Fictive",
+            "vat_rate": "20"
+          },
+          "stamping": {
+            "invoice_number": "FICT-2026-0042",
+            "supplier_ref": "ATELIER-FICTIF",
+            "invoice_date": "2026-11-07",
+            "document_type": "INVOICE"
+          },
+          "basesCents": {
+            "HT": 128050,
+            "TTC": 153660
+          }
+        },
+        "complete": true,
+        "exactChecks": {
+          "document_type": true,
+          "invoice_number": true,
+          "invoice_date": true,
+          "supplier_ref": true,
+          "HT": true,
+          "TTC": true,
+          "facturx.number": true,
+          "facturx.issue_date": true,
+          "facturx.net": true,
+          "facturx.gross": true
+        },
+        "unscoredReason": null
+      },
+      {
+        "id": "order-handwritten-fields",
+        "model": "@cf/google/gemma-4-26b-a4b-it",
+        "decoderMs": 239,
+        "providerPlusDecoderMs": 6920,
+        "observed": {
+          "facturx": {
+            "issue_date": "2026-11-07",
+            "totals": {
+              "net": "4860.75"
+            },
+            "client": "Commune Fictive de Démonstration"
+          },
+          "stamping": {
+            "period": "2026-11"
+          },
+          "basesCents": {}
+        },
+        "complete": true,
+        "exactChecks": null,
+        "unscoredReason": "Purchase-order LLM business extraction was not invoked; parser observations only."
+      },
+      {
+        "id": "invoice-handwritten-fields",
+        "model": "@cf/google/gemma-4-26b-a4b-it",
+        "decoderMs": 325,
+        "providerPlusDecoderMs": 6002,
+        "observed": {
+          "facturx": {
+            "number": "FICT-MAN-0087",
+            "issue_date": "2026-10-31",
+            "totals": {
+              "net": "975.40",
+              "gross": "1170.48"
+            }
+          },
+          "stamping": {
+            "invoice_number": "FICT-MAN-0087",
+            "supplier_ref": "FOURNISSEUR-FICTIF",
+            "invoice_date": "2026-10-31",
+            "document_type": "INVOICE"
+          },
+          "basesCents": {
+            "HT": 97540,
+            "TTC": 117048
+          }
+        },
+        "complete": true,
+        "exactChecks": {
+          "document_type": true,
+          "invoice_number": true,
+          "invoice_date": true,
+          "supplier_ref": true,
+          "HT": true,
+          "TTC": true,
+          "facturx.number": true,
+          "facturx.issue_date": true,
+          "facturx.net": true,
+          "facturx.gross": true
+        },
+        "unscoredReason": null
+      },
+      {
+        "id": "invoice-printed-signed",
+        "model": "@cf/qwen/qwen3.8-27b",
+        "decoderMs": 228,
+        "providerPlusDecoderMs": 7429,
+        "observed": {
+          "facturx": {
+            "number": "FICT-2026-0042",
+            "issue_date": "2026-11-07",
+            "totals": {
+              "net": "1280.50",
+              "gross": "1536.60",
+              "vat": "256.10"
+            },
+            "client": "Association Exemple Fictive",
+            "vat_rate": "20"
+          },
+          "stamping": {
+            "invoice_number": "FICT-2026-0042",
+            "supplier_ref": "ATELIER-FICTIF",
+            "invoice_date": "2026-11-07",
+            "document_type": "INVOICE"
+          },
+          "basesCents": {
+            "HT": 128050,
+            "TTC": 153660
+          }
+        },
+        "complete": true,
+        "exactChecks": {
+          "document_type": true,
+          "invoice_number": true,
+          "invoice_date": true,
+          "supplier_ref": true,
+          "HT": true,
+          "TTC": true,
+          "facturx.number": true,
+          "facturx.issue_date": true,
+          "facturx.net": true,
+          "facturx.gross": true
+        },
+        "unscoredReason": null
+      },
+      {
+        "id": "order-handwritten-fields",
+        "model": "@cf/qwen/qwen3.8-27b",
+        "decoderMs": 280,
+        "providerPlusDecoderMs": 7826,
+        "observed": {
+          "facturx": {
+            "issue_date": "2026-11-07",
+            "totals": {
+              "net": "4860.75"
+            },
+            "client": "Commune Fictive de Démonstration"
+          },
+          "stamping": {
+            "period": "2026-11"
+          },
+          "basesCents": {}
+        },
+        "complete": true,
+        "exactChecks": null,
+        "unscoredReason": "Purchase-order LLM business extraction was not invoked; parser observations only."
+      },
+      {
+        "id": "invoice-handwritten-fields",
+        "model": "@cf/qwen/qwen3.8-27b",
+        "decoderMs": 233,
+        "providerPlusDecoderMs": 7052,
+        "observed": {
+          "facturx": {
+            "number": "FICT-MAN-0087",
+            "issue_date": "2026-10-31",
+            "totals": {
+              "net": "975.40",
+              "gross": "1170.48"
+            }
+          },
+          "stamping": {
+            "invoice_number": "FICT-MAN-0087",
+            "supplier_ref": "FOURNISSEUR-FICTIF",
+            "invoice_date": "2026-10-31",
+            "document_type": "INVOICE"
+          },
+          "basesCents": {
+            "HT": 97540,
+            "TTC": 117048
+          }
+        },
+        "complete": true,
+        "exactChecks": {
+          "document_type": true,
+          "invoice_number": true,
+          "invoice_date": true,
+          "supplier_ref": true,
+          "HT": true,
+          "TTC": true,
+          "facturx.number": true,
+          "facturx.issue_date": true,
+          "facturx.net": true,
+          "facturx.gross": true
+        },
+        "unscoredReason": null
+      }
+    ]
+  },
+  "quota": {
+    "freeAccountNeuronsPerUtcDay": 10000,
+    "sharedApplicationReservationBudget": 9000,
+    "nominalMarginNeurons": 1000,
+    "reset": "00:00 UTC",
+    "ledger": "market_ai_daily",
+    "reservation": "Full model input context plus allowed output, multiplied by 1.2; provider usage permits reconciliation. Failed or timed-out calls retain their reservation.",
+    "accountWideGuarantee": false,
+    "limit": "Other applications, direct REST calls, reporting delay and changed workloads can consume the nominal margin. The application guard cannot cap the entire Cloudflare account."
+  },
+  "accountUsage30CompleteUtcDays": {
+    "source": "Cloudflare GraphQL aiInferenceAdaptiveGroups sum.totalNeurons",
+    "period": {
+      "startInclusive": "2026-10-08T00:00:00Z",
+      "endExclusive": "2026-11-07T00:00:00Z",
+      "fullUtcDays": 30,
+      "todayExcludedFromUserTrend": true
+    },
+    "calls": 149,
+    "totalNeurons": 6779.062948397446,
+    "activeUtcDays": 8,
+    "meanNeuronsPerCalendarDay": 225.96876494658153,
+    "peakNeuronsPerDay": 3562.2592012203218,
+    "activeDays": [
+      {
+        "date": "2026-10-18",
+        "calls": 54,
+        "neurons": 3562.2592012203218,
+        "inputTokens": 113942,
+        "outputTokens": 59414
+      },
+      {
+        "date": "2026-10-19",
+        "calls": 34,
+        "neurons": 1113.7220096588135,
+        "inputTokens": 76182,
+        "outputTokens": 24985
+      },
+      {
+        "date": "2026-10-23",
+        "calls": 13,
+        "neurons": 706.9990215301514,
+        "inputTokens": 40708,
+        "outputTokens": 17022
+      },
+      {
+        "date": "2026-10-25",
+        "calls": 18,
+        "neurons": 129.0930619239807,
+        "inputTokens": 7203,
+        "outputTokens": 3143
+      },
+      {
+        "date": "2026-10-26",
+        "calls": 5,
+        "neurons": 208.6666374206543,
+        "inputTokens": 13787,
+        "outputTokens": 4755
+      },
+      {
+        "date": "2026-10-27",
+        "calls": 9,
+        "neurons": 100.4997763633728,
+        "inputTokens": 6226,
+        "outputTokens": 2353
+      },
+      {
+        "date": "2026-10-28",
+        "calls": 1,
+        "neurons": 12.31833267211914,
+        "inputTokens": 779,
+        "outputTokens": 286
+      },
+      {
+        "date": "2026-11-04",
+        "calls": 15,
+        "neurons": 945.5049076080322,
+        "inputTokens": 45356,
+        "outputTokens": 24143
+      }
+    ],
+    "byModel": [
+      {
+        "model": "@cf/qwen/qwen3-30b-a3b-fp8",
+        "calls": 125,
+        "neurons": 4450.774288892746,
+        "inputTokens": 258165,
+        "outputTokens": 106871
+      },
+      {
+        "model": "@cf/mistralai/mistral-small-3.1-24b-instruct",
+        "calls": 16,
+        "neurons": 2110.7601776123047,
+        "inputTokens": 31876,
+        "outputTokens": 21682
+      },
+      {
+        "model": "@cf/zai-org/glm-4.7-flash",
+        "calls": 4,
+        "neurons": 209.28130000000002,
+        "inputTokens": 6403,
+        "outputTokens": 4782
+      },
+      {
+        "model": "@cf/mistral/mistral-7b-instruct-v0.2-lora",
+        "calls": 4,
+        "neurons": 8.24718189239502,
+        "inputTokens": 7739,
+        "outputTokens": 2766
+      }
+    ],
+    "limitations": [
+      "This is Cloudflare's adaptive analytics dataset; billing records were unavailable with the integration's current OAuth permissions.",
+      "The dataset returns requestSource=unknown for every historical row. It cannot identify whether a request originated from app.cdinnov.eu, another application, or a manual test.",
+      "The 2026-11-07 audit/comparison traffic is excluded from this 30-complete-day baseline. A day without a returned analytics row is shown as zero.",
+      "The Cloudflare account subscription plan could not be verified through the Billing API (HTTP 403). The public 10,000 neurons/day allowance is used as the requested comparison."
+    ],
+    "applicationReservations": {
+      "total": 5924,
+      "maximumPerDay": 1350,
+      "metric": "Reserved estimates, not actual account consumption."
+    },
+    "auditDayExcluded": {
+      "date": "2026-11-07",
+      "providerObservedNeurons": 4637.533326506615,
+      "calls": 76,
+      "limit": "Contains the audit comparisons; not representative user activity.",
+      "snapshotBeforeDenseComparison": true,
+      "providerObservedAt": "2026-11-07T15:43:00Z"
+    },
+    "reproducibleQuery": {
+      "query": "query WorkersAiUsage($accountTag: string!, $start: Time!, $end: Time!) {\n  viewer {\n    accounts(filter: {accountTag: $accountTag}) {\n      aiInferenceAdaptiveGroups(\n        limit: 1000\n        filter: {datetime_geq: $start, datetime_lt: $end}\n      ) {\n        count\n        dimensions { date modelId requestSource }\n        sum { totalNeurons totalInputTokens totalOutputTokens }\n      }\n    }\n  }\n}",
+      "variables": {
+        "accountTag": "REPLACE_WITH_ACCOUNT_ID",
+        "start": "2026-10-08T00:00:00Z",
+        "end": "2026-11-07T00:00:00Z"
+      },
+      "readOnlyReservationSql": "SELECT day, reserved\nFROM market_ai_daily\nWHERE day >= '2026-10-08' AND day < '2026-11-08'\nORDER BY day;"
+    }
+  },
+  "projections": {
+    "qwen3_8TextReplacement": {
+      "kind": "same-token counterfactual estimate; not an observed new-model workload",
+      "rates": {
+        "inputNeuronsPerToken": 0.040909,
+        "outputNeuronsPerToken": 0.290909,
+        "source": "https://developers.cloudflare.com/workers-ai/platform/pricing/"
+      },
+      "assumptions": [
+        "Use exactly the historical Qwen input and output token counts; hold usage of all other models unchanged.",
+        "Tokenization, multimodal image token charges, output length, retries, thinking, prompt caching and pricing can change in a real migration.",
+        "Current provider analytics totals are compared with a price calculation; projections are estimates, not actual or guaranteed usage."
+      ],
+      "daily": [
+        {
+          "date": "2026-10-18",
+          "currentAccountNeurons": 3562.2592012203218,
+          "oldQwenCalls": 30,
+          "inputTokens": 67924,
+          "outputTokens": 30184,
+          "currentQwenNeurons": 1233.970541715622,
+          "unchangedOtherModelsNeurons": 2328.2886595047,
+          "projectedQwen3_8Neurons": 11559.500172,
+          "projectedAccountNeurons": 13887.7888315047,
+          "exceeds10000": true
+        },
+        {
+          "date": "2026-10-19",
+          "currentAccountNeurons": 1113.7220096588135,
+          "oldQwenCalls": 34,
+          "inputTokens": 76182,
+          "outputTokens": 24985,
+          "currentQwenNeurons": 1113.7220096588135,
+          "unchangedOtherModelsNeurons": 0,
+          "projectedQwen3_8Neurons": 10384.890803,
+          "projectedAccountNeurons": 10384.890803,
+          "exceeds10000": true
+        },
+        {
+          "date": "2026-10-23",
+          "currentAccountNeurons": 706.9990215301514,
+          "oldQwenCalls": 13,
+          "inputTokens": 40708,
+          "outputTokens": 17022,
+          "currentQwenNeurons": 706.9990215301514,
+          "unchangedOtherModelsNeurons": 0,
+          "projectedQwen3_8Neurons": 6617.17657,
+          "projectedAccountNeurons": 6617.17657,
+          "exceeds10000": false
+        },
+        {
+          "date": "2026-10-25",
+          "currentAccountNeurons": 129.0930619239807,
+          "oldQwenCalls": 18,
+          "inputTokens": 7203,
+          "outputTokens": 3143,
+          "currentQwenNeurons": 129.0930619239807,
+          "unchangedOtherModelsNeurons": 0,
+          "projectedQwen3_8Neurons": 1208.994514,
+          "projectedAccountNeurons": 1208.994514,
+          "exceeds10000": false
+        },
+        {
+          "date": "2026-10-26",
+          "currentAccountNeurons": 208.6666374206543,
+          "oldQwenCalls": 5,
+          "inputTokens": 13787,
+          "outputTokens": 4755,
+          "currentQwenNeurons": 208.6666374206543,
+          "unchangedOtherModelsNeurons": 0,
+          "projectedQwen3_8Neurons": 1947.284678,
+          "projectedAccountNeurons": 1947.284678,
+          "exceeds10000": false
+        },
+        {
+          "date": "2026-10-27",
+          "currentAccountNeurons": 100.4997763633728,
+          "oldQwenCalls": 9,
+          "inputTokens": 6226,
+          "outputTokens": 2353,
+          "currentQwenNeurons": 100.4997763633728,
+          "unchangedOtherModelsNeurons": 0,
+          "projectedQwen3_8Neurons": 939.208311,
+          "projectedAccountNeurons": 939.208311,
+          "exceeds10000": false
+        },
+        {
+          "date": "2026-10-28",
+          "currentAccountNeurons": 12.31833267211914,
+          "oldQwenCalls": 1,
+          "inputTokens": 779,
+          "outputTokens": 286,
+          "currentQwenNeurons": 12.31833267211914,
+          "unchangedOtherModelsNeurons": 0,
+          "projectedQwen3_8Neurons": 115.068085,
+          "projectedAccountNeurons": 115.068085,
+          "exceeds10000": false
+        },
+        {
+          "date": "2026-11-04",
+          "currentAccountNeurons": 945.5049076080322,
+          "oldQwenCalls": 15,
+          "inputTokens": 45356,
+          "outputTokens": 24143,
+          "currentQwenNeurons": 945.5049076080322,
+          "unchangedOtherModelsNeurons": 0,
+          "projectedQwen3_8Neurons": 8878.884591,
+          "projectedAccountNeurons": 8878.884591,
+          "exceeds10000": false
+        }
+      ],
+      "daysAboveFreeAllowance": [
+        {
+          "date": "2026-10-18",
+          "projectedAccountNeurons": 13887.7888315047
+        },
+        {
+          "date": "2026-10-19",
+          "projectedAccountNeurons": 10384.890803
+        }
+      ]
+    },
+    "gemmaOcrAddition": {
+      "kind": "synthetic-page mean added to largest historical account day",
+      "historicalPeakDay": "2026-10-18",
+      "historicalPeakNeurons": 3562.2592012203218,
+      "gemmaMeanNeuronsPerPage": 13.85454527537028,
+      "scenarios": [
+        {
+          "pages": 20,
+          "estimatedAddedNeurons": 277.0909055074056,
+          "estimatedDailyAccountNeurons": 3839.3501067277275,
+          "shareOf10000Allowance": 0.38393501067277275,
+          "exceeds10000": false
+        },
+        {
+          "pages": 50,
+          "estimatedAddedNeurons": 692.7272637685139,
+          "estimatedDailyAccountNeurons": 4254.986464988836,
+          "shareOf10000Allowance": 0.4254986464988836,
+          "exceeds10000": false
+        }
+      ],
+      "limitations": [
+        "3 short synthetic pages using handwriting-font text; actual handwriting, dense tables, higher resolution, long outputs and retries may consume more.",
+        "Does not account for future activity, other applications or direct API calls; not a quota guarantee."
+      ]
+    },
+    "gemmaDenseOcrAddition": {
+      "kind": "Single dense-page observation repeated 50 times; counterfactual estimate.",
+      "rowsPerPage": 40,
+      "pageCount": 50,
+      "measuredNeuronsPerPage": 51.86363983154297,
+      "measuredProviderMsPerPage": 17424,
+      "historicalPeakDay": "2026-10-18",
+      "historicalPeakAccountNeurons": 3562.2592012203218,
+      "estimatedAddedNeurons": 2593.1819915771484,
+      "estimatedAccountNeuronsForDay": 6155.441192797471,
+      "shareOf10000Allowance": 0.6155441192797471,
+      "exceeds10000": false,
+      "additionalBusinessExtractionIncluded": false,
+      "limitations": [
+        "OCR-only cost, without new downstream extraction, retries or other increased activity.",
+        "One printed synthetic page; actual dense scans may differ.",
+        "This does not guarantee account-wide quota compliance."
+      ]
+    }
+  },
+  "sources": [
+    "https://developers.cloudflare.com/workers-ai/platform/pricing/",
+    "https://developers.cloudflare.com/workers-ai/models/gemma-4-26b-a4b-it/",
+    "https://developers.cloudflare.com/workers-ai/models/qwen3.8-27b/"
+  ],
+  "businessReplay": {
+    "caseId": "order-handwritten-fields",
+    "scope": "Recorded Gemma OCR fed to the current business model; before/after local source validation replay uses the identical recorded model response.",
+    "expectedFields": {
+      "reference": "BC-FICT-2026-018",
+      "date": "2026-11-07",
+      "amountMinor": 486075
+    },
+    "ocrStage": {
+      "model": "@cf/google/gemma-4-26b-a4b-it",
+      "latencyMs": 6681,
+      "reportedNeurons": 13.563636779785156,
+      "textSha256": "984af9d94181694c1bbd0333cafdfb8e67a74375b6cc5e77644a22a6066a96e6"
+    },
+    "businessModelStage": {
+      "model": "@cf/qwen/qwen3-30b-a3b-fp8",
+      "providerUsage": {
+        "prompt_tokens": 400,
+        "completion_tokens": 186,
+        "total_tokens": 586,
+        "neurons": 7.518139839172363
+      },
+      "recordedFacts": [
+        {
+          "field": "reference",
+          "value": "BC-FICT-2026-018",
+          "quote": "Référence du bon : BC-FICT-2026-018"
+        },
+        {
+          "field": "date",
+          "value": "2026-11-07",
+          "quote": "Date du bon : 07/11/2026"
+        },
+        {
+          "field": "amountMinor",
+          "value": 486075,
+          "quote": "Montant HT : 4 860,75 EUR"
+        },
+        {
+          "field": "marketReference",
+          "value": "Objet : Assistance et entretien du site de démonstration",
+          "quote": "Objet : Assistance et entretien du site de démonstration"
+        },
+        {
+          "field": "serviceCode",
+          "value": "Commune Fictive de Démonstration",
+          "quote": "Acheteur : Commune Fictive de Démonstration"
+        }
+      ],
+      "providerLatencyMs": null
+    },
+    "beforeValidationFix": {
+      "fields": {
+        "reference": "BC-FICT-2026-018",
+        "date": "2026-11-07",
+        "amountMinor": 486075,
+        "marketReference": "Objet : Assistance et entretien du site de démonstration",
+        "serviceCode": "Commune Fictive de Démonstration"
+      },
+      "requiredFieldsMatched": 3,
+      "requiredFieldsExpected": 3,
+      "unsupportedFields": [
+        "marketReference",
+        "serviceCode"
+      ],
+      "unsupportedFieldCount": 2,
+      "bundleSha256": "ef432fbba95a4f78c4cfe2dfc7001ee5a3ebc29b012269826fa028d873c8fc86",
+      "localReplay": true,
+      "externalProviderCalls": 0
+    },
+    "sourceEvidenceSha256": {
+      "engagement-replay-request.json": "80623760aa6820eedf1ef72836372468bbb3b55d5c2320ccf1ef30bceb61b0e4",
+      "engagement-replay-output.json": "421818af34a69ef3651a3bd3e0fe4acfeb10db5760dbab061158dceef790087a",
+      "engagement-replay-before-local.json": "a7b02fae51d9202959ff8ee182764b3bf74c1eb8fccb76859a1cd4df15380c0b",
+      "engagement-replay-after-local.json": "fd7fc11a7ba493ce7c759051e208ea53d4aa5e94cd6a67a450e922726c7ec052",
+      "engagement-replay-revalidated.json": "4a1d965ac7f72b2055be7998cbd780b374923b17a47fce94d0745f9f4a95f8be"
+    },
+    "limits": [
+      "One fictitious purchase order, not a universal extraction score.",
+      "The model itself proposed two unsupported semantic roles; local source validation is evaluated separately.",
+      "Offline replay after a code fix is not a new provider inference or a full browser/deployment test."
+    ],
+    "afterValidationFix": {
+      "fields": {
+        "reference": "BC-FICT-2026-018",
+        "date": "2026-11-07",
+        "amountMinor": 486075
+      },
+      "requiredFieldsMatched": 3,
+      "requiredFieldsExpected": 3,
+      "unsupportedFields": [],
+      "unsupportedFieldCount": 0,
+      "observedRejectedFields": [
+        "marketReference",
+        "serviceCode"
+      ],
+      "bundleSha256": "33a047abc88f703f8a612bf4168762ed6ac780271981666de15c8f315229b2fc",
+      "validationSource": "platform/billing-engagement-analysis.ts",
+      "validationSourceSha256": "a1a065c1573d421d33631238f6a01abc038db329b9475d5249b6c1a7db67e375",
+      "localReplay": true,
+      "externalProviderCalls": 0,
+      "independentAgentRevalidationMatches": true
+    },
+    "reviewedRejections": [
+      {
+        "field": "marketReference",
+        "sourceLabel": "Objet",
+        "reason": "The object line does not prove a market or contract reference."
+      },
+      {
+        "field": "serviceCode",
+        "sourceLabel": "Acheteur",
+        "reason": "The buyer line does not prove a recipient service."
+      }
+    ],
+    "recordedTwoStageReportedNeurons": 21.08177661895752,
+    "guardRegressionReplay": {
+      "inferenceAutomatic": false,
+      "savedProviderResponsesReplayed": 66,
+      "sourceSummarySha256": "54a9198cdafd2ca1ae870f99fb30479d270058ffdcbfca2cf0141cbf8f5fcaa7",
+      "currentTextModelCases": 18,
+      "before": {
+        "correct": 84,
+        "missing": 0,
+        "incorrectExtraValues": 11
+      },
+      "after": {
+        "correct": 84,
+        "missing": 0,
+        "incorrectExtraValues": 8
+      },
+      "scope": "Replay of saved synthetic text-benchmark outputs through the revised validator; eight unsupported extras remain elsewhere in the current-model benchmark.",
+      "finalValidationSourceSha256": "a1a065c1573d421d33631238f6a01abc038db329b9475d5249b6c1a7db67e375"
+    }
+  }
+}

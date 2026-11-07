@@ -3961,7 +3961,7 @@ function agendaNotificationHTML(t){
   }
   var moneyDescription = (n) => n === null ? "un montant inconnu" : (n / 100).toFixed(2) + " \u20AC HT";
 
-  // ../../Packages/OpenAI.Codex_2p2nqsd0c76g0/LocalCache/Local/CDInnov/billing-refonte-20261019/node_modules/fflate/esm/browser.js
+  // node_modules/fflate/esm/browser.js
   var u8 = Uint8Array;
   var u16 = Uint16Array;
   var i32 = Int32Array;
@@ -4680,6 +4680,31 @@ function agendaNotificationHTML(t){
     return out.join("\n");
   }
 
+  // marches/ocr-page-client.mjs
+  function createOcrPageClient({ getSession, isActive = () => true, onUnauthorized = () => {
+  } }) {
+    return async (input) => {
+      const active = () => {
+        if (!isActive()) throw Object.assign(Error("La session ou la page a chang\xE9."), { name: "AbortError" });
+      };
+      active();
+      const session = await getSession();
+      active();
+      const response = await fetch("/api/v1/ai/ocr-page", { method: "POST", credentials: "same-origin", cache: "no-store", signal: AbortSignal.timeout(9e4), headers: { "X-CDInnov-Request": "1", "Content-Type": "application/json" }, body: JSON.stringify(input) });
+      active();
+      if (response.status === 401) onUnauthorized(session);
+      let data;
+      try {
+        data = await response.json();
+      } catch {
+        throw Object.assign(Error("La r\xE9ponse de lecture visuelle est illisible."), { status: response.status });
+      }
+      active();
+      if (!response.ok) throw Object.assign(Error(data.error || "Lecture visuelle indisponible."), { status: response.status });
+      return data;
+    };
+  }
+
   // marches/ui.js
   var s = {
     rows: [],
@@ -4749,6 +4774,11 @@ function agendaNotificationHTML(t){
       throw new Error(data.error || "Op\xE9ration impossible.");
     }
     return data;
+  }
+  function readerOcrOptions(epoch = s.epoch) {
+    if (!s.ai?.visionConfigured) return void 0;
+    const user = AUTH_USER;
+    return { ocrPage: createOcrPageClient({ getSession: budgetsEnsureSession, isActive: () => epoch === s.epoch && user === AUTH_USER && !s.stop, onUnauthorized: (session) => window.CDISession.expire({ sessionId: session.sessionId, reason: "unauthorized" }) }) };
   }
   function setBusy(value) {
     s.busy = value;
@@ -5019,7 +5049,7 @@ function agendaNotificationHTML(t){
         progress("Lecture : " + file.name);
         let reading = null;
         try {
-          reading = await readDocument(file, (message) => progress(file.name + " \xB7 " + message), () => s.stop || epoch !== s.epoch);
+          reading = await readDocument(file, (message) => progress(file.name + " \xB7 " + message), () => s.stop || epoch !== s.epoch, readerOcrOptions(epoch));
         } catch (e) {
           if (s.stop || epoch !== s.epoch) break;
           warnings.push(file.name + " : " + e.message);
@@ -5075,7 +5105,7 @@ function agendaNotificationHTML(t){
     }
   }
   async function analyse(id) {
-    await runAnalysis([id], true);
+    await runAnalysis([id], true, true);
   }
   function bind() {
     const root = el("marketRoot");
@@ -5379,7 +5409,7 @@ function agendaNotificationHTML(t){
       render();
     }
   }
-  async function runAnalysis(documentIds, autoApply = true) {
+  async function runAnalysis(documentIds, autoApply = true, refreshReading = false) {
     const selected = documentIds || [
       ...document.querySelectorAll("[data-ai-document]:checked")
     ].map((e) => e.dataset.aiDocument);
@@ -5410,22 +5440,26 @@ function agendaNotificationHTML(t){
       for (const did of selected) {
         if (s.stop) break;
         const d = s.docs.find((d2) => d2.id === did);
-        if (s.readings.find((r) => r.id === did)?.read && s.readings.find((r) => r.id === did)?.complete) {
-          if (!/\.pdf$/i.test(d.name)) continue;
+        if (s.readings.find((r) => r.id === did)?.method === "manual") continue;
+        if ((!refreshReading || !/\.(pdf|png|jpe?g)$/i.test(d.name)) && s.readings.find((r) => r.id === did)?.read && s.readings.find((r) => r.id === did)?.complete) {
+          const previous = s.readings.find((r) => r.id === did), upgradeVision = s.ai?.visionConfigured && previous?.method === "ocr";
+          if (!/\.pdf$/i.test(d.name) && !upgradeVision) continue;
           const stored = await api("/" + id + "/reading/" + did);
-          if (stored.reading?.method === "ocr") {
+          if (stored.reading?.method === "vision") continue;
+          if (stored.reading?.method === "ocr" && !upgradeVision) {
             const text2 = joinPriceTableRows(stored.reading.text);
             if (text2 !== stored.reading.text) await api("/" + id + "/reading/" + did, { method: "PUT", body: JSON.stringify({ ...stored.reading, text: text2, complete: !!stored.reading.complete }) });
             continue;
           }
-          if (stored.reading?.method !== "pdf" || !needsPdfOcr(stored.reading.text)) continue;
+          if (!upgradeVision && (stored.reading?.method !== "pdf" || !needsPdfOcr(stored.reading.text))) continue;
         }
         progress("Lecture : " + d.name);
         const blob = await api("/" + id + "/documents/" + did, { binary: true });
         const reading = await readDocument(
           new File([blob], d.name, { type: d.mime }),
           (message) => progress(d.name + " \xB7 " + message),
-          () => s.stop || epoch !== s.epoch
+          () => s.stop || epoch !== s.epoch,
+          readerOcrOptions(epoch)
         );
         await api("/" + id + "/reading/" + did, {
           method: "PUT",

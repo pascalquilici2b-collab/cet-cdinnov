@@ -15,12 +15,16 @@ def apply_limits():
 def main():
     apply_limits()
     try:
-        from .pdf_import import MAX_BYTES, _inspect_pdf, _preview_pdf
+        from .pdf_import import MAX_BYTES, _inspect_pdf, _preview_pdf, _ocr_page_pdf
         data = sys.stdin.buffer.read(MAX_BYTES + 1)
         if sys.argv[1] == 'inspect':
             result = _inspect_pdf(data)
+        elif sys.argv[1] == 'inspect-pages':
+            result = _inspect_pdf(data, page_texts=True)
         elif sys.argv[1] == 'preview':
             result = base64.b64encode(_preview_pdf(data, int(sys.argv[2]))).decode('ascii')
+        elif sys.argv[1] == 'ocr-page':
+            result = _ocr_page_pdf(data, int(sys.argv[2]))
         else:
             raise ValueError('Invalid reader operation')
         response = {'ok': True, 'result': result}

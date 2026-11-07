@@ -5,14 +5,14 @@ export function createBillingTransport(options:{baseUrl:string;getSession:()=>Pr
   async function request<T>(path:string,method='GET',body?:unknown,version?:number,binary=false,extraHeaders?:Record<string,string>):Promise<T>{
     active();const sessionId=await options.getSession();active();
     const controller=new AbortController();controllers.add(controller);
-    const timer=setTimeout(()=>controller.abort(),path.endsWith('/engagement-analysis')?90000:path.endsWith('/finalize')?210000:path.endsWith('/issue')||path.endsWith('.pdf')?90000:30000);
+    const timer=setTimeout(()=>controller.abort(),(path.endsWith('/engagement-analysis')||path.endsWith('/ai/ocr-page'))?90000:path.endsWith('/finalize')?210000:path.endsWith('/issue')||path.endsWith('.pdf')?90000:30000);
     try{
       const response=await fetch(options.baseUrl.replace(/\/$/,'')+(path.startsWith('/api/v1/')||path.startsWith('/budgets/')?'':'/api/v1/billing')+path,{method,credentials:'same-origin',cache:'no-store',signal:controller.signal,headers:{'X-CDInnov-Request':'1',...(body===undefined||body instanceof Blob?{}:{'Content-Type':'application/json'}),...extraHeaders,...(version===undefined?{}:{'If-Match':String(version)})},...(body===undefined?{}:{body:body instanceof Blob?body:JSON.stringify(body)})});
       if(response.status===401)window.dispatchEvent(new CustomEvent('cdinnov-session-expired',{detail:{sessionId}}));
       const data=response.ok&&binary?await response.blob():await response.json();active();
       if(!response.ok)throw Object.assign(new Error(data.error||'La sauvegarde n’a pas abouti. Vos modifications sont conservées.'),{status:response.status});
       return data as T;
-    }catch(error){active();if(controller.signal.aborted)throw new Error('Le service ne répond pas. Vos modifications sont conservées ; vous pouvez réessayer.');if(error instanceof TypeError)throw new Error('La connexion au serveur a été interrompue. Votre saisie est conservée ; vous pouvez réessayer.');if(error instanceof SyntaxError)throw new Error('La réponse du serveur est illisible. Votre saisie est conservée ; vous pouvez réessayer.');throw error;}
+    }catch(error){active();if(controller.signal.aborted)throw Object.assign(new Error('Le service ne répond pas. Vos modifications sont conservées ; vous pouvez réessayer.'),{name:'TimeoutError'});if(error instanceof TypeError)throw new Error('La connexion au serveur a été interrompue. Votre saisie est conservée ; vous pouvez réessayer.');if(error instanceof SyntaxError)throw new Error('La réponse du serveur est illisible. Votre saisie est conservée ; vous pouvez réessayer.');throw error;}
     finally{clearTimeout(timer);controllers.delete(controller);}
   }
   async function numbered(promise:Promise<BillingDocument>){const doc=await promise;const siren=doc.data.seller.siren.replace(/\s/g,'')||doc.data.seller.siret.replace(/\s/g,'').slice(0,9);return !doc.issuance&&!doc.reservedNumber&&!doc.quote?.revision.abandoned&&/^\d{9}$/.test(siren)?request<BillingDocument>('/documents/'+encodeURIComponent(doc.id)+'/number','POST',{},doc.version):doc;}
@@ -39,6 +39,7 @@ export function createBillingTransport(options:{baseUrl:string;getSession:()=>Pr
     updateFollowup:(id,version,input)=>request('/documents/'+encodeURIComponent(id)+'/followup','PATCH',input,version),
     uploadEngagement:(id,version,kind,file,details)=>request('/documents/'+encodeURIComponent(id)+'/engagement?'+new URLSearchParams({kind,...(details?{reference:details.reference,date:details.date,amountMinor:details.amountMinor===null?'':String(details.amountMinor),marketId:details.marketId,projectId:details.projectId,marketReference:details.marketReference,engagement:details.engagement||'',serviceCode:details.serviceCode||'',otherReference:details.otherReference||''}:{})}),'PUT',file,version,false,{'X-Filename':encodeURIComponent(file.name),'Content-Type':file.type||'application/octet-stream'}),
     analyzeEngagement:text=>request('/engagement-analysis','POST',{text}),
+    ocrPage:input=>request('/api/v1/ai/ocr-page','POST',input),
     engagementFile:id=>request('/documents/'+encodeURIComponent(id)+'/engagement','GET',undefined,undefined,true),
     marketDocument:(marketId,documentId)=>request('/budgets/markets/'+encodeURIComponent(marketId)+'/documents/'+encodeURIComponent(documentId),'GET',undefined,undefined,true),
     rectify:(id,version,input)=>numbered(request<BillingDocument>('/documents/'+encodeURIComponent(id)+'/rectify','POST',input,version)),

@@ -139,6 +139,7 @@ export interface BillingTransport {
   previewReport(id:string,data:Omit<BillingInterventionReport,'version'>):Promise<Blob>;
   uploadEngagement(id:string,version:number,kind:BillingEngagement['kind'],file:File,details?:Pick<BillingEngagementDetails,'reference'|'date'|'amountMinor'|'marketId'|'projectId'|'marketReference'|'engagement'|'serviceCode'|'otherReference'>):Promise<BillingDocument>;
   analyzeEngagement(text:string):Promise<{fields:Partial<BillingEngagementDetails>}>;
+  ocrPage?(input:{image:string;page:number;width:number;height:number;embeddedText:string}):Promise<{text:string;complete:boolean;warnings:string[];model?:string}>;
   engagementFile(id:string):Promise<Blob>;
   marketDocument(marketId:string,documentId:string):Promise<Blob>;
   rectify(id:string,version:number,input:{id:string;notTransmitted:true}):Promise<BillingDocument>;
