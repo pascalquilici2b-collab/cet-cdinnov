@@ -30,12 +30,14 @@ def test_stamp_fonts_phrase_and_euros():
 
 def test_overlap_is_explicit_previewed_and_stays_on_page():
     raw=pdf(dense=True)
-    with pytest.raises(StampError):process(raw,groups(),{'allowOverlap':False})
-    result=process(raw,groups(),{'allowOverlap':True})
+    with pytest.raises(StampError):process(raw,groups(),{'allowOverlap':False,'split':False})
+    result=process(raw,groups(),{'allowOverlap':True,'split':False})
     assert len(PdfReader(io.BytesIO(base64.b64decode(result['pdf']))).pages)==1
     assert result['blocks'][0]['overlap'] is True
     assert all(result['checks'].values())
-    assert process(raw,groups(),{'allowOverlap':True,'allowAppendix':True})['blocks'][0]['page']==1
+    # Payslips cannot move an allocation to an annex, even when requested.
+    assert process(raw,groups(),{'allowOverlap':True,'allowAppendix':True,'split':False})['blocks'][0]['page']==0
+    assert process(pdf('INVOICE',dense=True),groups(kind='INVOICE'),{'allowOverlap':True,'allowAppendix':True,'split':False})['blocks'][0]['page']==1
     with pytest.raises(StampError):process(raw,groups(),{'allowOverlap':True,'placement':{'page':0,'x':-10,'y':300}})
     clean=process(pdf(),groups(4),{'allowOverlap':True})
     assert not any(b['overlap'] for b in clean['blocks'])

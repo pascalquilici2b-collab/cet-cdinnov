@@ -26,6 +26,7 @@ from .billing_issuance import IssuedRequest, preflight as billing_preflight, gen
 from .pdf_import import MAX_BYTES, extract_pdf, preview_pdf, ocr_page_pdf
 from .service import ROOT, ConversionError, generate, health
 from .recipient_lookup import RecipientQuery, LookupError, lookup_recipient
+from .stamping_geometry import PLACEMENT_VERSION
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(name)s %(message)s')
 app = FastAPI(title='CDI · Atelier Factur-X', version='1.0.0', docs_url=None, redoc_url=None, description='Conversion locale et contrôles bloquants XSD, Schematron France et PDF/A-3b.')
@@ -168,7 +169,8 @@ def index():
 
 @app.get('/api/health')
 def status():
-    return {**health(), 'authentication_required': os.getenv('FACTURX_DEPLOYMENT') == 'server', 'document_ocr_bridge': 'v1'}
+    return {**health(), 'authentication_required': os.getenv('FACTURX_DEPLOYMENT') == 'server',
+            'document_ocr_bridge': 'v1', 'stamping_placement_version': PLACEMENT_VERSION}
 
 
 @app.get('/docs', include_in_schema=False)

@@ -1,0 +1,308 @@
+{
+  "schemaVersion": 1,
+  "synthetic": true,
+  "externalInference": false,
+  "date": "2026-11-07",
+  "baselineCommit": "32ae950c9d700171adcb32ffa2558a72b40c1a50",
+  "scope": "Source qualification and conservative invoice identity/date conflicts; text model and prompts unchanged.",
+  "sourceSha256": {
+    "platform/billing-engagement-analysis.ts": "25a19f9c2fa04f24d9f5a4b1195aeafdb642d25bf859044809ac4e842f08afef",
+    "facturx-service/cdi_facturx/extract_fields.py": "a83d39894a33449251d06b2fa973408532ff623fee2b13efa9c51c8457708947"
+  },
+  "typescript": [
+    {
+      "id": "ttc-instead-of-ht",
+      "source": "Bon de commande BC-FICTIF-42.\nTotal HT : 1 000,00 EUR | Total TTC : 1 200,00 EUR",
+      "modelFacts": [
+        {
+          "field": "amountMinor",
+          "value": 120000,
+          "quote": "Total HT : 1 000,00 EUR | Total TTC : 1 200,00 EUR"
+        }
+      ],
+      "before": {
+        "amountMinor": 120000
+      },
+      "after": {}
+    },
+    {
+      "id": "signature-instead-of-order-date",
+      "source": "Bon de commande BC-FICTIF-42.\nDate de signature : 01/11/2026",
+      "modelFacts": [
+        {
+          "field": "date",
+          "value": "2026-11-01",
+          "quote": "Date de signature : 01/11/2026"
+        }
+      ],
+      "before": {
+        "date": "2026-11-01"
+      },
+      "after": {}
+    },
+    {
+      "id": "service-instead-of-engagement",
+      "source": "Bon de commande BC-FICTIF-42.\nService Chorus : SVC-FICTIF-01",
+      "modelFacts": [
+        {
+          "field": "engagement",
+          "value": "SVC-FICTIF-01",
+          "quote": "Service Chorus : SVC-FICTIF-01"
+        }
+      ],
+      "before": {
+        "engagement": "SVC-FICTIF-01"
+      },
+      "after": {}
+    },
+    {
+      "id": "invoice-date-inside-order-file",
+      "source": "Bon de commande BC-FICTIF-42\nDate du bon : 01/10/2026\nFacture F-FICTIVE-99\nDate : 07/11/2026",
+      "modelFacts": [
+        {
+          "field": "date",
+          "value": "2026-11-07",
+          "quote": "Date : 07/11/2026"
+        }
+      ],
+      "before": {
+        "date": "2026-11-07"
+      },
+      "after": {}
+    },
+    {
+      "id": "qualified-values-preserved",
+      "source": "Bon de commande BC-FICTIF-42\nDate du bon | 07/11/2026\nMontant total HT : 1 260,00 EUR\nN° d’engagement Chorus : ENG-FICTIF-42",
+      "modelFacts": [
+        {
+          "field": "date",
+          "value": "2026-11-07",
+          "quote": "07/11/2026"
+        },
+        {
+          "field": "amountMinor",
+          "value": 126000,
+          "quote": "Montant total HT : 1 260,00 EUR"
+        },
+        {
+          "field": "engagement",
+          "value": "ENG-FICTIF-42",
+          "quote": "ENG-FICTIF-42"
+        }
+      ],
+      "before": {
+        "date": "2026-11-07",
+        "amountMinor": 126000,
+        "engagement": "ENG-FICTIF-42"
+      },
+      "after": {
+        "date": "2026-11-07",
+        "amountMinor": 126000,
+        "engagement": "ENG-FICTIF-42"
+      }
+    },
+    {
+      "id": "current-row-invoice-date-inside-order-file",
+      "source": "Bon de commande BC-FICTIF-42\nFacture F-FICTIVE-99 | Date : 07/11/2026",
+      "modelFacts": [
+        {
+          "field": "date",
+          "value": "2026-11-07",
+          "quote": "Date : 07/11/2026"
+        }
+      ],
+      "before": {
+        "date": "2026-11-07"
+      },
+      "after": {}
+    }
+  ],
+  "python": [
+    {
+      "id": "order-date-not-invoice",
+      "source": "Facture n° F-FICTIF-42\nDate du bon de commande : 01/11/2026\nTotal HT : 1000,00 EUR",
+      "before": {
+        "issue_date": "2026-11-01",
+        "net": "1000.00"
+      },
+      "after": {
+        "net": "1000.00"
+      },
+      "ambiguities": []
+    },
+    {
+      "id": "signature-date-not-invoice",
+      "source": "Facture n° F-FICTIF-42\nSignature le 01/11/2026\nTotal HT : 1000,00 EUR",
+      "before": {
+        "issue_date": "2026-11-01",
+        "net": "1000.00"
+      },
+      "after": {
+        "net": "1000.00"
+      },
+      "ambiguities": []
+    },
+    {
+      "id": "two-bank-accounts",
+      "source": "Facture n° F-FICTIF-42\nIBAN : FR7611111111111111111111111\nIBAN : FR7622222222222222222222222\nTotal HT : 1000,00 EUR",
+      "before": {
+        "iban": "FR7611111111111111111111111",
+        "net": "1000.00"
+      },
+      "after": {
+        "net": "1000.00"
+      },
+      "ambiguities": [
+        "payment.iban"
+      ]
+    },
+    {
+      "id": "two-seller-sirets",
+      "source": "Facture n° F-FICTIF-42\nFournisseur : Société Fictive\nSIRET : 11111111100011\nSIRET : 22222222200022\nTotal HT : 1000,00 EUR",
+      "before": {
+        "seller_siret": "11111111100011",
+        "seller_siren": "111111111",
+        "net": "1000.00"
+      },
+      "after": {
+        "net": "1000.00"
+      },
+      "ambiguities": [
+        "seller.siren",
+        "seller.siret"
+      ]
+    },
+    {
+      "id": "repeated-seller-sirets",
+      "source": "Facture n° F-FICTIF-42\nFournisseur : Société Fictive\nSIRET : 11111111100011\n\nFournisseur : Société Fictive\nSIRET : 22222222200022\nTotal HT : 1000,00 EUR",
+      "before": {
+        "seller_siret": "22222222200022",
+        "seller_siren": "222222222",
+        "net": "1000.00"
+      },
+      "after": {
+        "net": "1000.00"
+      },
+      "ambiguities": [
+        "seller.siren",
+        "seller.siret"
+      ]
+    },
+    {
+      "id": "qualified-invoice-date",
+      "source": "Facture n° F-FICTIF-42\nDate d’émission : 07/11/2026\nDate de signature : 09/11/2026\nTotal HT : 1000,00 EUR",
+      "before": {
+        "issue_date": "2026-11-07",
+        "net": "1000.00"
+      },
+      "after": {
+        "issue_date": "2026-11-07",
+        "net": "1000.00"
+      },
+      "ambiguities": []
+    },
+    {
+      "id": "same-row-invoice-date",
+      "source": "Facture n° F-FICTIF-42 | Date de facture : 07/11/2026\nTotal HT : 1000,00 EUR",
+      "before": {
+        "issue_date": "2026-11-07",
+        "net": "1000.00"
+      },
+      "after": {
+        "issue_date": "2026-11-07",
+        "net": "1000.00"
+      },
+      "ambiguities": []
+    }
+  ],
+  "replay": {
+    "recordedResponses": 66,
+    "externalInference": false,
+    "rawOutputsSha256": "9a52aa2de40db0ef8931d61f3544ba0e948d0c99a1f9f089044ac7c0e08ee1d8",
+    "models": [
+      {
+        "model": "@cf/qwen/qwen3-30b-a3b-fp8",
+        "cases": 18,
+        "before": {
+          "correct": 84,
+          "missing": 0,
+          "extra": 8
+        },
+        "after": {
+          "correct": 84,
+          "missing": 0,
+          "extra": 8
+        }
+      },
+      {
+        "model": "@cf/google/gemma-4-26b-a4b-it",
+        "cases": 18,
+        "before": {
+          "correct": 54,
+          "missing": 30,
+          "extra": 0
+        },
+        "after": {
+          "correct": 54,
+          "missing": 30,
+          "extra": 0
+        }
+      },
+      {
+        "model": "@cf/qwen/qwen3.8-27b",
+        "cases": 18,
+        "before": {
+          "correct": 82,
+          "missing": 2,
+          "extra": 0
+        },
+        "after": {
+          "correct": 82,
+          "missing": 2,
+          "extra": 0
+        }
+      },
+      {
+        "model": "@cf/google/gemma-4-26b-a4b-it#json_schema",
+        "cases": 6,
+        "before": {
+          "correct": 26,
+          "missing": 2,
+          "extra": 0
+        },
+        "after": {
+          "correct": 26,
+          "missing": 2,
+          "extra": 0
+        }
+      },
+      {
+        "model": "@cf/qwen/qwen3.8-27b#json_schema",
+        "cases": 6,
+        "before": {
+          "correct": 27,
+          "missing": 1,
+          "extra": 0
+        },
+        "after": {
+          "correct": 27,
+          "missing": 1,
+          "extra": 0
+        }
+      }
+    ]
+  },
+  "validation": {
+    "typescriptTests": 7,
+    "pythonTests": 89,
+    "benchmarkTests": 2,
+    "truncationTests": 9,
+    "independentReview": "verification: 7 TypeScript and 89 Python tests passed; no blocking business finding remains."
+  },
+  "limits": [
+    "Small synthetic counterexamples and a six-fixture recorded text benchmark do not establish universal OCR accuracy.",
+    "A total, date or identifier without qualified evidence is left for manual completion; no amount is recalculated or substituted.",
+    "Generic dates rely on explicit document/section labels; unidentified or interleaved layouts still require human review.",
+    "Python changes apply only in conservative OCR mode; the historical native-only path remains unchanged."
+  ]
+}

@@ -97,9 +97,10 @@ def party(block):
     return result
 
 
-def company_blocks(text):
+def company_blocks(text, conservative=False, ambiguities=None, warnings=None):
     lines = text.splitlines()
     blocks = {}
+    history = {}
     role = None
     for line in lines:
         p = plain(line).strip()
@@ -107,6 +108,8 @@ def company_blocks(text):
         if label:
             role = 'seller' if label.group(1) in ('emetteur','vendeur','fournisseur') else 'buyer'
             blocks[role] = [line]
+            if conservative:
+                history.setdefault(role, []).append(blocks[role])
         elif role:
             if not p or re.match(r'^(facture\b|avoir\b|date\b|designation\b|description\b|prestation\b|objet\b|montant\b|total\b)', p):
                 role = None
@@ -137,6 +140,30 @@ def company_blocks(text):
     if budget and result.get('buyer'):
         siret=re.sub(r'\s','',budget.group(1))
         result['buyer'].update(siret=siret,siren=siret[:9])
+    if conservative:
+        # Compare IDs only inside the selected company's own block. A buyer's
+        # SIRET must never conflict with the seller's unrelated identifier.
+        pattern = r'\bSIRET\s*[: ]\s*((?:\d[ \t]*){14})(?!\d)'
+        budget_ids = {re.sub(r'\s', '', m.group(1)) for m in re.finditer(
+            r'\bSIRET\s+BUDGET\s*:?\s*((?:\d[ \t]*){14})(?!\d)', text, re.I)}
+        for role, rows in blocks.items():
+            all_rows = [row for block in history.get(role, [rows]) for row in block]
+            ids = {re.sub(r'\s', '', m.group(1)) for m in re.finditer(pattern, '\n'.join(all_rows), re.I)}
+            conflicting = len(ids) > 1 or role == 'buyer' and len(budget_ids) > 1
+            if not conflicting:
+                continue
+            result[role].pop('siret', None)
+            if ambiguities is not None:
+                ambiguities.add(role + '.siret')
+            # A SIREN derived from one of two different companies is ambiguous
+            # too; retain it when all listed establishments share that SIREN.
+            prefixes = {value[:9] for value in ids | (budget_ids if role == 'buyer' else set())}
+            if len(prefixes) > 1:
+                result[role].pop('siren', None)
+                if ambiguities is not None:
+                    ambiguities.add(role + '.siren')
+            if warnings is not None:
+                warnings.append('Plusieurs SIRET différents dans le bloc ' + ('vendeur' if role == 'seller' else 'acheteur') + ' : vérifiez les identifiants sur le document.')
     return result
 
 
@@ -254,11 +281,33 @@ def extract_fields(text, conservative=False, ambiguities=None):
         dated=[line for line in lines if re.search(DATE,plain(line)) and not re.search(r'echeance|reglement|paiement|penalit|corrigee',plain(line))]
     if dated and read_date(dated[0]): inv['issue_date']=read_date(dated[0])
     if conservative:
-        explicit_dates={read_date(line) for line in lines if re.match(r'^date\s*(?:de\s*)?(?:facture|emission)?\s*:',plain(line)) and read_date(line)}
-        if len(explicit_dates)>1:
-            inv.pop('issue_date',None);warnings.append('Plusieurs dates de facture différentes dans la lecture OCR : vérifiez le document.')
-            if ambiguities is not None:ambiguities.add('issue_date')
-    inv.update(company_blocks(text))
+        # A signature/order/delivery date is not the invoice's issue date. A
+        # generic Date label belongs to the closest explicit document/section.
+        explicit_dates = set()
+        owner = None
+        for raw_line in text.splitlines():
+            for cell in re.split(r'[|\t]', raw_line):
+                normalized = plain(clean(cell))
+                heading = re.match(r'^(facture|avoir|bon\s+de\s+commande|commande|livraison|signature|notification|devis|bon\s+pour\s+accord)\b', normalized)
+                if heading:
+                    owner = heading.group(1)
+                labelled = re.match(r"^date\s+(?:(?:de\s+(?:la\s+)?)?facture|(?:d['’]\s*|de\s+)?emission)\s*:", normalized)
+                generic = re.match(r'^date\s*:', normalized) and owner in ('facture', 'avoir')
+                issued_at = re.match(r'^fait\s+a\b', normalized) and owner in ('facture', 'avoir')
+                if labelled or generic or issued_at:
+                    explicit_dates.update(value for match in re.finditer(DATE, normalized)
+                                          if (value := read_date(match.group())))
+        if len(explicit_dates) == 1:
+            inv['issue_date'] = next(iter(explicit_dates))
+        else:
+            previous = inv.pop('issue_date', None)
+            if len(explicit_dates) > 1:
+                warnings.append('Plusieurs dates de facture différentes dans la lecture OCR : vérifiez le document.')
+                if ambiguities is not None:
+                    ambiguities.add('issue_date')
+            elif previous:
+                warnings.append('Les dates reconnues ne prouvent pas une date de facture : vérifiez la date d’émission sur le document.')
+    inv.update(company_blocks(text, conservative=conservative, ambiguities=ambiguities, warnings=warnings))
     totals={}
     # Labels must start a line and lead to an amount on that same line (or
     # an amount-only following line). A table heading followed by "1. ..."
@@ -321,6 +370,14 @@ def extract_fields(text, conservative=False, ambiguities=None):
     if payment.get('iban') or 'virement' in p: payment['means_code']='30'
     elif 'especes' in p: payment['means_code']='10'
     elif 'carte bancaire' in p: payment['means_code']='48'
+    if conservative:
+        ibans = {re.sub(r'\s', '', m.group(1)).upper() for m in re.finditer(
+            r'\bIBAN\s*:?\s*([A-Z]{2}\d{2}[A-Z0-9 \t]+)', text, re.I)}
+        if len(ibans) > 1:
+            payment.pop('iban', None)
+            if ambiguities is not None:
+                ambiguities.add('payment.iban')
+            warnings.append('Plusieurs IBAN différents dans la lecture OCR : vérifiez le compte bancaire sur le document.')
     for line in lines:
         l=plain(line)
         if re.search(r'(?:conditions|date|delai|mode)\s*(?:de\s*)?(?:paiement|reglement)|paiement\s+par',l):

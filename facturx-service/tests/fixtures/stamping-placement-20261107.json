@@ -1,0 +1,1122 @@
+{
+  "schema": 1,
+  "baseline_commit": "32ae950",
+  "candidate": {
+    "sha256": {
+      "stamping_geometry.py": "c74a5cf57699b5ef65eadbfcde4263ed81315adc6826c8db7e68caabbcb8f961",
+      "stamping_vision.py": "fda0bfba26a1686144a4e34dab14ed7d25f7cc2bcc1aa5827e4b4373662018c7",
+      "stamping_pdf.py": "26a7d372a9e98fa61f94de4d53059444156747bae224c9f8ecd9af85f93ada6e"
+    },
+    "runtime": {
+      "python": "3.12.14",
+      "pillow": "13.0.0",
+      "pypdf": "6.10.0",
+      "pypdfium2": "5.14.0",
+      "reportlab": "4.4.9"
+    }
+  },
+  "reproduce": [
+    "python facturx-service/tests/stamping_placement_benchmark.py prepare",
+    "python facturx-service/tests/stamping_placement_benchmark.py baseline",
+    "python facturx-service/tests/stamping_placement_benchmark.py candidate",
+    "python facturx-service/tests/stamping_placement_benchmark.py report"
+  ],
+  "method": {
+    "data": "18 entirely fictitious generated PDF cases; Helvetica source text, no external fonts or user data.",
+    "oracle": "Separate semantic PDF, with whole logo/annotation/signature rectangles. Collision checks use its rendered pixels, never the production foreground/occupancy/search helpers.",
+    "source_preservation": "Raw original/output PDF renders at2x, exact pixel equality outside stamp rectangle plus4pt. Source clearance7pt; stamp intersections checked separately.",
+    "resources": "Fresh engine child per case, RLIMIT_AS384MiB,95s wall ceiling; oracle runs after child exits and is excluded from engine memory/latency.",
+    "scope": "Trusted synthetic reading supplied to isolate placement. No OCR, AI, network, production document, or end-to-end UI timing.",
+    "timing": "One local run per variant. Observational milliseconds, not a throughput/SLA estimate. Matched successful cases avoid mixing changed refusal/acceptance cases."
+  },
+  "metrics": {
+    "before": {
+      "expected_placeable_cases": 17,
+      "placements_produced": 15,
+      "preference_cases": 4,
+      "preferences_met": 2,
+      "expected_no_safe_area_refusal": true,
+      "source_collisions": 0,
+      "source_pages_with_changed_pixels_outside_stamp": 0,
+      "overlapping_stamps": 0,
+      "corpus_checks_passed": 14,
+      "peak_engine_rss_mib": 98.66
+    },
+    "after": {
+      "expected_placeable_cases": 17,
+      "placements_produced": 16,
+      "preference_cases": 4,
+      "preferences_met": 4,
+      "expected_no_safe_area_refusal": true,
+      "source_collisions": 0,
+      "source_pages_with_changed_pixels_outside_stamp": 0,
+      "overlapping_stamps": 0,
+      "corpus_checks_passed": 17,
+      "peak_engine_rss_mib": 95.58
+    },
+    "matched_successful_cases": 15,
+    "matched_success_median_ms_before": 208,
+    "matched_success_median_ms_after": 153
+  },
+  "limitations": [
+    "Gradient plus grain remains NO_SAFE_AREA: manual placement or an explicitly authorized appendix is still required.",
+    "Paper-model probes retain all tested ink at contrast>=4/255, but only248–288of480pixels at contrast3/255; no universal faint-handwriting guarantee.",
+    "This finite synthetic corpus demonstrates specific geometry corrections, not universal document quality."
+  ],
+  "paper_ink_probe": [
+    {
+      "orientation": "vertical",
+      "known_ink_contrast": 3,
+      "known_ink_pixels": 480,
+      "retained_ink_pixels": 288,
+      "paper_recognized": true
+    },
+    {
+      "orientation": "vertical",
+      "known_ink_contrast": 4,
+      "known_ink_pixels": 480,
+      "retained_ink_pixels": 480,
+      "paper_recognized": true
+    },
+    {
+      "orientation": "vertical",
+      "known_ink_contrast": 5,
+      "known_ink_pixels": 480,
+      "retained_ink_pixels": 480,
+      "paper_recognized": true
+    },
+    {
+      "orientation": "vertical",
+      "known_ink_contrast": 6,
+      "known_ink_pixels": 480,
+      "retained_ink_pixels": 480,
+      "paper_recognized": true
+    },
+    {
+      "orientation": "vertical",
+      "known_ink_contrast": 12,
+      "known_ink_pixels": 480,
+      "retained_ink_pixels": 480,
+      "paper_recognized": true
+    },
+    {
+      "orientation": "horizontal",
+      "known_ink_contrast": 3,
+      "known_ink_pixels": 480,
+      "retained_ink_pixels": 248,
+      "paper_recognized": true
+    },
+    {
+      "orientation": "horizontal",
+      "known_ink_contrast": 4,
+      "known_ink_pixels": 480,
+      "retained_ink_pixels": 480,
+      "paper_recognized": true
+    },
+    {
+      "orientation": "horizontal",
+      "known_ink_contrast": 5,
+      "known_ink_pixels": 480,
+      "retained_ink_pixels": 480,
+      "paper_recognized": true
+    },
+    {
+      "orientation": "horizontal",
+      "known_ink_contrast": 6,
+      "known_ink_pixels": 480,
+      "retained_ink_pixels": 480,
+      "paper_recognized": true
+    },
+    {
+      "orientation": "horizontal",
+      "known_ink_contrast": 12,
+      "known_ink_pixels": 480,
+      "retained_ink_pixels": 480,
+      "paper_recognized": true
+    },
+    {
+      "orientation": "diagonal",
+      "known_ink_contrast": 3,
+      "known_ink_pixels": 480,
+      "retained_ink_pixels": 266,
+      "paper_recognized": true
+    },
+    {
+      "orientation": "diagonal",
+      "known_ink_contrast": 4,
+      "known_ink_pixels": 480,
+      "retained_ink_pixels": 480,
+      "paper_recognized": true
+    },
+    {
+      "orientation": "diagonal",
+      "known_ink_contrast": 5,
+      "known_ink_pixels": 480,
+      "retained_ink_pixels": 480,
+      "paper_recognized": true
+    },
+    {
+      "orientation": "diagonal",
+      "known_ink_contrast": 6,
+      "known_ink_pixels": 480,
+      "retained_ink_pixels": 480,
+      "paper_recognized": true
+    },
+    {
+      "orientation": "diagonal",
+      "known_ink_contrast": 12,
+      "known_ink_pixels": 480,
+      "retained_ink_pixels": 480,
+      "paper_recognized": true
+    }
+  ],
+  "cases": [
+    {
+      "id": "native-clean",
+      "fixture_sha256": "89dd8679e2cc00c4e5b52a9427afd260c075ebe1c4139797bc0db7abf33f6243",
+      "expectation": {
+        "expected_success": true,
+        "expected_page": null,
+        "minimum_blocks": 1
+      },
+      "before": {
+        "id": "native-clean",
+        "status": "success",
+        "elapsedMs": 159,
+        "peakRssKiB": 87676,
+        "source_collisions": [],
+        "source_pixels_changed_outside_stamp": [],
+        "stamp_collisions": [],
+        "preference_met": true,
+        "block_count": 1,
+        "minimum_blocks_met": true,
+        "blocks": [
+          {
+            "page": 0,
+            "x": 255,
+            "y": 12,
+            "width": 180.0,
+            "height": 118.2,
+            "overlap": false
+          }
+        ],
+        "passed": true
+      },
+      "after": {
+        "id": "native-clean",
+        "status": "success",
+        "elapsedMs": 114,
+        "peakRssKiB": 87452,
+        "source_collisions": [],
+        "source_pixels_changed_outside_stamp": [],
+        "stamp_collisions": [],
+        "preference_met": true,
+        "block_count": 1,
+        "minimum_blocks_met": true,
+        "blocks": [
+          {
+            "page": 0,
+            "x": 255,
+            "y": 12,
+            "width": 180.0,
+            "height": 118.2,
+            "overlap": false
+          }
+        ],
+        "passed": true
+      }
+    },
+    {
+      "id": "dense-real-hole",
+      "fixture_sha256": "f62fdf1fc7bad3356761beddf6556163ea703beea2e61f64e5eee1a0e2c3c23d",
+      "expectation": {
+        "expected_success": true,
+        "expected_page": null,
+        "minimum_blocks": 1
+      },
+      "before": {
+        "id": "dense-real-hole",
+        "status": "success",
+        "elapsedMs": 219,
+        "peakRssKiB": 87848,
+        "source_collisions": [],
+        "source_pixels_changed_outside_stamp": [],
+        "stamp_collisions": [],
+        "preference_met": true,
+        "block_count": 1,
+        "minimum_blocks_met": true,
+        "blocks": [
+          {
+            "page": 0,
+            "x": 212,
+            "y": 567,
+            "width": 180.0,
+            "height": 118.2,
+            "overlap": false
+          }
+        ],
+        "passed": true
+      },
+      "after": {
+        "id": "dense-real-hole",
+        "status": "success",
+        "elapsedMs": 135,
+        "peakRssKiB": 87876,
+        "source_collisions": [],
+        "source_pixels_changed_outside_stamp": [],
+        "stamp_collisions": [],
+        "preference_met": true,
+        "block_count": 1,
+        "minimum_blocks_met": true,
+        "blocks": [
+          {
+            "page": 0,
+            "x": 212,
+            "y": 567,
+            "width": 180.0,
+            "height": 118.2,
+            "overlap": false
+          }
+        ],
+        "passed": true
+      }
+    },
+    {
+      "id": "signature-footer",
+      "fixture_sha256": "2f66920924d1a111e0ab2a9198cc22274c658e401462ce483f4a33ba684ad3bd",
+      "expectation": {
+        "expected_success": true,
+        "expected_page": null,
+        "minimum_blocks": 1
+      },
+      "before": {
+        "id": "signature-footer",
+        "status": "success",
+        "elapsedMs": 294,
+        "peakRssKiB": 87864,
+        "source_collisions": [],
+        "source_pixels_changed_outside_stamp": [],
+        "stamp_collisions": [],
+        "preference_met": true,
+        "block_count": 1,
+        "minimum_blocks_met": true,
+        "blocks": [
+          {
+            "page": 0,
+            "x": 37,
+            "y": 652,
+            "width": 180.0,
+            "height": 118.2,
+            "overlap": false
+          }
+        ],
+        "passed": true
+      },
+      "after": {
+        "id": "signature-footer",
+        "status": "success",
+        "elapsedMs": 116,
+        "peakRssKiB": 87904,
+        "source_collisions": [],
+        "source_pixels_changed_outside_stamp": [],
+        "stamp_collisions": [],
+        "preference_met": true,
+        "block_count": 1,
+        "minimum_blocks_met": true,
+        "blocks": [
+          {
+            "page": 0,
+            "x": 37,
+            "y": 652,
+            "width": 180.0,
+            "height": 118.2,
+            "overlap": false
+          }
+        ],
+        "passed": true
+      }
+    },
+    {
+      "id": "annotation-box",
+      "fixture_sha256": "4625e4875cf5e8dcc6a04cbf0f5dbed2500f6deae3b7339c72acd04d6b509780",
+      "expectation": {
+        "expected_success": true,
+        "expected_page": null,
+        "minimum_blocks": 1
+      },
+      "before": {
+        "id": "annotation-box",
+        "status": "success",
+        "elapsedMs": 208,
+        "peakRssKiB": 87828,
+        "source_collisions": [],
+        "source_pixels_changed_outside_stamp": [],
+        "stamp_collisions": [],
+        "preference_met": true,
+        "block_count": 1,
+        "minimum_blocks_met": true,
+        "blocks": [
+          {
+            "page": 0,
+            "x": 37,
+            "y": 227,
+            "width": 180.0,
+            "height": 118.2,
+            "overlap": false
+          }
+        ],
+        "passed": true
+      },
+      "after": {
+        "id": "annotation-box",
+        "status": "success",
+        "elapsedMs": 121,
+        "peakRssKiB": 88052,
+        "source_collisions": [],
+        "source_pixels_changed_outside_stamp": [],
+        "stamp_collisions": [],
+        "preference_met": true,
+        "block_count": 1,
+        "minimum_blocks_met": true,
+        "blocks": [
+          {
+            "page": 0,
+            "x": 37,
+            "y": 227,
+            "width": 180.0,
+            "height": 118.2,
+            "overlap": false
+          }
+        ],
+        "passed": true
+      }
+    },
+    {
+      "id": "small-logo",
+      "fixture_sha256": "f290763232637864ff29bc3031f6ef1d0fd5a378333b272eb4a4ebc63b9d1583",
+      "expectation": {
+        "expected_success": true,
+        "expected_page": null,
+        "minimum_blocks": 1
+      },
+      "before": {
+        "id": "small-logo",
+        "status": "success",
+        "elapsedMs": 128,
+        "peakRssKiB": 87896,
+        "source_collisions": [],
+        "source_pixels_changed_outside_stamp": [],
+        "stamp_collisions": [],
+        "preference_met": true,
+        "block_count": 1,
+        "minimum_blocks_met": true,
+        "blocks": [
+          {
+            "page": 0,
+            "x": 357,
+            "y": 228,
+            "width": 180.0,
+            "height": 118.2,
+            "overlap": false
+          }
+        ],
+        "passed": true
+      },
+      "after": {
+        "id": "small-logo",
+        "status": "success",
+        "elapsedMs": 139,
+        "peakRssKiB": 87916,
+        "source_collisions": [],
+        "source_pixels_changed_outside_stamp": [],
+        "stamp_collisions": [],
+        "preference_met": true,
+        "block_count": 1,
+        "minimum_blocks_met": true,
+        "blocks": [
+          {
+            "page": 0,
+            "x": 357,
+            "y": 228,
+            "width": 180.0,
+            "height": 118.2,
+            "overlap": false
+          }
+        ],
+        "passed": true
+      }
+    },
+    {
+      "id": "beige-scan",
+      "fixture_sha256": "b668cd79e86860fb55de84da76d31793c220c10f0ecf60af6c145787dd3b2155",
+      "expectation": {
+        "expected_success": true,
+        "expected_page": null,
+        "minimum_blocks": 1
+      },
+      "before": {
+        "id": "beige-scan",
+        "status": "success",
+        "elapsedMs": 158,
+        "peakRssKiB": 92680,
+        "source_collisions": [],
+        "source_pixels_changed_outside_stamp": [],
+        "stamp_collisions": [],
+        "preference_met": true,
+        "block_count": 1,
+        "minimum_blocks_met": true,
+        "blocks": [
+          {
+            "page": 0,
+            "x": 255,
+            "y": 12,
+            "width": 180.0,
+            "height": 118.2,
+            "overlap": false
+          }
+        ],
+        "passed": true
+      },
+      "after": {
+        "id": "beige-scan",
+        "status": "success",
+        "elapsedMs": 168,
+        "peakRssKiB": 92912,
+        "source_collisions": [],
+        "source_pixels_changed_outside_stamp": [],
+        "stamp_collisions": [],
+        "preference_met": true,
+        "block_count": 1,
+        "minimum_blocks_met": true,
+        "blocks": [
+          {
+            "page": 0,
+            "x": 255,
+            "y": 12,
+            "width": 180.0,
+            "height": 118.2,
+            "overlap": false
+          }
+        ],
+        "passed": true
+      }
+    },
+    {
+      "id": "gradient-clean-scan",
+      "fixture_sha256": "225d04f48783815aefee1ee27df12009b13aa7e2f73bdb5cca1117be6c1d0816",
+      "expectation": {
+        "expected_success": true,
+        "expected_page": null,
+        "minimum_blocks": 1
+      },
+      "before": {
+        "id": "gradient-clean-scan",
+        "status": "refused",
+        "code": "NO_SAFE_AREA",
+        "elapsedMs": 300,
+        "passed": false,
+        "peakRssKiB": 92888
+      },
+      "after": {
+        "id": "gradient-clean-scan",
+        "status": "success",
+        "elapsedMs": 186,
+        "peakRssKiB": 91168,
+        "source_collisions": [],
+        "source_pixels_changed_outside_stamp": [],
+        "stamp_collisions": [],
+        "preference_met": true,
+        "block_count": 1,
+        "minimum_blocks_met": true,
+        "blocks": [
+          {
+            "page": 0,
+            "x": 255,
+            "y": 12,
+            "width": 180.0,
+            "height": 118.2,
+            "overlap": false
+          }
+        ],
+        "passed": true
+      }
+    },
+    {
+      "id": "gradient-grain-scan",
+      "fixture_sha256": "1ba47e4bddd5bc21f0ed185af79df1a0c13edd5e69b1b08a5fc081a58e1c1b42",
+      "expectation": {
+        "expected_success": true,
+        "expected_page": null,
+        "minimum_blocks": 1
+      },
+      "before": {
+        "id": "gradient-grain-scan",
+        "status": "refused",
+        "code": "NO_SAFE_AREA",
+        "elapsedMs": 360,
+        "passed": false,
+        "peakRssKiB": 97852
+      },
+      "after": {
+        "id": "gradient-grain-scan",
+        "status": "refused",
+        "code": "NO_SAFE_AREA",
+        "elapsedMs": 137,
+        "passed": false,
+        "peakRssKiB": 97876
+      }
+    },
+    {
+      "id": "crop-rotation-90",
+      "fixture_sha256": "dd4e4b2b2884206656968c582f8b91daa34a6d02afe5dc27ba308ae1160ab4e6",
+      "expectation": {
+        "expected_success": true,
+        "expected_page": null,
+        "minimum_blocks": 1
+      },
+      "before": {
+        "id": "crop-rotation-90",
+        "status": "success",
+        "elapsedMs": 141,
+        "peakRssKiB": 84868,
+        "source_collisions": [],
+        "source_pixels_changed_outside_stamp": [],
+        "stamp_collisions": [],
+        "preference_met": true,
+        "block_count": 1,
+        "minimum_blocks_met": true,
+        "blocks": [
+          {
+            "page": 0,
+            "x": 12,
+            "y": 12,
+            "width": 180.0,
+            "height": 118.2,
+            "overlap": false
+          }
+        ],
+        "passed": true
+      },
+      "after": {
+        "id": "crop-rotation-90",
+        "status": "success",
+        "elapsedMs": 100,
+        "peakRssKiB": 84888,
+        "source_collisions": [],
+        "source_pixels_changed_outside_stamp": [],
+        "stamp_collisions": [],
+        "preference_met": true,
+        "block_count": 1,
+        "minimum_blocks_met": true,
+        "blocks": [
+          {
+            "page": 0,
+            "x": 12,
+            "y": 12,
+            "width": 180.0,
+            "height": 118.2,
+            "overlap": false
+          }
+        ],
+        "passed": true
+      }
+    },
+    {
+      "id": "crop-rotation-270",
+      "fixture_sha256": "cd177a22891b0c01d6e32df2764c6d94d675e1890658b97fbf5e4e8d9c70df2a",
+      "expectation": {
+        "expected_success": true,
+        "expected_page": null,
+        "minimum_blocks": 1
+      },
+      "before": {
+        "id": "crop-rotation-270",
+        "status": "success",
+        "elapsedMs": 103,
+        "peakRssKiB": 84876,
+        "source_collisions": [],
+        "source_pixels_changed_outside_stamp": [],
+        "stamp_collisions": [],
+        "preference_met": true,
+        "block_count": 1,
+        "minimum_blocks_met": true,
+        "blocks": [
+          {
+            "page": 0,
+            "x": 12,
+            "y": 12,
+            "width": 180.0,
+            "height": 118.2,
+            "overlap": false
+          }
+        ],
+        "passed": true
+      },
+      "after": {
+        "id": "crop-rotation-270",
+        "status": "success",
+        "elapsedMs": 106,
+        "peakRssKiB": 84888,
+        "source_collisions": [],
+        "source_pixels_changed_outside_stamp": [],
+        "stamp_collisions": [],
+        "preference_met": true,
+        "block_count": 1,
+        "minimum_blocks_met": true,
+        "blocks": [
+          {
+            "page": 0,
+            "x": 12,
+            "y": 12,
+            "width": 180.0,
+            "height": 118.2,
+            "overlap": false
+          }
+        ],
+        "passed": true
+      }
+    },
+    {
+      "id": "prefer-first",
+      "fixture_sha256": "76dd7e98a548f9d191f7e09938223f89f57d2127fd938f1b83a4316f5544b412",
+      "expectation": {
+        "expected_success": true,
+        "expected_page": 0,
+        "minimum_blocks": 1
+      },
+      "before": {
+        "id": "prefer-first",
+        "status": "success",
+        "elapsedMs": 167,
+        "peakRssKiB": 95008,
+        "source_collisions": [],
+        "source_pixels_changed_outside_stamp": [],
+        "stamp_collisions": [],
+        "preference_met": true,
+        "block_count": 1,
+        "minimum_blocks_met": true,
+        "blocks": [
+          {
+            "page": 0,
+            "x": 255,
+            "y": 12,
+            "width": 180.0,
+            "height": 118.2,
+            "overlap": false
+          }
+        ],
+        "passed": true
+      },
+      "after": {
+        "id": "prefer-first",
+        "status": "success",
+        "elapsedMs": 238,
+        "peakRssKiB": 94796,
+        "source_collisions": [],
+        "source_pixels_changed_outside_stamp": [],
+        "stamp_collisions": [],
+        "preference_met": true,
+        "block_count": 1,
+        "minimum_blocks_met": true,
+        "blocks": [
+          {
+            "page": 0,
+            "x": 255,
+            "y": 12,
+            "width": 180.0,
+            "height": 118.2,
+            "overlap": false
+          }
+        ],
+        "passed": true
+      }
+    },
+    {
+      "id": "prefer-last",
+      "fixture_sha256": "76dd7e98a548f9d191f7e09938223f89f57d2127fd938f1b83a4316f5544b412",
+      "expectation": {
+        "expected_success": true,
+        "expected_page": 1,
+        "minimum_blocks": 1
+      },
+      "before": {
+        "id": "prefer-last",
+        "status": "success",
+        "elapsedMs": 166,
+        "peakRssKiB": 95008,
+        "source_collisions": [],
+        "source_pixels_changed_outside_stamp": [],
+        "stamp_collisions": [],
+        "preference_met": true,
+        "block_count": 1,
+        "minimum_blocks_met": true,
+        "blocks": [
+          {
+            "page": 1,
+            "x": 255,
+            "y": 12,
+            "width": 180.0,
+            "height": 118.2,
+            "overlap": false
+          }
+        ],
+        "passed": true
+      },
+      "after": {
+        "id": "prefer-last",
+        "status": "success",
+        "elapsedMs": 186,
+        "peakRssKiB": 95028,
+        "source_collisions": [],
+        "source_pixels_changed_outside_stamp": [],
+        "stamp_collisions": [],
+        "preference_met": true,
+        "block_count": 1,
+        "minimum_blocks_met": true,
+        "blocks": [
+          {
+            "page": 1,
+            "x": 255,
+            "y": 12,
+            "width": 180.0,
+            "height": 118.2,
+            "overlap": false
+          }
+        ],
+        "passed": true
+      }
+    },
+    {
+      "id": "prefer-first-narrow",
+      "fixture_sha256": "819fdd3683cdd936fb340209b874cf332fb40ad8b2dae8033b58200950986981",
+      "expectation": {
+        "expected_success": true,
+        "expected_page": 0,
+        "minimum_blocks": 1
+      },
+      "before": {
+        "id": "prefer-first-narrow",
+        "status": "success",
+        "elapsedMs": 248,
+        "peakRssKiB": 95176,
+        "source_collisions": [],
+        "source_pixels_changed_outside_stamp": [],
+        "stamp_collisions": [],
+        "preference_met": false,
+        "block_count": 1,
+        "minimum_blocks_met": true,
+        "blocks": [
+          {
+            "page": 1,
+            "x": 255,
+            "y": 12,
+            "width": 180.0,
+            "height": 118.2,
+            "overlap": false
+          }
+        ],
+        "passed": false
+      },
+      "after": {
+        "id": "prefer-first-narrow",
+        "status": "success",
+        "elapsedMs": 168,
+        "peakRssKiB": 95196,
+        "source_collisions": [],
+        "source_pixels_changed_outside_stamp": [],
+        "stamp_collisions": [],
+        "preference_met": true,
+        "block_count": 1,
+        "minimum_blocks_met": true,
+        "blocks": [
+          {
+            "page": 0,
+            "x": 212,
+            "y": 562,
+            "width": 150,
+            "height": 126.2,
+            "overlap": false
+          }
+        ],
+        "passed": true
+      }
+    },
+    {
+      "id": "prefer-last-narrow",
+      "fixture_sha256": "0df17cb06d939534e7832fea7b07369b47e76349a97cc7e1a7c9f3c122d5440e",
+      "expectation": {
+        "expected_success": true,
+        "expected_page": 1,
+        "minimum_blocks": 1
+      },
+      "before": {
+        "id": "prefer-last-narrow",
+        "status": "success",
+        "elapsedMs": 448,
+        "peakRssKiB": 101024,
+        "source_collisions": [],
+        "source_pixels_changed_outside_stamp": [],
+        "stamp_collisions": [],
+        "preference_met": false,
+        "block_count": 1,
+        "minimum_blocks_met": true,
+        "blocks": [
+          {
+            "page": 0,
+            "x": 255,
+            "y": 12,
+            "width": 180.0,
+            "height": 118.2,
+            "overlap": false
+          }
+        ],
+        "passed": false
+      },
+      "after": {
+        "id": "prefer-last-narrow",
+        "status": "success",
+        "elapsedMs": 358,
+        "peakRssKiB": 95192,
+        "source_collisions": [],
+        "source_pixels_changed_outside_stamp": [],
+        "stamp_collisions": [],
+        "preference_met": true,
+        "block_count": 1,
+        "minimum_blocks_met": true,
+        "blocks": [
+          {
+            "page": 1,
+            "x": 212,
+            "y": 562,
+            "width": 150,
+            "height": 126.2,
+            "overlap": false
+          }
+        ],
+        "passed": true
+      }
+    },
+    {
+      "id": "two-independent-stamps",
+      "fixture_sha256": "044b479b440444b366a1d0cb4abbfc6a3cdb7eec11a65d411e7924c6a372e873",
+      "expectation": {
+        "expected_success": true,
+        "expected_page": null,
+        "minimum_blocks": 2
+      },
+      "before": {
+        "id": "two-independent-stamps",
+        "status": "success",
+        "elapsedMs": 303,
+        "peakRssKiB": 87996,
+        "source_collisions": [],
+        "source_pixels_changed_outside_stamp": [],
+        "stamp_collisions": [],
+        "preference_met": true,
+        "block_count": 2,
+        "minimum_blocks_met": true,
+        "blocks": [
+          {
+            "page": 0,
+            "x": 37,
+            "y": 537,
+            "width": 180,
+            "height": 76.2,
+            "overlap": false
+          },
+          {
+            "page": 0,
+            "x": 357,
+            "y": 697,
+            "width": 180,
+            "height": 76.2,
+            "overlap": false
+          }
+        ],
+        "passed": true
+      },
+      "after": {
+        "id": "two-independent-stamps",
+        "status": "success",
+        "elapsedMs": 175,
+        "peakRssKiB": 88024,
+        "source_collisions": [],
+        "source_pixels_changed_outside_stamp": [],
+        "stamp_collisions": [],
+        "preference_met": true,
+        "block_count": 2,
+        "minimum_blocks_met": true,
+        "blocks": [
+          {
+            "page": 0,
+            "x": 37,
+            "y": 537,
+            "width": 180.0,
+            "height": 76.2,
+            "overlap": false
+          },
+          {
+            "page": 0,
+            "x": 357,
+            "y": 697,
+            "width": 180.0,
+            "height": 76.2,
+            "overlap": false
+          }
+        ],
+        "passed": true
+      }
+    },
+    {
+      "id": "compact-font-fallback-split",
+      "fixture_sha256": "044b479b440444b366a1d0cb4abbfc6a3cdb7eec11a65d411e7924c6a372e873",
+      "expectation": {
+        "expected_success": true,
+        "expected_page": null,
+        "minimum_blocks": 2
+      },
+      "before": {
+        "id": "compact-font-fallback-split",
+        "status": "success",
+        "elapsedMs": 562,
+        "peakRssKiB": 87996,
+        "source_collisions": [],
+        "source_pixels_changed_outside_stamp": [],
+        "stamp_collisions": [],
+        "preference_met": true,
+        "block_count": 2,
+        "minimum_blocks_met": true,
+        "blocks": [
+          {
+            "page": 0,
+            "x": 37,
+            "y": 537,
+            "width": 180,
+            "height": 76.2,
+            "overlap": false
+          },
+          {
+            "page": 0,
+            "x": 357,
+            "y": 697,
+            "width": 180,
+            "height": 76.2,
+            "overlap": false
+          }
+        ],
+        "passed": true
+      },
+      "after": {
+        "id": "compact-font-fallback-split",
+        "status": "success",
+        "elapsedMs": 203,
+        "peakRssKiB": 87812,
+        "source_collisions": [],
+        "source_pixels_changed_outside_stamp": [],
+        "stamp_collisions": [],
+        "preference_met": true,
+        "block_count": 2,
+        "minimum_blocks_met": true,
+        "blocks": [
+          {
+            "page": 0,
+            "x": 37,
+            "y": 537,
+            "width": 180.0,
+            "height": 76.2,
+            "overlap": false
+          },
+          {
+            "page": 0,
+            "x": 357,
+            "y": 697,
+            "width": 180.0,
+            "height": 76.2,
+            "overlap": false
+          }
+        ],
+        "passed": true
+      }
+    },
+    {
+      "id": "no-safe-area-refused",
+      "fixture_sha256": "fde5a3fce6c45a3afe675ef1c7978ce98ce48202c47c982ff53ae6e4a497362f",
+      "expectation": {
+        "expected_success": false,
+        "expected_page": null,
+        "minimum_blocks": 1
+      },
+      "before": {
+        "id": "no-safe-area-refused",
+        "status": "refused",
+        "code": "NO_SAFE_AREA",
+        "elapsedMs": 282,
+        "passed": true,
+        "peakRssKiB": 86900
+      },
+      "after": {
+        "id": "no-safe-area-refused",
+        "status": "refused",
+        "code": "NO_SAFE_AREA",
+        "elapsedMs": 175,
+        "passed": true,
+        "peakRssKiB": 87052
+      }
+    },
+    {
+      "id": "appendix-when-authorized",
+      "fixture_sha256": "fde5a3fce6c45a3afe675ef1c7978ce98ce48202c47c982ff53ae6e4a497362f",
+      "expectation": {
+        "expected_success": true,
+        "expected_page": 1,
+        "minimum_blocks": 1
+      },
+      "before": {
+        "id": "appendix-when-authorized",
+        "status": "success",
+        "elapsedMs": 357,
+        "peakRssKiB": 87792,
+        "source_collisions": [],
+        "source_pixels_changed_outside_stamp": [],
+        "stamp_collisions": [],
+        "preference_met": true,
+        "block_count": 1,
+        "minimum_blocks_met": true,
+        "blocks": [
+          {
+            "page": 1,
+            "x": 24,
+            "y": 24,
+            "width": 180.0,
+            "height": 118.2,
+            "overlap": false
+          }
+        ],
+        "passed": true
+      },
+      "after": {
+        "id": "appendix-when-authorized",
+        "status": "success",
+        "elapsedMs": 153,
+        "peakRssKiB": 87752,
+        "source_collisions": [],
+        "source_pixels_changed_outside_stamp": [],
+        "stamp_collisions": [],
+        "preference_met": true,
+        "block_count": 1,
+        "minimum_blocks_met": true,
+        "blocks": [
+          {
+            "page": 1,
+            "x": 24,
+            "y": 24,
+            "width": 180.0,
+            "height": 118.2,
+            "overlap": false
+          }
+        ],
+        "passed": true
+      }
+    }
+  ]
+}
