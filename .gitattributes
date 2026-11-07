@@ -1,3 +1,4 @@
 # Generated libraries may contain intentional whitespace inside string literals.
 budgets-projets/assets/* -whitespace
 feuilles/assets/* -whitespace
+platform/chunks/* -whitespace

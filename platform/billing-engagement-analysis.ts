@@ -15,6 +15,7 @@ export async function analyzeEngagement(request:Request,db:Database,env:Environm
  let timer:ReturnType<typeof setTimeout>|undefined;
  try{
   const output=await Promise.race([ai.run(MODEL,{messages:[{role:'system',content:instruction},{role:'user',content:input.text}],max_tokens:2000,temperature:0.1,response_format:{type:'json_object'}}),new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(Error('Analyse IA trop longue. Réessayez.')),80000);})]);
+  if(output?.choices?.[0]?.finish_reason==='length'||output?.finish_reason==='length')throw Error('Réponse IA tronquée.');
   const raw=output?.choices?.[0]?.message?.content??output?.response??output,value=typeof raw==='string'?JSON.parse(raw.replace(/^```(?:json)?\s*|\s*```$/g,'')):raw,result:Record<string,string|number>={},conflicts=new Set<string>();
   const assign=(field:string,value:string|number)=>{if(conflicts.has(field))return;if(field in result&&result[field]!==value){delete result[field];conflicts.add(field);}else result[field]=value;};
   for(const fact of Array.isArray(value?.facts)?value.facts:[]){
