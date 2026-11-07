@@ -1,5 +1,6 @@
 import {Unzip,UnzipInflate,strFromU8} from 'fflate';
 import {pdfTextRows,needsPdfOcr,joinPriceTableRows} from './pdf-text.mjs';
+import {ocrRasterSize,substantialPdfRaster,hasPdfWrittenAnnotations,jpegOcrPayload,imageOcrCanvas} from './ocr-pages.mjs';
 const MAX_TEXT=500000,MAX_PAGES=150;
 const asset=name=>new URL('marches/vendor/'+name,location.href).href;
 function xml(text){if(/<!DOCTYPE|<!ENTITY/i.test(text))throw new Error('XML externe non accepté.');const d=new DOMParser().parseFromString(text,'application/xml');if(d.querySelector('parsererror'))throw new Error('Document Office illisible.');return d;}
@@ -45,22 +46,42 @@ function office(bytes,name){
   }
  }
  if(text.length>MAX_TEXT)throw new Error('Document trop long : maximum 500 000 caractères.');
- return {text,method:'office',complete:!warnings.length,pages,warnings:[...new Set(warnings)]};
+ return {text,method:'office',complete:!warnings.length,pages,warnings:[...new Set(warnings)].slice(0,150)};
 }
-export async function readDocument(file,progress=()=>{},cancelled=()=>false){
+export async function readDocument(file,progress=()=>{},cancelled=()=>false,ocrOptions={}){
  const check=()=>{if(cancelled())throw new Error('Lecture interrompue. Vous pouvez reprendre sans perdre les pièces importées.');};
- const warnings=[];let worker=null,usedOcr=false;
- async function ocr(image){check();usedOcr=true;if(!worker){const {default:Tesseract}=await import('./vendor/ocr/tesseract.esm.min.js');const {createWorker}=Tesseract;worker=await createWorker('fra+eng',1,{workerPath:asset('ocr/worker.min.js'),corePath:asset('ocr/core'),langPath:asset('ocr/lang'),workerBlobURL:false});await worker.setParameters({preserve_interword_spaces:'1',user_defined_dpi:'300',tessedit_pageseg_mode:'3'});}const {data}=await worker.recognize(image,{}, {text:true,blocks:true});
+ const warnings=[];let worker=null,usedOcr=false,uncertainRead=false,usedVision=false;
+ async function localOcr(image){check();usedOcr=true;if(!worker){const {default:Tesseract}=await import('./vendor/ocr/tesseract.esm.min.js');const {createWorker}=Tesseract;worker=await createWorker('fra+eng',1,{workerPath:asset('ocr/worker.min.js'),corePath:asset('ocr/core'),langPath:asset('ocr/lang'),workerBlobURL:false});await worker.setParameters({preserve_interword_spaces:'1',user_defined_dpi:'300',tessedit_pageseg_mode:'3'});}const {data}=await worker.recognize(image,{}, {text:true,blocks:true});
  // Rejoin OCR columns on their visual rows so a right-aligned price remains
  // beside its own heading instead of being appended after the next service.
  const words=(data.blocks||[]).flatMap(b=>b.paragraphs||[]).flatMap(p=>p.lines||[]).flatMap(l=>l.words||[]).filter(w=>w.text?.trim()&&w.bbox);
  if(words.length){const rows=[];for(const w of words.sort((a,b)=>(a.bbox.y0+a.bbox.y1)-(b.bbox.y0+b.bbox.y1)||a.bbox.x0-b.bbox.x0)){const cy=(w.bbox.y0+w.bbox.y1)/2,h=w.bbox.y1-w.bbox.y0;let row=rows.at(-1);if(!row||Math.abs(row.cy-cy)>Math.max(5,Math.min(row.h,h)*.55)){row={cy,h,words:[]};rows.push(row);}row.words.push(w);}data.text=rows.map(row=>row.words.sort((a,b)=>a.bbox.x0-b.bbox.x0).map(w=>w.text).join(' ')).join('\n');}
  data.text=joinPriceTableRows(data.text);return data;}
+ async function ocr(image,page=1,embeddedText=''){
+  if(typeof ocrOptions.ocrPage!=='function')return localOcr(image);
+  check();usedOcr=true;let canvas=image,owned=false;
+  try{
+   if(image instanceof Blob){canvas=await imageOcrCanvas(image);owned=true;}
+   const payload=await jpegOcrPayload(canvas,page,embeddedText);check();
+   progress('Lecture visuelle · page '+page);
+   const result=await ocrOptions.ocrPage(payload);check();
+   if(!result||typeof result.text!=='string'||result.text.length>MAX_TEXT||typeof result.complete!=='boolean'||!Array.isArray(result.warnings)||result.warnings.some(w=>typeof w!=='string'||w.length>1000))throw Error('Lecture visuelle invalide.');
+   usedVision=true;warnings.push(...result.warnings.slice(0,20).map(w=>('Page '+page+' : '+w).slice(0,500)));
+   if(!result.complete){uncertainRead=true;warnings.push('Page '+page+' : lecture visuelle incertaine, vérifier les champs et montants dans l’original.');}
+   return {text:joinPriceTableRows(result.text),complete:result.complete};
+  }catch(error){
+   check();if(error?.status===401||error?.status===403||error?.name==='AbortError'||error?.unrecoverable)throw error;
+   // A successful printed-text fallback must not certify handwriting after a
+   // vision outage or exhausted quota. Preserve manual review in that case.
+   uncertainRead=true;warnings.push('Page '+page+' : lecture visuelle indisponible ; reconnaissance locale utilisée, vérifier les champs manuscrits et les montants.');
+   progress('Reconnaissance locale · page '+page);return localOcr(image);
+  }finally{if(owned)canvas.width=canvas.height=1;}
+ }
  try{
   if(file.size>5*1024*1024)throw new Error('Maximum 5 Mo par pièce.');check();
   if(/\.(docx|xlsx)$/i.test(file.name))return office(new Uint8Array(await file.arrayBuffer()),file.name);
   if(/\.(txt|csv)$/i.test(file.name)){const text=await file.text();if(text.length>MAX_TEXT)throw new Error('Texte trop long (500 000 caractères).');return {text,method:'text',complete:true,pages:1,warnings};}
-  if(/\.(png|jpe?g)$/i.test(file.name)){progress('Reconnaissance du scan');const data=await ocr(file);if(data.confidence<50||!data.text.trim())warnings.push('Scan peu lisible : vérifier le texte et les montants.');return {text:'[Page 1]\n'+data.text,method:'ocr',complete:!warnings.length,pages:1,warnings};}
+  if(/\.(png|jpe?g)$/i.test(file.name)){progress('Reconnaissance du scan');const data=await ocr(file);if(data.confidence<50||(!data.text.trim()&&data.complete!==true)){uncertainRead=true;warnings.push('Scan peu lisible : vérifier le texte et les montants.');}return {text:'[Page 1]\n'+data.text,method:usedVision?'vision':'ocr',complete:!uncertainRead,pages:1,warnings:[...new Set(warnings)].slice(0,150)};}
   if(!/\.pdf$/i.test(file.name))throw new Error('Format non pris en charge.');
   const pdf=await import('./vendor/pdf.mjs');pdf.GlobalWorkerOptions.workerSrc=asset('pdf.worker.mjs');
   const task=pdf.getDocument({data:new Uint8Array(await file.arrayBuffer()),isEvalSupported:false,enableXfa:false,useSystemFonts:true,wasmUrl:asset('wasm/'),standardFontDataUrl:asset('standard_fonts/')});
@@ -69,17 +90,19 @@ export async function readDocument(file,progress=()=>{},cancelled=()=>false){
    if(document.numPages>MAX_PAGES)throw new Error('Maximum 150 pages par pièce ; découpez le PDF en plusieurs pièces.');
    let text='';for(let i=1;i<=document.numPages;i++){
     check();progress('Page '+i+' / '+document.numPages);const page=await document.getPage(i),data=await page.getTextContent();let content=pdfTextRows(data.items);
-    if(needsPdfOcr(content)){progress('Reconnaissance du scan · page '+i+' / '+document.numPages);const viewport=page.getViewport({scale:3}),canvas=documentGlobalCanvas();
-     const scale=Math.min(1,3000/Math.max(viewport.width,viewport.height)),vp=page.getViewport({scale:3*scale});canvas.width=Math.ceil(vp.width);canvas.height=Math.ceil(vp.height);
-     await page.render({canvasContext:canvas.getContext('2d'),viewport:vp}).promise;const result=await ocr(canvas);content=result.text;canvas.width=canvas.height=1;
-     if(result.confidence<45&&content.trim())warnings.push('Page '+i+' : reconnaissance incertaine, vérifier l’original.');
-     if(!content.trim())warnings.push('Page '+i+' : reconnaissance incertaine, aucun texte lu dans le scan.');
+    let visual=needsPdfOcr(content);
+    if(!visual&&typeof ocrOptions.ocrPage==='function'){const [operators,annotations]=await Promise.all([page.getOperatorList(),page.getAnnotations({intent:'display'})]);visual=substantialPdfRaster(operators,pdf.OPS,page.view)||hasPdfWrittenAnnotations(annotations);}
+    if(visual){progress('Reconnaissance du scan · page '+i+' / '+document.numPages);const viewport=page.getViewport({scale:3}),canvas=documentGlobalCanvas();
+     const size=typeof ocrOptions.ocrPage==='function'?ocrRasterSize(viewport.width,viewport.height):{width:viewport.width*Math.min(1,3000/Math.max(viewport.width,viewport.height)),height:viewport.height*Math.min(1,3000/Math.max(viewport.width,viewport.height))},scale=Math.min(size.width/viewport.width,size.height/viewport.height),vp=page.getViewport({scale:3*scale});canvas.width=Math.max(1,Math.floor(vp.width));canvas.height=Math.max(1,Math.floor(vp.height));
+     await page.render({canvasContext:canvas.getContext('2d'),viewport:vp}).promise;const result=await ocr(canvas,i,content);content=result.text;canvas.width=canvas.height=1;
+     if(result.confidence<45&&content.trim()){uncertainRead=true;warnings.push('Page '+i+' : reconnaissance incertaine, vérifier l’original.');}
+     if(!content.trim()&&result.complete!==true){uncertainRead=true;warnings.push('Page '+i+' : reconnaissance incertaine, aucun texte lu dans le scan.');}
     }
     text+='[Page '+i+']\n'+content+'\n';page.cleanup();if(text.length>MAX_TEXT)throw new Error('PDF trop long : maximum 500 000 caractères par pièce.');
    }
-   if(!text.replace(/\[Page \d+\]/g,'').trim())warnings.push('Aucun texte exploitable dans cette pièce.');
+   if(!text.replace(/\[Page \d+\]/g,'').trim()){if(!usedVision)uncertainRead=true;warnings.push('Aucun texte exploitable dans cette pièce.');}
    if(usedOcr)warnings.push('Les cases cochées, signatures et chiffres reconnus par OCR doivent être vérifiés dans l’original.');
-   return {text,method:usedOcr?'ocr':'pdf',complete:!warnings.some(w=>/incertaine|Aucun texte/.test(w)),pages:document.numPages,warnings};
+   return {text,method:usedVision?'vision':usedOcr?'ocr':'pdf',complete:!uncertainRead,pages:document.numPages,warnings:[...new Set(warnings)].slice(0,150)};
   }finally{await task.destroy();}
  }finally{if(worker)await worker.terminate();}
 }

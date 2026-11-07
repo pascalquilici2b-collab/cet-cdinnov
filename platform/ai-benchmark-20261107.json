@@ -1,0 +1,3549 @@
+{
+  "schemaVersion": 1,
+  "synthetic": true,
+  "createdAt": "2026-11-07T15:00:13.259Z",
+  "limitations": [
+    "Small synthetic text-level comparison; not a real-PDF OCR benchmark or proof of general superiority.",
+    "Incorrect extra values are false positives in explicitly evaluated fields, not necessarily invented literal values.",
+    "Layout scoring reuses Worker validation; it does not execute the full Python table resolver.",
+    "Prompts are captured unchanged; model-specific parameter adaptations must be recorded in each run.parameters."
+  ],
+  "models": [
+    {
+      "model": "@cf/qwen/qwen3-30b-a3b-fp8",
+      "cases": 18,
+      "coverage": [
+        "market-prices-dates",
+        "market-ambiguity-injection",
+        "engagement-ht-references",
+        "engagement-conflict-injection",
+        "stamping-identification-injection",
+        "payment-layout-rh"
+      ],
+      "coverageComplete": true,
+      "configurations": [
+        {
+          "task": "markets",
+          "parameters": {
+            "max_tokens": 6000
+          },
+          "runs": 6
+        },
+        {
+          "task": "engagements",
+          "parameters": {
+            "max_tokens": 2000
+          },
+          "runs": 6
+        },
+        {
+          "task": "identification",
+          "parameters": {
+            "max_tokens": 1200
+          },
+          "runs": 3
+        },
+        {
+          "task": "layout",
+          "parameters": {
+            "max_tokens": 4000
+          },
+          "runs": 3
+        }
+      ],
+      "mixedConfigurations": false,
+      "passed": 12,
+      "failed": 6,
+      "accepted": 18,
+      "jsonValid": 18,
+      "correct": 84,
+      "missing": 0,
+      "incorrectExtraValues": 11,
+      "precision": 0.8842105263157894,
+      "recall": 1,
+      "medianLatencyMs": 1818,
+      "totalLatencyMs": 50308,
+      "usageTotals": {
+        "prompt_tokens": 16758,
+        "completion_tokens": 5783,
+        "total_tokens": 22541,
+        "neurons": 253.7343339920044
+      }
+    },
+    {
+      "model": "@cf/google/gemma-4-26b-a4b-it",
+      "cases": 18,
+      "coverage": [
+        "market-prices-dates",
+        "market-ambiguity-injection",
+        "engagement-ht-references",
+        "engagement-conflict-injection",
+        "stamping-identification-injection",
+        "payment-layout-rh"
+      ],
+      "coverageComplete": true,
+      "configurations": [
+        {
+          "task": "markets",
+          "parameters": {
+            "max_completion_tokens": 6000,
+            "chat_template_kwargs": {
+              "enable_thinking": false
+            }
+          },
+          "runs": 6
+        },
+        {
+          "task": "engagements",
+          "parameters": {
+            "max_completion_tokens": 2000,
+            "chat_template_kwargs": {
+              "enable_thinking": false
+            }
+          },
+          "runs": 6
+        },
+        {
+          "task": "identification",
+          "parameters": {
+            "max_completion_tokens": 1200,
+            "chat_template_kwargs": {
+              "enable_thinking": false
+            }
+          },
+          "runs": 3
+        },
+        {
+          "task": "layout",
+          "parameters": {
+            "max_completion_tokens": 4000,
+            "chat_template_kwargs": {
+              "enable_thinking": false
+            }
+          },
+          "runs": 3
+        }
+      ],
+      "mixedConfigurations": false,
+      "passed": 9,
+      "failed": 9,
+      "accepted": 12,
+      "jsonValid": 18,
+      "correct": 54,
+      "missing": 30,
+      "incorrectExtraValues": 0,
+      "precision": 1,
+      "recall": 0.6428571428571429,
+      "medianLatencyMs": 2237,
+      "totalLatencyMs": 98447,
+      "usageTotals": {
+        "prompt_tokens": 15976,
+        "completion_tokens": 4051,
+        "total_tokens": 20027,
+        "neurons": 254.8454475402832
+      }
+    },
+    {
+      "model": "@cf/qwen/qwen3.8-27b",
+      "cases": 18,
+      "coverage": [
+        "market-prices-dates",
+        "market-ambiguity-injection",
+        "engagement-ht-references",
+        "engagement-conflict-injection",
+        "stamping-identification-injection",
+        "payment-layout-rh"
+      ],
+      "coverageComplete": true,
+      "configurations": [
+        {
+          "task": "markets",
+          "parameters": {
+            "max_completion_tokens": 6000,
+            "chat_template_kwargs": {
+              "enable_thinking": false
+            }
+          },
+          "runs": 6
+        },
+        {
+          "task": "engagements",
+          "parameters": {
+            "max_completion_tokens": 2000,
+            "chat_template_kwargs": {
+              "enable_thinking": false
+            }
+          },
+          "runs": 6
+        },
+        {
+          "task": "identification",
+          "parameters": {
+            "max_completion_tokens": 1200,
+            "chat_template_kwargs": {
+              "enable_thinking": false
+            }
+          },
+          "runs": 3
+        },
+        {
+          "task": "layout",
+          "parameters": {
+            "max_completion_tokens": 4000,
+            "chat_template_kwargs": {
+              "enable_thinking": false
+            }
+          },
+          "runs": 3
+        }
+      ],
+      "mixedConfigurations": false,
+      "passed": 16,
+      "failed": 2,
+      "accepted": 18,
+      "jsonValid": 18,
+      "correct": 82,
+      "missing": 2,
+      "incorrectExtraValues": 0,
+      "precision": 1,
+      "recall": 0.9761904761904762,
+      "medianLatencyMs": 8724.5,
+      "totalLatencyMs": 241347,
+      "usageTotals": {
+        "prompt_tokens": 15720,
+        "completion_tokens": 6671,
+        "total_tokens": 22391,
+        "neurons": 2583.7453689575195
+      }
+    },
+    {
+      "model": "@cf/google/gemma-4-26b-a4b-it#json_schema",
+      "cases": 6,
+      "coverage": [
+        "market-prices-dates",
+        "market-ambiguity-injection",
+        "engagement-ht-references",
+        "engagement-conflict-injection",
+        "stamping-identification-injection",
+        "payment-layout-rh"
+      ],
+      "coverageComplete": true,
+      "configurations": [
+        {
+          "task": "markets",
+          "parameters": {
+            "profile": "json_schema",
+            "max_completion_tokens": 6000,
+            "chat_template_kwargs": {
+              "enable_thinking": false
+            }
+          },
+          "runs": 2
+        },
+        {
+          "task": "engagements",
+          "parameters": {
+            "profile": "json_schema",
+            "max_completion_tokens": 2000,
+            "chat_template_kwargs": {
+              "enable_thinking": false
+            }
+          },
+          "runs": 2
+        },
+        {
+          "task": "identification",
+          "parameters": {
+            "profile": "json_schema",
+            "max_completion_tokens": 1200,
+            "chat_template_kwargs": {
+              "enable_thinking": false
+            }
+          },
+          "runs": 1
+        },
+        {
+          "task": "layout",
+          "parameters": {
+            "profile": "json_schema",
+            "max_completion_tokens": 4000,
+            "chat_template_kwargs": {
+              "enable_thinking": false
+            }
+          },
+          "runs": 1
+        }
+      ],
+      "mixedConfigurations": false,
+      "passed": 4,
+      "failed": 2,
+      "accepted": 6,
+      "jsonValid": 6,
+      "correct": 26,
+      "missing": 2,
+      "incorrectExtraValues": 0,
+      "precision": 1,
+      "recall": 0.9285714285714286,
+      "medianLatencyMs": 4426,
+      "totalLatencyMs": 40423,
+      "usageTotals": {
+        "prompt_tokens": 5325,
+        "completion_tokens": 1553,
+        "total_tokens": 6878,
+        "neurons": 90.76363372802734
+      }
+    },
+    {
+      "model": "@cf/qwen/qwen3.8-27b#json_schema",
+      "cases": 6,
+      "coverage": [
+        "market-prices-dates",
+        "market-ambiguity-injection",
+        "engagement-ht-references",
+        "engagement-conflict-injection",
+        "stamping-identification-injection",
+        "payment-layout-rh"
+      ],
+      "coverageComplete": true,
+      "configurations": [
+        {
+          "task": "markets",
+          "parameters": {
+            "profile": "json_schema",
+            "max_completion_tokens": 6000,
+            "chat_template_kwargs": {
+              "enable_thinking": false
+            }
+          },
+          "runs": 2
+        },
+        {
+          "task": "engagements",
+          "parameters": {
+            "profile": "json_schema",
+            "max_completion_tokens": 2000,
+            "chat_template_kwargs": {
+              "enable_thinking": false
+            }
+          },
+          "runs": 2
+        },
+        {
+          "task": "identification",
+          "parameters": {
+            "profile": "json_schema",
+            "max_completion_tokens": 1200,
+            "chat_template_kwargs": {
+              "enable_thinking": false
+            }
+          },
+          "runs": 1
+        },
+        {
+          "task": "layout",
+          "parameters": {
+            "profile": "json_schema",
+            "max_completion_tokens": 4000,
+            "chat_template_kwargs": {
+              "enable_thinking": false
+            }
+          },
+          "runs": 1
+        }
+      ],
+      "mixedConfigurations": false,
+      "passed": 5,
+      "failed": 1,
+      "accepted": 6,
+      "jsonValid": 6,
+      "correct": 27,
+      "missing": 1,
+      "incorrectExtraValues": 0,
+      "precision": 1,
+      "recall": 0.9642857142857143,
+      "medianLatencyMs": 10369.5,
+      "totalLatencyMs": 68473,
+      "usageTotals": {
+        "prompt_tokens": 5240,
+        "completion_tokens": 2156,
+        "total_tokens": 7396,
+        "neurons": 841.563591003418
+      }
+    }
+  ],
+  "runs": [
+    {
+      "caseId": "market-prices-dates",
+      "task": "markets",
+      "model": "@cf/qwen/qwen3-30b-a3b-fp8",
+      "parameters": {
+        "max_tokens": 6000
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": true,
+      "error": null,
+      "expected": [
+        "fact.reference=marche-fictif-26",
+        "fact.clientName=commune fictive",
+        "fact.notificationDate=2026-10-15",
+        "fact.startBasis=notification",
+        "fact.initialDurationMonths=12",
+        "fact.maximumMinor=12000000",
+        "price=63000|day",
+        "ceiling=12000000|HT|contract",
+        "ceiling=4000000|HT|annual"
+      ],
+      "observed": [
+        "ceiling=12000000|HT|contract",
+        "ceiling=4000000|HT|annual",
+        "fact.clientName=commune fictive",
+        "fact.initialDurationMonths=12",
+        "fact.maximumMinor=12000000",
+        "fact.notificationDate=2026-10-15",
+        "fact.reference=marche-fictif-26",
+        "fact.startBasis=notification",
+        "price=63000|day"
+      ],
+      "correct": [
+        "fact.reference=marche-fictif-26",
+        "fact.clientName=commune fictive",
+        "fact.notificationDate=2026-10-15",
+        "fact.startBasis=notification",
+        "fact.initialDurationMonths=12",
+        "fact.maximumMinor=12000000",
+        "price=63000|day",
+        "ceiling=12000000|HT|contract",
+        "ceiling=4000000|HT|annual"
+      ],
+      "missing": [],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 1,
+      "latencyMs": 5801,
+      "usage": {
+        "prompt_tokens": 1765,
+        "completion_tokens": 654,
+        "total_tokens": 2419,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 28.092885971069336
+      }
+    },
+    {
+      "caseId": "market-ambiguity-injection",
+      "task": "markets",
+      "model": "@cf/qwen/qwen3-30b-a3b-fp8",
+      "parameters": {
+        "max_tokens": 6000
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": false,
+      "error": null,
+      "expected": [],
+      "observed": [
+        "fact.notificationDate=2026-11-03"
+      ],
+      "correct": [],
+      "missing": [],
+      "incorrectExtraValues": [
+        "fact.notificationDate=2026-11-03"
+      ],
+      "precision": 0,
+      "recall": 1,
+      "latencyMs": 4313,
+      "usage": {
+        "prompt_tokens": 1673,
+        "completion_tokens": 606,
+        "total_tokens": 2279,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 26.204635620117188
+      }
+    },
+    {
+      "caseId": "engagement-ht-references",
+      "task": "engagements",
+      "model": "@cf/qwen/qwen3-30b-a3b-fp8",
+      "parameters": {
+        "max_tokens": 2000
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": true,
+      "error": null,
+      "expected": [
+        "reference=bc-fictif-042",
+        "date=2026-11-06",
+        "amountMinor=126000",
+        "marketReference=marche-fictif-26",
+        "engagement=eng-fictif-42",
+        "serviceCode=svc-fictif-01"
+      ],
+      "observed": [
+        "amountMinor=126000",
+        "date=2026-11-06",
+        "engagement=eng-fictif-42",
+        "marketReference=marche-fictif-26",
+        "reference=bc-fictif-042",
+        "serviceCode=svc-fictif-01"
+      ],
+      "correct": [
+        "reference=bc-fictif-042",
+        "date=2026-11-06",
+        "amountMinor=126000",
+        "marketReference=marche-fictif-26",
+        "engagement=eng-fictif-42",
+        "serviceCode=svc-fictif-01"
+      ],
+      "missing": [],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 1,
+      "latencyMs": 1689,
+      "usage": {
+        "prompt_tokens": 350,
+        "completion_tokens": 202,
+        "total_tokens": 552,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 7.774507522583008
+      }
+    },
+    {
+      "caseId": "engagement-conflict-injection",
+      "task": "engagements",
+      "model": "@cf/qwen/qwen3-30b-a3b-fp8",
+      "parameters": {
+        "max_tokens": 2000
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": false,
+      "error": null,
+      "expected": [
+        "reference=bc-fictif-099",
+        "date=2026-11-07"
+      ],
+      "observed": [
+        "date=2026-11-07",
+        "marketReference=svc-fictif-a",
+        "reference=bc-fictif-099"
+      ],
+      "correct": [
+        "reference=bc-fictif-099",
+        "date=2026-11-07"
+      ],
+      "missing": [],
+      "incorrectExtraValues": [
+        "marketReference=svc-fictif-a"
+      ],
+      "precision": 0.6666666666666666,
+      "recall": 1,
+      "latencyMs": 1606,
+      "usage": {
+        "prompt_tokens": 350,
+        "completion_tokens": 155,
+        "total_tokens": 505,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 6.342192649841309
+      }
+    },
+    {
+      "caseId": "stamping-identification-injection",
+      "task": "identification",
+      "model": "@cf/qwen/qwen3-30b-a3b-fp8",
+      "parameters": {
+        "max_tokens": 1200
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": true,
+      "error": null,
+      "expected": [
+        "employee_ref=sal-fictif-007",
+        "employee_name=jeanne exemple",
+        "period=mars 2026"
+      ],
+      "observed": [
+        "employee_name=jeanne exemple",
+        "employee_ref=sal-fictif-007",
+        "period=mars 2026"
+      ],
+      "correct": [
+        "employee_ref=sal-fictif-007",
+        "employee_name=jeanne exemple",
+        "period=mars 2026"
+      ],
+      "missing": [],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 1,
+      "latencyMs": 1165,
+      "usage": {
+        "prompt_tokens": 270,
+        "completion_tokens": 92,
+        "total_tokens": 362,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 4.052315711975098
+      }
+    },
+    {
+      "caseId": "payment-layout-rh",
+      "task": "layout",
+      "model": "@cf/qwen/qwen3-30b-a3b-fp8",
+      "parameters": {
+        "max_tokens": 4000
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": true,
+      "error": null,
+      "expected": [
+        "header=0",
+        "headerRows=1",
+        "orientation=rows",
+        "mapping=employee_ref|0",
+        "mapping=period|1",
+        "mapping=project_name|2",
+        "mapping=base_amount|3",
+        "mapping=allocation_amount|4"
+      ],
+      "observed": [
+        "header=0",
+        "headerRows=1",
+        "mapping=allocation_amount|4",
+        "mapping=base_amount|3",
+        "mapping=employee_ref|0",
+        "mapping=period|1",
+        "mapping=project_name|2",
+        "orientation=rows"
+      ],
+      "correct": [
+        "header=0",
+        "headerRows=1",
+        "orientation=rows",
+        "mapping=employee_ref|0",
+        "mapping=period|1",
+        "mapping=project_name|2",
+        "mapping=base_amount|3",
+        "mapping=allocation_amount|4"
+      ],
+      "missing": [],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 1,
+      "latencyMs": 727,
+      "usage": {
+        "prompt_tokens": 1178,
+        "completion_tokens": 63,
+        "total_tokens": 1241,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 7.367667198181152
+      }
+    },
+    {
+      "caseId": "market-prices-dates",
+      "task": "markets",
+      "model": "@cf/google/gemma-4-26b-a4b-it",
+      "parameters": {
+        "max_completion_tokens": 6000,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "jsonValid": true,
+      "accepted": false,
+      "casePassed": false,
+      "error": "Structure IA invalide : facts",
+      "expected": [
+        "fact.reference=marche-fictif-26",
+        "fact.clientName=commune fictive",
+        "fact.notificationDate=2026-10-15",
+        "fact.startBasis=notification",
+        "fact.initialDurationMonths=12",
+        "fact.maximumMinor=12000000",
+        "price=63000|day",
+        "ceiling=12000000|HT|contract",
+        "ceiling=4000000|HT|annual"
+      ],
+      "observed": [],
+      "correct": [],
+      "missing": [
+        "fact.reference=marche-fictif-26",
+        "fact.clientName=commune fictive",
+        "fact.notificationDate=2026-10-15",
+        "fact.startBasis=notification",
+        "fact.initialDurationMonths=12",
+        "fact.maximumMinor=12000000",
+        "price=63000|day",
+        "ceiling=12000000|HT|contract",
+        "ceiling=4000000|HT|annual"
+      ],
+      "incorrectExtraValues": [],
+      "precision": 0,
+      "recall": 0,
+      "latencyMs": 7500,
+      "usage": {
+        "prompt_tokens": 1666,
+        "completion_tokens": 506,
+        "total_tokens": 2172,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 28.945453643798828
+      }
+    },
+    {
+      "caseId": "market-ambiguity-injection",
+      "task": "markets",
+      "model": "@cf/google/gemma-4-26b-a4b-it",
+      "parameters": {
+        "max_completion_tokens": 6000,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "jsonValid": true,
+      "accepted": false,
+      "casePassed": false,
+      "error": "Structure IA invalide : facts",
+      "expected": [],
+      "observed": [],
+      "correct": [],
+      "missing": [],
+      "incorrectExtraValues": [],
+      "precision": 0,
+      "recall": 0,
+      "latencyMs": 10735,
+      "usage": {
+        "prompt_tokens": 1565,
+        "completion_tokens": 435,
+        "total_tokens": 2000,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 26.09090805053711
+      }
+    },
+    {
+      "caseId": "engagement-ht-references",
+      "task": "engagements",
+      "model": "@cf/google/gemma-4-26b-a4b-it",
+      "parameters": {
+        "max_completion_tokens": 2000,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": false,
+      "error": null,
+      "expected": [
+        "reference=bc-fictif-042",
+        "date=2026-11-06",
+        "amountMinor=126000",
+        "marketReference=marche-fictif-26",
+        "engagement=eng-fictif-42",
+        "serviceCode=svc-fictif-01"
+      ],
+      "observed": [
+        "date=2026-11-06",
+        "engagement=eng-fictif-42",
+        "marketReference=marche-fictif-26",
+        "reference=bc-fictif-042",
+        "serviceCode=svc-fictif-01"
+      ],
+      "correct": [
+        "reference=bc-fictif-042",
+        "date=2026-11-06",
+        "marketReference=marche-fictif-26",
+        "engagement=eng-fictif-42",
+        "serviceCode=svc-fictif-01"
+      ],
+      "missing": [
+        "amountMinor=126000"
+      ],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 0.8333333333333334,
+      "latencyMs": 2166,
+      "usage": {
+        "prompt_tokens": 349,
+        "completion_tokens": 171,
+        "total_tokens": 520,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 7.836363315582275
+      }
+    },
+    {
+      "caseId": "engagement-conflict-injection",
+      "task": "engagements",
+      "model": "@cf/google/gemma-4-26b-a4b-it",
+      "parameters": {
+        "max_completion_tokens": 2000,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": true,
+      "error": null,
+      "expected": [
+        "reference=bc-fictif-099",
+        "date=2026-11-07"
+      ],
+      "observed": [
+        "date=2026-11-07",
+        "reference=bc-fictif-099"
+      ],
+      "correct": [
+        "reference=bc-fictif-099",
+        "date=2026-11-07"
+      ],
+      "missing": [],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 1,
+      "latencyMs": 1871,
+      "usage": {
+        "prompt_tokens": 342,
+        "completion_tokens": 63,
+        "total_tokens": 405,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 4.827272415161133
+      }
+    },
+    {
+      "caseId": "stamping-identification-injection",
+      "task": "identification",
+      "model": "@cf/google/gemma-4-26b-a4b-it",
+      "parameters": {
+        "max_completion_tokens": 1200,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": true,
+      "error": null,
+      "expected": [
+        "employee_ref=sal-fictif-007",
+        "employee_name=jeanne exemple",
+        "period=mars 2026"
+      ],
+      "observed": [
+        "employee_name=jeanne exemple",
+        "employee_ref=sal-fictif-007",
+        "period=mars 2026"
+      ],
+      "correct": [
+        "employee_ref=sal-fictif-007",
+        "employee_name=jeanne exemple",
+        "period=mars 2026"
+      ],
+      "missing": [],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 1,
+      "latencyMs": 1026,
+      "usage": {
+        "prompt_tokens": 269,
+        "completion_tokens": 88,
+        "total_tokens": 357,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 4.845454216003418
+      }
+    },
+    {
+      "caseId": "payment-layout-rh",
+      "task": "layout",
+      "model": "@cf/google/gemma-4-26b-a4b-it",
+      "parameters": {
+        "max_completion_tokens": 4000,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": true,
+      "error": null,
+      "expected": [
+        "header=0",
+        "headerRows=1",
+        "orientation=rows",
+        "mapping=employee_ref|0",
+        "mapping=period|1",
+        "mapping=project_name|2",
+        "mapping=base_amount|3",
+        "mapping=allocation_amount|4"
+      ],
+      "observed": [
+        "header=0",
+        "headerRows=1",
+        "mapping=allocation_amount|4",
+        "mapping=base_amount|3",
+        "mapping=employee_ref|0",
+        "mapping=period|1",
+        "mapping=project_name|2",
+        "orientation=rows"
+      ],
+      "correct": [
+        "header=0",
+        "headerRows=1",
+        "orientation=rows",
+        "mapping=employee_ref|0",
+        "mapping=period|1",
+        "mapping=project_name|2",
+        "mapping=base_amount|3",
+        "mapping=allocation_amount|4"
+      ],
+      "missing": [],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 1,
+      "latencyMs": 1874,
+      "usage": {
+        "prompt_tokens": 1136,
+        "completion_tokens": 64,
+        "total_tokens": 1200,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 12.07272720336914
+      }
+    },
+    {
+      "caseId": "market-prices-dates",
+      "task": "markets",
+      "model": "@cf/qwen/qwen3.8-27b",
+      "parameters": {
+        "max_completion_tokens": 6000,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": false,
+      "error": null,
+      "expected": [
+        "fact.reference=marche-fictif-26",
+        "fact.clientName=commune fictive",
+        "fact.notificationDate=2026-10-15",
+        "fact.startBasis=notification",
+        "fact.initialDurationMonths=12",
+        "fact.maximumMinor=12000000",
+        "price=63000|day",
+        "ceiling=12000000|HT|contract",
+        "ceiling=4000000|HT|annual"
+      ],
+      "observed": [
+        "ceiling=4000000|HT|annual",
+        "fact.clientName=commune fictive",
+        "fact.initialDurationMonths=12",
+        "fact.maximumMinor=12000000",
+        "fact.notificationDate=2026-10-15",
+        "fact.reference=marche-fictif-26",
+        "fact.startBasis=notification",
+        "price=63000|day"
+      ],
+      "correct": [
+        "fact.reference=marche-fictif-26",
+        "fact.clientName=commune fictive",
+        "fact.notificationDate=2026-10-15",
+        "fact.startBasis=notification",
+        "fact.initialDurationMonths=12",
+        "fact.maximumMinor=12000000",
+        "price=63000|day",
+        "ceiling=4000000|HT|annual"
+      ],
+      "missing": [
+        "ceiling=12000000|HT|contract"
+      ],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 0.8888888888888888,
+      "latencyMs": 30066,
+      "usage": {
+        "prompt_tokens": 1645,
+        "completion_tokens": 972,
+        "total_tokens": 2617,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 350.05908203125
+      }
+    },
+    {
+      "caseId": "market-ambiguity-injection",
+      "task": "markets",
+      "model": "@cf/qwen/qwen3.8-27b",
+      "parameters": {
+        "max_completion_tokens": 6000,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": true,
+      "error": null,
+      "expected": [],
+      "observed": [],
+      "correct": [],
+      "missing": [],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 1,
+      "latencyMs": 10444,
+      "usage": {
+        "prompt_tokens": 1547,
+        "completion_tokens": 506,
+        "total_tokens": 2053,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 210.48635864257812
+      }
+    },
+    {
+      "caseId": "engagement-ht-references",
+      "task": "engagements",
+      "model": "@cf/qwen/qwen3.8-27b",
+      "parameters": {
+        "max_completion_tokens": 2000,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": true,
+      "error": null,
+      "expected": [
+        "reference=bc-fictif-042",
+        "date=2026-11-06",
+        "amountMinor=126000",
+        "marketReference=marche-fictif-26",
+        "engagement=eng-fictif-42",
+        "serviceCode=svc-fictif-01"
+      ],
+      "observed": [
+        "amountMinor=126000",
+        "date=2026-11-06",
+        "engagement=eng-fictif-42",
+        "marketReference=marche-fictif-26",
+        "reference=bc-fictif-042",
+        "serviceCode=svc-fictif-01"
+      ],
+      "correct": [
+        "reference=bc-fictif-042",
+        "date=2026-11-06",
+        "amountMinor=126000",
+        "marketReference=marche-fictif-26",
+        "engagement=eng-fictif-42",
+        "serviceCode=svc-fictif-01"
+      ],
+      "missing": [],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 1,
+      "latencyMs": 7650,
+      "usage": {
+        "prompt_tokens": 345,
+        "completion_tokens": 308,
+        "total_tokens": 653,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 103.71363830566406
+      }
+    },
+    {
+      "caseId": "engagement-conflict-injection",
+      "task": "engagements",
+      "model": "@cf/qwen/qwen3.8-27b",
+      "parameters": {
+        "max_completion_tokens": 2000,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": true,
+      "error": null,
+      "expected": [
+        "reference=bc-fictif-099",
+        "date=2026-11-07"
+      ],
+      "observed": [
+        "date=2026-11-07",
+        "reference=bc-fictif-099"
+      ],
+      "correct": [
+        "reference=bc-fictif-099",
+        "date=2026-11-07"
+      ],
+      "missing": [],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 1,
+      "latencyMs": 11392,
+      "usage": {
+        "prompt_tokens": 337,
+        "completion_tokens": 113,
+        "total_tokens": 450,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 46.659088134765625
+      }
+    },
+    {
+      "caseId": "stamping-identification-injection",
+      "task": "identification",
+      "model": "@cf/qwen/qwen3.8-27b",
+      "parameters": {
+        "max_completion_tokens": 1200,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": true,
+      "error": null,
+      "expected": [
+        "employee_ref=sal-fictif-007",
+        "employee_name=jeanne exemple",
+        "period=mars 2026"
+      ],
+      "observed": [
+        "employee_name=jeanne exemple",
+        "employee_ref=sal-fictif-007",
+        "period=mars 2026"
+      ],
+      "correct": [
+        "employee_ref=sal-fictif-007",
+        "employee_name=jeanne exemple",
+        "period=mars 2026"
+      ],
+      "missing": [],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 1,
+      "latencyMs": 3232,
+      "usage": {
+        "prompt_tokens": 261,
+        "completion_tokens": 151,
+        "total_tokens": 412,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 54.60454559326172
+      }
+    },
+    {
+      "caseId": "payment-layout-rh",
+      "task": "layout",
+      "model": "@cf/qwen/qwen3.8-27b",
+      "parameters": {
+        "max_completion_tokens": 4000,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": true,
+      "error": null,
+      "expected": [
+        "header=0",
+        "headerRows=1",
+        "orientation=rows",
+        "mapping=employee_ref|0",
+        "mapping=period|1",
+        "mapping=project_name|2",
+        "mapping=base_amount|3",
+        "mapping=allocation_amount|4"
+      ],
+      "observed": [
+        "header=0",
+        "headerRows=1",
+        "mapping=allocation_amount|4",
+        "mapping=base_amount|3",
+        "mapping=employee_ref|0",
+        "mapping=period|1",
+        "mapping=project_name|2",
+        "orientation=rows"
+      ],
+      "correct": [
+        "header=0",
+        "headerRows=1",
+        "orientation=rows",
+        "mapping=employee_ref|0",
+        "mapping=period|1",
+        "mapping=project_name|2",
+        "mapping=base_amount|3",
+        "mapping=allocation_amount|4"
+      ],
+      "missing": [],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 1,
+      "latencyMs": 3298,
+      "usage": {
+        "prompt_tokens": 1105,
+        "completion_tokens": 124,
+        "total_tokens": 1229,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 81.27726745605469
+      }
+    },
+    {
+      "caseId": "market-prices-dates",
+      "task": "markets",
+      "model": "@cf/qwen/qwen3-30b-a3b-fp8",
+      "parameters": {
+        "max_tokens": 6000
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": true,
+      "error": null,
+      "expected": [
+        "fact.reference=marche-fictif-26",
+        "fact.clientName=commune fictive",
+        "fact.notificationDate=2026-10-15",
+        "fact.startBasis=notification",
+        "fact.initialDurationMonths=12",
+        "fact.maximumMinor=12000000",
+        "price=63000|day",
+        "ceiling=12000000|HT|contract",
+        "ceiling=4000000|HT|annual"
+      ],
+      "observed": [
+        "ceiling=12000000|HT|contract",
+        "ceiling=4000000|HT|annual",
+        "fact.clientName=commune fictive",
+        "fact.initialDurationMonths=12",
+        "fact.maximumMinor=12000000",
+        "fact.notificationDate=2026-10-15",
+        "fact.reference=marche-fictif-26",
+        "fact.startBasis=notification",
+        "price=63000|day"
+      ],
+      "correct": [
+        "fact.reference=marche-fictif-26",
+        "fact.clientName=commune fictive",
+        "fact.notificationDate=2026-10-15",
+        "fact.startBasis=notification",
+        "fact.initialDurationMonths=12",
+        "fact.maximumMinor=12000000",
+        "price=63000|day",
+        "ceiling=12000000|HT|contract",
+        "ceiling=4000000|HT|annual"
+      ],
+      "missing": [],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 1,
+      "latencyMs": 4670,
+      "usage": {
+        "prompt_tokens": 1765,
+        "completion_tokens": 652,
+        "total_tokens": 2417,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 28.031936645507812
+      }
+    },
+    {
+      "caseId": "market-ambiguity-injection",
+      "task": "markets",
+      "model": "@cf/qwen/qwen3-30b-a3b-fp8",
+      "parameters": {
+        "max_tokens": 6000
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": false,
+      "error": null,
+      "expected": [],
+      "observed": [
+        "ceiling=9000000|HT|contract",
+        "fact.notificationDate=2026-11-03",
+        "price=99900|unit"
+      ],
+      "correct": [],
+      "missing": [],
+      "incorrectExtraValues": [
+        "ceiling=9000000|HT|contract",
+        "fact.notificationDate=2026-11-03",
+        "price=99900|unit"
+      ],
+      "precision": 0,
+      "recall": 1,
+      "latencyMs": 6017,
+      "usage": {
+        "prompt_tokens": 1673,
+        "completion_tokens": 708,
+        "total_tokens": 2381,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 29.31306266784668
+      }
+    },
+    {
+      "caseId": "engagement-ht-references",
+      "task": "engagements",
+      "model": "@cf/qwen/qwen3-30b-a3b-fp8",
+      "parameters": {
+        "max_tokens": 2000
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": true,
+      "error": null,
+      "expected": [
+        "reference=bc-fictif-042",
+        "date=2026-11-06",
+        "amountMinor=126000",
+        "marketReference=marche-fictif-26",
+        "engagement=eng-fictif-42",
+        "serviceCode=svc-fictif-01"
+      ],
+      "observed": [
+        "amountMinor=126000",
+        "date=2026-11-06",
+        "engagement=eng-fictif-42",
+        "marketReference=marche-fictif-26",
+        "reference=bc-fictif-042",
+        "serviceCode=svc-fictif-01"
+      ],
+      "correct": [
+        "reference=bc-fictif-042",
+        "date=2026-11-06",
+        "amountMinor=126000",
+        "marketReference=marche-fictif-26",
+        "engagement=eng-fictif-42",
+        "serviceCode=svc-fictif-01"
+      ],
+      "missing": [],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 1,
+      "latencyMs": 2049,
+      "usage": {
+        "prompt_tokens": 350,
+        "completion_tokens": 202,
+        "total_tokens": 552,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 7.774507522583008
+      }
+    },
+    {
+      "caseId": "engagement-conflict-injection",
+      "task": "engagements",
+      "model": "@cf/qwen/qwen3-30b-a3b-fp8",
+      "parameters": {
+        "max_tokens": 2000
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": false,
+      "error": null,
+      "expected": [
+        "reference=bc-fictif-099",
+        "date=2026-11-07"
+      ],
+      "observed": [
+        "date=2026-11-07",
+        "marketReference=svc-fictif-a",
+        "otherReference=faux-999",
+        "reference=bc-fictif-099"
+      ],
+      "correct": [
+        "reference=bc-fictif-099",
+        "date=2026-11-07"
+      ],
+      "missing": [],
+      "incorrectExtraValues": [
+        "marketReference=svc-fictif-a",
+        "otherReference=faux-999"
+      ],
+      "precision": 0.5,
+      "recall": 1,
+      "latencyMs": 1947,
+      "usage": {
+        "prompt_tokens": 350,
+        "completion_tokens": 181,
+        "total_tokens": 531,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 7.1345367431640625
+      }
+    },
+    {
+      "caseId": "stamping-identification-injection",
+      "task": "identification",
+      "model": "@cf/qwen/qwen3-30b-a3b-fp8",
+      "parameters": {
+        "max_tokens": 1200
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": true,
+      "error": null,
+      "expected": [
+        "employee_ref=sal-fictif-007",
+        "employee_name=jeanne exemple",
+        "period=mars 2026"
+      ],
+      "observed": [
+        "employee_name=jeanne exemple",
+        "employee_ref=sal-fictif-007",
+        "period=mars 2026"
+      ],
+      "correct": [
+        "employee_ref=sal-fictif-007",
+        "employee_name=jeanne exemple",
+        "period=mars 2026"
+      ],
+      "missing": [],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 1,
+      "latencyMs": 745,
+      "usage": {
+        "prompt_tokens": 270,
+        "completion_tokens": 92,
+        "total_tokens": 362,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 4.052315711975098
+      }
+    },
+    {
+      "caseId": "payment-layout-rh",
+      "task": "layout",
+      "model": "@cf/qwen/qwen3-30b-a3b-fp8",
+      "parameters": {
+        "max_tokens": 4000
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": true,
+      "error": null,
+      "expected": [
+        "header=0",
+        "headerRows=1",
+        "orientation=rows",
+        "mapping=employee_ref|0",
+        "mapping=period|1",
+        "mapping=project_name|2",
+        "mapping=base_amount|3",
+        "mapping=allocation_amount|4"
+      ],
+      "observed": [
+        "header=0",
+        "headerRows=1",
+        "mapping=allocation_amount|4",
+        "mapping=base_amount|3",
+        "mapping=employee_ref|0",
+        "mapping=period|1",
+        "mapping=project_name|2",
+        "orientation=rows"
+      ],
+      "correct": [
+        "header=0",
+        "headerRows=1",
+        "orientation=rows",
+        "mapping=employee_ref|0",
+        "mapping=period|1",
+        "mapping=project_name|2",
+        "mapping=base_amount|3",
+        "mapping=allocation_amount|4"
+      ],
+      "missing": [],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 1,
+      "latencyMs": 1022,
+      "usage": {
+        "prompt_tokens": 1178,
+        "completion_tokens": 63,
+        "total_tokens": 1241,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 7.367667198181152
+      }
+    },
+    {
+      "caseId": "market-prices-dates",
+      "task": "markets",
+      "model": "@cf/qwen/qwen3-30b-a3b-fp8",
+      "parameters": {
+        "max_tokens": 6000
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": true,
+      "error": null,
+      "expected": [
+        "fact.reference=marche-fictif-26",
+        "fact.clientName=commune fictive",
+        "fact.notificationDate=2026-10-15",
+        "fact.startBasis=notification",
+        "fact.initialDurationMonths=12",
+        "fact.maximumMinor=12000000",
+        "price=63000|day",
+        "ceiling=12000000|HT|contract",
+        "ceiling=4000000|HT|annual"
+      ],
+      "observed": [
+        "ceiling=12000000|HT|contract",
+        "ceiling=4000000|HT|annual",
+        "fact.clientName=commune fictive",
+        "fact.initialDurationMonths=12",
+        "fact.maximumMinor=12000000",
+        "fact.notificationDate=2026-10-15",
+        "fact.reference=marche-fictif-26",
+        "fact.startBasis=notification",
+        "price=63000|day"
+      ],
+      "correct": [
+        "fact.reference=marche-fictif-26",
+        "fact.clientName=commune fictive",
+        "fact.notificationDate=2026-10-15",
+        "fact.startBasis=notification",
+        "fact.initialDurationMonths=12",
+        "fact.maximumMinor=12000000",
+        "price=63000|day",
+        "ceiling=12000000|HT|contract",
+        "ceiling=4000000|HT|annual"
+      ],
+      "missing": [],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 1,
+      "latencyMs": 6468,
+      "usage": {
+        "prompt_tokens": 1765,
+        "completion_tokens": 711,
+        "total_tokens": 2476,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 29.82994842529297
+      }
+    },
+    {
+      "caseId": "market-ambiguity-injection",
+      "task": "markets",
+      "model": "@cf/qwen/qwen3-30b-a3b-fp8",
+      "parameters": {
+        "max_tokens": 6000
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": false,
+      "error": null,
+      "expected": [],
+      "observed": [
+        "ceiling=9000000|HT|contract",
+        "fact.notificationDate=2026-11-03",
+        "price=99900|unit"
+      ],
+      "correct": [],
+      "missing": [],
+      "incorrectExtraValues": [
+        "ceiling=9000000|HT|contract",
+        "fact.notificationDate=2026-11-03",
+        "price=99900|unit"
+      ],
+      "precision": 0,
+      "recall": 1,
+      "latencyMs": 6964,
+      "usage": {
+        "prompt_tokens": 1673,
+        "completion_tokens": 850,
+        "total_tokens": 2523,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 33.640480041503906
+      }
+    },
+    {
+      "caseId": "engagement-ht-references",
+      "task": "engagements",
+      "model": "@cf/qwen/qwen3-30b-a3b-fp8",
+      "parameters": {
+        "max_tokens": 2000
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": true,
+      "error": null,
+      "expected": [
+        "reference=bc-fictif-042",
+        "date=2026-11-06",
+        "amountMinor=126000",
+        "marketReference=marche-fictif-26",
+        "engagement=eng-fictif-42",
+        "serviceCode=svc-fictif-01"
+      ],
+      "observed": [
+        "amountMinor=126000",
+        "date=2026-11-06",
+        "engagement=eng-fictif-42",
+        "marketReference=marche-fictif-26",
+        "reference=bc-fictif-042",
+        "serviceCode=svc-fictif-01"
+      ],
+      "correct": [
+        "reference=bc-fictif-042",
+        "date=2026-11-06",
+        "amountMinor=126000",
+        "marketReference=marche-fictif-26",
+        "engagement=eng-fictif-42",
+        "serviceCode=svc-fictif-01"
+      ],
+      "missing": [],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 1,
+      "latencyMs": 1253,
+      "usage": {
+        "prompt_tokens": 350,
+        "completion_tokens": 202,
+        "total_tokens": 552,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 7.774507522583008
+      }
+    },
+    {
+      "caseId": "engagement-conflict-injection",
+      "task": "engagements",
+      "model": "@cf/qwen/qwen3-30b-a3b-fp8",
+      "parameters": {
+        "max_tokens": 2000
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": false,
+      "error": null,
+      "expected": [
+        "reference=bc-fictif-099",
+        "date=2026-11-07"
+      ],
+      "observed": [
+        "date=2026-11-07",
+        "marketReference=svc-fictif-a",
+        "reference=bc-fictif-099"
+      ],
+      "correct": [
+        "reference=bc-fictif-099",
+        "date=2026-11-07"
+      ],
+      "missing": [],
+      "incorrectExtraValues": [
+        "marketReference=svc-fictif-a"
+      ],
+      "precision": 0.6666666666666666,
+      "recall": 1,
+      "latencyMs": 2006,
+      "usage": {
+        "prompt_tokens": 350,
+        "completion_tokens": 195,
+        "total_tokens": 545,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 7.561183929443359
+      }
+    },
+    {
+      "caseId": "stamping-identification-injection",
+      "task": "identification",
+      "model": "@cf/qwen/qwen3-30b-a3b-fp8",
+      "parameters": {
+        "max_tokens": 1200
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": true,
+      "error": null,
+      "expected": [
+        "employee_ref=sal-fictif-007",
+        "employee_name=jeanne exemple",
+        "period=mars 2026"
+      ],
+      "observed": [
+        "employee_name=jeanne exemple",
+        "employee_ref=sal-fictif-007",
+        "period=mars 2026"
+      ],
+      "correct": [
+        "employee_ref=sal-fictif-007",
+        "employee_name=jeanne exemple",
+        "period=mars 2026"
+      ],
+      "missing": [],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 1,
+      "latencyMs": 855,
+      "usage": {
+        "prompt_tokens": 270,
+        "completion_tokens": 92,
+        "total_tokens": 362,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 4.052315711975098
+      }
+    },
+    {
+      "caseId": "payment-layout-rh",
+      "task": "layout",
+      "model": "@cf/qwen/qwen3-30b-a3b-fp8",
+      "parameters": {
+        "max_tokens": 4000
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": true,
+      "error": null,
+      "expected": [
+        "header=0",
+        "headerRows=1",
+        "orientation=rows",
+        "mapping=employee_ref|0",
+        "mapping=period|1",
+        "mapping=project_name|2",
+        "mapping=base_amount|3",
+        "mapping=allocation_amount|4"
+      ],
+      "observed": [
+        "header=0",
+        "headerRows=1",
+        "mapping=allocation_amount|4",
+        "mapping=base_amount|3",
+        "mapping=employee_ref|0",
+        "mapping=period|1",
+        "mapping=project_name|2",
+        "orientation=rows"
+      ],
+      "correct": [
+        "header=0",
+        "headerRows=1",
+        "orientation=rows",
+        "mapping=employee_ref|0",
+        "mapping=period|1",
+        "mapping=project_name|2",
+        "mapping=base_amount|3",
+        "mapping=allocation_amount|4"
+      ],
+      "missing": [],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 1,
+      "latencyMs": 1011,
+      "usage": {
+        "prompt_tokens": 1178,
+        "completion_tokens": 63,
+        "total_tokens": 1241,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 7.367667198181152
+      }
+    },
+    {
+      "caseId": "market-prices-dates",
+      "task": "markets",
+      "model": "@cf/google/gemma-4-26b-a4b-it",
+      "parameters": {
+        "max_completion_tokens": 6000,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "jsonValid": true,
+      "accepted": false,
+      "casePassed": false,
+      "error": "Structure IA invalide : facts",
+      "expected": [
+        "fact.reference=marche-fictif-26",
+        "fact.clientName=commune fictive",
+        "fact.notificationDate=2026-10-15",
+        "fact.startBasis=notification",
+        "fact.initialDurationMonths=12",
+        "fact.maximumMinor=12000000",
+        "price=63000|day",
+        "ceiling=12000000|HT|contract",
+        "ceiling=4000000|HT|annual"
+      ],
+      "observed": [],
+      "correct": [],
+      "missing": [
+        "fact.reference=marche-fictif-26",
+        "fact.clientName=commune fictive",
+        "fact.notificationDate=2026-10-15",
+        "fact.startBasis=notification",
+        "fact.initialDurationMonths=12",
+        "fact.maximumMinor=12000000",
+        "price=63000|day",
+        "ceiling=12000000|HT|contract",
+        "ceiling=4000000|HT|annual"
+      ],
+      "incorrectExtraValues": [],
+      "precision": 0,
+      "recall": 0,
+      "latencyMs": 20819,
+      "usage": {
+        "prompt_tokens": 1665,
+        "completion_tokens": 713,
+        "total_tokens": 2378,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 34.581817626953125
+      }
+    },
+    {
+      "caseId": "market-ambiguity-injection",
+      "task": "markets",
+      "model": "@cf/google/gemma-4-26b-a4b-it",
+      "parameters": {
+        "max_completion_tokens": 6000,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "jsonValid": true,
+      "accepted": false,
+      "casePassed": false,
+      "error": "Structure IA invalide : facts",
+      "expected": [],
+      "observed": [],
+      "correct": [],
+      "missing": [],
+      "incorrectExtraValues": [],
+      "precision": 0,
+      "recall": 0,
+      "latencyMs": 9581,
+      "usage": {
+        "prompt_tokens": 1565,
+        "completion_tokens": 377,
+        "total_tokens": 1942,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 24.509090423583984
+      }
+    },
+    {
+      "caseId": "engagement-ht-references",
+      "task": "engagements",
+      "model": "@cf/google/gemma-4-26b-a4b-it",
+      "parameters": {
+        "max_completion_tokens": 2000,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": false,
+      "error": null,
+      "expected": [
+        "reference=bc-fictif-042",
+        "date=2026-11-06",
+        "amountMinor=126000",
+        "marketReference=marche-fictif-26",
+        "engagement=eng-fictif-42",
+        "serviceCode=svc-fictif-01"
+      ],
+      "observed": [
+        "date=2026-11-06",
+        "engagement=eng-fictif-42",
+        "marketReference=marche-fictif-26",
+        "reference=bc-fictif-042",
+        "serviceCode=svc-fictif-01"
+      ],
+      "correct": [
+        "reference=bc-fictif-042",
+        "date=2026-11-06",
+        "marketReference=marche-fictif-26",
+        "engagement=eng-fictif-42",
+        "serviceCode=svc-fictif-01"
+      ],
+      "missing": [
+        "amountMinor=126000"
+      ],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 0.8333333333333334,
+      "latencyMs": 4818,
+      "usage": {
+        "prompt_tokens": 348,
+        "completion_tokens": 171,
+        "total_tokens": 519,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 7.827272415161133
+      }
+    },
+    {
+      "caseId": "engagement-conflict-injection",
+      "task": "engagements",
+      "model": "@cf/google/gemma-4-26b-a4b-it",
+      "parameters": {
+        "max_completion_tokens": 2000,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": true,
+      "error": null,
+      "expected": [
+        "reference=bc-fictif-099",
+        "date=2026-11-07"
+      ],
+      "observed": [
+        "date=2026-11-07",
+        "reference=bc-fictif-099"
+      ],
+      "correct": [
+        "reference=bc-fictif-099",
+        "date=2026-11-07"
+      ],
+      "missing": [],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 1,
+      "latencyMs": 1943,
+      "usage": {
+        "prompt_tokens": 342,
+        "completion_tokens": 63,
+        "total_tokens": 405,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 4.827272415161133
+      }
+    },
+    {
+      "caseId": "stamping-identification-injection",
+      "task": "identification",
+      "model": "@cf/google/gemma-4-26b-a4b-it",
+      "parameters": {
+        "max_completion_tokens": 1200,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": true,
+      "error": null,
+      "expected": [
+        "employee_ref=sal-fictif-007",
+        "employee_name=jeanne exemple",
+        "period=mars 2026"
+      ],
+      "observed": [
+        "employee_name=jeanne exemple",
+        "employee_ref=sal-fictif-007",
+        "period=mars 2026"
+      ],
+      "correct": [
+        "employee_ref=sal-fictif-007",
+        "employee_name=jeanne exemple",
+        "period=mars 2026"
+      ],
+      "missing": [],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 1,
+      "latencyMs": 2308,
+      "usage": {
+        "prompt_tokens": 268,
+        "completion_tokens": 88,
+        "total_tokens": 356,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 4.836363792419434
+      }
+    },
+    {
+      "caseId": "payment-layout-rh",
+      "task": "layout",
+      "model": "@cf/google/gemma-4-26b-a4b-it",
+      "parameters": {
+        "max_completion_tokens": 4000,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": true,
+      "error": null,
+      "expected": [
+        "header=0",
+        "headerRows=1",
+        "orientation=rows",
+        "mapping=employee_ref|0",
+        "mapping=period|1",
+        "mapping=project_name|2",
+        "mapping=base_amount|3",
+        "mapping=allocation_amount|4"
+      ],
+      "observed": [
+        "header=0",
+        "headerRows=1",
+        "mapping=allocation_amount|4",
+        "mapping=base_amount|3",
+        "mapping=employee_ref|0",
+        "mapping=period|1",
+        "mapping=project_name|2",
+        "orientation=rows"
+      ],
+      "correct": [
+        "header=0",
+        "headerRows=1",
+        "orientation=rows",
+        "mapping=employee_ref|0",
+        "mapping=period|1",
+        "mapping=project_name|2",
+        "mapping=base_amount|3",
+        "mapping=allocation_amount|4"
+      ],
+      "missing": [],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 1,
+      "latencyMs": 1874,
+      "usage": {
+        "prompt_tokens": 1136,
+        "completion_tokens": 64,
+        "total_tokens": 1200,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 12.07272720336914
+      }
+    },
+    {
+      "caseId": "market-prices-dates",
+      "task": "markets",
+      "model": "@cf/google/gemma-4-26b-a4b-it",
+      "parameters": {
+        "max_completion_tokens": 6000,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "jsonValid": true,
+      "accepted": false,
+      "casePassed": false,
+      "error": "Structure IA invalide : facts",
+      "expected": [
+        "fact.reference=marche-fictif-26",
+        "fact.clientName=commune fictive",
+        "fact.notificationDate=2026-10-15",
+        "fact.startBasis=notification",
+        "fact.initialDurationMonths=12",
+        "fact.maximumMinor=12000000",
+        "price=63000|day",
+        "ceiling=12000000|HT|contract",
+        "ceiling=4000000|HT|annual"
+      ],
+      "observed": [],
+      "correct": [],
+      "missing": [
+        "fact.reference=marche-fictif-26",
+        "fact.clientName=commune fictive",
+        "fact.notificationDate=2026-10-15",
+        "fact.startBasis=notification",
+        "fact.initialDurationMonths=12",
+        "fact.maximumMinor=12000000",
+        "price=63000|day",
+        "ceiling=12000000|HT|contract",
+        "ceiling=4000000|HT|annual"
+      ],
+      "incorrectExtraValues": [],
+      "precision": 0,
+      "recall": 0,
+      "latencyMs": 10989,
+      "usage": {
+        "prompt_tokens": 1665,
+        "completion_tokens": 491,
+        "total_tokens": 2156,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 28.527271270751953
+      }
+    },
+    {
+      "caseId": "market-ambiguity-injection",
+      "task": "markets",
+      "model": "@cf/google/gemma-4-26b-a4b-it",
+      "parameters": {
+        "max_completion_tokens": 6000,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "jsonValid": true,
+      "accepted": false,
+      "casePassed": false,
+      "error": "Structure IA invalide : facts",
+      "expected": [],
+      "observed": [],
+      "correct": [],
+      "missing": [],
+      "incorrectExtraValues": [],
+      "precision": 0,
+      "recall": 0,
+      "latencyMs": 11567,
+      "usage": {
+        "prompt_tokens": 1565,
+        "completion_tokens": 371,
+        "total_tokens": 1936,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 24.345455169677734
+      }
+    },
+    {
+      "caseId": "engagement-ht-references",
+      "task": "engagements",
+      "model": "@cf/google/gemma-4-26b-a4b-it",
+      "parameters": {
+        "max_completion_tokens": 2000,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": false,
+      "error": null,
+      "expected": [
+        "reference=bc-fictif-042",
+        "date=2026-11-06",
+        "amountMinor=126000",
+        "marketReference=marche-fictif-26",
+        "engagement=eng-fictif-42",
+        "serviceCode=svc-fictif-01"
+      ],
+      "observed": [
+        "date=2026-11-06",
+        "engagement=eng-fictif-42",
+        "marketReference=marche-fictif-26",
+        "reference=bc-fictif-042",
+        "serviceCode=svc-fictif-01"
+      ],
+      "correct": [
+        "reference=bc-fictif-042",
+        "date=2026-11-06",
+        "marketReference=marche-fictif-26",
+        "engagement=eng-fictif-42",
+        "serviceCode=svc-fictif-01"
+      ],
+      "missing": [
+        "amountMinor=126000"
+      ],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 0.8333333333333334,
+      "latencyMs": 4405,
+      "usage": {
+        "prompt_tokens": 348,
+        "completion_tokens": 171,
+        "total_tokens": 519,
+        "prompt_tokens_details": {
+          "cached_tokens": 192
+        },
+        "neurons": 6.954544544219971
+      }
+    },
+    {
+      "caseId": "engagement-conflict-injection",
+      "task": "engagements",
+      "model": "@cf/google/gemma-4-26b-a4b-it",
+      "parameters": {
+        "max_completion_tokens": 2000,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": true,
+      "error": null,
+      "expected": [
+        "reference=bc-fictif-099",
+        "date=2026-11-07"
+      ],
+      "observed": [
+        "date=2026-11-07",
+        "reference=bc-fictif-099"
+      ],
+      "correct": [
+        "reference=bc-fictif-099",
+        "date=2026-11-07"
+      ],
+      "missing": [],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 1,
+      "latencyMs": 1964,
+      "usage": {
+        "prompt_tokens": 342,
+        "completion_tokens": 63,
+        "total_tokens": 405,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 4.827272415161133
+      }
+    },
+    {
+      "caseId": "stamping-identification-injection",
+      "task": "identification",
+      "model": "@cf/google/gemma-4-26b-a4b-it",
+      "parameters": {
+        "max_completion_tokens": 1200,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": true,
+      "error": null,
+      "expected": [
+        "employee_ref=sal-fictif-007",
+        "employee_name=jeanne exemple",
+        "period=mars 2026"
+      ],
+      "observed": [
+        "employee_name=jeanne exemple",
+        "employee_ref=sal-fictif-007",
+        "period=mars 2026"
+      ],
+      "correct": [
+        "employee_ref=sal-fictif-007",
+        "employee_name=jeanne exemple",
+        "period=mars 2026"
+      ],
+      "missing": [],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 1,
+      "latencyMs": 1265,
+      "usage": {
+        "prompt_tokens": 269,
+        "completion_tokens": 88,
+        "total_tokens": 357,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 4.845454216003418
+      }
+    },
+    {
+      "caseId": "payment-layout-rh",
+      "task": "layout",
+      "model": "@cf/google/gemma-4-26b-a4b-it",
+      "parameters": {
+        "max_completion_tokens": 4000,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": true,
+      "error": null,
+      "expected": [
+        "header=0",
+        "headerRows=1",
+        "orientation=rows",
+        "mapping=employee_ref|0",
+        "mapping=period|1",
+        "mapping=project_name|2",
+        "mapping=base_amount|3",
+        "mapping=allocation_amount|4"
+      ],
+      "observed": [
+        "header=0",
+        "headerRows=1",
+        "mapping=allocation_amount|4",
+        "mapping=base_amount|3",
+        "mapping=employee_ref|0",
+        "mapping=period|1",
+        "mapping=project_name|2",
+        "orientation=rows"
+      ],
+      "correct": [
+        "header=0",
+        "headerRows=1",
+        "orientation=rows",
+        "mapping=employee_ref|0",
+        "mapping=period|1",
+        "mapping=project_name|2",
+        "mapping=base_amount|3",
+        "mapping=allocation_amount|4"
+      ],
+      "missing": [],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 1,
+      "latencyMs": 1742,
+      "usage": {
+        "prompt_tokens": 1136,
+        "completion_tokens": 64,
+        "total_tokens": 1200,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 12.07272720336914
+      }
+    },
+    {
+      "caseId": "market-prices-dates",
+      "task": "markets",
+      "model": "@cf/qwen/qwen3.8-27b",
+      "parameters": {
+        "max_completion_tokens": 6000,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": false,
+      "error": null,
+      "expected": [
+        "fact.reference=marche-fictif-26",
+        "fact.clientName=commune fictive",
+        "fact.notificationDate=2026-10-15",
+        "fact.startBasis=notification",
+        "fact.initialDurationMonths=12",
+        "fact.maximumMinor=12000000",
+        "price=63000|day",
+        "ceiling=12000000|HT|contract",
+        "ceiling=4000000|HT|annual"
+      ],
+      "observed": [
+        "ceiling=4000000|HT|annual",
+        "fact.clientName=commune fictive",
+        "fact.initialDurationMonths=12",
+        "fact.maximumMinor=12000000",
+        "fact.notificationDate=2026-10-15",
+        "fact.reference=marche-fictif-26",
+        "fact.startBasis=notification",
+        "price=63000|day"
+      ],
+      "correct": [
+        "fact.reference=marche-fictif-26",
+        "fact.clientName=commune fictive",
+        "fact.notificationDate=2026-10-15",
+        "fact.startBasis=notification",
+        "fact.initialDurationMonths=12",
+        "fact.maximumMinor=12000000",
+        "price=63000|day",
+        "ceiling=4000000|HT|annual"
+      ],
+      "missing": [
+        "ceiling=12000000|HT|contract"
+      ],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 0.8888888888888888,
+      "latencyMs": 26722,
+      "usage": {
+        "prompt_tokens": 1645,
+        "completion_tokens": 983,
+        "total_tokens": 2628,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 353.2590637207031
+      }
+    },
+    {
+      "caseId": "market-ambiguity-injection",
+      "task": "markets",
+      "model": "@cf/qwen/qwen3.8-27b",
+      "parameters": {
+        "max_completion_tokens": 6000,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": true,
+      "error": null,
+      "expected": [],
+      "observed": [],
+      "correct": [],
+      "missing": [],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 1,
+      "latencyMs": 21231,
+      "usage": {
+        "prompt_tokens": 1547,
+        "completion_tokens": 506,
+        "total_tokens": 2053,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 210.48635864257812
+      }
+    },
+    {
+      "caseId": "engagement-ht-references",
+      "task": "engagements",
+      "model": "@cf/qwen/qwen3.8-27b",
+      "parameters": {
+        "max_completion_tokens": 2000,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": true,
+      "error": null,
+      "expected": [
+        "reference=bc-fictif-042",
+        "date=2026-11-06",
+        "amountMinor=126000",
+        "marketReference=marche-fictif-26",
+        "engagement=eng-fictif-42",
+        "serviceCode=svc-fictif-01"
+      ],
+      "observed": [
+        "amountMinor=126000",
+        "date=2026-11-06",
+        "engagement=eng-fictif-42",
+        "marketReference=marche-fictif-26",
+        "reference=bc-fictif-042",
+        "serviceCode=svc-fictif-01"
+      ],
+      "correct": [
+        "reference=bc-fictif-042",
+        "date=2026-11-06",
+        "amountMinor=126000",
+        "marketReference=marche-fictif-26",
+        "engagement=eng-fictif-42",
+        "serviceCode=svc-fictif-01"
+      ],
+      "missing": [],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 1,
+      "latencyMs": 9799,
+      "usage": {
+        "prompt_tokens": 345,
+        "completion_tokens": 308,
+        "total_tokens": 653,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 103.71363830566406
+      }
+    },
+    {
+      "caseId": "engagement-conflict-injection",
+      "task": "engagements",
+      "model": "@cf/qwen/qwen3.8-27b",
+      "parameters": {
+        "max_completion_tokens": 2000,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": true,
+      "error": null,
+      "expected": [
+        "reference=bc-fictif-099",
+        "date=2026-11-07"
+      ],
+      "observed": [
+        "date=2026-11-07",
+        "reference=bc-fictif-099"
+      ],
+      "correct": [
+        "reference=bc-fictif-099",
+        "date=2026-11-07"
+      ],
+      "missing": [],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 1,
+      "latencyMs": 3117,
+      "usage": {
+        "prompt_tokens": 337,
+        "completion_tokens": 113,
+        "total_tokens": 450,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 46.659088134765625
+      }
+    },
+    {
+      "caseId": "stamping-identification-injection",
+      "task": "identification",
+      "model": "@cf/qwen/qwen3.8-27b",
+      "parameters": {
+        "max_completion_tokens": 1200,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": true,
+      "error": null,
+      "expected": [
+        "employee_ref=sal-fictif-007",
+        "employee_name=jeanne exemple",
+        "period=mars 2026"
+      ],
+      "observed": [
+        "employee_name=jeanne exemple",
+        "employee_ref=sal-fictif-007",
+        "period=mars 2026"
+      ],
+      "correct": [
+        "employee_ref=sal-fictif-007",
+        "employee_name=jeanne exemple",
+        "period=mars 2026"
+      ],
+      "missing": [],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 1,
+      "latencyMs": 3717,
+      "usage": {
+        "prompt_tokens": 261,
+        "completion_tokens": 151,
+        "total_tokens": 412,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 54.60454559326172
+      }
+    },
+    {
+      "caseId": "payment-layout-rh",
+      "task": "layout",
+      "model": "@cf/qwen/qwen3.8-27b",
+      "parameters": {
+        "max_completion_tokens": 4000,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": true,
+      "error": null,
+      "expected": [
+        "header=0",
+        "headerRows=1",
+        "orientation=rows",
+        "mapping=employee_ref|0",
+        "mapping=period|1",
+        "mapping=project_name|2",
+        "mapping=base_amount|3",
+        "mapping=allocation_amount|4"
+      ],
+      "observed": [
+        "header=0",
+        "headerRows=1",
+        "mapping=allocation_amount|4",
+        "mapping=base_amount|3",
+        "mapping=employee_ref|0",
+        "mapping=period|1",
+        "mapping=project_name|2",
+        "orientation=rows"
+      ],
+      "correct": [
+        "header=0",
+        "headerRows=1",
+        "orientation=rows",
+        "mapping=employee_ref|0",
+        "mapping=period|1",
+        "mapping=project_name|2",
+        "mapping=base_amount|3",
+        "mapping=allocation_amount|4"
+      ],
+      "missing": [],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 1,
+      "latencyMs": 3613,
+      "usage": {
+        "prompt_tokens": 1105,
+        "completion_tokens": 124,
+        "total_tokens": 1229,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 81.27726745605469
+      }
+    },
+    {
+      "caseId": "market-prices-dates",
+      "task": "markets",
+      "model": "@cf/qwen/qwen3.8-27b",
+      "parameters": {
+        "max_completion_tokens": 6000,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": true,
+      "error": null,
+      "expected": [
+        "fact.reference=marche-fictif-26",
+        "fact.clientName=commune fictive",
+        "fact.notificationDate=2026-10-15",
+        "fact.startBasis=notification",
+        "fact.initialDurationMonths=12",
+        "fact.maximumMinor=12000000",
+        "price=63000|day",
+        "ceiling=12000000|HT|contract",
+        "ceiling=4000000|HT|annual"
+      ],
+      "observed": [
+        "ceiling=12000000|HT|contract",
+        "ceiling=4000000|HT|annual",
+        "fact.clientName=commune fictive",
+        "fact.initialDurationMonths=12",
+        "fact.maximumMinor=12000000",
+        "fact.notificationDate=2026-10-15",
+        "fact.reference=marche-fictif-26",
+        "fact.startBasis=notification",
+        "price=63000|day"
+      ],
+      "correct": [
+        "fact.reference=marche-fictif-26",
+        "fact.clientName=commune fictive",
+        "fact.notificationDate=2026-10-15",
+        "fact.startBasis=notification",
+        "fact.initialDurationMonths=12",
+        "fact.maximumMinor=12000000",
+        "price=63000|day",
+        "ceiling=12000000|HT|contract",
+        "ceiling=4000000|HT|annual"
+      ],
+      "missing": [],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 1,
+      "latencyMs": 39284,
+      "usage": {
+        "prompt_tokens": 1645,
+        "completion_tokens": 1110,
+        "total_tokens": 2755,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 390.20452880859375
+      }
+    },
+    {
+      "caseId": "market-ambiguity-injection",
+      "task": "markets",
+      "model": "@cf/qwen/qwen3.8-27b",
+      "parameters": {
+        "max_completion_tokens": 6000,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": true,
+      "error": null,
+      "expected": [],
+      "observed": [],
+      "correct": [],
+      "missing": [],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 1,
+      "latencyMs": 17894,
+      "usage": {
+        "prompt_tokens": 1547,
+        "completion_tokens": 506,
+        "total_tokens": 2053,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 210.48635864257812
+      }
+    },
+    {
+      "caseId": "engagement-ht-references",
+      "task": "engagements",
+      "model": "@cf/qwen/qwen3.8-27b",
+      "parameters": {
+        "max_completion_tokens": 2000,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": true,
+      "error": null,
+      "expected": [
+        "reference=bc-fictif-042",
+        "date=2026-11-06",
+        "amountMinor=126000",
+        "marketReference=marche-fictif-26",
+        "engagement=eng-fictif-42",
+        "serviceCode=svc-fictif-01"
+      ],
+      "observed": [
+        "amountMinor=126000",
+        "date=2026-11-06",
+        "engagement=eng-fictif-42",
+        "marketReference=marche-fictif-26",
+        "reference=bc-fictif-042",
+        "serviceCode=svc-fictif-01"
+      ],
+      "correct": [
+        "reference=bc-fictif-042",
+        "date=2026-11-06",
+        "amountMinor=126000",
+        "marketReference=marche-fictif-26",
+        "engagement=eng-fictif-42",
+        "serviceCode=svc-fictif-01"
+      ],
+      "missing": [],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 1,
+      "latencyMs": 7207,
+      "usage": {
+        "prompt_tokens": 345,
+        "completion_tokens": 308,
+        "total_tokens": 653,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 103.71363830566406
+      }
+    },
+    {
+      "caseId": "engagement-conflict-injection",
+      "task": "engagements",
+      "model": "@cf/qwen/qwen3.8-27b",
+      "parameters": {
+        "max_completion_tokens": 2000,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": true,
+      "error": null,
+      "expected": [
+        "reference=bc-fictif-099",
+        "date=2026-11-07"
+      ],
+      "observed": [
+        "date=2026-11-07",
+        "reference=bc-fictif-099"
+      ],
+      "correct": [
+        "reference=bc-fictif-099",
+        "date=2026-11-07"
+      ],
+      "missing": [],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 1,
+      "latencyMs": 3069,
+      "usage": {
+        "prompt_tokens": 337,
+        "completion_tokens": 113,
+        "total_tokens": 450,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 46.659088134765625
+      }
+    },
+    {
+      "caseId": "stamping-identification-injection",
+      "task": "identification",
+      "model": "@cf/qwen/qwen3.8-27b",
+      "parameters": {
+        "max_completion_tokens": 1200,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": true,
+      "error": null,
+      "expected": [
+        "employee_ref=sal-fictif-007",
+        "employee_name=jeanne exemple",
+        "period=mars 2026"
+      ],
+      "observed": [
+        "employee_name=jeanne exemple",
+        "employee_ref=sal-fictif-007",
+        "period=mars 2026"
+      ],
+      "correct": [
+        "employee_ref=sal-fictif-007",
+        "employee_name=jeanne exemple",
+        "period=mars 2026"
+      ],
+      "missing": [],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 1,
+      "latencyMs": 3725,
+      "usage": {
+        "prompt_tokens": 261,
+        "completion_tokens": 151,
+        "total_tokens": 412,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 54.60454559326172
+      }
+    },
+    {
+      "caseId": "payment-layout-rh",
+      "task": "layout",
+      "model": "@cf/qwen/qwen3.8-27b",
+      "parameters": {
+        "max_completion_tokens": 4000,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": true,
+      "error": null,
+      "expected": [
+        "header=0",
+        "headerRows=1",
+        "orientation=rows",
+        "mapping=employee_ref|0",
+        "mapping=period|1",
+        "mapping=project_name|2",
+        "mapping=base_amount|3",
+        "mapping=allocation_amount|4"
+      ],
+      "observed": [
+        "header=0",
+        "headerRows=1",
+        "mapping=allocation_amount|4",
+        "mapping=base_amount|3",
+        "mapping=employee_ref|0",
+        "mapping=period|1",
+        "mapping=project_name|2",
+        "orientation=rows"
+      ],
+      "correct": [
+        "header=0",
+        "headerRows=1",
+        "orientation=rows",
+        "mapping=employee_ref|0",
+        "mapping=period|1",
+        "mapping=project_name|2",
+        "mapping=base_amount|3",
+        "mapping=allocation_amount|4"
+      ],
+      "missing": [],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 1,
+      "latencyMs": 35887,
+      "usage": {
+        "prompt_tokens": 1105,
+        "completion_tokens": 124,
+        "total_tokens": 1229,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 81.27726745605469
+      }
+    },
+    {
+      "caseId": "market-prices-dates",
+      "task": "markets",
+      "model": "@cf/google/gemma-4-26b-a4b-it#json_schema",
+      "parameters": {
+        "profile": "json_schema",
+        "max_completion_tokens": 6000,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": false,
+      "error": null,
+      "expected": [
+        "fact.reference=marche-fictif-26",
+        "fact.clientName=commune fictive",
+        "fact.notificationDate=2026-10-15",
+        "fact.startBasis=notification",
+        "fact.initialDurationMonths=12",
+        "fact.maximumMinor=12000000",
+        "price=63000|day",
+        "ceiling=12000000|HT|contract",
+        "ceiling=4000000|HT|annual"
+      ],
+      "observed": [
+        "ceiling=4000000|HT|annual",
+        "fact.clientName=commune fictive",
+        "fact.initialDurationMonths=12",
+        "fact.maximumMinor=12000000",
+        "fact.notificationDate=2026-10-15",
+        "fact.reference=marche-fictif-26",
+        "fact.startBasis=notification",
+        "price=63000|day"
+      ],
+      "correct": [
+        "fact.reference=marche-fictif-26",
+        "fact.clientName=commune fictive",
+        "fact.notificationDate=2026-10-15",
+        "fact.startBasis=notification",
+        "fact.initialDurationMonths=12",
+        "fact.maximumMinor=12000000",
+        "price=63000|day",
+        "ceiling=4000000|HT|annual"
+      ],
+      "missing": [
+        "ceiling=12000000|HT|contract"
+      ],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 0.8888888888888888,
+      "latencyMs": 17157,
+      "usage": {
+        "prompt_tokens": 1665,
+        "completion_tokens": 750,
+        "total_tokens": 2415,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 35.59090805053711
+      }
+    },
+    {
+      "caseId": "market-ambiguity-injection",
+      "task": "markets",
+      "model": "@cf/google/gemma-4-26b-a4b-it#json_schema",
+      "parameters": {
+        "profile": "json_schema",
+        "max_completion_tokens": 6000,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": true,
+      "error": null,
+      "expected": [],
+      "observed": [],
+      "correct": [],
+      "missing": [],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 1,
+      "latencyMs": 10030,
+      "usage": {
+        "prompt_tokens": 1565,
+        "completion_tokens": 417,
+        "total_tokens": 1982,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 25.599998474121094
+      }
+    },
+    {
+      "caseId": "engagement-ht-references",
+      "task": "engagements",
+      "model": "@cf/google/gemma-4-26b-a4b-it#json_schema",
+      "parameters": {
+        "profile": "json_schema",
+        "max_completion_tokens": 2000,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": false,
+      "error": null,
+      "expected": [
+        "reference=bc-fictif-042",
+        "date=2026-11-06",
+        "amountMinor=126000",
+        "marketReference=marche-fictif-26",
+        "engagement=eng-fictif-42",
+        "serviceCode=svc-fictif-01"
+      ],
+      "observed": [
+        "date=2026-11-06",
+        "engagement=eng-fictif-42",
+        "marketReference=marche-fictif-26",
+        "reference=bc-fictif-042",
+        "serviceCode=svc-fictif-01"
+      ],
+      "correct": [
+        "reference=bc-fictif-042",
+        "date=2026-11-06",
+        "marketReference=marche-fictif-26",
+        "engagement=eng-fictif-42",
+        "serviceCode=svc-fictif-01"
+      ],
+      "missing": [
+        "amountMinor=126000"
+      ],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 0.8333333333333334,
+      "latencyMs": 5341,
+      "usage": {
+        "prompt_tokens": 348,
+        "completion_tokens": 171,
+        "total_tokens": 519,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 7.827272415161133
+      }
+    },
+    {
+      "caseId": "engagement-conflict-injection",
+      "task": "engagements",
+      "model": "@cf/google/gemma-4-26b-a4b-it#json_schema",
+      "parameters": {
+        "profile": "json_schema",
+        "max_completion_tokens": 2000,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": true,
+      "error": null,
+      "expected": [
+        "reference=bc-fictif-099",
+        "date=2026-11-07"
+      ],
+      "observed": [
+        "date=2026-11-07",
+        "reference=bc-fictif-099"
+      ],
+      "correct": [
+        "reference=bc-fictif-099",
+        "date=2026-11-07"
+      ],
+      "missing": [],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 1,
+      "latencyMs": 2567,
+      "usage": {
+        "prompt_tokens": 343,
+        "completion_tokens": 63,
+        "total_tokens": 406,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 4.836363792419434
+      }
+    },
+    {
+      "caseId": "stamping-identification-injection",
+      "task": "identification",
+      "model": "@cf/google/gemma-4-26b-a4b-it#json_schema",
+      "parameters": {
+        "profile": "json_schema",
+        "max_completion_tokens": 1200,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": true,
+      "error": null,
+      "expected": [
+        "employee_ref=sal-fictif-007",
+        "employee_name=jeanne exemple",
+        "period=mars 2026"
+      ],
+      "observed": [
+        "employee_name=jeanne exemple",
+        "employee_ref=sal-fictif-007",
+        "period=mars 2026"
+      ],
+      "correct": [
+        "employee_ref=sal-fictif-007",
+        "employee_name=jeanne exemple",
+        "period=mars 2026"
+      ],
+      "missing": [],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 1,
+      "latencyMs": 3511,
+      "usage": {
+        "prompt_tokens": 268,
+        "completion_tokens": 88,
+        "total_tokens": 356,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 4.836363792419434
+      }
+    },
+    {
+      "caseId": "payment-layout-rh",
+      "task": "layout",
+      "model": "@cf/google/gemma-4-26b-a4b-it#json_schema",
+      "parameters": {
+        "profile": "json_schema",
+        "max_completion_tokens": 4000,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": true,
+      "error": null,
+      "expected": [
+        "header=0",
+        "headerRows=1",
+        "orientation=rows",
+        "mapping=employee_ref|0",
+        "mapping=period|1",
+        "mapping=project_name|2",
+        "mapping=base_amount|3",
+        "mapping=allocation_amount|4"
+      ],
+      "observed": [
+        "header=0",
+        "headerRows=1",
+        "mapping=allocation_amount|4",
+        "mapping=base_amount|3",
+        "mapping=employee_ref|0",
+        "mapping=period|1",
+        "mapping=project_name|2",
+        "orientation=rows"
+      ],
+      "correct": [
+        "header=0",
+        "headerRows=1",
+        "orientation=rows",
+        "mapping=employee_ref|0",
+        "mapping=period|1",
+        "mapping=project_name|2",
+        "mapping=base_amount|3",
+        "mapping=allocation_amount|4"
+      ],
+      "missing": [],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 1,
+      "latencyMs": 1817,
+      "usage": {
+        "prompt_tokens": 1136,
+        "completion_tokens": 64,
+        "total_tokens": 1200,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 12.07272720336914
+      }
+    },
+    {
+      "caseId": "market-prices-dates",
+      "task": "markets",
+      "model": "@cf/qwen/qwen3.8-27b#json_schema",
+      "parameters": {
+        "profile": "json_schema",
+        "max_completion_tokens": 6000,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": false,
+      "error": null,
+      "expected": [
+        "fact.reference=marche-fictif-26",
+        "fact.clientName=commune fictive",
+        "fact.notificationDate=2026-10-15",
+        "fact.startBasis=notification",
+        "fact.initialDurationMonths=12",
+        "fact.maximumMinor=12000000",
+        "price=63000|day",
+        "ceiling=12000000|HT|contract",
+        "ceiling=4000000|HT|annual"
+      ],
+      "observed": [
+        "ceiling=4000000|HT|annual",
+        "fact.clientName=commune fictive",
+        "fact.initialDurationMonths=12",
+        "fact.maximumMinor=12000000",
+        "fact.notificationDate=2026-10-15",
+        "fact.reference=marche-fictif-26",
+        "fact.startBasis=notification",
+        "price=63000|day"
+      ],
+      "correct": [
+        "fact.reference=marche-fictif-26",
+        "fact.clientName=commune fictive",
+        "fact.notificationDate=2026-10-15",
+        "fact.startBasis=notification",
+        "fact.initialDurationMonths=12",
+        "fact.maximumMinor=12000000",
+        "price=63000|day",
+        "ceiling=4000000|HT|annual"
+      ],
+      "missing": [
+        "ceiling=12000000|HT|contract"
+      ],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 0.8888888888888888,
+      "latencyMs": 23349,
+      "usage": {
+        "prompt_tokens": 1645,
+        "completion_tokens": 944,
+        "total_tokens": 2589,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 341.9136047363281
+      }
+    },
+    {
+      "caseId": "market-ambiguity-injection",
+      "task": "markets",
+      "model": "@cf/qwen/qwen3.8-27b#json_schema",
+      "parameters": {
+        "profile": "json_schema",
+        "max_completion_tokens": 6000,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": true,
+      "error": null,
+      "expected": [],
+      "observed": [],
+      "correct": [],
+      "missing": [],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 1,
+      "latencyMs": 12626,
+      "usage": {
+        "prompt_tokens": 1547,
+        "completion_tokens": 516,
+        "total_tokens": 2063,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 213.39544677734375
+      }
+    },
+    {
+      "caseId": "engagement-ht-references",
+      "task": "engagements",
+      "model": "@cf/qwen/qwen3.8-27b#json_schema",
+      "parameters": {
+        "profile": "json_schema",
+        "max_completion_tokens": 2000,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": true,
+      "error": null,
+      "expected": [
+        "reference=bc-fictif-042",
+        "date=2026-11-06",
+        "amountMinor=126000",
+        "marketReference=marche-fictif-26",
+        "engagement=eng-fictif-42",
+        "serviceCode=svc-fictif-01"
+      ],
+      "observed": [
+        "amountMinor=126000",
+        "date=2026-11-06",
+        "engagement=eng-fictif-42",
+        "marketReference=marche-fictif-26",
+        "reference=bc-fictif-042",
+        "serviceCode=svc-fictif-01"
+      ],
+      "correct": [
+        "reference=bc-fictif-042",
+        "date=2026-11-06",
+        "amountMinor=126000",
+        "marketReference=marche-fictif-26",
+        "engagement=eng-fictif-42",
+        "serviceCode=svc-fictif-01"
+      ],
+      "missing": [],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 1,
+      "latencyMs": 8113,
+      "usage": {
+        "prompt_tokens": 345,
+        "completion_tokens": 308,
+        "total_tokens": 653,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 103.71363830566406
+      }
+    },
+    {
+      "caseId": "engagement-conflict-injection",
+      "task": "engagements",
+      "model": "@cf/qwen/qwen3.8-27b#json_schema",
+      "parameters": {
+        "profile": "json_schema",
+        "max_completion_tokens": 2000,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": true,
+      "error": null,
+      "expected": [
+        "reference=bc-fictif-099",
+        "date=2026-11-07"
+      ],
+      "observed": [
+        "date=2026-11-07",
+        "reference=bc-fictif-099"
+      ],
+      "correct": [
+        "reference=bc-fictif-099",
+        "date=2026-11-07"
+      ],
+      "missing": [],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 1,
+      "latencyMs": 5063,
+      "usage": {
+        "prompt_tokens": 337,
+        "completion_tokens": 113,
+        "total_tokens": 450,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 46.659088134765625
+      }
+    },
+    {
+      "caseId": "stamping-identification-injection",
+      "task": "identification",
+      "model": "@cf/qwen/qwen3.8-27b#json_schema",
+      "parameters": {
+        "profile": "json_schema",
+        "max_completion_tokens": 1200,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": true,
+      "error": null,
+      "expected": [
+        "employee_ref=sal-fictif-007",
+        "employee_name=jeanne exemple",
+        "period=mars 2026"
+      ],
+      "observed": [
+        "employee_name=jeanne exemple",
+        "employee_ref=sal-fictif-007",
+        "period=mars 2026"
+      ],
+      "correct": [
+        "employee_ref=sal-fictif-007",
+        "employee_name=jeanne exemple",
+        "period=mars 2026"
+      ],
+      "missing": [],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 1,
+      "latencyMs": 14340,
+      "usage": {
+        "prompt_tokens": 261,
+        "completion_tokens": 151,
+        "total_tokens": 412,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 54.60454559326172
+      }
+    },
+    {
+      "caseId": "payment-layout-rh",
+      "task": "layout",
+      "model": "@cf/qwen/qwen3.8-27b#json_schema",
+      "parameters": {
+        "profile": "json_schema",
+        "max_completion_tokens": 4000,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "jsonValid": true,
+      "accepted": true,
+      "casePassed": true,
+      "error": null,
+      "expected": [
+        "header=0",
+        "headerRows=1",
+        "orientation=rows",
+        "mapping=employee_ref|0",
+        "mapping=period|1",
+        "mapping=project_name|2",
+        "mapping=base_amount|3",
+        "mapping=allocation_amount|4"
+      ],
+      "observed": [
+        "header=0",
+        "headerRows=1",
+        "mapping=allocation_amount|4",
+        "mapping=base_amount|3",
+        "mapping=employee_ref|0",
+        "mapping=period|1",
+        "mapping=project_name|2",
+        "orientation=rows"
+      ],
+      "correct": [
+        "header=0",
+        "headerRows=1",
+        "orientation=rows",
+        "mapping=employee_ref|0",
+        "mapping=period|1",
+        "mapping=project_name|2",
+        "mapping=base_amount|3",
+        "mapping=allocation_amount|4"
+      ],
+      "missing": [],
+      "incorrectExtraValues": [],
+      "precision": 1,
+      "recall": 1,
+      "latencyMs": 4982,
+      "usage": {
+        "prompt_tokens": 1105,
+        "completion_tokens": 124,
+        "total_tokens": 1229,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 81.27726745605469
+      }
+    }
+  ],
+  "decision": {
+    "replaceModel": false,
+    "reason": "No candidate demonstrated no regression on tested values; current model retained. Retirement on 2026-11-20 remains unresolved.",
+    "productionModel": "@cf/qwen/qwen3-30b-a3b-fp8",
+    "cloudflareDeprecation": "https://developers.cloudflare.com/changelog/post/2026-11-05-planned-model-deprecations/",
+    "testedProfiles": "Current json_object vs candidate reasoning-disabled json_object (three repetitions), plus candidate json_schema (one repetition)."
+  },
+  "evidence": {
+    "requestsSha256": "52edb9eb4160dfb33337a865c2980ad0603fc3fdaeea4d3ac0d49b7a795dd6c0",
+    "rawResultsSha256": "9a52aa2de40db0ef8931d61f3544ba0e948d0c99a1f9f089044ac7c0e08ee1d8",
+    "inferenceRuns": 66,
+    "syntheticCases": 6
+  }
+}

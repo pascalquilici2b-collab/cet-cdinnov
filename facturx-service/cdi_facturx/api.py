@@ -23,7 +23,7 @@ from .document_pdf import render_document, DocumentPDFError
 from .intervention_pdf import render_intervention_report
 from .billing_document import InterventionReportRequest
 from .billing_issuance import IssuedRequest, preflight as billing_preflight, generate_issued
-from .pdf_import import MAX_BYTES, extract_pdf, preview_pdf
+from .pdf_import import MAX_BYTES, extract_pdf, preview_pdf, ocr_page_pdf
 from .service import ROOT, ConversionError, generate, health
 from .recipient_lookup import RecipientQuery, LookupError, lookup_recipient
 
@@ -168,7 +168,7 @@ def index():
 
 @app.get('/api/health')
 def status():
-    return {**health(), 'authentication_required': os.getenv('FACTURX_DEPLOYMENT') == 'server'}
+    return {**health(), 'authentication_required': os.getenv('FACTURX_DEPLOYMENT') == 'server', 'document_ocr_bridge': 'v1'}
 
 
 @app.get('/docs', include_in_schema=False)
@@ -198,15 +198,48 @@ def read_pdf(pdf):
 
 @app.post('/api/facturx/import-pdf')
 @app.post('/api/invoices/read-pdf')
-def import_pdf(pdf: Annotated[UploadFile, File()]):
+def import_pdf(request: Request, pdf: Annotated[UploadFile, File()], ocrPages: Annotated[str | None, Form()] = None):
+    # Browser-authored text is not a source attestation. Only the authenticated
+    # portal Worker may attach its bounded OCR result to an uploaded PDF.
+    ocr_pages = None
+    if ocrPages is not None:
+        require_machine(request)
+        if len(ocrPages.encode('utf-8')) > 1500000:
+            raise HTTPException(413, 'Lecture OCR trop volumineuse.')
+        try:
+            ocr_pages = json.loads(ocrPages)
+        except (ValueError, TypeError):
+            raise HTTPException(422, 'Lecture OCR invalide.') from None
     if not SLOTS.acquire(blocking=False):
         raise HTTPException(503, 'Le service traite un autre document. Réessayez dans un instant.')
     try:
-        return extract_pdf(read_pdf(pdf),include_preview=True)
+        return extract_pdf(read_pdf(pdf),include_preview=True,ocr_pages=ocr_pages)
     except HTTPException:
         raise
     except Exception as exc:
         raise HTTPException(422, str(exc)[:1500]) from exc
+    finally:
+        SLOTS.release()
+
+
+def require_machine(request: Request):
+    key = os.getenv('FACTURX_API_KEY', '')
+    if len(key) < 32 or not secrets.compare_digest(request.headers.get('x-api-key', ''), key):
+        raise HTTPException(401, 'Accès serveur requis.')
+
+
+@app.post('/api/invoices/ocr-page')
+def invoice_ocr_page(request: Request, pdf: Annotated[UploadFile, File()], page: Annotated[int, Form()] = 0):
+    require_machine(request)
+    if not SLOTS.acquire(blocking=False):
+        raise HTTPException(503, 'Le service traite un autre document. Réessayez dans un instant.')
+    try:
+        return ocr_page_pdf(read_pdf(pdf), page)
+    except HTTPException:
+        raise
+    except Exception:
+        # Native parser diagnostics may contain private document fragments.
+        raise HTTPException(422, 'Page OCR indisponible pour ce document.') from None
     finally:
         SLOTS.release()
 

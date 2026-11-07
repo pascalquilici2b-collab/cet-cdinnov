@@ -654,6 +654,83 @@ function pdfTextRows(items) {
   }).join("")).join("\n");
 }
 
+// marches/ocr-pages.mjs
+var OCR_MAX_SIDE = 2400;
+var OCR_MAX_PIXELS = 4e6;
+var OCR_MAX_BYTES = 9e5;
+function ocrRasterSize(width, height) {
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) throw Error("Dimensions de la page invalides.");
+  const scale = Math.min(1, OCR_MAX_SIDE / Math.max(width, height), Math.sqrt(OCR_MAX_PIXELS / (width * height)));
+  return { width: Math.max(1, Math.floor(width * scale)), height: Math.max(1, Math.floor(height * scale)) };
+}
+var multiply = (a, b) => [a[0] * b[0] + a[2] * b[1], a[1] * b[0] + a[3] * b[1], a[0] * b[2] + a[2] * b[3], a[1] * b[2] + a[3] * b[3], a[0] * b[4] + a[2] * b[5] + a[4], a[1] * b[4] + a[3] * b[5] + a[5]];
+function substantialPdfRaster(operatorList, ops, view) {
+  const [x0, y0, x1, y1] = view || [], pageArea = Math.abs((x1 - x0) * (y1 - y0));
+  if (!pageArea) return false;
+  let current = [1, 0, 0, 1, 0, 0];
+  const stack = [];
+  const substantial = (matrix) => {
+    const points = [[0, 0], [0, 1], [1, 0], [1, 1]].map(([x2, y]) => [matrix[0] * x2 + matrix[2] * y + matrix[4], matrix[1] * x2 + matrix[3] * y + matrix[5]]);
+    const xs = points.map((p) => p[0]), ys = points.map((p) => p[1]);
+    const width = Math.max(0, Math.min(Math.max(...xs), Math.max(x0, x1)) - Math.max(Math.min(...xs), Math.min(x0, x1))), height = Math.max(0, Math.min(Math.max(...ys), Math.max(y0, y1)) - Math.max(Math.min(...ys), Math.min(y0, y1)));
+    return width * height >= pageArea * 0.12;
+  };
+  for (let i2 = 0; i2 < (operatorList?.fnArray?.length || 0); i2++) {
+    const op = operatorList.fnArray[i2], args = operatorList.argsArray[i2];
+    if (op === ops.save || op === ops.paintFormXObjectBegin) {
+      stack.push([...current]);
+      if (op === ops.paintFormXObjectBegin && args?.[0]?.length === 6) current = multiply(current, args[0]);
+    } else if (op === ops.restore || op === ops.paintFormXObjectEnd) current = stack.pop() || [1, 0, 0, 1, 0, 0];
+    else if (op === ops.transform && args?.length === 6) current = multiply(current, args);
+    else if ([ops.paintImageXObject, ops.paintInlineImageXObject, ops.paintImageMaskXObject, ops.paintSolidColorImageMask].includes(op) && substantial(current)) return true;
+    else if (op === ops.paintImageXObjectRepeat) {
+      const [, sx, sy, positions] = args || [];
+      for (let p = 0; p < (positions?.length || 0); p += 2) if (substantial(multiply(current, [sx, 0, 0, sy, positions[p], positions[p + 1]]))) return true;
+    } else if (op === ops.paintInlineImageXObjectGroup) {
+      for (const entry of args?.[1] || []) if (entry.transform && substantial(multiply(current, entry.transform))) return true;
+    }
+  }
+  return false;
+}
+function hasPdfWrittenAnnotations(annotations) {
+  return (annotations || []).some((a) => !a.hidden && (a.subtype === "Ink" && a.inkLists?.length || ["Tx", "Ch", "Btn"].includes(a.fieldType) && a.fieldValue !== void 0 && a.fieldValue !== null && a.fieldValue !== "" && a.fieldValue !== "Off"));
+}
+async function jpegOcrPayload(canvas, page, embeddedText = "") {
+  let target = canvas;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const image = target.toDataURL("image/jpeg", attempt ? 0.78 : 0.9), bytes = Math.ceil((image.length - image.indexOf(",") - 1) * 3 / 4);
+    if (bytes <= OCR_MAX_BYTES) {
+      const payload = { image, page, width: target.width, height: target.height, embeddedText: String(embeddedText).slice(0, 1e4) };
+      if (target !== canvas) target.width = target.height = 1;
+      return payload;
+    }
+    const smaller = document.createElement("canvas");
+    smaller.width = Math.max(1, Math.floor(target.width * 0.75));
+    smaller.height = Math.max(1, Math.floor(target.height * 0.75));
+    smaller.getContext("2d").drawImage(target, 0, 0, smaller.width, smaller.height);
+    if (target !== canvas) target.width = target.height = 1;
+    target = smaller;
+  }
+  if (target !== canvas) target.width = target.height = 1;
+  throw Error("La page reste trop volumineuse pour la lecture visuelle.");
+}
+async function imageOcrCanvas(file) {
+  const bitmap = await createImageBitmap(file);
+  try {
+    if (bitmap.width * bitmap.height > 8e7) throw Object.assign(Error("Image trop grande : redimensionnez-la avant import."), { unrecoverable: true });
+    const size = ocrRasterSize(bitmap.width, bitmap.height), canvas = document.createElement("canvas");
+    canvas.width = size.width;
+    canvas.height = size.height;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    return canvas;
+  } finally {
+    bitmap.close();
+  }
+}
+
 // marches/reader.js
 var MAX_TEXT = 5e5;
 var MAX_PAGES = 150;
@@ -746,16 +823,16 @@ function office(bytes, name) {
     }
   }
   if (text.length > MAX_TEXT) throw new Error("Document trop long : maximum 500 000 caract\xE8res.");
-  return { text, method: "office", complete: !warnings.length, pages, warnings: [...new Set(warnings)] };
+  return { text, method: "office", complete: !warnings.length, pages, warnings: [...new Set(warnings)].slice(0, 150) };
 }
 async function readDocument(file, progress = () => {
-}, cancelled = () => false) {
+}, cancelled = () => false, ocrOptions = {}) {
   const check = () => {
     if (cancelled()) throw new Error("Lecture interrompue. Vous pouvez reprendre sans perdre les pi\xE8ces import\xE9es.");
   };
   const warnings = [];
-  let worker = null, usedOcr = false;
-  async function ocr(image) {
+  let worker = null, usedOcr = false, uncertainRead = false, usedVision = false;
+  async function localOcr(image) {
     check();
     usedOcr = true;
     if (!worker) {
@@ -782,6 +859,40 @@ async function readDocument(file, progress = () => {
     data.text = joinPriceTableRows(data.text);
     return data;
   }
+  async function ocr(image, page = 1, embeddedText = "") {
+    if (typeof ocrOptions.ocrPage !== "function") return localOcr(image);
+    check();
+    usedOcr = true;
+    let canvas = image, owned = false;
+    try {
+      if (image instanceof Blob) {
+        canvas = await imageOcrCanvas(image);
+        owned = true;
+      }
+      const payload = await jpegOcrPayload(canvas, page, embeddedText);
+      check();
+      progress("Lecture visuelle \xB7 page " + page);
+      const result = await ocrOptions.ocrPage(payload);
+      check();
+      if (!result || typeof result.text !== "string" || result.text.length > MAX_TEXT || typeof result.complete !== "boolean" || !Array.isArray(result.warnings) || result.warnings.some((w) => typeof w !== "string" || w.length > 1e3)) throw Error("Lecture visuelle invalide.");
+      usedVision = true;
+      warnings.push(...result.warnings.slice(0, 20).map((w) => ("Page " + page + " : " + w).slice(0, 500)));
+      if (!result.complete) {
+        uncertainRead = true;
+        warnings.push("Page " + page + " : lecture visuelle incertaine, v\xE9rifier les champs et montants dans l\u2019original.");
+      }
+      return { text: joinPriceTableRows(result.text), complete: result.complete };
+    } catch (error) {
+      check();
+      if (error?.status === 401 || error?.status === 403 || error?.name === "AbortError" || error?.unrecoverable) throw error;
+      uncertainRead = true;
+      warnings.push("Page " + page + " : lecture visuelle indisponible ; reconnaissance locale utilis\xE9e, v\xE9rifier les champs manuscrits et les montants.");
+      progress("Reconnaissance locale \xB7 page " + page);
+      return localOcr(image);
+    } finally {
+      if (owned) canvas.width = canvas.height = 1;
+    }
+  }
   try {
     if (file.size > 5 * 1024 * 1024) throw new Error("Maximum 5 Mo par pi\xE8ce.");
     check();
@@ -794,42 +905,59 @@ async function readDocument(file, progress = () => {
     if (/\.(png|jpe?g)$/i.test(file.name)) {
       progress("Reconnaissance du scan");
       const data = await ocr(file);
-      if (data.confidence < 50 || !data.text.trim()) warnings.push("Scan peu lisible : v\xE9rifier le texte et les montants.");
-      return { text: "[Page 1]\n" + data.text, method: "ocr", complete: !warnings.length, pages: 1, warnings };
+      if (data.confidence < 50 || !data.text.trim() && data.complete !== true) {
+        uncertainRead = true;
+        warnings.push("Scan peu lisible : v\xE9rifier le texte et les montants.");
+      }
+      return { text: "[Page 1]\n" + data.text, method: usedVision ? "vision" : "ocr", complete: !uncertainRead, pages: 1, warnings: [...new Set(warnings)].slice(0, 150) };
     }
     if (!/\.pdf$/i.test(file.name)) throw new Error("Format non pris en charge.");
     const pdf = await import("./vendor/pdf.mjs");
     pdf.GlobalWorkerOptions.workerSrc = asset("pdf.worker.mjs");
     const task = pdf.getDocument({ data: new Uint8Array(await file.arrayBuffer()), isEvalSupported: false, enableXfa: false, useSystemFonts: true, wasmUrl: asset("wasm/"), standardFontDataUrl: asset("standard_fonts/") });
     try {
-      const document = await task.promise;
-      if (document.numPages > MAX_PAGES) throw new Error("Maximum 150 pages par pi\xE8ce ; d\xE9coupez le PDF en plusieurs pi\xE8ces.");
+      const document2 = await task.promise;
+      if (document2.numPages > MAX_PAGES) throw new Error("Maximum 150 pages par pi\xE8ce ; d\xE9coupez le PDF en plusieurs pi\xE8ces.");
       let text = "";
-      for (let i2 = 1; i2 <= document.numPages; i2++) {
+      for (let i2 = 1; i2 <= document2.numPages; i2++) {
         check();
-        progress("Page " + i2 + " / " + document.numPages);
-        const page = await document.getPage(i2), data = await page.getTextContent();
+        progress("Page " + i2 + " / " + document2.numPages);
+        const page = await document2.getPage(i2), data = await page.getTextContent();
         let content = pdfTextRows(data.items);
-        if (needsPdfOcr(content)) {
-          progress("Reconnaissance du scan \xB7 page " + i2 + " / " + document.numPages);
+        let visual = needsPdfOcr(content);
+        if (!visual && typeof ocrOptions.ocrPage === "function") {
+          const [operators, annotations] = await Promise.all([page.getOperatorList(), page.getAnnotations({ intent: "display" })]);
+          visual = substantialPdfRaster(operators, pdf.OPS, page.view) || hasPdfWrittenAnnotations(annotations);
+        }
+        if (visual) {
+          progress("Reconnaissance du scan \xB7 page " + i2 + " / " + document2.numPages);
           const viewport = page.getViewport({ scale: 3 }), canvas = documentGlobalCanvas();
-          const scale = Math.min(1, 3e3 / Math.max(viewport.width, viewport.height)), vp = page.getViewport({ scale: 3 * scale });
-          canvas.width = Math.ceil(vp.width);
-          canvas.height = Math.ceil(vp.height);
+          const size = typeof ocrOptions.ocrPage === "function" ? ocrRasterSize(viewport.width, viewport.height) : { width: viewport.width * Math.min(1, 3e3 / Math.max(viewport.width, viewport.height)), height: viewport.height * Math.min(1, 3e3 / Math.max(viewport.width, viewport.height)) }, scale = Math.min(size.width / viewport.width, size.height / viewport.height), vp = page.getViewport({ scale: 3 * scale });
+          canvas.width = Math.max(1, Math.floor(vp.width));
+          canvas.height = Math.max(1, Math.floor(vp.height));
           await page.render({ canvasContext: canvas.getContext("2d"), viewport: vp }).promise;
-          const result = await ocr(canvas);
+          const result = await ocr(canvas, i2, content);
           content = result.text;
           canvas.width = canvas.height = 1;
-          if (result.confidence < 45 && content.trim()) warnings.push("Page " + i2 + " : reconnaissance incertaine, v\xE9rifier l\u2019original.");
-          if (!content.trim()) warnings.push("Page " + i2 + " : reconnaissance incertaine, aucun texte lu dans le scan.");
+          if (result.confidence < 45 && content.trim()) {
+            uncertainRead = true;
+            warnings.push("Page " + i2 + " : reconnaissance incertaine, v\xE9rifier l\u2019original.");
+          }
+          if (!content.trim() && result.complete !== true) {
+            uncertainRead = true;
+            warnings.push("Page " + i2 + " : reconnaissance incertaine, aucun texte lu dans le scan.");
+          }
         }
         text += "[Page " + i2 + "]\n" + content + "\n";
         page.cleanup();
         if (text.length > MAX_TEXT) throw new Error("PDF trop long : maximum 500 000 caract\xE8res par pi\xE8ce.");
       }
-      if (!text.replace(/\[Page \d+\]/g, "").trim()) warnings.push("Aucun texte exploitable dans cette pi\xE8ce.");
+      if (!text.replace(/\[Page \d+\]/g, "").trim()) {
+        if (!usedVision) uncertainRead = true;
+        warnings.push("Aucun texte exploitable dans cette pi\xE8ce.");
+      }
       if (usedOcr) warnings.push("Les cases coch\xE9es, signatures et chiffres reconnus par OCR doivent \xEAtre v\xE9rifi\xE9s dans l\u2019original.");
-      return { text, method: usedOcr ? "ocr" : "pdf", complete: !warnings.some((w) => /incertaine|Aucun texte/.test(w)), pages: document.numPages, warnings };
+      return { text, method: usedVision ? "vision" : usedOcr ? "ocr" : "pdf", complete: !uncertainRead, pages: document2.numPages, warnings: [...new Set(warnings)].slice(0, 150) };
     } finally {
       await task.destroy();
     }

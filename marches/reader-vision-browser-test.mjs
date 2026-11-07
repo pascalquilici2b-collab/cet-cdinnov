@@ -1,0 +1,32 @@
+import{test}from'node:test';import assert from'node:assert/strict';import{build}from'esbuild';import{createRequire}from'node:module';import{createServer}from'node:http';import{readFile}from'node:fs/promises';import{resolve,extname}from'node:path';
+const runtimeRequire=createRequire(process.env.PLAYWRIGHT_NODEJS_PATH||'/opt/codex/runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright/package.json');const{chromium}=runtimeRequire('playwright');
+test('real PDF.js reader routes raster, mixed and image pages to vision; preserves quality and local fallback',async()=>{
+ const bundle=await build({stdin:{contents:"import{readDocument}from'./marches/reader.js';import{jsPDF}from'jspdf';window.readDocument=readDocument;window.jsPDF=jsPDF;",resolveDir:process.cwd(),loader:'js'},bundle:true,write:false,format:'esm',platform:'browser',external:['./vendor/pdf.mjs','./vendor/ocr/tesseract.esm.min.js'],logLevel:'silent'});
+ const server=createServer(async(req,res)=>{try{
+  const url=new URL(req.url,'http://local');if(url.pathname==='/'){res.setHeader('Content-Type','text/html');res.end('<!doctype html><script type="module" src="/bundle.js"></script>');return;}
+  if(url.pathname==='/bundle.js'){res.setHeader('Content-Type','application/javascript');res.end(bundle.outputFiles[0].contents);return;}
+  const path=url.pathname.replace(/^\/vendor\//,'/marches/vendor/');if(!path.startsWith('/marches/vendor/')||path.includes('..')){res.statusCode=404;res.end();return;}
+  const mime={'.mjs':'application/javascript','.js':'application/javascript','.wasm':'application/wasm','.gz':'application/gzip'}[extname(path)]||'application/octet-stream';res.setHeader('Content-Type',mime);res.end(await readFile(resolve('.'+path)));
+ }catch{res.statusCode=404;res.end();}});
+ await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const base='http://127.0.0.1:'+server.address().port,browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||'/usr/bin/chromium',headless:true});
+ try{
+  const page=await browser.newPage();await page.route('**/*',route=>route.request().url().startsWith(base+'/')||/^(?:data|blob):/.test(route.request().url())?route.continue():route.abort());await page.goto(base);await page.waitForFunction(()=>typeof window.readDocument==='function');
+  const result=await page.evaluate(async()=>{
+   const calls=[];const canvas=document.createElement('canvas');canvas.width=1400;canvas.height=1700;const ctx=canvas.getContext('2d');ctx.fillStyle='white';ctx.fillRect(0,0,1400,1700);ctx.fillStyle='black';ctx.font='48px Arial';ctx.fillText('BON DE COMMANDE FICTIF BC-42',100,150);ctx.fillText('TOTAL HT 987,65 EUROS',100,250);ctx.font='italic 40px cursive';ctx.fillText('Date : 7 novembre 2026',100,350);const image=canvas.toDataURL('image/jpeg',.9);
+   const make=(kind)=>{const pdf=new window.jsPDF({unit:'pt',format:[600,800]});if(kind==='mixed'||kind==='text'){pdf.setFontSize(12);pdf.text('En-tete numerique de plus de quatre-vingts caracteres pour prouver que le corps scanne reste lu. Document fictif.',20,25);}if(kind==='scan'||kind==='mixed')pdf.addImage(image,'JPEG',20,70,560,680);if(kind==='text')pdf.addImage(image,'JPEG',540,5,30,40);return new File([pdf.output('arraybuffer')],kind+'.pdf',{type:'application/pdf'});};
+   const ocrPage=async input=>{calls.push(input);return{text:'Bon de commande fictif BC-42. TOTAL HT 987,65 EUROS. Date : 7 novembre 2026.',complete:true,warnings:['Signature illisible ou incertaine ; son identité n’est pas vérifiée.']};};
+   const scan=await window.readDocument(make('scan'),()=>{},()=>false,{ocrPage});const mixed=await window.readDocument(make('mixed'),()=>{},()=>false,{ocrPage});const beforeText=calls.length,text=await window.readDocument(make('text'),()=>{},()=>false,{ocrPage});const textCalls=calls.length-beforeText;
+   const blob=await(await fetch(image)).blob(),imageFile=new File([blob],'scan.jpg',{type:'image/jpeg'});const jpg=await window.readDocument(imageFile,()=>{},()=>false,{ocrPage});
+   const blank=await window.readDocument(make('scan'),()=>{},()=>false,{ocrPage:async()=>({text:'',complete:true,warnings:[]})});
+   const blankImage=await window.readDocument(imageFile,()=>{},()=>false,{ocrPage:async()=>({text:'',complete:true,warnings:[]})});
+   const uncertain=await window.readDocument(imageFile,()=>{},()=>false,{ocrPage:async()=>({text:'TOTAL HT [[illisible]]',complete:false,warnings:['Montant manuscrit illisible.']})});
+   const fallback=await window.readDocument(imageFile,()=>{},()=>false,{ocrPage:async()=>{throw Object.assign(Error('quota'),{status:429});}});
+   let unauthorized='';try{await window.readDocument(imageFile,()=>{},()=>false,{ocrPage:async()=>{throw Object.assign(Error('Session expirée'),{status:401});}});}catch(error){unauthorized=error.message;}
+   return{scan,mixed,text,jpg,blank,blankImage,uncertain,fallback,unauthorized,textCalls,calls:calls.map(({image,...input})=>({...input,bytes:Math.ceil((image.length-image.indexOf(',')-1)*3/4),jpeg:image.startsWith('data:image/jpeg;base64,')}))};
+  });
+  assert.equal(result.scan.method,'vision');assert.equal(result.scan.complete,true);assert.match(result.scan.text,/BC-42/);assert.equal(result.mixed.method,'vision');assert.ok(result.calls[1].embeddedText.length>80);assert.equal(result.text.method,'pdf');assert.equal(result.textCalls,0);assert.equal(result.jpg.method,'vision');assert.equal(result.jpg.complete,true);assert.ok(result.jpg.warnings.some(w=>/Signature/.test(w)));
+  assert.equal(result.blank.complete,true);assert.equal(result.blankImage.complete,true);assert.equal(result.uncertain.complete,false);assert.match(result.uncertain.text,/\[\[illisible\]\]/);assert.equal(result.fallback.method,'ocr');assert.equal(result.fallback.complete,false);assert.match(result.fallback.text,/BC-42|COMMANDE/);assert.ok(result.fallback.warnings.some(w=>/locale utilisée/.test(w)));assert.equal(result.unauthorized,'Session expirée');
+  for(const input of result.calls){assert.equal(input.jpeg,true);assert.ok(input.width<=2400&&input.height<=2400&&input.width*input.height<=4000000&&input.bytes<=900000);}
+  console.log(JSON.stringify({realPdfJs:true,rasterVision:true,mixedTextAndScan:true,digitalLogoFastPath:true,imageVision:true,signatureWarningNonblocking:true,unreadableManual:true,quotaLocalFallbackUncertain:true,authNotHidden:true,boundedPages:true}));
+ }finally{await browser.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
+});

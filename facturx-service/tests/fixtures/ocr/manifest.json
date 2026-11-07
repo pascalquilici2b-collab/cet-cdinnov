@@ -1,0 +1,322 @@
+{
+  "schemaVersion": 1,
+  "synthetic": true,
+  "containsCustomerData": false,
+  "provenance": "Locally generated fictitious text, Caveat cursive font and simulated pen gestures; JPEG degradation, mild blur and skew.",
+  "limitations": [
+    "Cursive font is not human handwriting.",
+    "Illustrated signatures have no identity or legal validity.",
+    "Three short French pages and one printed 40-row price table; no claim about real PDFs, other tables, languages or human handwriting."
+  ],
+  "reproduction": {
+    "prepare": "node platform/document-ocr-evaluation.mjs prepare",
+    "productionBuilder": "platform/document-ocr-domain.mjs#buildOCRInput",
+    "embeddedText": "empty for all image-only pages",
+    "cloudInference": "Never automatic; prepare writes local request payloads only.",
+    "tesseractSharedImage": {
+      "engine": "Tesseract 5.5.0",
+      "languages": "fra+eng",
+      "options": [
+        "--psm",
+        "3",
+        "--dpi",
+        "300"
+      ]
+    },
+    "tesseractStamping300dpi": {
+      "sourcePagePoints": [
+        595.276,
+        841.89
+      ],
+      "renderDpi": 300,
+      "grayscale": true,
+      "note": "Measured original PDF rerender using production geometry; only original JPEGs are retained here."
+    }
+  },
+  "cases": [
+    {
+      "id": "invoice-printed-signed",
+      "image": "invoice-printed-signed.jpg",
+      "sha256": "f4d5ac66fb202a1d9d373fd09e98ad11be8caa8ae6ce60c33eca9861c6a2a3f4",
+      "mimeType": "image/jpeg",
+      "pixels": [
+        1654,
+        2339
+      ],
+      "dpi": 200,
+      "embeddedText": "",
+      "expected": {
+        "document_type": "INVOICE",
+        "invoice_number": "FICT-2026-0042",
+        "invoice_date": "2026-11-07",
+        "supplier_ref": "ATELIER-FICTIF",
+        "HT": 128050,
+        "TTC": 153660,
+        "handwritten_note": "Bon pour accord le 07/11/2026",
+        "signature_present": true
+      }
+    },
+    {
+      "id": "order-handwritten-fields",
+      "image": "order-handwritten-fields.jpg",
+      "sha256": "f7cf8428717b18d81aafe6235dd699b30daf141e8000a8276819e1af7791ec77",
+      "mimeType": "image/jpeg",
+      "pixels": [
+        1654,
+        2339
+      ],
+      "dpi": 200,
+      "embeddedText": "",
+      "expected": {
+        "document_type": "PURCHASE_ORDER",
+        "references": [
+          "BC-FICT-2026-018"
+        ],
+        "date": "2026-11-07",
+        "amount_ht_cents": 486075,
+        "client": "Commune Fictive de Démonstration",
+        "object": "Assistance et entretien du site de démonstration",
+        "signature_present": true
+      }
+    },
+    {
+      "id": "invoice-handwritten-fields",
+      "image": "invoice-handwritten-fields.jpg",
+      "sha256": "80a2f5dfcb6c1d824e9ae42a70724af5fc23a4899d7d371967f6c34fb90822df",
+      "mimeType": "image/jpeg",
+      "pixels": [
+        1654,
+        2339
+      ],
+      "dpi": 200,
+      "embeddedText": "",
+      "expected": {
+        "document_type": "INVOICE",
+        "invoice_number": "FICT-MAN-0087",
+        "invoice_date": "2026-10-31",
+        "supplier_ref": "FOURNISSEUR-FICTIF",
+        "HT": 97540,
+        "TTC": 117048,
+        "deposit_cents": 25000,
+        "signature_present": true
+      }
+    },
+    {
+      "id": "dense-price-table",
+      "image": "dense-price-table.jpg",
+      "sha256": "f3d0873223a754783f72a4c5decdd139871b032b4edc2b8fa05b214ff5968b44",
+      "mimeType": "image/jpeg",
+      "pixels": [
+        1654,
+        2339
+      ],
+      "embeddedText": "",
+      "kind": "printed-40-row-price-table",
+      "expected": {
+        "rows": [
+          {
+            "code": "FICT-001",
+            "net": "258,26",
+            "gross": "309,91"
+          },
+          {
+            "code": "FICT-002",
+            "net": "259,39",
+            "gross": "311,27"
+          },
+          {
+            "code": "FICT-003",
+            "net": "260,52",
+            "gross": "312,62"
+          },
+          {
+            "code": "FICT-004",
+            "net": "261,65",
+            "gross": "313,98"
+          },
+          {
+            "code": "FICT-005",
+            "net": "262,78",
+            "gross": "315,34"
+          },
+          {
+            "code": "FICT-006",
+            "net": "263,91",
+            "gross": "316,69"
+          },
+          {
+            "code": "FICT-007",
+            "net": "265,04",
+            "gross": "318,05"
+          },
+          {
+            "code": "FICT-008",
+            "net": "266,17",
+            "gross": "319,40"
+          },
+          {
+            "code": "FICT-009",
+            "net": "267,30",
+            "gross": "320,76"
+          },
+          {
+            "code": "FICT-010",
+            "net": "268,43",
+            "gross": "322,12"
+          },
+          {
+            "code": "FICT-011",
+            "net": "269,56",
+            "gross": "323,47"
+          },
+          {
+            "code": "FICT-012",
+            "net": "270,69",
+            "gross": "324,83"
+          },
+          {
+            "code": "FICT-013",
+            "net": "271,82",
+            "gross": "326,18"
+          },
+          {
+            "code": "FICT-014",
+            "net": "272,95",
+            "gross": "327,54"
+          },
+          {
+            "code": "FICT-015",
+            "net": "274,08",
+            "gross": "328,90"
+          },
+          {
+            "code": "FICT-016",
+            "net": "275,21",
+            "gross": "330,25"
+          },
+          {
+            "code": "FICT-017",
+            "net": "276,34",
+            "gross": "331,61"
+          },
+          {
+            "code": "FICT-018",
+            "net": "277,47",
+            "gross": "332,96"
+          },
+          {
+            "code": "FICT-019",
+            "net": "278,60",
+            "gross": "334,32"
+          },
+          {
+            "code": "FICT-020",
+            "net": "279,73",
+            "gross": "335,68"
+          },
+          {
+            "code": "FICT-021",
+            "net": "280,86",
+            "gross": "337,03"
+          },
+          {
+            "code": "FICT-022",
+            "net": "281,99",
+            "gross": "338,39"
+          },
+          {
+            "code": "FICT-023",
+            "net": "283,12",
+            "gross": "339,74"
+          },
+          {
+            "code": "FICT-024",
+            "net": "284,25",
+            "gross": "341,10"
+          },
+          {
+            "code": "FICT-025",
+            "net": "285,38",
+            "gross": "342,46"
+          },
+          {
+            "code": "FICT-026",
+            "net": "286,51",
+            "gross": "343,81"
+          },
+          {
+            "code": "FICT-027",
+            "net": "287,64",
+            "gross": "345,17"
+          },
+          {
+            "code": "FICT-028",
+            "net": "288,77",
+            "gross": "346,52"
+          },
+          {
+            "code": "FICT-029",
+            "net": "289,90",
+            "gross": "347,88"
+          },
+          {
+            "code": "FICT-030",
+            "net": "291,03",
+            "gross": "349,24"
+          },
+          {
+            "code": "FICT-031",
+            "net": "292,16",
+            "gross": "350,59"
+          },
+          {
+            "code": "FICT-032",
+            "net": "293,29",
+            "gross": "351,95"
+          },
+          {
+            "code": "FICT-033",
+            "net": "294,42",
+            "gross": "353,30"
+          },
+          {
+            "code": "FICT-034",
+            "net": "295,55",
+            "gross": "354,66"
+          },
+          {
+            "code": "FICT-035",
+            "net": "296,68",
+            "gross": "356,02"
+          },
+          {
+            "code": "FICT-036",
+            "net": "297,81",
+            "gross": "357,37"
+          },
+          {
+            "code": "FICT-037",
+            "net": "298,94",
+            "gross": "358,73"
+          },
+          {
+            "code": "FICT-038",
+            "net": "300,07",
+            "gross": "360,08"
+          },
+          {
+            "code": "FICT-039",
+            "net": "301,20",
+            "gross": "361,44"
+          },
+          {
+            "code": "FICT-040",
+            "net": "302,33",
+            "gross": "362,80"
+          }
+        ]
+      },
+      "limitation": "Printed fictitious BPU; OCR row transcription only, no downstream business-price extraction scored."
+    }
+  ]
+}

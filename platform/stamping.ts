@@ -7,6 +7,7 @@ import {hasAccess,sessionIdentity} from './identity';
 import {boundedBody} from './portal';
 import {stampingSuggestions} from './stamping-ai';
 import {paymentLayoutSuggestions} from './stamping-layout-ai';
+import {collectPDFOCR,pdfVisionEnabled,type PreparedOCRPage,type SuppliedOCRPage} from './document-ocr-pdf';
 import type {Environment,Database,Reply} from './contracts';
 
 type Batch={id:string;owner:string;name:string;version:number;data:string;created_at:number;expires_at:number};
@@ -23,12 +24,12 @@ const dbOf=(env:Environment)=>env.BUDGETS_DB.withSession('first-primary');
 const expose=(d:Doc)=>({...d,data:JSON.parse(d.data),lease_until:undefined});
 const audit=(db:Database,b:Batch,action:string,data:unknown={},documentId:string|null=null)=>db.prepare('INSERT INTO stamp_audit VALUES(?,?,?,?,?,?,?)').bind(crypto.randomUUID(),b.id,documentId,b.owner,action,JSON.stringify(data),Date.now()).run();
 async function json(request:Request,limit=1500000){try{return JSON.parse(new TextDecoder().decode(await boundedBody(request,limit)));}catch{return fail(400,'Requête JSON invalide.');}}
-async function service(env:Environment,raw:Uint8Array,payload:unknown){
+async function service(env:Environment,raw:Uint8Array,payload:unknown,signal?:AbortSignal){
  const base=env.BILLING_PDF_SERVICE_URL,key=env.BILLING_PDF_SERVICE_KEY;
  if(typeof base!=='string'||typeof key!=='string'||key.length<32)return fail(503,'Le service documentaire doit être activé.');
  let url:URL;try{url=new URL(base);if(url.protocol!=='https:'||url.username||url.password||url.search||url.hash||!['','/'].includes(url.pathname))throw 0;}catch{return fail(503,'Adresse du service documentaire invalide.');}
  url.pathname='/api/stamping/process';const form=new FormData();form.append('file',new Blob([new Uint8Array(raw)]),'source');form.append('payload',JSON.stringify(payload));
- let response:Response;try{response=await fetch(url,{method:'POST',headers:{'X-API-Key':key},body:form,redirect:'manual',signal:AbortSignal.timeout(105000)});}catch{return fail(503,'Le moteur documentaire ne répond pas. Relancez cette pièce.');}
+ let response:Response;try{response=await fetch(url,{method:'POST',headers:{'X-API-Key':key},body:form,redirect:'manual',signal:signal||AbortSignal.timeout(105000)});}catch{return fail(503,'Le moteur documentaire ne répond pas. Relancez cette pièce.');}
  if(!response.ok)return fail(response.status===503?503:422,'Le moteur documentaire a refusé le traitement.');
  const result=JSON.parse(new TextDecoder().decode(await boundedBody(response,40*1024*1024)));
  if(!result.ok)throw Object.assign(new Error(result.message||'Document non exploitable.'),{status:422,code:result.code});
@@ -101,6 +102,16 @@ export async function processStampJob(job:Job,env:Environment){
   const progress=async(stage:string,extra:Record<string,unknown>={})=>db.prepare("UPDATE stamp_documents SET data=? WHERE id=? AND version=? AND status='PROCESSING'").bind(JSON.stringify({...data,...extra,progress:{startedAt,stage}}),d.id,d.version).run();
   await progress('reading');
   let result=await service(env,source,payload);ai={status:'not_needed',suggestions:[]};
+  if(pdfVisionEnabled(env)&&(!result.reading?.ocr_fingerprint||result.reading?.ocr_complete===false)){
+   const vision=await collectPDFOCR(db,env,d.sha256,async(page,signal)=>
+    await service(env,source,{action:'ocr-page',page},signal) as PreparedOCRPage,
+    {maximumPages:100,deadlineMs:150000});
+   if(vision.pages.length){
+    await progress('reading',{vision:{pages:vision.pages.length,complete:vision.complete}});
+    Object.assign(payload,{ocrPages:vision.pages,cachedReading:null});
+    result=await service(env,source,payload);
+   }
+  }
   if(result.needsAI){
    await progress('ai',{reading:result.reading,cachedReading:result.cachedReading});
    ai=await stampingSuggestions(db,env,result.reading.evidence);
@@ -238,11 +249,19 @@ export async function stampingRoute(request:Request,env:Environment,reply:Reply)
   const docs=await documents(db,b.id);if(docs.length>=100)return fail(413,'Limite du lot : 100 PDF et 200 Mo.');
   const file=await upload(request,20*1024*1024);if(!/\.pdf$/i.test(file.name)||new TextDecoder().decode(file.bytes.slice(0,5))!=='%PDF-')return fail(415,'Un PDF valide est requis.');
   const sha=hash(file.bytes),duplicate=docs.find(d=>d.sha256===sha);if(duplicate)return reply(200,{id:duplicate.id,duplicate:true});
-  const info=await service(env,file.bytes,{action:'document-info'});
+  let info=await service(env,file.bytes,{action:'document-info'});
+  let ocrPages:SuppliedOCRPage[]|undefined;
   // At most three OCR pages (3 × 25 seconds) per isolated request, within its 95s limit.
-  const scans=info.pages.length>1?info.pages.filter((p:any)=>p.needsOCR).map((p:any)=>p.page):[];
-  for(let i=0;i<scans.length;i+=3){const part=await service(env,file.bytes,{action:'document-page',page:scans.slice(i,i+3)});for(const page of part.pages)info.pages[page.page]=page;}
-  const split=await service(env,file.bytes,{action:'document-split',pages:info.pages});
+  if(info.pages.length>1&&pdfVisionEnabled(env)){
+   const vision=await collectPDFOCR(db,env,sha,async(page,signal)=>
+    await service(env,file.bytes,{action:'ocr-page',page},signal) as PreparedOCRPage,
+    {maximumPages:100,deadlineMs:150000});
+   if(vision.pages.length){ocrPages=vision.pages;info=await service(env,file.bytes,{action:'document-info',ocrPages});}
+  }else{
+   const scans=info.pages.length>1?info.pages.filter((p:any)=>p.needsOCR).map((p:any)=>p.page):[];
+   for(let i=0;i<scans.length;i+=3){const part=await service(env,file.bytes,{action:'document-page',page:scans.slice(i,i+3)});for(const page of part.pages)info.pages[page.page]=page;}
+  }
+  const split=await service(env,file.bytes,{action:'document-split',pages:info.pages,...(ocrPages?{ocrPages}:{})});
   const seen=new Set(docs.map(d=>d.sha256)),prepared:{d:Doc;raw:Uint8Array;key:string;metadata:string}[]=[];let duplicates=0;
   const originalKey=prefix(b)+'imports/'+sha+'.pdf';
   for(const part of split.parts){
@@ -250,7 +269,7 @@ export async function stampingRoute(request:Request,env:Environment,reply:Reply)
    if(seen.has(partSha)){duplicates++;continue;}seen.add(partSha);
    const name=split.parts.length===1?file.name:file.name.replace(/\.pdf$/i,'')+` · pages ${part.start+1}–${part.end+1}.pdf`;
    const d={id:crypto.randomUUID(),batch_id:b.id,name,sha256:partSha,size:raw.length} as Doc;
-   prepared.push({d,raw,key:sourceKey(b,d),metadata:JSON.stringify({sourceUpload:{name:file.name,sha256:sha,pages:[part.start+1,part.end+1],...(split.parts.length>1?{key:originalKey}:{})}})});
+   prepared.push({d,raw,key:sourceKey(b,d),metadata:JSON.stringify({sourceUpload:{name:file.name,sha256:sha,pages:[part.start+1,part.end+1],...(split.parts.length>1?{key:originalKey}:{})},...(part.cachedReading?{cachedReading:part.cachedReading}:{})})});
   }
   if(docs.length+prepared.length>100||docs.reduce((n,d)=>n+d.size,0)+prepared.reduce((n,p)=>n+p.raw.length,0)>200*1024*1024)return fail(413,'Limite du lot : 100 pièces et 200 Mo après découpage.');
   if(!prepared.length)return reply(200,{duplicate:true,added:0,duplicates});
