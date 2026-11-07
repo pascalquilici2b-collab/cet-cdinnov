@@ -47,6 +47,7 @@ export async function paymentLayoutSuggestions(db:Database,env:Environment,candi
  try{
   const ai=env.MARKETS_AI as {run(model:string,input:unknown):Promise<any>};
   const result=await Promise.race([ai.run(MODEL,{messages:[{role:'system',content:layoutInstruction},{role:'user',content}],max_tokens:outputTokens,temperature:0,response_format:{type:'json_object'}}),new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(new Error('timeout')),45000);})]);
+  if(result?.choices?.[0]?.finish_reason==='length'||result?.finish_reason==='length')throw Error('Réponse IA tronquée.');
   const raw=result?.response??result?.choices?.[0]?.message?.content,parsed=typeof raw==='object'?raw:JSON.parse(String(raw));
   if(!parsed||Object.keys(parsed).join()!=='plans'||!Array.isArray(parsed.plans)||parsed.plans.length>8)throw Error('schema');
   const seen=new Set();
