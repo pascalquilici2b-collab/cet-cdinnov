@@ -6,9 +6,10 @@ import {migrateBilling} from './billing-schema.mjs';
 import {blankDraft} from './billing-domain.ts';
 
 test('PDF brouillon : identité, version figée, clé privée et erreurs sans mutation',async t=>{
- const requests=[],key='synthetic-service-key-'.repeat(2);let mode='pdf';
+ const requests=[],key='synthetic-service-key-'.repeat(2);let mode='pdf',temporaryStatuses=[];
  const ctx=await testEnvironment({bindings:{BILLING_PDF_SERVICE_URL:'https://pdf-service.test',BILLING_PDF_SERVICE_KEY:key},outboundService:async request=>{
   requests.push({url:request.url,headers:Object.fromEntries(request.headers),body:await request.json()});
+  if(temporaryStatuses.length)return new Response(null,{status:temporaryStatuses.shift()});
   if(mode==='error')return Response.json({secret:'upstream-private',detail:'secret'}, {status:500});
   if(mode==='invalid')return new Response('wrong',{headers:{'Content-Type':'application/pdf'}});
   if(mode==='validation')return Response.json({detail:'private-input'}, {status:422});
@@ -29,6 +30,13 @@ test('PDF brouillon : identité, version figée, clé privée et erreurs sans mu
   assert.match(response.headers.get('content-disposition'),new RegExp(id+'-v1\\.pdf'));assert.match(await response.text(),/^%PDF-/);
   assert.equal(requests[0].url,'https://pdf-service.test/api/billing/preview-pdf');assert.equal(requests[0].headers['x-api-key'],key);assert.equal(requests[0].headers.authorization,undefined);
   assert.deepEqual(requests[0].body,{document:data});
+  temporaryStatuses=[429,503];
+  const beforeRetry=requests.length;
+  const retried=await pdf();
+  assert.equal(retried.status,200);
+  assert.match(await retried.text(),/^%PDF-/);
+  assert.equal(requests.length,beforeRetry+3);
+  assert.deepEqual(requests.slice(beforeRetry).map(r=>r.body),[{document:data},{document:data},{document:data}]);
   for(const [value,status] of [['error',503],['validation',422],['invalid',502],['html',502],['redirect',503]]){
    mode=value;const result=await pdf();assert.equal(result.status,status,await result.clone().text());assert.doesNotMatch(await result.text(),/upstream-private|private-input|synthetic-service-key/);
   }

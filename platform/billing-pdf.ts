@@ -1,6 +1,7 @@
 import type {Environment,Reply} from './contracts';
 import type {BillingDocument} from './billing-contracts';
 import {boundedBody} from './portal';
+import {requestBillingPDF} from './billing-pdf-service';
 
 const fail=(status:number,message:string):never=>{throw Object.assign(new Error(message),{status});};
 /** A draft PDF is rendered from a saved, version-checked snapshot and is never numbered or issued. */
@@ -14,7 +15,7 @@ export async function draftPDF(document:Pick<BillingDocument,'id'|'version'|'dat
   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),75000);
   try{
     // Workers support manual/follow redirect modes. Inspect redirects without forwarding the service key.
-    const response=await fetch(url,{method:'POST',redirect:'manual',signal:controller.signal,headers:{'Content-Type':'application/json','X-API-Key':key},body:JSON.stringify({document:document.data,...(reportDate?{reportDate}:{}),...(document.reservedNumber?{number:document.reservedNumber.number}:{}),...(editable?{editable:true}:{})})});
+    const response=await requestBillingPDF(url,key,{document:document.data,...(reportDate?{reportDate}:{}),...(document.reservedNumber?{number:document.reservedNumber.number}:{}),...(editable?{editable:true}:{})},controller.signal);
     if(!response.ok){
       if(response.status===422){
         // Only relay fixed, actionable layout errors, never arbitrary upstream output.

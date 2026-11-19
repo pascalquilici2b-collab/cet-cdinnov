@@ -4,6 +4,7 @@ import type {Database,Environment,Reply} from './contracts';
 import type {BillingDraft} from './billing-contracts';
 import {calculateBilling} from './billing-domain';
 import {boundedBody} from './portal';
+import {requestBillingPDF} from './billing-pdf-service';
 import {billingCanonicalJSON,readIssuance,readIssuanceJob,claimIssuanceJob,failIssuanceJob,completeIssuanceJob} from './billing-issuance';
 import type {Issuance,IssuanceManifest,IssuanceArtifact} from './billing-issuance';
 
@@ -28,7 +29,7 @@ async function service(env:Environment,path:string,payload:unknown,timeout:numbe
  const {url,key}=serviceConfig(env);url.pathname=path;
  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeout);
  try{
-  const response=await fetch(url,{method:'POST',redirect:'manual',signal:controller.signal,headers:{'Content-Type':'application/json','X-API-Key':key},body:JSON.stringify(payload)});
+  const response=await requestBillingPDF(url,key,payload,controller.signal);
   if(!response.ok){
    if(response.status===422){
     const bytes=await boundedBody(response,30000);let message='Les données ne passent pas les contrôles du moteur documentaire.';

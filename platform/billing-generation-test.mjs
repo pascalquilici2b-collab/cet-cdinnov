@@ -24,9 +24,10 @@ function syntheticResult(request,mode){
  return {schemaVersion:1,generatorVersion:'synthetic-test',profile:mode==='wrong-profile'?'en16931':'invoice-pdf',envelopeSha256:mode==='wrong-envelope'?'0'.repeat(64):request.envelopeSha256,artifacts};
 }
 await test('HTTP émission : refus avant réservation et contrôle des fichiers après réservation',async t=>{
- let mode='ok',requests=0,concurrentEdit;const key='synthetic-service-key-01234567890123456789';
+ let mode='ok',requests=0,temporaryBusy=false,concurrentEdit;const key='synthetic-service-key-01234567890123456789';
  const ctx=await testEnvironment({bindings:{BILLING_PDF_SERVICE_URL:'https://pdf-service.test',BILLING_PDF_SERVICE_KEY:key},outboundService:async request=>{
   requests++;assert.equal(new URL(request.url).origin,'https://pdf-service.test');assert.equal(request.headers.get('x-api-key'),key);assert.equal(request.headers.has('authorization'),false);
+  if(temporaryBusy){temporaryBusy=false;return Response.json({detail:'Moteur occupé'},{status:503});}
   if(mode==='redirect')return new Response(null,{status:302,headers:{Location:'https://must-not-follow.test'}});
   if(mode==='unavailable')return Response.json({detail:'private upstream details'}, {status:503});
   const payload=await request.json();
@@ -60,7 +61,7 @@ await test('HTTP émission : refus avant réservation et contrôle des fichiers 
   });
   await t.test('indisponibilité, redirection et précontrôle incohérent conservent le brouillon et le compteur',async()=>{
    for(const [value,status] of [['unavailable',503],['redirect',503],['wrong-snapshot',502],['missing-check',502]]){
-    mode=value;const before=requests,result=await reserve();assert.equal(result.status,status,await result.clone().text());assert.equal(requests,before+1);assert.doesNotMatch(await result.text(),/private upstream|synthetic-service-key/);
+    mode=value;const before=requests,result=await reserve();assert.equal(result.status,status,await result.clone().text());assert.equal(requests,before+(value==='unavailable'?8:1));assert.doesNotMatch(await result.text(),/private upstream|synthetic-service-key/);
     assert.equal((await (await call('/documents/'+doc.id)).json()).status,'draft');assert.equal(await counter(),41);
    }
    assert.equal((await ctx.db.prepare('SELECT count(*) AS n FROM billing_issuances').first()).n,0);
@@ -70,7 +71,11 @@ await test('HTTP émission : refus avant réservation et contrôle des fichiers 
    assert.equal((await reserve()).status,409);concurrentEdit=undefined;assert.equal(await counter(),41);
    const current=await (await call('/documents/'+doc.id)).json();assert.equal(current.version,2);assert.equal(current.status,'draft');
   });
-  const current=await (await call('/documents/'+doc.id)).json();assert.equal((await reserve(current)).status,200);assert.equal(await counter(),42);
+  const current=await (await call('/documents/'+doc.id)).json(),beforeRetry=requests;
+  temporaryBusy=true;
+  assert.equal((await reserve(current)).status,200);
+  assert.equal(requests,beforeRetry+2);
+  assert.equal(await counter(),42);
   const found=await (await call('/documents?q=test-0041')).json();assert.equal(found.total,1);assert.equal(found.documents[0].id,doc.id);
   assert.equal((await (await call('/documents?q='+encodeURIComponent('%_'))).json()).total,0);
   await t.test('fichiers incomplets, mauvais numéro, empreinte ou profil invalide ne deviennent jamais téléchargeables',async()=>{
@@ -80,6 +85,17 @@ await test('HTTP émission : refus avant réservation et contrôle des fichiers 
    }
    assert.equal((await ctx.db.prepare('SELECT count(*) AS n FROM billing_issuances').first()).n,1);
    const bucket=await ctx.worker.getR2Bucket('CET_FILES');assert.equal((await bucket.list({prefix:'billing/'})).objects.length,0);
+  });
+  await t.test('une indisponibilité brève à la génération conserve le numéro et produit un seul fichier',async()=>{
+   mode='ok';temporaryBusy=true;const before=requests;
+   const result=await call('/documents/'+doc.id+'/finalize','POST',{}, {'If-Match':'2'});
+   assert.equal(result.status,200);
+   const issued=await result.json();assert.equal(issued.status,'issued');assert.equal(issued.issuance.number,'TEST-0041');
+   assert.equal(requests,before+2);assert.equal(await counter(),42);
+   const file=await call('/documents/'+doc.id+'/files/pdf');
+   assert.equal(file.status,200);assert.match(await file.text(),/^%PDF-/);
+   const bucket=await ctx.worker.getR2Bucket('CET_FILES');
+   assert.equal((await bucket.list({prefix:'billing/'})).objects.length,1);
   });
  }finally{await ctx.worker.dispose();}
 });
