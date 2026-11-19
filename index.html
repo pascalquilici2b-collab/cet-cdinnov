@@ -614,7 +614,7 @@ body:has(.agenda-shell) .topbar{flex-wrap:wrap;row-gap:12px}
   <div class="main">
     <div class="topbar">
       <button class="menu-btn no-print" onclick="toggleSidebar()" aria-label="Menu" aria-controls="portalNavigation" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
-      <div>
+      <div class="topbar-heading">
         <h1 id="pageTitle">Tableau de bord</h1>
         <div class="sub" id="pageSub">Activité de l’équipe, congés et derniers documents</div>
       </div>
@@ -622,14 +622,16 @@ body:has(.agenda-shell) .topbar{flex-wrap:wrap;row-gap:12px}
       <div class="grow"></div>
       <div class="maj-pill no-print" id="majPill" title="Dernière modification enregistrée dans la base"></div>
       <button type="button" class="sync-pill" id="syncPill" data-state="local" title="Actualiser les données" onclick="cloudSyncNow()"><span id="syncIcon" aria-hidden="true"></span><span id="syncTxt" role="status">Local</span></button>
-      <div class="year-pick">
-        <label>Année</label>
-        <select id="yearSelect"></select>
+      <div class="portal-top-secondary">
+        <div class="year-pick">
+          <label for="yearSelect">Année</label>
+          <select id="yearSelect"></select>
+        </div>
+        <div class="portal-top-actions"><span id="agendaBalanceAction"></span><button class="btn agenda-top-leave" type="button" id="agendaTopLeave" onclick="agendaNewLeave(ymd(new Date()))"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Nouveau congé</span></button><button class="btn btn-primary" id="topAction">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          <span id="topActionLabel">Nouveau mouvement</span>
+        </button></div>
       </div>
-      <div class="portal-top-actions"><span id="agendaBalanceAction"></span><button class="btn agenda-top-leave" type="button" id="agendaTopLeave" onclick="agendaNewLeave(ymd(new Date()))"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Nouveau congé</span></button><button class="btn btn-primary" id="topAction">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-        <span id="topActionLabel">Nouveau mouvement</span>
-      </button></div>
     </div>
     <div class="content" id="content"></div>
   </div>
@@ -713,6 +715,7 @@ body.authed .auth-gate{display:none}
 <link rel="stylesheet" href="design/interface-refresh.css?v=stamping-allocation-20261025">
 <link rel="stylesheet" href="design/interactions.css?v=stamping-allocation-20261025">
 <link rel="stylesheet" href="design/rh-navigation.css?v=rh-workspace-20261106">
+<link rel="stylesheet" href="design/portal-mobile.css?v=20261119">
 <script src="platform/icons.js?v=pdf-markets-followup-20261029"></script>
 
 <div id="authGate" class="auth-gate" data-loading="true" aria-busy="true">
@@ -1002,7 +1005,7 @@ function toggleSidebar(open){
  if(show)sidebarFocus=document.activeElement;
  sb.classList.toggle('open',show);bd?.classList.toggle('show',show);button?.setAttribute('aria-expanded',String(show));
  const mobile=matchMedia('(max-width:880px)').matches;$('.main').inert=show&&mobile;
- if(show&&mobile)sb.querySelector('.sidebar-close')?.focus();else if(sidebarFocus?.isConnected){sidebarFocus.focus();sidebarFocus=null;}
+ if(show&&mobile)sb.querySelector('.sidebar-close')?.focus();else if(sidebarFocus?.isConnected){sidebarFocus.focus({preventScroll:true});sidebarFocus=null;}
 }
 $('.sidebar').addEventListener('keydown',e=>{
  if(!matchMedia('(max-width:880px)').matches||!$('.sidebar').classList.contains('open'))return;
@@ -1026,6 +1029,7 @@ function setView(v,billingSection='modern'){
   document.querySelector('.year-pick').style.display=['dashboard','budgetsprojets','marches','facturier','tamponnage','rh','missions'].includes(v)?'none':'';
   if(v!=='agenda'){clearInterval(agendaTimer);agendaTimer=null;}
   if(v==='facturier'){billingMode=nextBillingMode;if(nextBillingMode==='legacy')factTab=billingSection;}
+  const viewChanged=currentView!==v;
   currentView=v;document.body.dataset.view=v;
   const inRh=['rh','tamponnage','missions'].includes(v);document.getElementById('rhNavigation')?.setAttribute('data-active',String(inRh));if(inRh)toggleRhNavigation(true);
   $$('.nav-item').forEach(n=>{const active=n.dataset.view===v||(v==='marches'&&n.dataset.view==='facturier')||(v==='cet'&&n.dataset.view==='mouvements');n.classList.toggle('active',active);if(active)n.setAttribute('aria-current','page');else n.removeAttribute('aria-current');});
@@ -1037,6 +1041,7 @@ function setView(v,billingSection='modern'){
   if(meta.action){ ta.style.display=''; $('#topActionLabel').textContent=meta.action; ta.onclick=meta.actFn; }
   else ta.style.display='none';
   render();
+  if(viewChanged&&matchMedia('(max-width:880px)').matches)window.scrollTo(0,0);
   if(v==='agenda')agendaEnter();
   if(v==='marches')marchesEnter();
 }
