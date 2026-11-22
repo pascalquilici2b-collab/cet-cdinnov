@@ -8,7 +8,8 @@ const p=await billingPreview({outboundService:async req=>{const {document}=await
 const headers={'X-CDInnov-Request':'1',Origin:'https://app.cdinnov.eu','Content-Type':'application/json',Cookie:p.sessions[0].cookie};
 const call=(path,method='GET',body,version)=>p.ctx.worker.dispatchFetch('https://preview.test/api/v1/billing'+path,{method,headers:{...headers,...(version?{'If-Match':String(version)}:{})},...(body?{body:JSON.stringify(body)}:{})});
 const create=async kind=>{const data=quoteFixture();data.kind=kind;if(kind==='invoice'){data.validUntil='';data.dueDate='2026-12-31';data.paymentMeans='10';data.businessProcess='S1';data.seller.electronicAddress=data.seller.siren;data.seller.electronicScheme='0225';data.buyer.siren='552100554';data.buyer.electronicAddress='552100554';data.buyer.electronicScheme='0225';data.legalNotes={penalties:'Pénalités test',recovery:'Recouvrement test',discount:'Escompte test'};}const r=await call('/documents','POST',{id:randomUUID(),data});assert.equal(r.status,201);return r.json();};
-const number=async d=>{const r=await call('/documents/'+d.id+'/number','POST',{},d.version);assert.equal(r.status,200,await r.clone().text());return r.json();};
+const number=async d=>{const r=await call('/documents/'+d.id+'/number','POST',{},d.version);assert.equal(r.status,200,await r.clone().text());const draft=await r.json();if(d.data.kind==='quote'||draft.issuance)return draft;const issued=await call('/documents/'+d.id+'/issue','POST',{id:randomUUID(),seriesId:'automatic'},d.version);assert.equal(issued.status,200,await issued.clone().text());return issued.json();};
+const assigned=d=>d.issuance?.number||d.reservedNumber?.number;
 try{
  const old=await number(await create('invoice'));
  const oldQuote=await number(await create('quote'));
@@ -20,16 +21,17 @@ try{
  }
  assert.deepEqual((await p.ctx.db.prepare('SELECT * FROM billing_draft_numbers ORDER BY document_id').all()).results,oldRows.results);
  const invoice=await number(await create('invoice')),quote=await number(await create('quote'));
- assert.equal(invoice.reservedNumber.number,'FAC-2610067');assert.equal(quote.reservedNumber.number,'DEV-2610067');
+ assert.equal(assigned(invoice),'FAC-2610067');assert.equal(quote.reservedNumber.number,'DEV-2610067');
  const docs=await Promise.all(Array.from({length:3},()=>create('invoice').then(number)));
- assert.deepEqual(docs.map(d=>d.reservedNumber.number).sort(),['FAC-2610068','FAC-2610069','FAC-2610070']);
- assert.equal((await number(invoice)).reservedNumber.number,'FAC-2610067');
+ assert.deepEqual(docs.map(assigned).sort(),['FAC-2610068','FAC-2610069','FAC-2610070']);
+ assert.equal(assigned(await number(invoice)),'FAC-2610067');
  for(const d of [old,oldQuote,invoice,quote]){
-  const r=await call('/documents/'+d.id+'/issue','POST',{id:randomUUID(),seriesId:'automatic'},d.version);
-  assert.equal(r.status,200,await r.clone().text());assert.equal((await r.json()).issuance.number,d.reservedNumber.number);
+  const r=await call('/documents/'+d.id+'/issue','POST',{id:d.issuance?.id||randomUUID(),seriesId:'automatic'},d.version);
+  assert.equal(r.status,200,await r.clone().text());assert.equal((await r.json()).issuance.number,assigned(d));
  }
  const fresh=await create('invoice');
- await assert.rejects(()=>p.ctx.db.prepare("INSERT INTO billing_draft_numbers SELECT ?,s.id,s.issuer_siren,s.next_value,s.prefix||replace(?,'-','')||'-'||printf('%0*d',s.width,s.next_value),?,?,? FROM billing_number_series s WHERE s.id=?").bind(fresh.id,old.reservedNumber.date,old.reservedNumber.date,new Date().toISOString(),'test',old.reservedNumber.seriesId).run(),/CONFLICT/);
- await assert.rejects(()=>p.ctx.db.prepare('UPDATE billing_draft_numbers SET number=? WHERE document_id=?').bind('CHANGED',invoice.id).run(),/IMMUTABLE/);
+ const historicalSeries=await p.ctx.db.prepare('SELECT series_id FROM billing_issuances WHERE document_id=?').bind(old.id).first();
+ await assert.rejects(()=>p.ctx.db.prepare("INSERT INTO billing_draft_numbers SELECT ?,s.id,s.issuer_siren,s.next_value,s.prefix||replace(?,'-','')||'-'||printf('%0*d',s.width,s.next_value),?,?,? FROM billing_number_series s WHERE s.id=?").bind(fresh.id,old.data.issueDate,old.data.issueDate,new Date().toISOString(),'test',historicalSeries.series_id).run(),/CONFLICT/);
+ await assert.rejects(()=>p.ctx.db.prepare('UPDATE billing_draft_numbers SET number=? WHERE document_id=?').bind('CHANGED',quote.id).run(),/IMMUTABLE/);
  console.log('OK FAC/DEV independent continuous sequences, concurrent allocation, historical reservations preserved and retired allocations blocked.');
 }finally{await p.close();}

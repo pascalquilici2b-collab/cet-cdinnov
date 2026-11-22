@@ -7,10 +7,11 @@ import {PDFPreview} from './billing-pdf-preview';
 import {billingStateLabel,billingDisplayState,invoiceDueDate} from '../billing-display-state';
 import {BillingStateIcon} from './billing-state-icon';
 import {Help} from './billing-help';
+import {billingDocumentNumber} from './billing-document-number';
 
 const date=(value:string)=>value?value.split('-').reverse().join('/'):'À préciser';
 export function IssuedDocument({record,transport,children,fallback,onDocument}:{onDocument:(d:BillingDocument)=>void;record:BillingDocument;transport:BillingTransport;children:ReactNode;fallback:ReactNode}){
- const d=record.data,ready=record.status==='issued',identity=record.issuance?.number||'Devis · version '+(record.quote?.revision.ordinal||1);
+ const d=record.data,ready=record.status==='issued',identity=billingDocumentNumber(record)||(d.kind==='invoice'?'Facture en préparation':'Devis · version '+(record.quote?.revision.ordinal||1));
  const [view,setView]=useState<'summary'|'document'>(ready?'document':'summary');
  useEffect(()=>{if(ready)setView('document');},[ready]);
  return <section className={'bill-issued-layout bill-issued-show-'+view} aria-label="Consultation du document">

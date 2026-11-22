@@ -270,6 +270,11 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
             raise DocumentPDFError("Le numéro du document est invalide.")
     if issued and not number:
         raise DocumentPDFError("Un numéro est nécessaire pour un document émis.")
+    # A preview cannot assert that an invoice number has been issued. In
+    # particular, old draft reservations must not look like a final invoice.
+    # Quotes keep their existing reservation/display contract.
+    if not issued and document["kind"] == "invoice":
+        number = None
     by_id = _validate_totals(document, totals, issued)
     style = _styles()
 
@@ -286,7 +291,7 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
     if credit is not None and (document.get("schemaVersion") != 3 or document["kind"] != "invoice" or not isinstance(credit, dict)):
         raise ValueError("Référence d’avoir invalide.")
     kind = "AVOIR" if credit else "FACTURE" if document["kind"] == "invoice" else "DEVIS"
-    reference = number or "Numéro en préparation"
+    reference = number or ("Numéro attribué à la finalisation" if document["kind"] == "invoice" else "Numéro en préparation")
     seller = document["seller"]
     cdi = (seller.get("siren") or _text(seller.get("siret"))[:9]) == "322556580"
     footer_p = None

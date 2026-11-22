@@ -15,7 +15,7 @@ export async function draftPDF(document:Pick<BillingDocument,'id'|'version'|'dat
   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),75000);
   try{
     // Workers support manual/follow redirect modes. Inspect redirects without forwarding the service key.
-    const response=await requestBillingPDF(url,key,{document:document.data,...(reportDate?{reportDate}:{}),...(document.reservedNumber?{number:document.reservedNumber.number}:{}),...(editable?{editable:true}:{})},controller.signal);
+    const response=await requestBillingPDF(url,key,{document:document.data,...(reportDate?{reportDate}:{}),...((reportDate||document.data.kind==='quote')&&document.reservedNumber?{number:document.reservedNumber.number}:{}),...(editable?{editable:true}:{})},controller.signal);
     if(!response.ok){
       if(response.status===422){
         // Only relay fixed, actionable layout errors, never arbitrary upstream output.
