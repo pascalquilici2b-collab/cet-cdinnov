@@ -1,6 +1,7 @@
 import {usePDFAnnotations} from './billing-pdf-annotations';
 import {viewportRectangle} from './pdf-viewport';
 import {BrandMark} from './loading';
+import {billingDocumentNumber,invoiceDraftNumberNotice} from './billing-document-number';
 import {useEffect,useRef,useState} from 'react';
 import type {BillingDocument,BillingDraft,BillingTransport} from '../billing-contracts';
 import {Pencil,Printer} from 'lucide-react';
@@ -51,7 +52,7 @@ export function PDFPreview({record,transport,draft,onChange,file}:{record:Billin
    setPDF(document);setPage(p=>Math.min(p,document.numPages));setPending(false);
   })().catch(e=>{if(active){setPending(false);setError(e instanceof Error?e.message:'L’aperçu PDF est indisponible.');}});},draft?delay:0);
   return()=>{active=false;clearTimeout(timer);if(task)void task.destroy().catch(()=>{});};
- },[record?.id,record?.version,record?.status,record?.reservedNumber?.number,transport,retry,snapshot,file]);
+ },[record?.id,record?.version,record?.status,billingDocumentNumber(record),transport,retry,snapshot,file]);
  useEffect(()=>{
   if(!pdf||pending||error)return;let active=true,task:RenderTask|undefined;setRendering(true);setText('');
   (async()=>{
@@ -74,7 +75,7 @@ export function PDFPreview({record,transport,draft,onChange,file}:{record:Billin
  }
  const turn=(delta:number)=>{setPage(value=>value+delta);viewport.current?.scrollTo({top:0,left:0});};
  return <section className="bill-pdf-viewer" aria-label="Aperçu PDF paginé">
-  <div className="bill-pdf-heading"><strong>{file?'Aperçu A4':record?.status==='issued'?'Document définitif':draft?'Aperçu A4':'PDF du brouillon enregistré'}</strong><span>{file?'':record?.status==='issued'?'Fichier archivé':pending?'Actualisation…':'Non émis'}</span></div>
+  <div className="bill-pdf-heading"><strong>{file?'Aperçu A4':record?.status==='issued'?'Document définitif':draft?'Aperçu A4':'PDF du brouillon enregistré'}</strong><span>{file?'':record?.status==='issued'?'Fichier archivé':pending?'Actualisation…':(draft?.kind||record?.data.kind)==='invoice'&&!record?.issuance?invoiceDraftNumberNotice:'Non émis'}</span></div>
   {additions.toolbar}
   <div className="bill-pdf-controls" role="group" aria-label="Navigation dans le PDF">
    <div><button type="button" aria-label="Page précédente du PDF" disabled={!pdf||pending||page===1} onClick={()=>turn(-1)}>‹</button><span aria-live="polite">Page {page} / {pdf?.numPages||'…'}</span><button type="button" aria-label="Page suivante du PDF" disabled={!pdf||pending||page===pdf.numPages} onClick={()=>turn(1)}>›</button></div>

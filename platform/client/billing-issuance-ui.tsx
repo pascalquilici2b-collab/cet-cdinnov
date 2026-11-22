@@ -12,6 +12,7 @@ import {DropdownMenu} from 'radix-ui';
 import {useConfirmation} from './action-dialog';
 import {Help} from './billing-help';
 import type {BillingDocument,BillingTransport,BillingIssue} from '../billing-contracts';
+import {invoiceDraftNumberNotice} from './billing-document-number';
 
 const message=(e:unknown)=>e instanceof Error?e.message:'La finalisation n’a pas abouti.';
 export type DocumentStatusHandle={finalize:()=>Promise<BillingDocument|undefined>};
@@ -25,9 +26,10 @@ export const DocumentStatus=forwardRef<DocumentStatusHandle,Props>(function Docu
  useEffect(()=>{live.current=true;return()=>{live.current=false;};},[]);
  async function finish(){
   if(!record||busy||running.current||capacityBlocked)return;
+  if(record.numberingReview){setError('Régularisez l’ancien numéro de ce brouillon avant de finaliser.');return;}
   if(record.issuance?.state==='ready')return record;
   if(!record.issuance&&draftIssues.length){setError('Finalisation impossible : '+draftIssues.length+' point'+(draftIssues.length>1?'s':'')+' à compléter ci-dessous.');onReview();return;}
-  if(!record.issuance&&!await confirm({title:'Finaliser ce document ?',message:'Le contenu sera figé et le PDF définitif sera généré. Le numéro réservé est conservé.',accept:'Finaliser'}))return;
+  if(!record.issuance&&!await confirm({title:'Finaliser ce document ?',message:record.data.kind==='invoice'?'Le numéro de facture sera attribué lors de cette finalisation. Le contenu sera figé et le PDF définitif sera généré.':'Le contenu sera figé et le PDF définitif sera généré. Le numéro réservé du devis est conservé.',accept:'Finaliser'}))return;
   running.current=true;setError('');
   try{
    let current=record;
@@ -35,7 +37,7 @@ export const DocumentStatus=forwardRef<DocumentStatusHandle,Props>(function Docu
    onBusy('issue');
    if(!current.issuance){const key=current.id+':'+current.version;if(attempt.current?.key!==key)attempt.current={key,id:crypto.randomUUID()};current=await transport.issue(current.id,current.version,attempt.current.id,'automatic');if(!live.current)return;onDocument(current);}
    current=await transport.finalize(current.id,current.version);if(!live.current)return;
-   onDocument(current);if(current.status==='issued')showSuccess('Finalisé');else onNotice(current.status==='issue_failed'?'La génération doit être reprise. Le numéro est conservé.':'Génération en cours.');
+   onDocument(current);if(current.status==='issued')showSuccess((current.data.kind==='invoice'?'Facture ':'Devis ')+current.issuance!.number+' finalisé'+(current.data.kind==='invoice'?'e':''));else onNotice(current.status==='issue_failed'?'La génération doit être reprise. Le numéro '+current.issuance!.number+' est conservé.':'Génération en cours'+(current.issuance?' · '+current.issuance.number:''));
    return current;
   }catch(e){
    if(!live.current)return;setError(message(e));
@@ -49,11 +51,11 @@ export const DocumentStatus=forwardRef<DocumentStatusHandle,Props>(function Docu
    <BillingStateIcon state={billingDisplayState(record)}/><span>{billingStateLabel(record)}</span><ChevronDown size={14}/>
   </button></DropdownMenu.Trigger><DropdownMenu.Portal><DropdownMenu.Content className="cdi-action-menu bill-state-menu" align="start" sideOffset={6}>
    <DropdownMenu.Item data-status="draft" disabled={!!issue} onSelect={()=>setError('')}><FilePenLine size={17}/>Brouillon{!issue&&<Check className="cdi-menu-check" size={15}/>}</DropdownMenu.Item>
-   <DropdownMenu.Item data-status="finalized" disabled={capacityBlocked||!serviceConfigured||(ready&&(!!record?.sentAt||!record?.settlement||record.settlement.netPaidMinor==='0'||sentInvoiceIsLate(record)))} onSelect={()=>{if(ready)setPaymentMode('unpaid');else void finish();}}><CheckCircle2 className="bill-finalized-icon" size={17}/>{issue&&!ready?'Reprendre la finalisation':'Finalisé'}{billingDisplayState(record)==='finalized'&&<Check className="cdi-menu-check" size={15}/>}</DropdownMenu.Item>
+   <DropdownMenu.Item data-status="finalized" disabled={capacityBlocked||!!record?.numberingReview||!serviceConfigured||(ready&&(!!record?.sentAt||!record?.settlement||record.settlement.netPaidMinor==='0'||sentInvoiceIsLate(record)))} onSelect={()=>{if(ready)setPaymentMode('unpaid');else void finish();}}><CheckCircle2 className="bill-finalized-icon" size={17}/>{issue&&!ready?'Reprendre la finalisation':'Finalisé'}{billingDisplayState(record)==='finalized'&&<Check className="cdi-menu-check" size={15}/>}</DropdownMenu.Item>
    {record?.data.kind==='quote'&&<><DropdownMenu.Item data-status="sent" disabled={!ready||!!record.quote?.version||!!record.quote?.invoice} onSelect={()=>setQuoteAction('sent')}><Send size={17}/>Envoyé{record.quote?.state==='sent'&&<Check size={15}/>}</DropdownMenu.Item><DropdownMenu.Item data-status="accepted" disabled={!ready||!!record.quote?.invoice||['accepted','refused'].includes(record.quote?.state||'')} onSelect={()=>setQuoteAction('accepted')}><CheckCheck size={17}/>Accepté{record.quote?.state==='accepted'&&<Check size={15}/>}</DropdownMenu.Item></>}
    {record?.data.kind==='invoice'&&<><DropdownMenu.Item data-status="sent" disabled={!ready||!!record.sentAt} onSelect={()=>setInvoiceSent(true)}><Send size={17}/>Envoyée{record.sentAt&&<Check className="cdi-menu-check" size={15}/>}</DropdownMenu.Item><DropdownMenu.Separator className="cdi-menu-separator"/><DropdownMenu.Item data-status="overdue" title="Automatique après l’envoi et le dépassement de l’échéance, tant qu’un montant reste à encaisser" disabled={!ready||!sentInvoiceIsLate(record)||record.settlement?.netPaidMinor==='0'} onSelect={()=>setPaymentMode('unpaid')}><Clock3 size={17}/>En retard d’encaissement{billingDisplayState(record)==='overdue'&&<Check className="cdi-menu-check" size={15}/>}</DropdownMenu.Item><DropdownMenu.Item data-status="paid" disabled={!ready||!record.settlement||record.settlement.dueMinor==='0'} onSelect={()=>setPaymentMode('paid')}><Banknote size={17}/>Réglée{record.settlement?.state==='paid'&&<Check className="cdi-menu-check" size={15}/>}</DropdownMenu.Item></>}
   </DropdownMenu.Content></DropdownMenu.Portal></DropdownMenu.Root>
-  <Help label="Statut du document" text={ready?'Le document définitif est archivé. Pour corriger un devis, créez une nouvelle version.':!serviceConfigured?'Le moteur PDF est indisponible.':'Choisissez Finalisé pour figer le document et générer ses fichiers définitifs. Le numéro déjà réservé est conservé.'}/>
+  <Help label="Statut du document" text={ready?'Le document définitif est archivé. Pour corriger un devis, créez une nouvelle version.':!serviceConfigured?'Le moteur PDF est indisponible.':record?.data.kind==='invoice'?'Choisissez Finalisé pour attribuer le numéro de facture, figer le document et générer son PDF définitif.':'Choisissez Finalisé pour figer le document et générer ses fichiers définitifs. Le numéro réservé du devis est conservé.'}/>
   {issue&&!ready&&<button className="bill-button" disabled={busy} onClick={()=>{void finish();}}>Reprendre</button>}
   {error&&<span className="bill-status-error" role="alert">{error}</span>}
   {dialog}{quoteAction&&record&&<QuoteTransition action={quoteAction} record={record} transport={transport} onDocument={onDocument} onBusy={onBusy} onClose={()=>setQuoteAction(null)}/>}
@@ -72,5 +74,5 @@ export function NumberingPanel({onDirty,transport}:{transport:BillingTransport;s
  useEffect(()=>{onDirty(false);},[onDirty]);
  const continuous=numbers.length>0;
  const next=(kind:string,fallback:string)=>{const s=numbers.find(s=>s.kind===kind);return s?s.prefix+String(s.nextValue).padStart(s.width,'0'):fallback;};
- return <section className="bill-issuance bill-numbering" aria-label="Numérotation"><h2 className="bill-title-help">Numérotation automatique <Help label="Numérotation" text={continuous?'Le numéro est réservé à la création. Devis et factures ont leurs propres compteurs continus. La référence du devis reste visible sur sa facture.':'Le numéro est réservé à la création. Le compteur des devis est quotidien ; celui des factures est continu. La référence du devis reste visible sur sa facture.'}/></h2><div className="bill-fields"><p><strong>Devis</strong><br/>{next('quote','AAAAMMJJ-001')}</p><p><strong>Factures</strong><br/>{next('invoice','F-AAAAMMJJ-001')}</p></div></section>;
+ return <section className="bill-issuance bill-numbering" aria-label="Numérotation"><h2 className="bill-title-help">Numérotation automatique <Help label="Numérotation" text={continuous?'Le numéro du devis est réservé à sa création ; celui de la facture est attribué à sa finalisation. Devis et factures ont leurs propres compteurs continus. La référence du devis reste visible sur sa facture.':'Le numéro du devis est réservé à sa création ; celui de la facture est attribué à sa finalisation. Le compteur des devis est quotidien ; celui des factures est continu. La référence du devis reste visible sur sa facture.'}/></h2><div className="bill-fields"><p><strong>Devis</strong><br/>{next('quote','AAAAMMJJ-001')}</p><p><strong>Factures</strong><br/>{invoiceDraftNumberNotice}</p></div></section>;
 }

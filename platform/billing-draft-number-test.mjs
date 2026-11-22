@@ -21,12 +21,14 @@ try{
   const edited=await call('/documents/'+q.id,'PUT',{data:{...q.data,issueDate:date}},q.version);assert.equal(edited.status,200);const savedQuote=await edited.json();
   const issue=await call('/documents/'+q.id+'/issue','POST',{id:randomUUID(),seriesId:'automatic'},savedQuote.version);assert.equal(issue.status,200,await issue.clone().text());assert.equal((await issue.json()).issuance.number,q.reservedNumber.number);
  }
- const invoice=await number(await create('invoice')),same=await number(invoice);assert.equal(same.reservedNumber.number,invoice.reservedNumber.number);assert.match(invoice.reservedNumber.number,/^F-\d{8}-001$/);
- const changed={...invoice.data,title:'Facture modifiable avant émission',lines:invoice.data.lines.map(l=>({...l,quantity:'1'}))};const put=await call('/documents/'+invoice.id,'PUT',{data:changed},invoice.version);assert.equal(put.status,200);const saved=await put.json();assert.equal(saved.reservedNumber.number,invoice.reservedNumber.number);
- const issued=await call('/documents/'+invoice.id+'/issue','POST',{id:randomUUID(),seriesId:'automatic'},saved.version);assert.equal(issued.status,200,await issued.clone().text());assert.equal((await issued.json()).issuance.number,invoice.reservedNumber.number);
- const next=await number(await create('invoice'));assert.match(next.reservedNumber.number,/-002$/);
- const listing=await (await call('/documents?kind=invoice&q='+encodeURIComponent(next.reservedNumber.number))).json();assert.equal(listing.documents.length,1);assert.equal(listing.documents[0].id,next.id);
- await assert.rejects(()=>p.ctx.db.prepare('DELETE FROM billing_draft_numbers WHERE document_id=?').bind(next.id).run(),/IMMUTABLE/);
- await assert.rejects(()=>p.ctx.db.prepare('UPDATE billing_draft_numbers SET number=? WHERE document_id=?').bind('CHANGED',next.id).run(),/IMMUTABLE/);
- console.log('OK Réservation immédiate, brouillon éditable, concurrence sans doublon, recherche et même numéro à l’émission sans double consommation.');
+ const invoice=await number(await create('invoice')),same=await number(invoice);assert.equal(invoice.reservedNumber,null);assert.equal(same.reservedNumber,null);
+ const changed={...invoice.data,title:'Facture modifiable avant émission',lines:invoice.data.lines.map(l=>({...l,quantity:'1'}))};const put=await call('/documents/'+invoice.id,'PUT',{data:changed},invoice.version);assert.equal(put.status,200);const saved=await put.json();assert.equal(saved.reservedNumber,null);
+ const issued=await call('/documents/'+invoice.id+'/issue','POST',{id:randomUUID(),seriesId:'automatic'},saved.version);assert.equal(issued.status,200,await issued.clone().text());const finalizing=await issued.json();assert.match(finalizing.issuance.number,/^F-\d{8}-001$/);assert.equal(finalizing.reservedNumber,null);
+ const next=await number(await create('invoice'));assert.equal(next.reservedNumber,null);
+ const nextIssue=await call('/documents/'+next.id+'/issue','POST',{id:randomUUID(),seriesId:'automatic'},next.version);assert.equal(nextIssue.status,200,await nextIssue.clone().text());const numberedNext=await nextIssue.json();assert.match(numberedNext.issuance.number,/-002$/);
+ const listing=await (await call('/documents?kind=invoice&q='+encodeURIComponent(numberedNext.issuance.number))).json();assert.equal(listing.documents.length,1);assert.equal(listing.documents[0].id,next.id);
+ assert.equal((await p.ctx.db.prepare('SELECT count(*) n FROM billing_draft_numbers WHERE document_id IN (?,?)').bind(invoice.id,next.id).first()).n,0);
+ await assert.rejects(()=>p.ctx.db.prepare('DELETE FROM billing_draft_numbers WHERE document_id=?').bind(first.id).run(),/IMMUTABLE/);
+ await assert.rejects(()=>p.ctx.db.prepare('UPDATE billing_draft_numbers SET number=? WHERE document_id=?').bind('CHANGED',first.id).run(),/IMMUTABLE/);
+ console.log('OK Devis réservés sans changement ; factures sans numéro en brouillon, numérotation à la finalisation, recherche et registres immuables.');
 }finally{await p.close();}

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {randomUUID,createHash} from 'node:crypto';
 import {billingPreview} from './billing-preview.mjs';
-import {quoteFixture,quoteFixtureTools} from './billing-quote-fixture.mjs';
+import {quoteFixture,quoteFixtureTools,samplePDF} from './billing-quote-fixture.mjs';
 import {automaticNumberSeries} from './billing-numbering.ts';
 import {reserveIssuance,billingCanonicalJSON} from './billing-issuance.ts';
 import {calculateBilling} from './billing-domain.ts';
@@ -26,6 +26,7 @@ try{
  preflightFails=false;const httpResult=await issue();assert.equal(httpResult.status,200,await httpResult.clone().text());assert.equal((await httpResult.json()).issuance.number,'20200103-001');assert.equal((await issue()).status,200);
  // Existing issued quote workflow: refused quotes cannot become invoices; accepted ones keep their reference.
  const q=await quoteFixtureTools(p.ctx,p.sessions[0].cookie),accepted=await q.create();assert.equal((await q.send(accepted)).status,201);
+ const engagement=await p.ctx.worker.dispatchFetch('https://preview.test/api/v1/billing/documents/'+accepted.id+'/engagement?kind=signed_quote',{method:'PUT',headers:{...headers,'If-Match':String(accepted.version),'Content-Type':'application/pdf','X-Filename':'accord-fictif.pdf'},body:samplePDF()});assert.equal(engagement.status,201,await engagement.clone().text());
  const converted=await q.call('/documents/'+accepted.id+'/convert','POST',{id:randomUUID()},{'If-Match':String(accepted.version)});assert.equal(converted.status,201,await converted.clone().text());const invoice=await converted.json();assert.equal(invoice.sourceDocumentId,accepted.id);assert.equal(invoice.data.references.quoteNumber,accepted.issuance.number);
  const refused=await q.create();assert.equal((await q.send(refused,q.input(refused,'refused','Refus client'))).status,201);assert.equal((await q.call('/documents/'+refused.id+'/convert','POST',{id:randomUUID()},{'If-Match':String(refused.version)})).status,409);
  console.log('OK Devis quotidiens, factures continues indépendantes, ordre des dates, concurrence, reprise idempotente et référence du devis accepté conservée.');

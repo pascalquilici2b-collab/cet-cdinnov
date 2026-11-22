@@ -4,6 +4,7 @@ import type {BillingDocument} from './billing-contracts';
 import {automaticNumberSeries} from './billing-numbering.ts';
 const fail=(message:string):never=>{throw Object.assign(new Error(message),{status:409});};
 export async function reserveDraftNumber(db:Database,doc:BillingDocument,user:string,now=new Date()){
+ if(doc.data.kind==='invoice')return;
  if(doc.issuance||doc.reservedNumber)return;
  if(doc.data.creditNote)return fail('La numérotation des avoirs nécessite le contrôle des montants crédités.');
  if(doc.quote?.revision.abandoned)return fail('Ce devis a été abandonné.');

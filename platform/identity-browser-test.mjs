@@ -43,7 +43,7 @@ const server=createServer(async(req,res)=>{try{
   res.writeHead(served.status,Object.fromEntries(served.headers));res.end(Buffer.from(await served.arrayBuffer()));
 }catch{res.writeHead(500);res.end('Local test error');}});
 await new Promise(r=>server.listen(0,'127.0.0.1',r));const base='http://127.0.0.1:'+server.address().port;
-const browser=await chromium.launch({channel:'msedge',headless:true});
+const browser=await chromium.launch({...process.env.CHROMIUM_PATH?{executablePath:process.env.CHROMIUM_PATH}:{channel:'msedge'},headless:true});
 try {
   const context=await browser.newContext({viewport:{width:1440,height:1000},locale:'fr-FR'});
   await context.route('**/*',route=>{

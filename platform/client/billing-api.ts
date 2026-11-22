@@ -15,7 +15,7 @@ export function createBillingTransport(options:{baseUrl:string;getSession:()=>Pr
     }catch(error){active();if(controller.signal.aborted)throw Object.assign(new Error('Le service ne répond pas. Vos modifications sont conservées ; vous pouvez réessayer.'),{name:'TimeoutError'});if(error instanceof TypeError)throw new Error('La connexion au serveur a été interrompue. Votre saisie est conservée ; vous pouvez réessayer.');if(error instanceof SyntaxError)throw new Error('La réponse du serveur est illisible. Votre saisie est conservée ; vous pouvez réessayer.');throw error;}
     finally{clearTimeout(timer);controllers.delete(controller);}
   }
-  async function numbered(promise:Promise<BillingDocument>){const doc=await promise;const siren=doc.data.seller.siren.replace(/\s/g,'')||doc.data.seller.siret.replace(/\s/g,'').slice(0,9);return !doc.issuance&&!doc.reservedNumber&&!doc.quote?.revision.abandoned&&/^\d{9}$/.test(siren)?request<BillingDocument>('/documents/'+encodeURIComponent(doc.id)+'/number','POST',{},doc.version):doc;}
+  async function numbered(promise:Promise<BillingDocument>){const doc=await promise;const siren=doc.data.seller.siren.replace(/\s/g,'')||doc.data.seller.siret.replace(/\s/g,'').slice(0,9);return doc.data.kind==='quote'&&!doc.issuance&&!doc.reservedNumber&&!doc.quote?.revision.abandoned&&/^\d{9}$/.test(siren)?request<BillingDocument>('/documents/'+encodeURIComponent(doc.id)+'/number','POST',{},doc.version):doc;}
   const reportPath=(id:string)=>id.startsWith('imported:')?'/imported-invoices/'+encodeURIComponent(id.slice(9))+'/intervention-report':'/documents/'+encodeURIComponent(id)+'/intervention-report';
   return {
     mailSignature:()=>request('/mail-signature'),
@@ -43,6 +43,7 @@ export function createBillingTransport(options:{baseUrl:string;getSession:()=>Pr
     engagementFile:id=>request('/documents/'+encodeURIComponent(id)+'/engagement','GET',undefined,undefined,true),
     marketDocument:(marketId,documentId)=>request('/budgets/markets/'+encodeURIComponent(marketId)+'/documents/'+encodeURIComponent(documentId),'GET',undefined,undefined,true),
     rectify:(id,version,input)=>numbered(request<BillingDocument>('/documents/'+encodeURIComponent(id)+'/rectify','POST',input,version)),
+    retireDraftNumber:(id,version,input)=>request<BillingDocument>('/documents/'+encodeURIComponent(id)+'/retire-draft-number','POST',input,version),
     session:()=>request('/api/v1/session'),
     confirmSent:(id,version,input)=>request('/documents/'+encodeURIComponent(id)+'/outlook-sent','POST',input,version),
     declareSent:(id,version,input)=>request('/documents/'+encodeURIComponent(id)+'/sent','POST',input,version),

@@ -64,7 +64,7 @@ const server=createServer(async(req,res)=>{try{
 }catch(error){errors.push(String(error));res.writeHead(500);res.end('Local test failure');}});
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const base='http://127.0.0.1:'+server.address().port;
 const require=createRequire(process.env.PLAYWRIGHT_PACKAGE||'C:/Users/quili/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright/package.json'),{chromium}=require('playwright');
-const browser=await chromium.launch({channel:'msedge',headless:true});
+const browser=await chromium.launch({...process.env.CHROMIUM_PATH?{executablePath:process.env.CHROMIUM_PATH}:{channel:'msedge'},headless:true});
 try{
  const context=await browser.newContext();await context.route('**/*',route=>{if(route.request().url().startsWith(base+'/'))return route.continue();external.push(route.request().url());return route.abort();});
  const page=await context.newPage();page.on('pageerror',error=>errors.push(error.message));const response=await page.goto(base+'/artifact-smoke.html');assert.match(response.headers()['content-security-policy'],/frame-ancestors 'self'/);

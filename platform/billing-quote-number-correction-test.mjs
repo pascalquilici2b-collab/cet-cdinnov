@@ -20,7 +20,7 @@ try{
  await db.prepare('INSERT INTO billing_retired_series SELECT id,?,? FROM billing_number_series').bind(new Date().toISOString(),actor).run();
  for(const kind of ['invoice','quote']){const s=await createNumberSeries(db,{id:randomUUID(),issuerSiren:q.series.issuerSiren,kind,prefix:kind==='quote'?'DEV-':'FAC-',width:7,firstValue:2610067,startDate:'1970-01-01',endDate:'9999-12-31'},actor);await db.prepare('INSERT INTO billing_default_series VALUES(?,?,?)').bind(s.issuer_siren,kind,s.id).run();}
  await ok(await call('/documents/'+replacement.id+'/number','POST',{}, {'If-Match':String(replacement.version)}));
- quote=await ok(await call('/documents/'+quote.id));assert.equal(quote.quote.invoice.id,replacement.id);assert.equal(quote.quote.invoice.number,'FAC-2610067');
+ quote=await ok(await call('/documents/'+quote.id));assert.equal(quote.quote.invoice.id,replacement.id);assert.equal(quote.quote.invoice.number,null);
  const issuance=await db.prepare('SELECT * FROM billing_issuances WHERE document_id=?').bind(quote.id).first(),job=await db.prepare('SELECT * FROM billing_issue_jobs WHERE issuance_id=?').bind(issuance.id).first();
  const snapshot=issuance.snapshot_json,oldManifest=JSON.parse(job.manifest_json),bucket=await p.ctx.worker.getR2Bucket('CET_FILES');
  const bytes=Buffer.concat([pdf,Buffer.from('\n% renamed synthetic quote')]),hash=createHash('sha256').update(bytes).digest('hex');
@@ -29,7 +29,7 @@ try{
  await bucket.put(manifest.artifacts[0].key,bytes,{httpMetadata:{contentType:'application/pdf'}});
  await renameIssuedQuote(db,{quoteId:quote.id,invoiceId:replacement.id,newNumber:'DEV-2610067',manifest},actor);
  const updated=await ok(await call('/documents/'+quote.id)),updatedInvoice=await ok(await call('/documents/'+replacement.id));
- assert.equal(updated.issuance.number,'DEV-2610067');assert.equal(updated.reservedNumber.number,'DEV-2610067');assert.equal(updated.quote.state,'accepted');assert.equal(updated.quote.invoice.id,replacement.id);assert.equal(updated.quote.invoice.number,'FAC-2610067');assert.equal(updated.quote.engagement.filename,'accord.pdf');
+ assert.equal(updated.issuance.number,'DEV-2610067');assert.equal(updated.reservedNumber.number,'DEV-2610067');assert.equal(updated.quote.state,'accepted');assert.equal(updated.quote.invoice.id,replacement.id);assert.equal(updated.quote.invoice.number,null);assert.equal(updated.quote.engagement.filename,'accord.pdf');
  assert.equal(updatedInvoice.data.references.quoteNumber,'DEV-2610067');assert.equal(updatedInvoice.version,replacement.version+1);
  assert.deepEqual(Buffer.from(await(await call('/documents/'+quote.id+'/files/pdf')).arrayBuffer()),bytes);
  assert.deepEqual(Buffer.from(await(await bucket.get(oldManifest.artifacts[0].key)).arrayBuffer()),pdf);

@@ -1,3 +1,4 @@
+import {linkedInvoiceNumber} from './billing-document-number';
 import {useEffect,useRef,useState} from 'react';
 import {createPortal} from 'react-dom';
 import {FilePlus2,X} from 'lucide-react';
@@ -26,7 +27,7 @@ function InvoiceSelectionDialog({record,onConvert,onClose}:{record:BillingDocume
  return <dialog ref={dialog} className="bill-support-dialog bill-invoice-selection" aria-label="Facturer le devis" onCancel={e=>{e.preventDefault();if(!pending)onClose();}}>
   <div className="bill-dialog-top"><strong><FilePlus2 size={20}/>Facturer {record.issuance?.number}</strong><button type="button" aria-label="Fermer la facturation du devis" disabled={pending} onClick={onClose}><X size={20}/></button></div>
   <form onSubmit={e=>{e.preventDefault();void submit();}}><div className="bill-support-body"><fieldset disabled={pending}>
-   {!!linked.length&&<div className="bill-invoice-selection-existing">{linked.map(i=><span key={i.id}><strong>{i.number||'Facture en préparation'}</strong>{periodLabel({period:'',periods:i.periods,customPeriod:i.customPeriod})&&<small>{periodLabel({period:'',periods:i.periods,customPeriod:i.customPeriod})}</small>}</span>)}</div>}
+   {!!linked.length&&<div className="bill-invoice-selection-existing">{linked.map(i=><span key={i.id}><strong>{linkedInvoiceNumber(i)||'Facture brouillon'}</strong>{periodLabel({period:'',periods:i.periods,customPeriod:i.customPeriod})&&<small>{periodLabel({period:'',periods:i.periods,customPeriod:i.customPeriod})}</small>}</span>)}</div>}
    <Field label="Périodes à facturer"><PeriodSelect label="Périodes à facturer" value={details} onChange={periods=>setSelection(s=>({...s,periods}))} onCustomChange={customPeriod=>setSelection(s=>({...s,customPeriod}))}/></Field>
    <div className="bill-invoice-selection-lines">{record.data.lines.map((l,index)=><div key={l.id}><span>{l.description}<small>{formatMinor(String(Math.round(Number(l.unitPrice.replace(',','.'))*100)))} HT</small></span><Field label="Quantité à facturer" hint="Une quantité de 0 exclut cette prestation."><input aria-label={'Quantité à facturer — '+l.description} inputMode="decimal" required value={selection.quantities[index].quantity} onChange={e=>setSelection(s=>({...s,quantities:s.quantities.map((q,i)=>i===index?{...q,quantity:e.target.value}:q)}))}/></Field></div>)}</div>
    <div className="bill-invoice-selection-total"><span>Cette facture · HT</span><strong>{total===null?'—':formatMinor(total)}</strong></div>

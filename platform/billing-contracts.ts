@@ -67,6 +67,9 @@ export interface BillingDocument {
   id:string; version:number; status:'draft'|'finalizing'|'issue_failed'|'issued'; data:BillingDraft;
   issuance:BillingIssuanceSummary|null;
   reservedNumber?:{number:string;date:string;seriesId:string}|null;
+  numberingReview?:boolean;
+  numberingReviewNumber?:string;
+  retiredNumber?:{number:string;date:string;seriesId:string;retiredAt:string}|null;
   sourceDocumentId:string|null; createdAt:string; updatedAt:string; createdBy:string; updatedBy:string;
   totals:BillingTotals|null; issues:BillingIssue[];
   quote:BillingQuoteSummary|null;
@@ -119,6 +122,7 @@ export interface BillingContext {
 }
 export interface BillingFollowupLink {serviceCode?:string;engagement?:string;otherReference?:string;orderId:string;marketId:string;marketReference:string;projectId:string;project:string;reference:string;date:string;amountMinor:number|null;kind:'order'|'signed_quote';files:{documentId:string;marketId?:string;filename:string}[];}
 export interface BillingTransport {
+  retireDraftNumber(id:string,version:number,input:{notTransmitted:true;reason:string}):Promise<BillingDocument>;
   updateFollowup(id:string,version:number,input:{title?:string;orderId?:string;marketId?:string}):Promise<BillingDocument>;
   clientEmployees(id:string):Promise<import('./client-employees-domain').ClientEmployeeSpace>;
   rhClientAgents?(id:string):Promise<import('./rh-client-records').RhClientAgents>;
