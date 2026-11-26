@@ -61,7 +61,7 @@ await test('HTTP émission : refus avant réservation et contrôle des fichiers 
   });
   await t.test('indisponibilité, redirection et précontrôle incohérent conservent le brouillon et le compteur',async()=>{
    for(const [value,status] of [['unavailable',503],['redirect',503],['wrong-snapshot',502],['missing-check',502]]){
-    mode=value;const before=requests,result=await reserve();assert.equal(result.status,status,await result.clone().text());assert.equal(requests,before+(value==='unavailable'?8:1));assert.doesNotMatch(await result.text(),/private upstream|synthetic-service-key/);
+    mode=value;const before=requests,result=await reserve();assert.equal(result.status,status,await result.clone().text());assert.equal(requests,before+(value==='unavailable'?9:1));assert.doesNotMatch(await result.text(),/private upstream|synthetic-service-key/);
     assert.equal((await (await call('/documents/'+doc.id)).json()).status,'draft');assert.equal(await counter(),41);
    }
    assert.equal((await ctx.db.prepare('SELECT count(*) AS n FROM billing_issuances').first()).n,0);

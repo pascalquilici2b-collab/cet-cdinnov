@@ -345,4 +345,18 @@ select.bill-status-filter{background:var(--bill-surface,#fff);color:var(--bill-i
 
 .bill-document-number-group{display:flex;flex-direction:column;gap:2px;min-width:0}.bill-draft-number-hint{display:block;font-size:10px;line-height:1.45;color:var(--bill-muted);max-width:230px;white-space:normal}.bill-number-review{padding:14px 16px;margin:14px 0;border:1px solid var(--bill-line);border-radius:12px;background:var(--bill-surface,#fff)}.bill-number-review p{margin:0 0 10px}.bill-number-review>small{display:block;margin-top:8px;color:var(--bill-muted)}
 
-.bill-number-review .bill-check{display:flex;align-items:flex-start;gap:9px;margin:12px 0}.bill-app .bill-number-review .bill-check input[type=checkbox]{width:16px;min-width:16px;height:16px;padding:0;margin:2px 0 0;flex:0 0 16px}
+.bill-number-review-projection{padding-top:8px;margin-top:4px;border-top:1px solid var(--bill-line)}
+
+.bill-app .bill-number-review-dialog{width:min(560px,calc(100vw - 32px));max-height:calc(100dvh - 32px);overflow:auto;box-sizing:border-box}
+.bill-number-review-dialog h3{display:flex;align-items:center;gap:9px;margin:0 0 16px;font-size:18px}
+.bill-app .bill-number-review-dialog form>div{display:block;justify-content:normal;text-align:left}
+.bill-app .bill-number-review-dialog .bill-field{margin:16px 0}
+.bill-app .bill-number-review-dialog :is(input,select,textarea){width:100%;min-width:0;box-sizing:border-box;margin:6px 0 0;padding:10px 12px;border:1px solid var(--bill-line);border-radius:10px;background:var(--bill-input);color:var(--bill-ink);font:inherit}
+.bill-app .bill-number-review-dialog select:focus{outline:2px solid var(--bill-focus);outline-offset:2px}
+.bill-number-review-hint{font-size:12px;line-height:1.5;color:var(--bill-muted)}
+.bill-app .bill-number-review-dialog .bill-number-review-selection{display:grid;gap:5px;padding:12px 14px;margin:12px 0;border:1px solid var(--bill-line);border-radius:12px;background:var(--bill-bg);overflow-wrap:anywhere}
+.bill-number-review-selection strong{font-size:14px}.bill-number-review-selection span{font-size:13px;line-height:1.45}.bill-number-review-selection small{font-size:11px;color:var(--bill-muted)}
+.bill-app .bill-number-review-dialog .bill-number-review-actions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-top:20px}
+@media(max-width:480px){.bill-app .bill-number-review-dialog{padding:18px}.bill-number-review-actions .bill-button{flex:1;justify-content:center}}
+.bill-paper-refs .bill-paper-ref-subject{grid-column:1/-1;display:block;min-width:0}
+.bill-paper-ref-subject dd{white-space:pre-wrap;overflow-wrap:anywhere}

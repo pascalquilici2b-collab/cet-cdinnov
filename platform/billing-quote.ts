@@ -13,7 +13,7 @@ type EventRow={id:string;document_id:string;document_version:number;version:numb
 const event=(r:EventRow):BillingQuoteEvent=>({id:r.id,version:r.version,action:r.action,occurredOn:r.occurred_on,note:r.note,recordedAt:r.recorded_at,recordedBy:r.recorded_by});
 /** Follow each invoice's rectification chain and expose only its current leaf. */
 function linkedInvoiceRows(){return `WITH RECURSIVE linked(id,depth) AS (
- SELECT d.id,0 FROM billing_documents d WHERE d.source_document_id=${quoteFamilyRoot('billing_documents.id')} OR d.source_document_id IN (SELECT document_id FROM billing_quote_revisions WHERE root_document_id=${quoteFamilyRoot('billing_documents.id')})
+ SELECT d.document_id,0 FROM billing_invoice_quote_links d WHERE d.quote_id=${quoteFamilyRoot('billing_documents.id')} OR d.quote_id IN (SELECT document_id FROM billing_quote_revisions WHERE root_document_id=${quoteFamilyRoot('billing_documents.id')})
  UNION ALL SELECT r.replacement_id,l.depth+1 FROM linked l JOIN billing_invoice_rectifications r ON r.original_id=l.id WHERE l.depth<32 AND NOT EXISTS(SELECT 1 FROM billing_document_trash t WHERE t.document_id=r.replacement_id))
  SELECT DISTINCT d.id,i.number number,CASE WHEN j.state='ready' THEN 'issued' WHEN j.state='failed' THEN 'issue_failed' WHEN i.id IS NOT NULL THEN 'finalizing' ELSE 'draft' END state,
  json_extract(d.totals_json,'$.netMinor') net_minor,coalesce(json_extract(d.data_json,'$.details.periods'),CASE WHEN coalesce(json_extract(d.data_json,'$.details.period'),'')<>'' THEN json_array(json_extract(d.data_json,'$.details.period')) ELSE '[]' END) periods,coalesce(json_extract(d.data_json,'$.details.customPeriod'),'') custom_period

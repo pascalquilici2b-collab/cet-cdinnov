@@ -1,5 +1,7 @@
 import {billingNumberSQL} from './billing-monthly-number-schema.mjs';
 import {invoiceNumberingPolicyReady} from './billing-invoice-finalization-number-schema.mjs';
+import {invoiceLegacyNumberResolvedSQL} from './billing-invoice-regularization-schema.mjs';
+import {invoiceQuoteNumberPlan} from './billing-invoice-quote-number.ts';
 import {createHash} from 'node:crypto';
 import type {Database} from './contracts';
 import type {BillingDraft,BillingKind,BillingTotals} from './billing-contracts';
@@ -84,10 +86,12 @@ export async function reserveIssuance(db:Database,input:{id:string;documentId:st
  if(!source)return fail(404,'Document introuvable.');if(source.version!==input.documentVersion)return fail(409,'Le document a changé avant la finalisation.');
  const snapshot=normalizeDraft(JSON.parse(source.data_json)),issues=inspectDocumentReadiness(snapshot);
  if(snapshot.kind==='invoice'&&!await invoiceNumberingPolicyReady(db))return fail(503,'La mise à jour de la numérotation est en cours. Le brouillon est conservé ; réessayez dans quelques instants.');
- if(snapshot.kind==='invoice'&&await db.prepare('SELECT 1 FROM billing_draft_numbers n WHERE n.document_id=? AND NOT EXISTS(SELECT 1 FROM billing_invoice_number_retirements r WHERE r.document_id=n.document_id)').bind(documentId).first())return fail(409,'Cette facture possède un ancien numéro de brouillon. Régularisez cette réservation après vérification des PDF et de la non-transmission.');
+ if(snapshot.kind==='invoice'&&await db.prepare(`SELECT 1 FROM billing_draft_numbers n WHERE n.document_id=? AND NOT ${invoiceLegacyNumberResolvedSQL('n.document_id')}`).bind(documentId).first())return fail(409,'Cette facture possède un ancien numéro de brouillon. Rattachez-la à son devis dans la régularisation.');
  // Native v3 rendering is ready; issuance remains closed until the linked allocation ledger is installed.
  if(snapshot.creditNote)return fail(409,'La finalisation des avoirs nécessite le contrôle des montants déjà crédités sur la facture d’origine.');
  if(issues.length)throw Object.assign(new Error('Complétez le document avant la finalisation.'),{status:422,issues});
+ const numberPlan=snapshot.kind==='invoice'?await invoiceQuoteNumberPlan(db,documentId,seriesId,snapshot.issueDate):null;
+ if(numberPlan?.blockedReason)return fail(409,numberPlan.blockedReason);
  // Electronic conversion is separate; this reservation binds the definitive PDF.
  const snapshotJSON=JSON.stringify(snapshot),totalsJSON=JSON.stringify(calculateBilling(snapshot));
  const snapshotHash=hash(billingCanonicalJSON({schemaVersion:1,document:snapshot,totals:JSON.parse(totalsJSON)}));
@@ -95,10 +99,10 @@ export async function reserveIssuance(db:Database,input:{id:string;documentId:st
  try{
   // The SELECT and insert triggers run in one SQLite statement: no read/increment/write gap.
   const row=await db.prepare(`INSERT INTO billing_issuances(id,document_id,document_version,series_id,issuer_siren,sequence_value,number,issue_date,source_json,snapshot_json,totals_json,snapshot_sha256,created_at,created_by)
-   SELECT ?,d.id,d.version,s.id,s.issuer_siren,coalesce(n.sequence_value,s.next_value),coalesce(n.number,${billingNumberSQL('?')}),?,?,?,?,?,?,?
+   SELECT ?,d.id,d.version,s.id,s.issuer_siren,coalesce(?,n.sequence_value,s.next_value),coalesce(?,n.number,${billingNumberSQL('?')}),?,?,?,?,?,?,?
    FROM billing_documents d JOIN billing_number_series s ON s.id=? LEFT JOIN billing_draft_numbers n ON n.document_id=d.id AND d.kind='quote' AND n.series_id=s.id WHERE d.id=? AND d.version=? AND d.data_json=?
    AND NOT EXISTS(SELECT 1 FROM billing_issuances WHERE document_id=d.id) RETURNING *`)
-   .bind(issuanceId,snapshot.issueDate,snapshot.issueDate,snapshot.issueDate,source.data_json,snapshotJSON,totalsJSON,snapshotHash,stamp,user,seriesId,documentId,input.documentVersion,source.data_json).first<IssuanceRow>();
+   .bind(issuanceId,numberPlan?.sequence_value??null,numberPlan?.number??null,snapshot.issueDate,snapshot.issueDate,snapshot.issueDate,source.data_json,snapshotJSON,totalsJSON,snapshotHash,stamp,user,seriesId,documentId,input.documentVersion,source.data_json).first<IssuanceRow>();
   if(row)return unpack(row);
  }catch(error){
   const retried=await replay();if(retried)return retried;
@@ -106,6 +110,7 @@ export async function reserveIssuance(db:Database,input:{id:string;documentId:st
   if(!/BILLING_RESERVATION_CONFLICT|UNIQUE constraint/.test(String(error)))throw error;
  }
  const retried=await replay();if(retried)return retried;
+ if(numberPlan){const refreshed=await invoiceQuoteNumberPlan(db,documentId,seriesId,snapshot.issueDate);if(refreshed?.blockedReason)return fail(409,refreshed.blockedReason);}
  const reserved=await db.prepare('SELECT number FROM billing_issuances WHERE document_id=?').bind(documentId).first<{number:string}>();
  if(reserved)return fail(409,'Ce document possède déjà le numéro '+reserved.number+'. Actualisez-le avant de poursuivre.');
  const latest=await db.prepare('SELECT version FROM billing_documents WHERE id=?').bind(documentId).first<{version:number}>();

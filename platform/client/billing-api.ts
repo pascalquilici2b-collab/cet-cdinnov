@@ -44,6 +44,8 @@ export function createBillingTransport(options:{baseUrl:string;getSession:()=>Pr
     marketDocument:(marketId,documentId)=>request('/budgets/markets/'+encodeURIComponent(marketId)+'/documents/'+encodeURIComponent(documentId),'GET',undefined,undefined,true),
     rectify:(id,version,input)=>numbered(request<BillingDocument>('/documents/'+encodeURIComponent(id)+'/rectify','POST',input,version)),
     retireDraftNumber:(id,version,input)=>request<BillingDocument>('/documents/'+encodeURIComponent(id)+'/retire-draft-number','POST',input,version),
+    regularizationQuotes:(id,query='')=>request('/documents/'+encodeURIComponent(id)+'/regularization-quotes?'+new URLSearchParams({q:query})),
+    regularizeInvoice:(id,version,input)=>request<BillingDocument>('/documents/'+encodeURIComponent(id)+'/regularize-invoice','POST',input,version),
     session:()=>request('/api/v1/session'),
     confirmSent:(id,version,input)=>request('/documents/'+encodeURIComponent(id)+'/outlook-sent','POST',input,version),
     declareSent:(id,version,input)=>request('/documents/'+encodeURIComponent(id)+'/sent','POST',input,version),

@@ -21,6 +21,8 @@ import {blankDraft} from './billing-domain';
 import {draftPDF} from './billing-pdf';
 import {reserveDraftNumber} from './billing-draft-number';
 import {retireInvoiceDraftNumber} from './billing-invoice-number-retirement';
+import {regularizationJSON,regularizationQuotes,regularizeInvoice,invoiceQuoteNumberPlan} from './billing-invoice-regularization';
+import {invoiceLegacyNumberResolvedSQL} from './billing-invoice-regularization-schema.mjs';
 import {invoiceNumberingPolicyReady} from './billing-invoice-finalization-number-schema.mjs';
 import {automaticNumberSeries} from './billing-numbering';
 import {createNumberSeries,reserveIssuance} from './billing-issuance';
@@ -43,6 +45,7 @@ interface Row {
  source_version:number|null; created_at:string; updated_at:string; created_by:string; updated_by:string;
  followup_json?:string|null; sent_at?:string|null;
  retired_number_json?:string|null; numbering_review?:number; numbering_review_number?:string|null;
+ regularization_json?:string|null;
  rectification_json?:string|null;
  reserved_number_json?:string|null; issuance_json?:string|null; quote_json?:string|null; settlement_json?:string|null;
 }
@@ -53,16 +56,16 @@ const uuid=(v:unknown):v is string=>typeof v==='string'&&/^[0-9a-f]{8}-[0-9a-f]{
 const digest=(s:string)=>createHash('sha256').update(s).digest('hex');
 const text=(v:unknown)=>typeof v==='string'?v:'';
 const document=(r:Row):BillingDocument=>{const issuance:BillingIssuanceSummary|null=r.issuance_json?(typeof r.issuance_json==='string'?JSON.parse(r.issuance_json):r.issuance_json):null;const result:BillingDocument={followup:r.followup_json?JSON.parse(r.followup_json):null,sentAt:r.sent_at||null,id:r.id,version:r.version,status:issuance?(issuance.state==='ready'?'issued':issuance.state==='failed'?'issue_failed':'finalizing'):'draft',issuance,quote:r.quote_json?(typeof r.quote_json==='string'?JSON.parse(r.quote_json):r.quote_json) as BillingQuoteSummary:null,data:normalizeDraft(JSON.parse(r.data_json)),
- ...(r.numbering_review?{numberingReview:true,...(r.numbering_review_number?{numberingReviewNumber:r.numbering_review_number}:{})}:{}),...(r.retired_number_json?{retiredNumber:JSON.parse(r.retired_number_json)}:{}),
- ...(r.rectification_json?{rectification:JSON.parse(r.rectification_json)}:{}),reservedNumber:r.reserved_number_json?JSON.parse(r.reserved_number_json):null,settlement:r.settlement_json?JSON.parse(r.settlement_json):null,sourceDocumentId:r.source_document_id,createdAt:r.created_at,updatedAt:r.updated_at,createdBy:r.created_by,updatedBy:r.updated_by,
+ ...(r.numbering_review?{numberingReview:true,...(r.numbering_review_number?{numberingReviewNumber:r.numbering_review_number}:{})}:{}),...(r.retired_number_json?{retiredNumber:JSON.parse(r.retired_number_json)}:{}),...(r.regularization_json?{regularization:JSON.parse(r.regularization_json)}:{}),
+ ...(r.rectification_json?{rectification:JSON.parse(r.rectification_json)}:{}),reservedNumber:r.reserved_number_json?JSON.parse(r.reserved_number_json):null,settlement:r.settlement_json?JSON.parse(r.settlement_json):null,sourceDocumentId:r.source_document_id||(r.regularization_json?JSON.parse(r.regularization_json).quoteId:null),createdAt:r.created_at,updatedAt:r.updated_at,createdBy:r.created_by,updatedBy:r.updated_by,
  totals:r.totals_json===null?null:JSON.parse(r.totals_json),issues:JSON.parse(r.issues_json)};if(result.followup?.link&&result.quote?.engagement){result.quote.engagement={...result.quote.engagement,kind:result.followup.link.kind,details:{client:result.data.buyer.name,...result.quote.engagement.details,...result.followup.link},filename:result.followup.link.files[0]?.filename||result.quote.engagement.filename};}return result;};
 const issuanceJSON=`(SELECT json_object('id',i.id,'number',i.number,'state',j.state,'attempts',j.attempts,'errorCode',j.error_code,'createdAt',i.created_at,'updatedAt',j.updated_at,
  'files',json(CASE WHEN j.state='ready' THEN (SELECT json_group_array(json_extract(value,'$.kind')) FROM json_each(j.manifest_json,'$.artifacts')) ELSE '[]' END))
  FROM billing_issuances i JOIN billing_issue_jobs j ON j.issuance_id=i.id WHERE i.document_id=billing_documents.id)`;
-const reservedNumberJSON=`(SELECT json_object('number',number,'date',number_date,'seriesId',series_id) FROM billing_draft_numbers WHERE document_id=billing_documents.id AND NOT EXISTS(SELECT 1 FROM billing_invoice_number_retirements r WHERE r.document_id=billing_documents.id) AND (billing_documents.kind='quote' OR EXISTS(SELECT 1 FROM billing_issuances WHERE document_id=billing_documents.id)))`;
-const retiredNumberJSON=`(SELECT json_object('number',n.number,'date',n.number_date,'seriesId',n.series_id,'retiredAt',r.retired_at) FROM billing_invoice_number_retirements r JOIN billing_draft_numbers n ON n.document_id=r.document_id WHERE r.document_id=billing_documents.id)`;
-const numberingReviewSQL=`(CASE WHEN billing_documents.kind='invoice' AND NOT EXISTS(SELECT 1 FROM billing_issuances WHERE document_id=billing_documents.id) AND EXISTS(SELECT 1 FROM billing_draft_numbers n WHERE n.document_id=billing_documents.id AND NOT EXISTS(SELECT 1 FROM billing_invoice_number_retirements r WHERE r.document_id=n.document_id)) THEN 1 ELSE 0 END)`;
-const get=(db:Database,id:string)=>db.prepare(`SELECT *,${followupJSON} AS followup_json,${sentAtSQL} AS sent_at,${rectificationJSON()} AS rectification_json,${reservedNumberJSON} AS reserved_number_json,${retiredNumberJSON} AS retired_number_json,${numberingReviewSQL} AS numbering_review,(SELECT number FROM billing_draft_numbers WHERE document_id=billing_documents.id) AS numbering_review_number,${issuanceJSON} AS issuance_json,${quoteJSON()} AS quote_json,${settlementJSON()} AS settlement_json FROM billing_documents WHERE id=?`).bind(id).first<Row>();
+const reservedNumberJSON=`(SELECT json_object('number',number,'date',number_date,'seriesId',series_id) FROM billing_draft_numbers WHERE document_id=billing_documents.id AND NOT ${invoiceLegacyNumberResolvedSQL("billing_documents.id")} AND (billing_documents.kind='quote' OR EXISTS(SELECT 1 FROM billing_issuances WHERE document_id=billing_documents.id)))`;
+const retiredNumberJSON=`(SELECT json_object('number',n.number,'date',n.number_date,'seriesId',n.series_id,'retiredAt',r.retired_at) FROM (SELECT document_id,retired_at FROM billing_invoice_number_retirements UNION ALL SELECT document_id,regularized_at FROM billing_invoice_regularizations WHERE reservation_action='release') r JOIN billing_draft_numbers n ON n.document_id=r.document_id WHERE r.document_id=billing_documents.id ORDER BY r.retired_at LIMIT 1)`;
+const numberingReviewSQL=`(CASE WHEN billing_documents.kind='invoice' AND NOT EXISTS(SELECT 1 FROM billing_issuances WHERE document_id=billing_documents.id) AND EXISTS(SELECT 1 FROM billing_draft_numbers n WHERE n.document_id=billing_documents.id AND NOT ${invoiceLegacyNumberResolvedSQL("n.document_id")}) THEN 1 ELSE 0 END)`;
+const get=(db:Database,id:string)=>db.prepare(`SELECT *,${followupJSON} AS followup_json,${sentAtSQL} AS sent_at,${rectificationJSON()} AS rectification_json,${reservedNumberJSON} AS reserved_number_json,${retiredNumberJSON} AS retired_number_json,${regularizationJSON} AS regularization_json,${numberingReviewSQL} AS numbering_review,(SELECT number FROM billing_draft_numbers WHERE document_id=billing_documents.id) AS numbering_review_number,${issuanceJSON} AS issuance_json,${quoteJSON()} AS quote_json,${settlementJSON()} AS settlement_json FROM billing_documents WHERE id=?`).bind(id).first<Row>();
 const conflict=()=>fail(409,'Ce document a changé ou cet identifiant est déjà utilisé. Rechargez le document avant de continuer.');
 function expectedVersion(request:Request,allowZero=false):number {
  const value=request.headers.get('if-match');
@@ -172,7 +175,7 @@ async function list(request:Request,db:Database,reply:Reply) {
   coalesce((SELECT label FROM client_map WHERE client_map.id=billing_documents.id),json_extract(data_json,'$.buyer.name')) AS client_label,
   CASE WHEN coalesce(json_extract(data_json,'$.references.projectId'),'')<>'' THEN 'id:'||json_extract(data_json,'$.references.projectId')
    ELSE 'name:'||coalesce(json_extract(data_json,'$.references.project'),'') END AS project_key,
-  ${followupJSON} AS followup_json,${sentAtSQL} AS sent_at,${rectificationJSON()} AS rectification_json,${reservedNumberJSON} AS reserved_number_json,${retiredNumberJSON} AS retired_number_json,${numberingReviewSQL} AS numbering_review,(SELECT number FROM billing_draft_numbers WHERE document_id=billing_documents.id) AS historical_number,${issuanceJSON} AS issuance_json,${quoteJSON()} AS quote_json,${settlementJSON()} AS settlement_json FROM billing_documents WHERE (? IS NULL OR kind=?) AND (EXISTS(SELECT 1 FROM billing_document_trash t WHERE t.document_id=billing_documents.id)=?)
+  ${followupJSON} AS followup_json,${sentAtSQL} AS sent_at,${rectificationJSON()} AS rectification_json,${reservedNumberJSON} AS reserved_number_json,${retiredNumberJSON} AS retired_number_json,${regularizationJSON} AS regularization_json,${numberingReviewSQL} AS numbering_review,(SELECT number FROM billing_draft_numbers WHERE document_id=billing_documents.id) AS historical_number,${issuanceJSON} AS issuance_json,${quoteJSON()} AS quote_json,${settlementJSON()} AS settlement_json FROM billing_documents WHERE (? IS NULL OR kind=?) AND (EXISTS(SELECT 1 FROM billing_document_trash t WHERE t.document_id=billing_documents.id)=?)
  ), classified AS (SELECT *,CASE WHEN json_extract(issuance_json,'$.state')='ready' THEN 'issued' WHEN json_extract(issuance_json,'$.state')='failed' THEN 'issue_failed' WHEN issuance_json IS NOT NULL THEN 'finalizing' ELSE 'draft' END AS effective_status FROM enriched),
  filtered AS (SELECT * FROM classified WHERE (?='' OR client_key=?) AND (?='' OR project_key=?) AND (CASE
   WHEN ?='trash' THEN 1
@@ -187,7 +190,7 @@ async function list(request:Request,db:Database,reply:Reply) {
  (SELECT json_group_array(json(item)) FROM (SELECT json_object('value',client_key,'label',max(client_label)) AS item FROM classified WHERE coalesce(client_label,'')<>'' AND client_key<>'name:' GROUP BY client_key ORDER BY max(client_label) COLLATE NOCASE)) AS clients_json,
  (SELECT json_group_array(json(item)) FROM (SELECT json_object('value',project_key,'label',max(json_extract(data_json,'$.references.project'))) AS item FROM classified WHERE coalesce(json_extract(data_json,'$.references.project'),'')<>'' GROUP BY project_key ORDER BY max(json_extract(data_json,'$.references.project')) COLLATE NOCASE)) AS projects_json,
  (SELECT json_group_array(json(row_json)) FROM (
- SELECT json_object('id',id,'kind',kind,'status',status,'version',version,'data_json',data_json,'totals_json',totals_json,'issues_json',issues_json,'source_document_id',source_document_id,'created_at',created_at,'updated_at',updated_at,'created_by',created_by,'updated_by',updated_by,'followup_json',followup_json,'sent_at',sent_at,'rectification_json',rectification_json,'reserved_number_json',reserved_number_json,'retired_number_json',retired_number_json,'numbering_review',numbering_review,'numbering_review_number',historical_number,'issuance_json',issuance_json,'quote_json',quote_json,'settlement_json',settlement_json) AS row_json
+ SELECT json_object('id',id,'kind',kind,'status',status,'version',version,'data_json',data_json,'totals_json',totals_json,'issues_json',issues_json,'source_document_id',source_document_id,'created_at',created_at,'updated_at',updated_at,'created_by',created_by,'updated_by',updated_by,'followup_json',followup_json,'sent_at',sent_at,'rectification_json',rectification_json,'reserved_number_json',reserved_number_json,'retired_number_json',retired_number_json,'regularization_json',regularization_json,'numbering_review',numbering_review,'numbering_review_number',historical_number,'issuance_json',issuance_json,'quote_json',quote_json,'settlement_json',settlement_json) AS row_json
  FROM filtered ORDER BY updated_at DESC,id LIMIT ? OFFSET ?)) AS rows_json`).bind(JSON.stringify(clientProjection.native),kind,kind,state==='trash'?1:0,client,client,project,project,state,state,state,state,state,state,q,state,state,state,state,state,q,q,q,q,q,limit,offset).first<{total:number;rows_json:string;clients_json:string;projects_json:string}>();
  const clients=[...new Map([...clientProjection.clients,...JSON.parse(row?.clients_json||'[]')].map(c=>[c.value,c])).values()].sort((a,b)=>a.label.localeCompare(b.label,'fr'));
  return reply(200,{documents:JSON.parse(row?.rows_json||'[]').map(document),total:row?.total||0,limit,offset,filters:{clients,importedClients:clientProjection.imported,projects:JSON.parse(row?.projects_json||'[]')}});
@@ -248,7 +251,7 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
   }
   return reply(200,document(existing));
  }
- const match=path.match(/^\/api\/v1\/billing\/documents\/([^/]+)(\/followup|\/engagement|\/intervention-report(?:\.pdf)?|\/rectify|\/restore|\/number|\/retire-draft-number|\/email|\/outlook-sent|\/sent|\/payments|\/quote-versions|\/revise|\/abandon-revision|\/quote-events|\/convert|\/preview\.pdf|\/issue|\/finalize|\/files\/(?:pdf|xml|validation|verapdf))?$/);
+ const match=path.match(/^\/api\/v1\/billing\/documents\/([^/]+)(\/followup|\/engagement|\/intervention-report(?:\.pdf)?|\/rectify|\/restore|\/number|\/retire-draft-number|\/regularization-quotes|\/regularize-invoice|\/email|\/outlook-sent|\/sent|\/payments|\/quote-versions|\/revise|\/abandon-revision|\/quote-events|\/convert|\/preview\.pdf|\/issue|\/finalize|\/files\/(?:pdf|xml|validation|verapdf))?$/);
  if(!match)return reply(404,{error:'Accès de facturation introuvable.'});
  if(!uuid(match[1]))return fail(400,'Identifiant de document invalide.');
  const id=match[1].toLowerCase();
@@ -307,6 +310,19 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
   if(!row)return reply(404,{error:'Document introuvable.'});if(row.version!==expected)return conflict();
   await reserveDraftNumber(db,document(row),session.email);return reply(200,document((await get(db,id))!));
  }
+ if(match[2]==='/regularization-quotes'){
+  if(request.method!=='GET')return reply(405,{error:'Méthode non autorisée.'});
+  const params=new URL(request.url).searchParams;if([...params.keys()].some(k=>k!=='q')||params.getAll('q').length>1)return fail(400,'Recherche invalide.');
+  const row=await get(db,id);if(!row)return reply(404,{error:'Facture introuvable.'});
+  return reply(200,await regularizationQuotes(db,document(row),params.get('q')||''));
+ }
+ if(match[2]==='/regularize-invoice'){
+  if(request.method!=='POST')return reply(405,{error:'Méthode non autorisée.'});
+  const expected=expectedVersion(request),input=await body(request,['quoteId','quoteVersion'],['reason']),row=await get(db,id);
+  if(!row)return reply(404,{error:'Facture introuvable.'});
+  await regularizeInvoice(db,document(row),expected,{quoteId:input.quoteId,quoteVersion:input.quoteVersion,reason:input.reason},session.email);
+  return reply(200,document((await get(db,id))!));
+ }
  if(match[2]==='/retire-draft-number'){
   if(request.method!=='POST')return reply(405,{error:'Méthode non autorisée.'});
   const expected=expectedVersion(request),input=await body(request,['notTransmitted','reason']),row=await get(db,id);
@@ -358,10 +374,16 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
    if(!current.issuance&&current.data.kind==='invoice'&&!await invoiceNumberingPolicyReady(db))return fail(503,'La mise à jour de la numérotation est en cours. Le brouillon est conservé ; réessayez dans quelques instants.');
    if((current.data.kind==='invoice'||input.seriesId==='automatic')&&current.data.issueDate>new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Paris'}).format(new Date()))return fail(409,'La date du document ne peut pas être postérieure à aujourd’hui.');
    if(!current.issuance&&current.quote&&(current.quote.revision.abandoned||current.quote.revision.currentId!==current.id))return fail(409,'Cette version du devis a été remplacée ou abandonnée. Ouvrez la version en cours.');
-   if(current.numberingReview)return fail(409,'Cette facture possède un ancien numéro de brouillon. Régularisez sa réservation après vérification de la non-transmission et des anciens PDF.');
+   if(current.numberingReview)return fail(409,'Cette facture possède un ancien numéro de brouillon. Rattachez-la à son devis dans la régularisation.');
+   const plannedSeries=current.regularization?await db.prepare('SELECT invoice_series_id series_id FROM billing_invoice_regularizations WHERE document_id=?').bind(id).first<{series_id:string}>():null;
+   if(!current.issuance&&current.regularization){
+    const seriesId=input.seriesId==='automatic'?plannedSeries?.series_id:input.seriesId;
+    if(!seriesId)return fail(409,'Configurez la série de numérotation des factures avant la finalisation.');
+    const plan=await invoiceQuoteNumberPlan(db,id,seriesId,current.data.issueDate);if(plan?.blockedReason)return fail(409,plan.blockedReason);
+   }
    if(!current.issuance)await preflightIssuance(env,current.data);
    const existingSeries=current.issuance?await db.prepare('SELECT series_id FROM billing_issuances WHERE id=?').bind(current.issuance.id).first<{series_id:string}>():null;
-   await reserveIssuance(db,{id:input.id,documentId:id,documentVersion:expected,seriesId:input.seriesId==='automatic'?(existingSeries?.series_id||current.reservedNumber?.seriesId||await automaticNumberSeries(db,current.data,session.email)):input.seriesId},session.email);
+   await reserveIssuance(db,{id:input.id,documentId:id,documentVersion:expected,seriesId:input.seriesId==='automatic'?(existingSeries?.series_id||plannedSeries?.series_id||current.reservedNumber?.seriesId||await automaticNumberSeries(db,current.data,session.email)):input.seriesId},session.email);
   }else{
    if(!current.issuance)return fail(409,'Réservez le numéro du document avant sa génération.');
    await generateIssuance(db,env,current.issuance.id,session.email);
@@ -392,6 +414,10 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
   const previous=document(before);
   if(previous.issuance)return fail(409,'Ce document est figé et ne peut plus être modifié. Créez un document correctif.');
   if(previous.data.kind!==p.data.kind)return fail(400,'Le type du document ne peut pas être modifié.');
+  if(previous.regularization){
+   if(p.data.references.quoteNumber!==previous.regularization.quoteNumber)return fail(409,'La référence du devis rattaché est conservée par la régularisation.');
+   if(p.data.clientId!==previous.data.clientId||p.data.buyer.siren!==previous.data.buyer.siren||p.data.buyer.siret!==previous.data.buyer.siret)return fail(409,'Le client de cette facture est lié au devis régularisé. Son identité ne peut plus être remplacée.');
+  }
   if(previous.quote?.revision.abandoned)return fail(409,'Cette version a été abandonnée. Ouvrez la version en cours.');
   const numbered=await db.prepare('SELECT issuer_siren FROM billing_draft_numbers WHERE document_id=?').bind(id).first<{issuer_siren:string}>();
   if(numbered&&numbered.issuer_siren!==(p.data.seller.siren||p.data.seller.siret.slice(0,9)).replace(/\s/g,''))return fail(409,'Le numéro est réservé pour cet émetteur. Créez un nouveau document pour changer d’émetteur.');

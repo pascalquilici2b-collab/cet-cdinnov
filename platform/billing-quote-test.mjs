@@ -4,7 +4,7 @@ import {test} from 'node:test';
 import {testEnvironment,users} from '../marches/test.mjs';
 import {migrateBilling} from './billing-schema.mjs';
 import {billingToday,quoteState} from './billing-quote-domain.ts';
-import {quoteFixture,quoteFixtureTools} from './billing-quote-fixture.mjs';
+import {quoteFixture,quoteFixtureTools,samplePDF} from './billing-quote-fixture.mjs';
 
 test('expiration du devis : calendrier Paris, validité inclusive, réponses conservées',()=>{
  assert.equal(billingToday(new Date('2026-07-01T22:30:00Z')),'2026-07-02');assert.equal(billingToday(new Date('2026-01-01T22:30:00Z')),'2026-01-01');
@@ -15,6 +15,7 @@ await test('suivi réel D1 : journal immuable, reprises, réponses et facturatio
  const ctx=await testEnvironment();try{
   await migrateBilling(ctx.db);const admin=await ctx.login(users[0]),reader=await ctx.login(users[1]);const {call,create,input,send}=await quoteFixtureTools(ctx,admin.cookie);
   const read=async(r,status)=>{assert.equal(r.status,status,await r.clone().text());return r.json();};
+  const engage=async d=>read(await ctx.worker.dispatchFetch('https://preview.test/api/v1/billing/documents/'+d.id+'/engagement?'+new URLSearchParams({kind:'signed_quote',reference:d.issuance.number,date:'2020-01-02'}),{method:'PUT',headers:{Origin:'https://app.cdinnov.eu','X-CDInnov-Request':'1',Cookie:admin.cookie,'If-Match':String(d.version),'X-Filename':'accord-fictif.pdf','Content-Type':'application/pdf'},body:samplePDF()}),201);
   const doc=await create();
   await t.test('direction uniquement, JSON strict, versions et dates contrôlées',async()=>{
    for(const auth of ['', reader.cookie])for(const method of ['GET','POST'])assert.equal((await call('/documents/'+doc.id+'/quote-events',method,method==='POST'?input(doc):undefined,{Cookie:auth})).status,auth?403:401);
@@ -59,16 +60,18 @@ await test('suivi réel D1 : journal immuable, reprises, réponses et facturatio
    assert.equal((await read(await call('/documents?kind=quote&state=draft'),200)).total,1);
    for(const q of ['kind=invoice&state=accepted','state=paid','kind=quote&state=sent&state=accepted'])await read(await call('/documents?'+q),400);
   });
-  await t.test('facture liée : accord requis pour devis émis, conversion unique et suivi verrouillé',async()=>{
+  await t.test('factures liées : accord et justificatif requis, conversions idempotentes et suivi verrouillé',async()=>{
    const d=await create(),target=randomUUID();const convert=id=>call('/documents/'+d.id+'/convert','POST',{id},{'If-Match':String(d.version)});
    await read(await convert(target),409);const agreement=await read(await send(d),201);
+   await read(await convert(target),409);await engage(d);
    const invoice=await read(await convert(target),201);assert.equal(invoice.sourceDocumentId,d.id);assert.equal(invoice.status,'draft');
-   assert.equal((await read(await convert(target),200)).id,target);await read(await convert(randomUUID()),409);
-   const linked=await read(await call('/documents/'+d.id),200);assert.deepEqual(linked.quote.invoice,{id:target,number:null,state:'draft'});
+   assert.equal((await read(await convert(target),200)).id,target);const another=randomUUID();await read(await convert(another),201);
+   const linked=await read(await call('/documents/'+d.id),200);assert.deepEqual(linked.quote.invoices.map(i=>i.id).sort(),[target,another].sort());assert.ok(linked.quote.invoices.every(i=>i.number===null&&i.state==='draft'));
    await read(await send(agreement,input(agreement,'reopened','Correction')),409);
   });
   await t.test('course correction/facture : jamais de facture liée à une réponse corrigée',async()=>{
    const d=await create(),accepted=await read(await send(d),201);
+   await engage(d);
    const result=await Promise.all([send(accepted,input(accepted,'reopened','Correction requise')),call('/documents/'+d.id+'/convert','POST',{id:randomUUID()},{'If-Match':'1'})]);assert.deepEqual(result.map(r=>r.status).sort(),[201,409]);
    const current=await read(await call('/documents/'+d.id),200);if(current.quote.invoice)assert.equal(current.quote.state,'accepted');else assert.equal(current.quote.state,'sent');
   });

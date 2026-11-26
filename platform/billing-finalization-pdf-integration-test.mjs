@@ -6,7 +6,7 @@ import {resolve} from 'node:path';
 import {test} from 'node:test';
 import {testEnvironment,users} from '../marches/test.mjs';
 import {migrateBilling} from './billing-schema.mjs';
-import {blankDraft} from './billing-domain.ts';
+import {blankDraft,blankDocumentDetails} from './billing-domain.ts';
 import {billingCanonicalJSON} from './billing-issuance.ts';
 
 const sha=value=>createHash('sha256').update(value).digest('hex');
@@ -14,7 +14,10 @@ const python=process.env.BILLING_TEST_PYTHON||resolve('.private/facturx-venv/bin
 const key='synthetic-finalization-pdf-key-01234567890123456789';
 const today=()=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Paris'}).format(new Date());
 function fixture(){
- const d=blankDraft('quote',today());d.validUntil='2099-12-31';d.title='Devis fictif pour contrôle de finalisation';
+ const d=blankDraft('quote',today());d.validUntil='2099-12-31';
+ const sentence='Étude & accompagnement <Corse> : coordination des partenaires européens. ';
+ d.title=('OBJET-DÉBUT '+sentence.repeat(8)).slice(0,289)+' OBJET-FIN.';
+ d.details={...blankDocumentDetails(),marketObject:('MARCHÉ-DÉBUT '+sentence.repeat(8)).slice(0,488)+' MARCHÉ-FIN.'};
  d.seller={...d.seller,name:'Émetteur fictif de démonstration',addressLine1:'1 rue des Tests',postalCode:'20000',city:'Ajaccio',siren:'732829320',vatId:'FR44732829320'};
  d.buyer={...d.buyer,name:'Client fictif de démonstration',addressLine1:'2 rue des Tests',postalCode:'20200',city:'Bastia',siren:'552100554'};
  d.lines[0]={...d.lines[0],description:'PRESTATION-FIGEE-DEMONSTRATION',quantity:'2',unitPrice:'300',discountPercent:'0'};
@@ -26,6 +29,10 @@ function inspectPDF(bytes){
  const script="import io,json,sys;from pypdf import PdfReader;r=PdfReader(io.BytesIO(sys.stdin.buffer.read()));print(json.dumps({'pages':len(r.pages),'title':r.metadata.title,'text':'\\n'.join(p.extract_text() or '' for p in r.pages),'attachments':list(r.attachments)},ensure_ascii=False))";
  const checked=spawnSync(python,['-c',script],{input:bytes,encoding:'utf8',maxBuffer:4*1024*1024});
  assert.equal(checked.status,0,checked.stderr);return JSON.parse(checked.stdout);
+}
+function assertSubjects(pdf,document){
+ const compact=value=>value.replace(/\s+/g,'');
+ for(const value of [document.title,document.details.marketObject])assert.ok(compact(pdf.text).includes(compact(value)),'The complete entered subject must be preserved');
 }
 async function startPDFService(){
  const child=spawn(python,['-m','uvicorn','cdi_facturx.api:app','--host','127.0.0.1','--port','0'],{
@@ -83,7 +90,7 @@ test('invoice number is assigned at finalization and the real frozen PDF survive
   quote=await ok(await call('/documents/'+quote.id+'/number','POST',{}, {'If-Match':String(quote.version)}));
   const quoteNumber=quote.reservedNumber.number;
   const quotePreview=await call('/documents/'+quote.id+'/preview.pdf','GET',undefined,{'If-Match':String(quote.version)});
-  assert.equal(quotePreview.status,200);assert.ok(inspectPDF(Buffer.from(await quotePreview.arrayBuffer())).text.includes(quoteNumber));
+  assert.equal(quotePreview.status,200);const quotePreviewPDF=inspectPDF(Buffer.from(await quotePreview.arrayBuffer()));assert.ok(quotePreviewPDF.text.includes(quoteNumber));assertSubjects(quotePreviewPDF,quote.data);
   quote=await issue(quote,{id:randomUUID(),seriesId:'automatic'});assert.equal(quote.issuance.number,quoteNumber);
   quote=await finalize(quote);assert.equal(quote.status,'issued');assert.equal(await counter(),41);
   for(const action of ['sent','accepted'])quote=await ok(await call('/documents/'+quote.id+'/quote-events','POST',{
@@ -105,6 +112,7 @@ test('invoice number is assigned at finalization and the real frozen PDF survive
   invoice=await ok(await call('/documents/'+invoice.id,'PUT',{data:edited},{'If-Match':String(invoice.version)}));
   const draft=await call('/documents/'+invoice.id+'/preview.pdf','GET',undefined,{'If-Match':String(invoice.version)});
   assert.equal(draft.status,200);const provisional=inspectPDF(Buffer.from(await draft.arrayBuffer()));
+  assertSubjects(provisional,invoice.data);
   assert.match(provisional.text,/BROUILLON/);assert.match(provisional.text,/Numéro attribué à la finalisation/);assert.doesNotMatch(provisional.text,/PDF-FACT-0041/);
   assert.equal(await counter(),41);assert.equal((await ctx.db.prepare('SELECT count(*) n FROM billing_draft_numbers WHERE document_id=?').bind(invoice.id).first()).n,0);
 
@@ -130,6 +138,7 @@ test('invoice number is assigned at finalization and the real frozen PDF survive
   assert.equal(invoice.status,'issued');assert.equal(invoice.issuance.attempts,3);assert.equal(invoice.issuance.number,reserved.number);assert.equal(await counter(),42);
   const response=await call('/documents/'+invoice.id+'/files/pdf');assert.equal(response.status,200);
   const finalBytes=Buffer.from(await response.arrayBuffer()),final=inspectPDF(finalBytes);
+  assertSubjects(final,invoice.data);
   assert.equal(final.title,'FACTURE '+reserved.number);assert.match(final.text,/PDF-FACT-0041/);assert.match(final.text,/720,00/);assert.match(final.text,/DESCRIPTION-FIGEE-AVANT-FINALISATION/);
   assert.ok(final.text.includes(quoteNumber));assert.match(final.text,/00123/);assert.match(final.text,/ENG-FIGEE/);assert.doesNotMatch(final.text,/BROUILLON|Numéro attribué à la finalisation/);assert.deepEqual(final.attachments,[]);
   const generationCalls=calls.filter(value=>value.path.endsWith('/generate-issued-pdf')&&value.payload.documentId===invoice.id);

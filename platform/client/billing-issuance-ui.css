@@ -1,0 +1,4 @@
+.bill-status-progress{display:flex;align-items:flex-start;gap:7px;flex-basis:100%;max-width:420px;padding:8px 0;color:var(--bill-accent,#0066cc);font-size:12px;line-height:1.5}
+.bill-status-progress>svg{flex:0 0 16px;margin-top:2px;animation:bill-spin 1s linear infinite}
+.bill-status-progress>span{display:grid;gap:3px}.bill-status-progress small{font-size:11px;color:var(--bill-muted)}
+@media(prefers-reduced-motion:reduce){.bill-status-progress>svg{animation:none}}

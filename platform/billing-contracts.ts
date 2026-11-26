@@ -60,6 +60,7 @@ export interface BillingTotals {
   netMinor:string; taxMinor:string; grossMinor:string; discountMinor:string;
 }
 export interface BillingInvoiceRectification {parentId:string|null;parentNumber:string|null;replacementId:string|null;replacementNumber:string|null;replacementState:'draft'|'issued'|null;}
+export interface BillingRegularizationQuote {id:string;version:number;number:string;title:string;issueDate:string;clientName:string;invoiceNumber:string;selectedSource?:boolean;blockedReason?:string;reservationAction?:'preserve'|'release';}
 export interface BillingDocument {
   followup?:{version:number;title:string|null;link:BillingFollowupLink|null}|null;
   sentAt?:string|null;
@@ -70,6 +71,7 @@ export interface BillingDocument {
   numberingReview?:boolean;
   numberingReviewNumber?:string;
   retiredNumber?:{number:string;date:string;seriesId:string;retiredAt:string}|null;
+  regularization?:{quoteId:string;quoteNumber:string;invoiceNumber:string;regularizedAt:string;reservationAction?:'preserve'|'release'}|null;
   sourceDocumentId:string|null; createdAt:string; updatedAt:string; createdBy:string; updatedBy:string;
   totals:BillingTotals|null; issues:BillingIssue[];
   quote:BillingQuoteSummary|null;
@@ -123,6 +125,8 @@ export interface BillingContext {
 export interface BillingFollowupLink {serviceCode?:string;engagement?:string;otherReference?:string;orderId:string;marketId:string;marketReference:string;projectId:string;project:string;reference:string;date:string;amountMinor:number|null;kind:'order'|'signed_quote';files:{documentId:string;marketId?:string;filename:string}[];}
 export interface BillingTransport {
   retireDraftNumber(id:string,version:number,input:{notTransmitted:true;reason:string}):Promise<BillingDocument>;
+  regularizationQuotes(id:string,query?:string):Promise<{items:BillingRegularizationQuote[];total:number}>;
+  regularizeInvoice(id:string,version:number,input:{quoteId:string;quoteVersion:number;reason?:string}):Promise<BillingDocument>;
   updateFollowup(id:string,version:number,input:{title?:string;orderId?:string;marketId?:string}):Promise<BillingDocument>;
   clientEmployees(id:string):Promise<import('./client-employees-domain').ClientEmployeeSpace>;
   rhClientAgents?(id:string):Promise<import('./rh-client-records').RhClientAgents>;

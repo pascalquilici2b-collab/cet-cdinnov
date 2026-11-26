@@ -1,6 +1,7 @@
 import {showSuccess} from './action-feedback';
 import {QuoteTransition} from './billing-quote-transition';
-import {Send,CheckCheck} from 'lucide-react';
+import {Send,CheckCheck,RotateCw} from 'lucide-react';
+import './billing-issuance-ui.css';
 import {forwardRef,useEffect,useImperativeHandle,useRef,useState} from 'react';
 import {CheckCircle2,ChevronDown,FilePenLine,LoaderCircle,Check,Banknote,Clock3} from 'lucide-react';
 import {billingStateLabel,billingDisplayState,sentInvoiceIsLate} from '../billing-display-state';
@@ -21,33 +22,36 @@ type Props={capacityBlocked?:boolean;serviceConfigured:boolean;record:BillingDoc
 export const DocumentStatus=forwardRef<DocumentStatusHandle,Props>(function DocumentStatus({record,saved,busy,transport,onDocument,onBusy,onNotice,onSave,draftIssues,onReview,serviceConfigured,capacityBlocked=false},ref){
  const [quoteAction,setQuoteAction]=useState<'sent'|'accepted'|null>(null);
  const [invoiceSent,setInvoiceSent]=useState(false);
+ const [phase,setPhase]=useState<'saving'|'preparing'|'rendering'|'checking'|null>(null),[delayed,setDelayed]=useState(false);
+ const pending=phase!==null;
  const [error,setError]=useState(''),[paymentMode,setPaymentMode]=useState<'paid'|'unpaid'|null>(null),{confirm,dialog}=useConfirmation();
  const live=useRef(true),running=useRef(false),attempt=useRef<{key:string;id:string}|null>(null);
  useEffect(()=>{live.current=true;return()=>{live.current=false;};},[]);
+ useEffect(()=>{if(!pending)return;const timer=setTimeout(()=>setDelayed(true),10000);return()=>clearTimeout(timer);},[pending]);
  async function finish(){
   if(!record||busy||running.current||capacityBlocked)return;
   if(record.numberingReview){setError('Régularisez l’ancien numéro de ce brouillon avant de finaliser.');return;}
   if(record.issuance?.state==='ready')return record;
   if(!record.issuance&&draftIssues.length){setError('Finalisation impossible : '+draftIssues.length+' point'+(draftIssues.length>1?'s':'')+' à compléter ci-dessous.');onReview();return;}
   if(!record.issuance&&!await confirm({title:'Finaliser ce document ?',message:record.data.kind==='invoice'?'Le numéro de facture sera attribué lors de cette finalisation. Le contenu sera figé et le PDF définitif sera généré.':'Le contenu sera figé et le PDF définitif sera généré. Le numéro réservé du devis est conservé.',accept:'Finaliser'}))return;
-  running.current=true;setError('');
+  running.current=true;setError('');setDelayed(false);setPhase(!saved&&!record.issuance?'saving':'preparing');
   try{
    let current=record;
-   if(!saved&&!current.issuance){const updated=await onSave();if(!updated||!live.current)return;current=updated;}
-   onBusy('issue');
+   if(!saved&&!current.issuance){const updated=await onSave();if(!live.current)return;if(!updated){setError('Enregistrez le document avant de reprendre la finalisation.');return;}current=updated;}
+   onBusy('issue');setPhase('preparing');
    if(!current.issuance){const key=current.id+':'+current.version;if(attempt.current?.key!==key)attempt.current={key,id:crypto.randomUUID()};current=await transport.issue(current.id,current.version,attempt.current.id,'automatic');if(!live.current)return;onDocument(current);}
-   current=await transport.finalize(current.id,current.version);if(!live.current)return;
-   onDocument(current);if(current.status==='issued')showSuccess((current.data.kind==='invoice'?'Facture ':'Devis ')+current.issuance!.number+' finalisé'+(current.data.kind==='invoice'?'e':''));else onNotice(current.status==='issue_failed'?'La génération doit être reprise. Le numéro '+current.issuance!.number+' est conservé.':'Génération en cours'+(current.issuance?' · '+current.issuance.number:''));
+   setPhase('rendering');current=await transport.finalize(current.id,current.version);if(!live.current)return;
+   onDocument(current);if(current.status==='issued')showSuccess((current.data.kind==='invoice'?'Facture ':'Devis ')+current.issuance!.number+' finalisé'+(current.data.kind==='invoice'?'e':''));else{const notice=current.status==='issue_failed'?'Le PDF n’a pas pu être généré. Le numéro '+current.issuance!.number+' est conservé. Cliquez sur Reprendre.':'Le PDF n’est pas encore prêt. Cliquez sur Reprendre pour terminer la finalisation.';setError(notice);onNotice(notice);}
    return current;
   }catch(e){
-   if(!live.current)return;setError(message(e));
-   try{const latest=await transport.get(record.id);if(live.current)onDocument(latest);}catch{if(live.current)setError(message(e)+' Actualisez le document avant de réessayer.');}
-  }finally{running.current=false;if(live.current)onBusy('');}
+   if(!live.current)return;setError(message(e));setPhase('checking');
+   try{const latest=await transport.get(record.id);if(live.current){onDocument(latest);if(latest.issuance?.state==='ready'){setError('');showSuccess((latest.data.kind==='invoice'?'Facture ':'Devis ')+latest.issuance.number+' finalisé'+(latest.data.kind==='invoice'?'e':''));return latest;}}}catch{if(live.current)setError(message(e)+' Actualisez le document avant de réessayer.');}
+  }finally{running.current=false;if(live.current){setPhase(null);setDelayed(false);}onBusy('');}
  }
  useImperativeHandle(ref,()=>({finalize:finish}));
  const issue=record?.issuance,ready=issue?.state==='ready',inactive=!!record?.rectification?.replacementId||!!record?.quote&&(record.quote.revision.abandoned||record.quote.revision.currentId!==record.id);
  return <div className="bill-status-control" data-ready={ready} data-status={billingDisplayState(record)}>
-  <DropdownMenu.Root><DropdownMenu.Trigger asChild><button type="button" className="bill-status-trigger" data-status={billingDisplayState(record)} aria-label="Statut du document" disabled={busy||!record||inactive}>
+  <DropdownMenu.Root><DropdownMenu.Trigger asChild><button type="button" className="bill-status-trigger" data-status={billingDisplayState(record)} aria-label="Statut du document" disabled={busy||pending||!record||inactive}>
    <BillingStateIcon state={billingDisplayState(record)}/><span>{billingStateLabel(record)}</span><ChevronDown size={14}/>
   </button></DropdownMenu.Trigger><DropdownMenu.Portal><DropdownMenu.Content className="cdi-action-menu bill-state-menu" align="start" sideOffset={6}>
    <DropdownMenu.Item data-status="draft" disabled={!!issue} onSelect={()=>setError('')}><FilePenLine size={17}/>Brouillon{!issue&&<Check className="cdi-menu-check" size={15}/>}</DropdownMenu.Item>
@@ -56,7 +60,8 @@ export const DocumentStatus=forwardRef<DocumentStatusHandle,Props>(function Docu
    {record?.data.kind==='invoice'&&<><DropdownMenu.Item data-status="sent" disabled={!ready||!!record.sentAt} onSelect={()=>setInvoiceSent(true)}><Send size={17}/>Envoyée{record.sentAt&&<Check className="cdi-menu-check" size={15}/>}</DropdownMenu.Item><DropdownMenu.Separator className="cdi-menu-separator"/><DropdownMenu.Item data-status="overdue" title="Automatique après l’envoi et le dépassement de l’échéance, tant qu’un montant reste à encaisser" disabled={!ready||!sentInvoiceIsLate(record)||record.settlement?.netPaidMinor==='0'} onSelect={()=>setPaymentMode('unpaid')}><Clock3 size={17}/>En retard d’encaissement{billingDisplayState(record)==='overdue'&&<Check className="cdi-menu-check" size={15}/>}</DropdownMenu.Item><DropdownMenu.Item data-status="paid" disabled={!ready||!record.settlement||record.settlement.dueMinor==='0'} onSelect={()=>setPaymentMode('paid')}><Banknote size={17}/>Réglée{record.settlement?.state==='paid'&&<Check className="cdi-menu-check" size={15}/>}</DropdownMenu.Item></>}
   </DropdownMenu.Content></DropdownMenu.Portal></DropdownMenu.Root>
   <Help label="Statut du document" text={ready?'Le document définitif est archivé. Pour corriger un devis, créez une nouvelle version.':!serviceConfigured?'Le moteur PDF est indisponible.':record?.data.kind==='invoice'?'Choisissez Finalisé pour attribuer le numéro de facture, figer le document et générer son PDF définitif.':'Choisissez Finalisé pour figer le document et générer ses fichiers définitifs. Le numéro réservé du devis est conservé.'}/>
-  {issue&&!ready&&<button className="bill-button" disabled={busy} onClick={()=>{void finish();}}>Reprendre</button>}
+  {((issue&&!ready)||(!ready&&error))&&<button className="bill-button" disabled={busy||pending} onClick={()=>{void finish();}}><RotateCw size={16} aria-hidden="true"/>{issue?'Reprendre':'Réessayer'}</button>}
+  {pending&&<span className="bill-status-progress" role="status" aria-live="polite"><LoaderCircle size={16} aria-hidden="true"/><span>{phase==='saving'?'Enregistrement du document…':phase==='preparing'?'Préparation de la finalisation…':phase==='checking'?'Vérification du résultat…':'Génération du PDF…'}{delayed&&(phase==='preparing'||phase==='rendering')&&<small>Le service PDF peut prendre un moment à démarrer. La finalisation continue.</small>}</span></span>}
   {error&&<span className="bill-status-error" role="alert">{error}</span>}
   {dialog}{quoteAction&&record&&<QuoteTransition action={quoteAction} record={record} transport={transport} onDocument={onDocument} onBusy={onBusy} onClose={()=>setQuoteAction(null)}/>}
   {invoiceSent&&record&&<InvoiceSent record={record} transport={transport} onDocument={onDocument} onBusy={onBusy} onClose={()=>setInvoiceSent(false)}/>}

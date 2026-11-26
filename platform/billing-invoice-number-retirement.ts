@@ -4,6 +4,7 @@ import {invoiceReservationJSON,invoiceNumberingPolicyReady} from './billing-invo
 const fail=(status:number,message:string):never=>{throw Object.assign(Error(message),{status});};
 export async function retireInvoiceDraftNumber(db:Database,record:BillingDocument,version:number,input:{notTransmitted:unknown;reason:unknown},user:string){
  if(record.data.kind!=='invoice'||record.issuance)return fail(409,'Seule une ancienne réservation de facture encore en brouillon peut être régularisée.');
+ if(record.regularization)return fail(409,'Ce brouillon a déjà été régularisé avec son devis. La décision de conservation de son numéro est enregistrée.');
  if(!await invoiceNumberingPolicyReady(db))return fail(503,'La mise à jour de la numérotation est en cours. Le brouillon est conservé ; réessayez dans quelques instants.');
  if(record.version!==version)return fail(409,'La facture a changé. Actualisez-la avant de régulariser son numéro.');
  if(input.notTransmitted!==true||typeof input.reason!=='string'||input.reason.trim().length<10||input.reason.trim().length>2000)return fail(422,'Confirmez la non-transmission et indiquez une raison de 10 à 2 000 caractères.');
