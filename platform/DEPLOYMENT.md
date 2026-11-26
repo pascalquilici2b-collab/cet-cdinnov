@@ -19,6 +19,8 @@ Depuis le 5 novembre 2026, le frontal de production est le projet Cloudflare Pag
 
 ## Publier
 
+Pour les protections de facturation, appliquer explicitement les exports `billingStateSafetySchema` et `billingOrderReferenceSafetySchema` en **un seul batch D1 transactionnel avant le Worker**. Ces huit instructions créent ou remplacent uniquement des triggers ; elles ne réécrivent aucun document, paiement, rattachement ou compteur. Sauvegarder auparavant leurs définitions et les empreintes métier, puis vérifier ces empreintes après publication. Les anciens appels incompatibles sont refusés pendant la transition ; les migrations ne doivent jamais être déclenchées par une requête HTTP de l’application.
+
 1. Publier le Worker si modifié, en préservant bindings, secrets, date de compatibilité et paramètres existants. Sauvegarder la version précédente en privé et contrôler son empreinte avant remplacement. Les anciennes sessions Bearer sont volontairement refusées.
 2. Dans Cloudflare Pages, projet `cdinnov-app`, créer un déploiement **Production** à partir du ZIP vérifié. Attendre la fin du décompactage et de l'import de tous les fichiers, puis publier. Le ZIP compressé dépasse 25 Mo ; la limite concerne chaque fichier décompressé, pas la taille de cette archive d'import.
 3. Si le moteur PDF est modifié, pousser le commit puis choisir **Deploy a specific commit** dans Render. Attendre les contrôles natifs et l'état **Live**, sans désactiver de test pour forcer la publication.

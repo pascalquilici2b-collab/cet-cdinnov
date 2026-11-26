@@ -4,6 +4,7 @@ import type {BillingDocument,BillingQuoteAction,BillingQuoteEvent} from './billi
 import {boundedBody} from './portal';
 import {billingToday} from './billing-quote-domain';
 import {revisionJSON,quoteFamilyRoot} from './billing-revisions';
+import {activeInvoiceReplacementSQL} from './billing-rectification-state.mjs';
 
 const fail=(status:number,message:string):never=>{throw Object.assign(new Error(message),{status});};
 const uuid=(v:unknown):v is string=>typeof v==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
@@ -14,11 +15,11 @@ const event=(r:EventRow):BillingQuoteEvent=>({id:r.id,version:r.version,action:r
 /** Follow each invoice's rectification chain and expose only its current leaf. */
 function linkedInvoiceRows(){return `WITH RECURSIVE linked(id,depth) AS (
  SELECT d.document_id,0 FROM billing_invoice_quote_links d WHERE d.quote_id=${quoteFamilyRoot('billing_documents.id')} OR d.quote_id IN (SELECT document_id FROM billing_quote_revisions WHERE root_document_id=${quoteFamilyRoot('billing_documents.id')})
- UNION ALL SELECT r.replacement_id,l.depth+1 FROM linked l JOIN billing_invoice_rectifications r ON r.original_id=l.id WHERE l.depth<32 AND NOT EXISTS(SELECT 1 FROM billing_document_trash t WHERE t.document_id=r.replacement_id))
+ UNION ALL SELECT r.replacement_id,l.depth+1 FROM linked l JOIN billing_invoice_rectifications r ON r.original_id=l.id WHERE l.depth<32 AND ${activeInvoiceReplacementSQL()})
  SELECT DISTINCT d.id,i.number number,CASE WHEN j.state='ready' THEN 'issued' WHEN j.state='failed' THEN 'issue_failed' WHEN i.id IS NOT NULL THEN 'finalizing' ELSE 'draft' END state,
  json_extract(d.totals_json,'$.netMinor') net_minor,coalesce(json_extract(d.data_json,'$.details.periods'),CASE WHEN coalesce(json_extract(d.data_json,'$.details.period'),'')<>'' THEN json_array(json_extract(d.data_json,'$.details.period')) ELSE '[]' END) periods,coalesce(json_extract(d.data_json,'$.details.customPeriod'),'') custom_period
  FROM linked l JOIN billing_documents d ON d.id=l.id LEFT JOIN billing_issuances i ON i.document_id=d.id LEFT JOIN billing_issue_jobs j ON j.issuance_id=i.id
- WHERE NOT EXISTS(SELECT 1 FROM billing_invoice_rectifications r WHERE r.original_id=d.id AND NOT EXISTS(SELECT 1 FROM billing_document_trash t WHERE t.document_id=r.replacement_id))
+ WHERE NOT EXISTS(SELECT 1 FROM billing_invoice_rectifications r WHERE r.original_id=d.id AND ${activeInvoiceReplacementSQL()})
  ORDER BY d.created_at DESC,d.id DESC`;}
 
 /** Internal calendar value only, never an interpolated request parameter. */

@@ -28,7 +28,7 @@ def test_report_is_standalone_contains_invoice_context_and_certification():
     pdf = render_document(data, totals, number='FAC-2610065', issued=True)
     text = extract(pdf)
     assert 'Relevé' not in text
-    assert data['title'] not in text
+    assert 'Objet du document : ' + data['title'] in text.replace('\n', ' ')
     assert 'Mode de règlement' in text
     report = render_intervention_report(data, 'FAC-2610065', '2026-10-23')
     text = extract(report)

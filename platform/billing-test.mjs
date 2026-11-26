@@ -3,12 +3,13 @@ import {randomUUID,createHash} from 'node:crypto';
 import {test} from 'node:test';
 import {testEnvironment,users} from '../marches/test.mjs';
 import {migrateBilling} from './billing-schema.mjs';
-import {blankDraft,blankSettings,draftWithSettings,normalizeDraft,blankDocumentDetails} from './billing-domain.ts';
+import {blankDraft,blankSettings,draftWithSettings,normalizeDraft,blankDocumentDetails,addBillingDays} from './billing-domain.ts';
 import {seedBusinessDocument} from './business-migration.mjs';
+import {quoteFixtureTools,samplePDF} from './billing-quote-fixture.mjs';
 
 const fixture=(kind='invoice',title='Mission fictive')=>{
  const d=blankDraft(kind,'2026-10-20');d.title=title;
- d.seller={...d.seller,name:'Émetteur fictif',addressLine1:'1 rue du Test',postalCode:'20000',city:'Ajaccio',siret:'12345678900011'};
+ d.seller={...d.seller,name:'Émetteur fictif',addressLine1:'1 rue du Test',postalCode:'20000',city:'Ajaccio',siret:'12345678900011',vatId:'FR00123456789'};
  d.buyer={...d.buyer,name:'Client fictif',addressLine1:'2 rue du Test',postalCode:'20200',city:'Bastia'};
  d.lines[0]={...d.lines[0],description:'Accompagnement',quantity:'1.25',unitPrice:'700'};
  d.dueDate='2026-11-19';d.paymentTerms='À 30 jours';
@@ -26,9 +27,17 @@ await test('API de brouillons : identité, conservation, concurrence et traçabi
   const send=(method,path,payload,headers={})=>call(path,{method,headers,body:JSON.stringify(payload)});
   const create=(id,data)=>send('POST','/documents',{id,data});
   const save=(id,version,data)=>send('PUT','/documents/'+id,{data},{'If-Match':String(version)});
-  const convert=(id,version,newId)=>send('POST','/documents/'+id+'/convert',{id:newId},{'If-Match':String(version)});
+  const convert=(id,version,newId,selection)=>send('POST','/documents/'+id+'/convert',{id:newId,...(selection?{selection}:{})},{'If-Match':String(version)});
   const read=async(response,status)=>{assert.equal(response.status,status,await response.clone().text());return response.json();};
   const history=id=>ctx.db.prepare('SELECT * FROM billing_document_versions WHERE document_id=? ORDER BY version').bind(id).all();
+  let quoteTools;
+  const finalizedQuote=async doc=>{
+   quoteTools??=await quoteFixtureTools(ctx,admin.cookie,{issuerSiren:doc.data.seller.siren||doc.data.seller.siret.slice(0,9)});
+   return quoteTools.finalize(doc);
+  };
+  const accept=async doc=>read(await quoteTools.send(doc,quoteTools.input(doc,'accepted','Accord fictif reçu par écrit','2026-10-21')),201);
+  const attach=async doc=>read(await call('/documents/'+doc.id+'/engagement?kind=signed_quote&date=2026-10-21',{method:'PUT',headers:{'If-Match':String(doc.version),'Content-Type':'application/pdf','X-Filename':'Devis-fictif-signe.pdf'},body:samplePDF()}),201);
+  const eligibleQuote=async(source,data)=>attach(await accept(await finalizedQuote(await read(await create(source,data),201))));
 
   await t.test('les requêtes ne créent jamais le schéma',async()=>{
    await read(await call('/documents'),503);
@@ -58,8 +67,16 @@ await test('API de brouillons : identité, conservation, concurrence et traçabi
    assert.equal(result.data.buyer.name,'Client démo');assert.equal(result.data.lines[0].id,invoice.lines[0].id);
    assert.equal(result.totals.netMinor,'87500');assert.equal(result.totals.taxMinor,'17500');assert.equal(result.totals.grossMinor,'105000');
    assert.equal(result.createdBy,users[0]);assert.equal(result.updatedBy,users[0]);
+   assert.equal(result.reservedNumber,null);assert.equal(result.issuance,null);
    const rows=(await history(id)).results;assert.equal(rows.length,1);assert.deepEqual(JSON.parse(rows[0].data_json),result.data);
    assert.deepEqual(await read(await call('/documents/'+id),200),result);
+  });
+
+  await t.test('le brouillon facture ne réserve aucun numéro, même pour un ancien client appelant number',async()=>{
+   const counters=(await ctx.db.prepare('SELECT * FROM billing_number_series ORDER BY id').all()).results;
+   for(let n=0;n<2;n++){const result=await read(await send('POST','/documents/'+id+'/number',{}, {'If-Match':'1'}),200);assert.equal(result.reservedNumber,null);assert.equal(result.issuance,null);assert.equal(result.version,1);}
+   assert.equal((await ctx.db.prepare('SELECT count(*) n FROM billing_draft_numbers WHERE document_id=?').bind(id).first()).n,0);
+   assert.deepEqual((await ctx.db.prepare('SELECT * FROM billing_number_series ORDER BY id').all()).results,counters);
   });
 
   await t.test('création réessayée sans doublon et collision de contenu rejetée',async()=>{
@@ -124,47 +141,57 @@ await test('API de brouillons : identité, conservation, concurrence et traçabi
   let quoteId,quoteData,converted;
   await t.test('conversion versionnée : une facture copiée, aucun numéro émis',async()=>{
    quoteId=randomUUID();quoteData=fixture('quote','Devis à convertir');quoteData.references.orderReference='COMMANDE-TEST';
-   await read(await create(quoteId,quoteData),201);
+   let quote=await read(await create(quoteId,quoteData),201);
    await read(await convert(quoteId,2,randomUUID()),409);
    await read(await convert(id,2,randomUUID()),400);
    await read(await convert(quoteId,1,quoteId),400);
    await read(await convert(randomUUID(),1,randomUUID()),404);
+   await read(await convert(quoteId,1,randomUUID()),409);
+   quote=await finalizedQuote(quote);await read(await convert(quoteId,1,randomUUID()),409);
+   quote=await accept(quote);await read(await convert(quoteId,1,randomUUID()),409);
+   quote=await attach(quote);
+   const frozenSource=await ctx.db.prepare('SELECT * FROM billing_issuances WHERE document_id=?').bind(quoteId).first();
    const target=randomUUID();converted=await read(await convert(quoteId,1,target),201);
    assert.equal(converted.sourceDocumentId,quoteId);assert.equal(converted.status,'draft');assert.equal(converted.version,1);assert.equal(converted.data.kind,'invoice');
-   assert.deepEqual(converted.data,{...quoteData,kind:'invoice',issueDate:new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Paris'}).format(new Date()),paymentMeans:'30',validUntil:'',details:{...blankDocumentDetails(),returnEmail:'cdi@cdinnov.com'}});assert.equal('number' in converted.data,false);
+   const today=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Paris'}).format(new Date());
+   assert.deepEqual(converted.data,{...quoteData,kind:'invoice',issueDate:today,dueDate:addBillingDays(today,30),paymentMeans:'30',paymentTerms:blankSettings().paymentTerms,validUntil:'',references:{...quoteData.references,orderId:'',orderReference:'',otherReference:'',quoteNumber:quote.issuance.number},details:{...blankDocumentDetails(),returnEmail:'cdi@cdinnov.com'}});assert.equal('number' in converted.data,false);assert.equal(converted.reservedNumber,null);assert.equal(converted.issuance,null);
    assert.equal((await read(await call('/documents/'+quoteId),200)).version,1);assert.equal((await history(quoteId)).results.length,1);assert.equal((await history(target)).results.length,1);
    assert.equal((await read(await convert(quoteId,1,target),200)).id,target);
-   await read(await convert(quoteId,1,randomUUID()),409);
    await read(await create(target,converted.data),409);
-   // Historical retry remains idempotent even if the source has since been edited.
-   await read(await save(quoteId,1,{...quoteData,title:'Devis corrigé après copie'}),200);
-   const oldCopy=await read(await convert(quoteId,1,target),200);assert.equal(oldCopy.data.title,quoteData.title);
+   // The accepted source is immutable; retry returns the same invoice after its own draft edits.
+   await read(await save(quoteId,1,{...quoteData,title:'Tentative de modification du devis émis'}),409);
+   const edited=await read(await save(target,1,{...converted.data,title:'Facture issue du devis, brouillon complété'}),200);
+   const oldCopy=await read(await convert(quoteId,1,target),200);assert.equal(oldCopy.id,target);assert.equal(oldCopy.version,2);assert.deepEqual(oldCopy.data,edited.data);
    await read(await convert(quoteId,2,target),409);await read(await convert(quoteId,2,randomUUID()),409);
    const rows=await ctx.db.prepare('SELECT * FROM billing_documents WHERE source_document_id=?').bind(quoteId).all();assert.equal(rows.results.length,1);assert.equal(rows.results[0].source_version,1);
+   assert.deepEqual(await ctx.db.prepare('SELECT * FROM billing_issuances WHERE document_id=?').bind(quoteId).first(),frozenSource);
   });
 
-  await t.test('conversions concurrentes : un seul résultat et retries sans doublon',async()=>{
-   const source=randomUUID(),data=fixture('quote'),target=randomUUID();await read(await create(source,data),201);
+  await t.test('conversions concurrentes : une facture par identifiant, plusieurs factures partielles autorisées',async()=>{
+   const source=randomUUID(),data=fixture('quote'),target=randomUUID();await eligibleQuote(source,data);
    const same=await Promise.all([convert(source,1,target),convert(source,1,target)]);assert.deepEqual(same.map(r=>r.status).sort(),[200,201]);assert.equal((await history(target)).results.length,1);
-   const source2=randomUUID();await read(await create(source2,data),201);
-   const different=await Promise.all([convert(source2,1,randomUUID()),convert(source2,1,randomUUID())]);assert.deepEqual(different.map(r=>r.status).sort(),[201,409]);
-   assert.equal((await ctx.db.prepare('SELECT count(*) AS n FROM billing_documents WHERE source_document_id=?').bind(source2).first()).n,1);
+   const source2=randomUUID();await eligibleQuote(source2,data);
+   const targets=[randomUUID(),randomUUID()],selections=['0.5','0.75'].map(quantity=>({periods:[],customPeriod:'',quantities:[{id:data.lines[0].id,quantity}]})),different=await Promise.all(targets.map((target,i)=>convert(source2,1,target,selections[i])));assert.deepEqual(different.map(r=>r.status).sort(),[201,201]);
+   const partials=await Promise.all(different.map(r=>r.json()));assert.deepEqual(partials.map(d=>d.data.lines[0].quantity),['0.5','0.75']);assert.equal(partials.reduce((sum,d)=>sum+BigInt(d.totals.netMinor),0n),87500n);
+   assert.equal((await ctx.db.prepare('SELECT count(*) AS n FROM billing_documents WHERE source_document_id=?').bind(source2).first()).n,2);
+   for(const [i,target] of targets.entries()){assert.equal((await history(target)).results.length,1);assert.equal((await read(await convert(source2,1,target,selections[i]),200)).id,target);}
+   assert.deepEqual((await read(await call('/documents/'+source2),200)).quote.invoices.map(i=>i.id).sort(),targets.sort());
   });
 
   await t.test('une modification concurrente ne peut altérer la version copiée du devis',async()=>{
-   const source=randomUUID(),target=randomUUID(),data=fixture('quote','Version source 1');await read(await create(source,data),201);
+   const source=randomUUID(),target=randomUUID(),data=fixture('quote','Version source 1');await eligibleQuote(source,data);
    const changed={...data,title:'Version source 2',lines:[{...data.lines[0],unitPrice:'900'}]};
    const [conversion,modification]=await Promise.all([convert(source,1,target),save(source,1,changed)]);
-   const latest=await read(modification,200);assert.equal(latest.version,2);assert.equal(latest.totals.netMinor,'112500');
-   if(conversion.status===201){
-    const copy=await conversion.json();assert.equal(copy.data.title,data.title);assert.equal(copy.data.lines[0].unitPrice,'700');assert.equal(copy.totals.netMinor,'87500');
-    assert.equal((await ctx.db.prepare('SELECT source_version FROM billing_documents WHERE id=?').bind(target).first()).source_version,1);
-   }else{
-    await read(conversion,409);await read(await call('/documents/'+target),404);
-   }
+   await read(modification,409);const copy=await read(conversion,201);assert.equal(copy.data.title,data.title);assert.equal(copy.data.lines[0].unitPrice,'700');assert.equal(copy.totals.netMinor,'87500');
+   assert.equal((await ctx.db.prepare('SELECT source_version FROM billing_documents WHERE id=?').bind(target).first()).source_version,1);
+   const latest=await read(await call('/documents/'+source),200);assert.equal(latest.version,1);assert.deepEqual(latest.data,data);
+   // A separate editable source still rejects stale-version copies at the SQL boundary.
+   const editable=randomUUID();await read(await create(editable,data),201);
+   const [staleConversion,edit]=await Promise.all([convert(editable,1,randomUUID()),save(editable,1,changed)]);
+   await read(staleConversion,409);assert.equal((await read(edit,200)).totals.netMinor,'112500');
    const staleId=randomUUID();
    await assert.rejects(()=>ctx.db.prepare(`INSERT INTO billing_documents(id,kind,status,version,data_json,totals_json,issues_json,create_hash,source_document_id,source_version,created_at,updated_at,created_by,updated_by)
-    SELECT ?,'invoice','draft',1,json_set(data_json,'$.kind','invoice'),totals_json,issues_json,create_hash,id,1,created_at,updated_at,created_by,updated_by FROM billing_documents WHERE id=?`).bind(staleId,source).run(),/BILLING_SOURCE_VERSION/);
+    SELECT ?,'invoice','draft',1,json_set(data_json,'$.kind','invoice'),totals_json,issues_json,create_hash,id,1,created_at,updated_at,created_by,updated_by FROM billing_documents WHERE id=?`).bind(staleId,editable).run(),/BILLING_SOURCE_VERSION/);
    await read(await call('/documents/'+staleId),404);
   });
 
@@ -190,7 +217,7 @@ await test('API de brouillons : identité, conservation, concurrence et traçabi
    await ctx.db.prepare("INSERT INTO markets(id,payload,version,updated_at,updated_by) VALUES(?,?,1,?,?)").bind('market-context',JSON.stringify({title:'Marché contexte',reference:'M-TEST',clientName:'Client contexte',private:'never-expose'}),'2026-10-20',users[0]).run();
    const result=await read(await call('/context'),200);
    assert.deepEqual(result.clients,[{id:'c-test',name:'Client contexte'}]);assert.deepEqual(result.businessCodes,[{id:'code-test',code:'31 AC',label:'Mission contexte',client:'Client contexte'}]);
-   assert.deepEqual(result.markets,[{id:'market-context',title:'Marché contexte',reference:'M-TEST',clientName:'Client contexte',clientId:'',version:1,prices:[],projects:[]}]);
+   assert.deepEqual(result.markets,[{id:'market-context',title:'Marché contexte',reference:'M-TEST',clientName:'Client contexte',clientId:'',version:1,prices:[],projects:[],orders:[],activity:{state:'unknown',startDate:'',endDate:'',reason:'Dates du marché à compléter ou période à valider.'},consumption:{annual:false,current:true,documentIds:[],startDate:'0000-01-01',endDate:'9999-12-31',maximumMinor:null,orderedMinor:0,quotedMinor:0,resetDate:null,sentQuoteCount:0,orders:[],periods:[]}}]);
    assert.deepEqual(result.seller,blankSettings().seller);assert.deepEqual(result.settings,{version:0,data:blankSettings(),updatedAt:null});assert.doesNotMatch(JSON.stringify(result),/never-expose|password|salt|hash|accounts/);
   });
 
@@ -233,13 +260,23 @@ await test('API de brouillons : identité, conservation, concurrence et traçabi
    assert.deepEqual((await read(await create(legacyId,data),200)).data,expected);
    assert.deepEqual((await read(await create(legacyId,expected),200)).data,expected);
    assert.equal((await history(legacyId)).results.length,1);assert.equal((await history(legacyId)).results[0].data_json,json);
-   const converted=await read(await convert(legacyId,1,randomUUID()),201);assert.equal(converted.data.schemaVersion,2);
-   await read(await save(legacyId,1,{...expected,title:'Mise à jour v2'}),200);
+   await read(await convert(legacyId,1,randomUUID()),409);
+   const upgraded=await read(await save(legacyId,1,{...expected,title:'Mise à jour v2'}),200);
    const records=(await history(legacyId)).results;assert.equal(records.length,2);assert.equal(records[0].data_json,json);assert.equal(JSON.parse(records[1].data_json).schemaVersion,2);
+   await attach(await accept(await finalizedQuote(upgraded)));
+   const converted=await read(await convert(legacyId,2,randomUUID()),201);assert.equal(converted.data.schemaVersion,2);assert.equal(converted.reservedNumber,null);
+   assert.deepEqual((await history(legacyId)).results,records);
   });
 
-  await t.test('suppression non exposée et révocation effective de la session',async()=>{
-   await read(await call('/documents/'+id,{method:'DELETE'}),405);
+  await t.test('corbeille versionnée sans suppression physique et révocation effective de la session',async()=>{
+   const before=(await history(id)).results;
+   await read(await call('/documents/'+id,{method:'DELETE'}),428);
+   await read(await call('/documents/'+id,{method:'DELETE',headers:{'If-Match':'1'}}),409);
+   await read(await call('/documents/'+id,{method:'DELETE',headers:{'If-Match':'2',Cookie:consultant.cookie}}),403);
+   await read(await call('/documents/'+id,{method:'DELETE',headers:{'If-Match':'2'}}),200);
+   await read(await call('/documents/'+id),410);assert.deepEqual((await history(id)).results,before);
+   assert.equal((await ctx.db.prepare('SELECT count(*) n FROM billing_documents WHERE id=?').bind(id).first()).n,1);
+   await read(await send('POST','/documents/'+id+'/restore',{}, {'If-Match':'2'}),200);assert.deepEqual((await history(id)).results,before);
    await read(await call('/context',{method:'POST',body:'{}'}),405);
    await read(await call('/not-a-route'),404);
    const revoked=await ctx.worker.dispatchFetch('https://preview.example/api/v1/session',{method:'DELETE',headers:{'X-CDInnov-Request':'1',Origin:'http://127.0.0.1:5196',Cookie:admin.cookie}});assert.equal(revoked.status,200);

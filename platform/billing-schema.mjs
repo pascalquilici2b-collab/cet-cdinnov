@@ -85,7 +85,9 @@ import {billingSeriesPolicySchema} from './billing-series-policy-schema.mjs';
 import {billingInvoiceFinalizationNumberSchema} from './billing-invoice-finalization-number-schema.mjs';
 import {billingInvoiceRegularizationSchema} from './billing-invoice-regularization-schema.mjs';
 import {billingInvoiceReferenceSchema,billingInvoiceReferenceWidthSchema} from './billing-invoice-reference-schema.mjs';
+import {billingStateSafetySchema} from './billing-state-safety-schema.mjs';
+import {billingOrderReferenceSafetySchema} from './billing-order-reference-schema.mjs';
 export async function migrateBilling(db) {
  // D1 batch is transactional: failure leaves neither half a schema nor a lost history trigger.
- await db.batch([...billingSchema,...billingIssuanceSchema,...billingNumberingSchema,...billingDraftNumberSchema,...billingSeriesPolicySchema,...billingMonthlyNumberSchema,...billingDirectorySchema,...billingQuoteSchema,...billingRevisionSchema,...billingPartialInvoicesSchema,...billingPaymentSchema,...projectsSchema,...billingDeliverySchema,...billingTrashSchema,...billingRectificationSchema,...billingSupportSchema,...billingFollowupSchema,...billingOrderBudgetSchema,...clientEmployeesSchema,...billingInvoiceFinalizationNumberSchema,...billingInvoiceRegularizationSchema,...billingInvoiceReferenceSchema,...billingInvoiceReferenceWidthSchema].map(sql=>db.prepare(sql)));
+ await db.batch([...billingSchema,...billingIssuanceSchema,...billingNumberingSchema,...billingDraftNumberSchema,...billingSeriesPolicySchema,...billingMonthlyNumberSchema,...billingDirectorySchema,...billingQuoteSchema,...billingRevisionSchema,...billingPartialInvoicesSchema,...billingPaymentSchema,...projectsSchema,...billingDeliverySchema,...billingTrashSchema,...billingRectificationSchema,...billingSupportSchema,...billingFollowupSchema,...billingOrderBudgetSchema,...clientEmployeesSchema,...billingInvoiceFinalizationNumberSchema,...billingInvoiceRegularizationSchema,...billingInvoiceReferenceSchema,...billingInvoiceReferenceWidthSchema,...billingStateSafetySchema,...billingOrderReferenceSafetySchema].map(sql=>db.prepare(sql)));
 }

@@ -1,7 +1,7 @@
 import {accrueLeave} from './leave-accrual';
 import {hasAccess} from './access';
 import type {AccessKey} from './access';
-import {orderLimitMessage} from './billing-order-budget';
+import {orderLimitMessage,ambiguousOrderMessage} from './billing-order-budget';
 import legacy from '../server/legacy-runtime.mjs';
 import {identity, sessionIdentity, login, revokeSession, clearSessionCookie} from './identity.ts';
 import type {Environment} from './contracts';
@@ -73,6 +73,7 @@ export default {
       if(path==='/api/v1/budget-records' && request.method==='GET') return await readRecords(request,db,reply);
       return reply(405,{error:'Méthode non autorisée.'});
     } catch(error: unknown) {
+      if(String(error).includes('BILLING_ORDER_AMBIGUOUS'))return reply(422,{error:ambiguousOrderMessage});
       if(String(error).includes('BILLING_ORDER_LIMIT'))return reply(422,{error:orderLimitMessage});
       const failure = error as {status?:number;message?:string};
       return reply(failure.status || 503,{error:failure.status?failure.message:'Service indisponible. Vos modifications ne sont pas enregistrées.'});

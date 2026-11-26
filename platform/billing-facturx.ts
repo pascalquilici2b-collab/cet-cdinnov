@@ -21,7 +21,7 @@ export function invoiceForFacturX(raw:BillingDraft,number:string) {
 export function facturXSeed(raw:BillingDraft,number:string){
   const d=normalizeDraft(raw);
   const totals=calculateBilling(d);
-  const description=[d.title,d.creditNote&&'Motif de l’avoir : '+d.creditNote.reason,d.notes,
+  const description=[d.title,d.description?.trim()?d.description:'',d.creditNote&&'Motif de l’avoir : '+d.creditNote.reason,d.notes,
     d.seller.legal&&'Mentions de l’émetteur : '+d.seller.legal,d.buyer.legal&&'Mentions du client : '+d.buyer.legal,
     d.references.businessCode&&'Code affaire : '+d.references.businessCode,d.references.project&&'Projet : '+d.references.project,
     d.references.engagement&&'Engagement : '+d.references.engagement].filter(Boolean).join('\n\n');
