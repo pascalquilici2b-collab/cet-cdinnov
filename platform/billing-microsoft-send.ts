@@ -2,6 +2,7 @@ import {createMicrosoftDraft,graph,microsoftProfile,microsoftOwnerMatches,outloo
 import {checkedAttachments,attachmentName,bytes64} from './billing-mail-attachments.ts';
 import {validateMail,comparableMailBody} from './billing-mail-content.ts';
 import type {MicrosoftSendReceipt} from './billing-microsoft-send-testmail.ts';
+import {withMicrosoftSendLock,microsoftSendLockMessage} from './billing-microsoft-lock.ts';
 type Input=Parameters<typeof createMicrosoftDraft>[0]&{confirmed:boolean;beforeSend?:()=>Promise<void>};
 type Recipient={emailAddress:{address:string}};
 export interface SentGraphMessage {id:string;webLink:string;isDraft:boolean;sentDateTime?:string;subject:string;body:{contentType:string;content:string};toRecipients:Recipient[];ccRecipients:Recipient[];bccRecipients:Recipient[];attachments?:{name:string;contentBytes:string;isInline?:boolean;contentId?:string}[];}
@@ -9,6 +10,14 @@ const sha=async(s:string)=>Array.from(new Uint8Array(await crypto.subtle.digest(
 const lower=(s:string)=>s.trim().toLowerCase();
 const fields='id,webLink,isDraft,sentDateTime,subject,body,toRecipients,ccRecipients,bccRecipients';
 export const readGraphMessage=(token:string,id:string,fetcher?:Input['fetcher'],html=false)=>graph<SentGraphMessage>(token,'/me/messages/'+encodeURIComponent(id)+'?'+new URLSearchParams({'$select':fields,'$expand':'attachments'}),'GET',undefined,fetcher,html?'html':'text');
+export class MicrosoftMailContentConflict extends Error {
+ readonly receipt:MicrosoftSendReceipt;
+ constructor(previous:MicrosoftSendReceipt){
+  super('Cette version possède déjà un suivi d’envoi avec un contenu différent. Aucun nouveau message n’a été envoyé. Consultez l’envoi précédent dans Outlook.');
+  this.name='MicrosoftMailContentConflict';
+  this.receipt={id:previous.id,webLink:previous.webLink,state:previous.state,...(previous.sentAt?{sentAt:previous.sentAt}:{})};
+ }
+}
 /** One dispatch per document/version/account. A lost response is read back, never resent. */
 export async function sendMicrosoftMail(input:Input):Promise<MicrosoftSendReceipt>{
  if(!input.confirmed)throw Error('Vérifiez le message avant de confirmer son envoi.');
@@ -16,11 +25,18 @@ export async function sendMicrosoftMail(input:Input):Promise<MicrosoftSendReceip
  await session();const owner=await microsoftProfile(input.token,input.fetcher);if(!microsoftOwnerMatches(input.email,owner))throw Error('Connectez votre propre compte Outlook.');
  const files=await checkedAttachments(input),expected=await Promise.all(files.map(async f=>({name:attachmentName(f.filename),contentBytes:bytes64(new Uint8Array(await f.blob.arrayBuffer())),isInline:!!f.isInline,contentId:f.contentId||''})));
  const fingerprint=await sha(JSON.stringify([recipients,input.subject,input.message,input.html||null,expected])),key='cdi-outlook-send:'+owner.id+':'+input.documentId;
- const run=async()=>{
+ const run=async(dispatchAllowed:boolean)=>{
   const save=(receipt:MicrosoftSendReceipt)=>input.storage.setItem(key,JSON.stringify({...receipt,fingerprint}));
   let previous:(MicrosoftSendReceipt&{fingerprint:string})|null;try{previous=JSON.parse(input.storage.getItem(key)||'null');}catch{throw Error('Le suivi d’envoi est indisponible. Vérifiez votre boîte Outlook.');}
   const observe=async(receipt:MicrosoftSendReceipt)=>{await session();try{const m=await readGraphMessage(input.token,receipt.id,input.fetcher);if(!m.isDraft&&m.sentDateTime){receipt={...receipt,state:'sent',sentAt:m.sentDateTime,webLink:outlookWebLink(m.webLink)};save(receipt);}}catch(e){if((e as {status?:number}).status===401)throw e;}return receipt;};
-  if(previous?.id){previous.webLink=outlookWebLink(previous.webLink);if(previous.state==='sent')return previous;return observe(previous);}
+  if(previous?.id){
+   previous.webLink=outlookWebLink(previous.webLink);
+   // A receipt belongs to its original content. Never report it as success for
+   // another intention, or save it under that intention's fingerprint.
+   if(previous.fingerprint!==fingerprint)throw new MicrosoftMailContentConflict(previous);
+   if(previous.state==='sent')return previous;return observe(previous);
+  }
+  if(!dispatchAllowed)throw Error(microsoftSendLockMessage);
   await input.beforeSend?.();
   const draft=await createMicrosoftDraft({...input,documentId:'direct:'+input.documentId}),message=await readGraphMessage(input.token,draft.id,input.fetcher,!!input.html);
   const equalAddresses=(got:Recipient[]|undefined,want:string[])=>JSON.stringify((got||[]).map(r=>lower(r.emailAddress.address)).sort())===JSON.stringify([...want].sort());
@@ -34,5 +50,5 @@ export async function sendMicrosoftMail(input:Input):Promise<MicrosoftSendReceip
   if([400,401,403,413,429].includes(response.status)){input.storage.removeItem(key);throw Error(response.status===403?'Activez l’envoi Outlook pour votre compte.':response.status===401?'Reconnectez votre compte Outlook.':response.status===429?'Outlook est occupé. Réessayez dans quelques instants.':'Microsoft a refusé le message. Vérifiez les destinataires et les pièces jointes.');}
   return observe(receipt);
  };
- return typeof navigator!=='undefined'&&navigator.locks?navigator.locks.request(key,run):run();
+ return withMicrosoftSendLock(key,run);
 }

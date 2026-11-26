@@ -1,5 +1,6 @@
 import {followupRoute,followupJSON} from './billing-followup';
 import {clientFilterProjection} from './billing-client-filter-projection';
+import {billingAttentionCounts} from './billing-attention';
 import {selectedLink,syncLinkedDrafts,linkedReferences} from './billing-link-sync';
 import {readAnnualQuotes,consumptionForMarket} from '../marches/annual-consumption.mjs';
 import {invoiceSelection} from './billing-invoice-selection';
@@ -125,7 +126,7 @@ async function context(db:Database,env:Environment):Promise<BillingContext> {
  ]);
  const parsedMarkets=markets.results.map(r=>({...r,market:JSON.parse(r.payload)}));
  const projectOwners=parsedMarkets.map(r=>({id:r.id,projects:r.market.projects||[]}));
- const [engagements,annualQuotes,reports,numbering]=await Promise.all([linkedEngagements(db),readAnnualQuotes(db),db.prepare('SELECT document_key,version FROM billing_intervention_reports').all<{document_key:string;version:number}>(),db.prepare('SELECT s.kind,s.prefix,s.width,s.next_value AS nextValue FROM billing_default_series p JOIN billing_number_series s ON s.id=p.series_id WHERE p.issuer_siren=? AND NOT EXISTS(SELECT 1 FROM billing_external_number_series x WHERE x.series_id=s.id)').bind(settings.data.seller.siren||settings.data.seller.siret.slice(0,9)).all<{kind:'invoice'|'quote';prefix:string;width:number;nextValue:number}>()]);
+ const [engagements,annualQuotes,reports,numbering]=await Promise.all([linkedEngagements(db),readAnnualQuotes(db),db.prepare('SELECT document_key,version FROM billing_intervention_reports').all<{document_key:string;version:number}>(),db.prepare("SELECT s.kind,s.prefix,s.width,s.next_value AS nextValue,CASE WHEN EXISTS(SELECT 1 FROM billing_monthly_series m WHERE m.series_id=s.id) THEN 'monthly' WHEN EXISTS(SELECT 1 FROM billing_dated_series d WHERE d.series_id=s.id) THEN 'dated' ELSE 'literal' END AS format FROM billing_default_series p JOIN billing_number_series s ON s.id=p.series_id WHERE p.issuer_siren=? AND NOT EXISTS(SELECT 1 FROM billing_external_number_series x WHERE x.series_id=s.id)").bind(settings.data.seller.siren||settings.data.seller.siret.slice(0,9)).all<{kind:'invoice'|'quote';prefix:string;width:number;nextValue:number;format:'monthly'|'dated'|'literal'}>()]);
  const ordersForContext=(id:string,orders:import('./client/markets-contracts').MarketOrder[],projectId='')=>{const linked=engagements.filter(e=>e.kind==='order'&&e.marketId===id&&(!e.projectId||e.projectId===projectId)),all=[...orders,...linked.filter(e=>!orders.some(o=>o.id===e.orderId)).map(e=>({id:e.orderId,reference:e.reference,date:e.date,amountMinor:e.amountMinor,documentId:'',notes:'',archived:false}))];return [...new Map(all.map(o=>{const e=linked.find(e=>e.orderId===o.id);return [o.id,{...o,serviceCode:e?.serviceCode||'',engagement:e?.engagement||'',otherReference:e?.otherReference||''}];})).values()];};
  const marketOrders=(id:string)=>ordersForContext(id,parsedMarkets.find(m=>m.id===id)?.market.orders||[]);
  const marketProjects=(id:string)=>projectsForMarket(id,projectOwners).map(p=>({...p,orders:ordersForContext(id,[...p.orders,...marketOrders(id)],p.id)}));
@@ -203,6 +204,11 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
  if(!session)return reply(401,{error:'Votre connexion CDInnov a expiré. Reconnectez-vous.'});
  if(!hasAccess(session,'facturier'))return reply(403,{error:'Votre compte n’a pas accès à la facturation.'});
  const path=new URL(request.url).pathname,db=env.BUDGETS_DB.withSession('first-primary');
+ if(path==='/api/v1/billing/attention'){
+  if(request.method!=='GET')return reply(405,{error:'Méthode non autorisée.'});
+  if(new URL(request.url).search)return fail(400,'Paramètres de compteurs invalides.');
+  return reply(200,await billingAttentionCounts(db));
+ }
  if(path.startsWith('/api/v1/billing/client-employees/'))return clientEmployeesRoute(request,db,env,session.email,reply);
  if(/^\/api\/v1\/billing\/(clients|services)(?:\/|$)/.test(path))return billingDirectoryRoute(request,db,session.email,reply);
  if(path==='/api/v1/billing/engagement-analysis')return analyzeEngagement(request,db,env,reply);

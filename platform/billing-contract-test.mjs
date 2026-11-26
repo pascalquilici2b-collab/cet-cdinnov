@@ -55,13 +55,33 @@ test('l’adaptateur Factur-X préserve prix, remises, références et notes san
 
 test('les adaptateurs indépendants et les empreintes canoniques Python/TypeScript restent identiques',()=>{
  const documents=[complete(),{...complete(),paymentMeans:'58',iban:'FR14 2004 1010 0505 0001 3M02 606',bic:'PSSTFRPPPAR'},
-  {...complete(),lines:[{...complete().lines[0],quantity:'001.833300',unitPrice:'00123.456789',discountPercent:'0.00',vatCategory:'Z',vatRate:'0.00'}]}];
+  {...complete(),lines:[{...complete().lines[0],quantity:'001.833300',unitPrice:'00123.456789',discountPercent:'0.00',vatCategory:'Z',vatRate:'0.00'}]},
+  {...complete(),description:'Description du document : étude <fictive> & accompagnement.\nContexte commercial conservé.'},
+  {...complete(),description:''},{...complete(),description:' \n '}];
  const values=documents.map(raw=>{const document=normalizeDraft(raw);return {document,invoice:invoiceForFacturX(document,'TEST-2026-001'),hash:createHash('sha256').update(billingCanonicalJSON({schemaVersion:1,document,totals:calculateBilling(document)})).digest('hex')};});
  const result=python(`import json,sys\nfrom cdi_facturx.billing_document import DraftDocument\nfrom cdi_facturx.billing_issuance import invoice_from_document,snapshot_hash\nfrom cdi_facturx.models import Invoice\nresults=[]\nfor v in json.load(sys.stdin):\n d=DraftDocument.model_validate(v['document'])\n expected=Invoice.model_validate(v['invoice']).model_dump(mode='json')\n actual=invoice_from_document(d,'TEST-2026-001').model_dump(mode='json')\n assert actual==expected,(actual,expected)\n assert snapshot_hash(d)==v['hash']\n results.append(True)\nprint(json.dumps(results))`,values);
- assert.deepEqual(result,[true,true,true]);
+ assert.deepEqual(result,documents.map(()=>true));
 });
 
-test('le service authentifié produit un vrai PDF sans accepter de numéro ni de total imposé',()=>{
+test('la description du document reste présente dans les notes XML Factur-X sans modifier les montants',()=>{
+ const document=complete();document.description='CONTEXTE-DOCUMENT-FICTIF : étude <Corse> & animation.\nMission de démonstration.';
+ const before=JSON.stringify(document),invoice=invoiceForFacturX(document,'TEST-DESCRIPTION-001');
+ assert.equal(JSON.stringify(document),before);assert.ok(invoice.notes.description.includes(document.description));
+ const legacy=invoiceForFacturX(complete(),'TEST-DESCRIPTION-001');
+ assert.deepEqual({...invoice,notes:{...invoice.notes,description:legacy.notes.description}},legacy);
+ for(const value of ['', ' \n '])assert.deepEqual(invoiceForFacturX({...complete(),description:value},'TEST-DESCRIPTION-001'),legacy);
+ const checked=python(`import json,sys
+from lxml import etree
+from cdi_facturx.models import Invoice
+from cdi_facturx.xml_invoice import create_xml,NS
+value=json.load(sys.stdin)
+root=etree.fromstring(create_xml(Invoice.model_validate(value),'en16931'))
+notes=root.xpath('//ram:IncludedNote[ram:SubjectCode="AAI"]/ram:Content/text()',namespaces=NS)
+print(json.dumps({'notes':notes,'number':root.xpath('//rsm:ExchangedDocument/ram:ID/text()',namespaces=NS)}))`,invoice);
+ assert.ok(checked.notes.some(value=>value.includes(document.description)));assert.deepEqual(checked.number,['TEST-DESCRIPTION-001']);
+});
+
+test('le service authentifié produit un vrai PDF brouillon sans numéro définitif ni total imposé',()=>{
  const result=python(`import json,sys,os,io,copy
 os.environ['FACTURX_DEPLOYMENT']='server'
 os.environ['FACTURX_API_KEY']='synthetic-test-key-01234567890123456789'
@@ -74,8 +94,14 @@ headers={'x-api-key':os.environ['FACTURX_API_KEY']}
 path='/api/billing/preview-pdf'
 assert client.post(path,json={'document':d}).status_code==401
 assert client.post(path,json={'document':d},headers={**headers,'Origin':'https://evil.test'}).status_code==403
-for payload in [{'document':d,'number':'FORGED'},{'document':d,'totals':{'grossMinor':'1'}},{'document':{**d,'number':'FORGED'}}]:
+for payload in [{'document':d,'totals':{'grossMinor':'1'}},{'document':{**d,'number':'FORGED'}}]:
  assert client.post(path,json=payload,headers=headers).status_code==422
+numbered_preview=client.post(path,json={'document':d,'number':'FORGED'},headers=headers)
+assert numbered_preview.status_code==200, numbered_preview.text
+numbered_reader=PdfReader(io.BytesIO(numbered_preview.content))
+numbered_text=chr(10).join(page.extract_text() for page in numbered_reader.pages)
+assert 'BROUILLON' in numbered_text and 'FORGED' not in numbered_text
+assert 'FORGED' not in str(numbered_reader.metadata)
 assert client.post(path,content='x'*300001,headers={**headers,'content-type':'application/json'}).status_code==413
 r=client.post(path,json={'document':d},headers=headers)
 assert r.status_code==200, r.text

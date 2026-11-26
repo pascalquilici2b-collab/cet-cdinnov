@@ -4,6 +4,7 @@ import type {BillingDocument} from './billing-contracts';
 import {boundedBody} from './portal';
 import {validBillingDate} from './billing-domain';
 import {billingToday} from './billing-quote-domain';
+import {activeInvoiceReplacementSQL} from './billing-rectification-state.mjs';
 
 /** A manual declaration records an already completed transmission; it never sends email. */
 export async function declareInvoiceSent(request:Request,db:Database,doc:BillingDocument,user:string,reply:Reply,reload:()=>Promise<BillingDocument>){
@@ -19,7 +20,7 @@ export async function declareInvoiceSent(request:Request,db:Database,doc:Billing
  WHERE id=? AND version=?
  AND EXISTS(SELECT 1 FROM billing_issuances i JOIN billing_issue_jobs j ON j.issuance_id=i.id WHERE i.document_id=billing_documents.id AND j.state='ready')
  AND NOT EXISTS(SELECT 1 FROM billing_document_trash t WHERE t.document_id=billing_documents.id)
- AND NOT EXISTS(SELECT 1 FROM billing_invoice_rectifications r WHERE r.original_id=billing_documents.id AND NOT EXISTS(SELECT 1 FROM billing_document_trash t WHERE t.document_id=r.replacement_id))
+ AND NOT EXISTS(SELECT 1 FROM billing_invoice_rectifications r WHERE r.original_id=billing_documents.id AND ${activeInvoiceReplacementSQL()})
  AND NOT EXISTS(SELECT 1 FROM billing_email_deliveries d WHERE d.document_id=billing_documents.id AND d.state='sent')
  ON CONFLICT(id) DO NOTHING`).bind(id,hash,doc.data.buyer.email||'',doc.issuance?.number||'',stamp,now,user,doc.id,doc.version).run();
  const result=await reload();

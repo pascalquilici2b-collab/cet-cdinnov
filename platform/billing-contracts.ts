@@ -109,11 +109,12 @@ export type BillingDirectoryRecord={id:string;version:number;updatedAt:string|nu
 export interface BillingDirectoryPage {records:BillingDirectoryRecord[];total:number;offset:number;limit:number;}
 export interface BillingFilterOption {value:string;label:string;}
 export interface BillingPage {documents:BillingDocument[]; total:number; limit:number; offset:number; filters?:{clients:BillingFilterOption[];projects:BillingFilterOption[];importedClients?:Record<string,string>};}
+export interface BillingAttentionCounts {overdue:number;finalized:number;prepared:number;}
 export type BillingContextOrder=import('./client/markets-contracts').MarketOrder & {serviceCode?:string;engagement?:string;otherReference?:string};
 export type BillingContextProject=Omit<import('./client/markets-contracts').MarketProject,'orders'> & {orders:BillingContextOrder[]};
 export interface BillingContext {
   interventionReports?:Record<string,number>;
-  numbering?:{kind:BillingKind;prefix:string;width:number;nextValue:number}[];
+  numbering?:{kind:BillingKind;prefix:string;width:number;nextValue:number;format?:'monthly'|'dated'|'literal'}[];
   people?:{id:string;name:string;photo?:string}[];
   clientLogos?:{id:string;name:string;siren:string;siret:string;logoKey?:string;logoData?:string}[];
   documentService:{configured:boolean};
@@ -125,6 +126,7 @@ export interface BillingContext {
 }
 export interface BillingFollowupLink {serviceCode?:string;engagement?:string;otherReference?:string;orderId:string;marketId:string;marketReference:string;projectId:string;project:string;reference:string;date:string;amountMinor:number|null;kind:'order'|'signed_quote';files:{documentId:string;marketId?:string;filename:string}[];}
 export interface BillingTransport {
+  attention?():Promise<BillingAttentionCounts>;
   retireDraftNumber(id:string,version:number,input:{notTransmitted:true;reason:string}):Promise<BillingDocument>;
   regularizationQuotes(id:string,query?:string):Promise<{items:BillingRegularizationQuote[];total:number}>;
   regularizeInvoice(id:string,version:number,input:{quoteId:string;quoteVersion:number;reason?:string}):Promise<BillingDocument>;

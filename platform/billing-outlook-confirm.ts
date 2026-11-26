@@ -6,6 +6,7 @@ import {validateMail} from './billing-mail-content';
 import {graph,microsoftProfile,microsoftOwnerMatches,documentPropertyId} from './billing-microsoft-draft';
 import {billingToday} from './billing-quote-domain';
 import type {SentGraphMessage} from './billing-microsoft-send';
+import {activeInvoiceReplacementSQL} from './billing-rectification-state.mjs';
 export const sentAtSQL="(SELECT max(created_at) FROM billing_email_deliveries WHERE document_id=billing_documents.id AND state='sent')";
 /** Direct sends are verified in the employee's Sent Items; manual attestations stay explicit. Tokens are transient, never stored. */
 export async function confirmOutlookSent(request:Request,db:Database,doc:BillingDocument,user:string,reply:Reply,reload:()=>Promise<BillingDocument>){
@@ -30,7 +31,7 @@ export async function confirmOutlookSent(request:Request,db:Database,doc:Billing
  const hash=createHash('sha256').update(JSON.stringify([doc.id,doc.version,provider,...(p.graph?[]:[recipient,subject,message])])).digest('hex'),id='outlook-'+hash;
  const insert=db.prepare(`INSERT INTO billing_email_deliveries(id,document_id,document_version,request_hash,recipient,subject,message,state,provider_id,attachment_sha256,created_at,updated_at,created_by)
  SELECT ?,id,version,?,?,?,?,'sent',?,'',?,?,? FROM billing_documents WHERE id=? AND version=?
- AND NOT EXISTS(SELECT 1 FROM billing_invoice_rectifications r WHERE r.original_id=billing_documents.id AND NOT EXISTS(SELECT 1 FROM billing_document_trash t WHERE t.document_id=r.replacement_id))
+ AND NOT EXISTS(SELECT 1 FROM billing_invoice_rectifications r WHERE r.original_id=billing_documents.id AND ${activeInvoiceReplacementSQL()})
  AND NOT EXISTS(SELECT 1 FROM billing_document_trash t WHERE t.document_id=billing_documents.id)
  ON CONFLICT(id) DO NOTHING`).bind(id,hash,recipient,subject,message,provider,stamp,stamp,user,doc.id,doc.version);
  const operations=[insert];

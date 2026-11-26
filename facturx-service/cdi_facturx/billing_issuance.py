@@ -97,7 +97,7 @@ def mapped_line(line):
 
 def invoice_from_document(d, number):
     totals = d.calculated()
-    description = '\n\n'.join(v for v in [d.title, 'Motif de l’avoir : ' + d.creditNote.reason if d.creditNote else '', d.notes,
+    description = '\n\n'.join(v for v in [d.title, d.description if d.description.strip() else '', 'Motif de l’avoir : ' + d.creditNote.reason if d.creditNote else '', d.notes,
         'Mentions de l’émetteur : ' + d.seller.legal if d.seller.legal else '',
         'Mentions du client : ' + d.buyer.legal if d.buyer.legal else '',
         'Code affaire : ' + d.references.businessCode if d.references.businessCode else '',

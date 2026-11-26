@@ -5,12 +5,13 @@ import type {Database} from './contracts';
 import type {BillingDocument} from './billing-contracts';
 import {normalizeDraft,billingId,calculateBilling,inspectDraft,addBillingDays} from './billing-domain';
 import {billingToday} from './billing-quote-domain';
+import {activeInvoiceReplacementSQL} from './billing-rectification-state.mjs';
 const fail=(status:number,message:string):never=>{throw Object.assign(new Error(message),{status});};
 export function rectificationJSON(){return `(SELECT json_object('parentId',parent.original_id,'parentNumber',pi.number,'replacementId',child.replacement_id,'replacementNumber',ci.number,
  'replacementState',CASE WHEN child.replacement_id IS NULL THEN NULL WHEN cj.state='ready' THEN 'issued' ELSE 'draft' END)
  FROM (SELECT 1) LEFT JOIN billing_invoice_rectifications parent ON parent.replacement_id=billing_documents.id
  LEFT JOIN billing_issuances pi ON pi.document_id=parent.original_id
- LEFT JOIN billing_invoice_rectifications child ON child.original_id=billing_documents.id AND NOT EXISTS(SELECT 1 FROM billing_document_trash t WHERE t.document_id=child.replacement_id)
+ LEFT JOIN billing_invoice_rectifications child ON child.original_id=billing_documents.id AND ${activeInvoiceReplacementSQL('child')}
  LEFT JOIN billing_issuances ci ON ci.document_id=child.replacement_id LEFT JOIN billing_issue_jobs cj ON cj.issuance_id=ci.id
  WHERE parent.original_id IS NOT NULL OR child.replacement_id IS NOT NULL)`;}
 export async function rectifyInvoice(db:Database,record:BillingDocument,version:number,input:Record<string,unknown>,email:string){

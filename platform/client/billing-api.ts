@@ -18,6 +18,7 @@ export function createBillingTransport(options:{baseUrl:string;getSession:()=>Pr
   async function numbered(promise:Promise<BillingDocument>){const doc=await promise;const siren=doc.data.seller.siren.replace(/\s/g,'')||doc.data.seller.siret.replace(/\s/g,'').slice(0,9);return doc.data.kind==='quote'&&!doc.issuance&&!doc.reservedNumber&&!doc.quote?.revision.abandoned&&/^\d{9}$/.test(siren)?request<BillingDocument>('/documents/'+encodeURIComponent(doc.id)+'/number','POST',{},doc.version):doc;}
   const reportPath=(id:string)=>id.startsWith('imported:')?'/imported-invoices/'+encodeURIComponent(id.slice(9))+'/intervention-report':'/documents/'+encodeURIComponent(id)+'/intervention-report';
   return {
+    attention:()=>request('/attention'),
     mailSignature:()=>request('/mail-signature'),
     saveMailSignature:(version,data)=>request('/mail-signature','PUT',{data},version),
     clientEmployees:id=>request('/client-employees/'+encodeURIComponent(id)),

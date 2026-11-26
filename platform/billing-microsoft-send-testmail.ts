@@ -1,5 +1,6 @@
 import {createMicrosoftDraft,graph,microsoftProfile,microsoftOwnerMatches,outlookWebLink} from './billing-microsoft-draft.ts';
 import {checkedAttachments,attachmentName,bytes64} from './billing-mail-attachments.ts';
+import {withMicrosoftSendLock,microsoftSendLockMessage} from './billing-microsoft-lock.ts';
 
 type DraftInput=Parameters<typeof createMicrosoftDraft>[0];
 export interface MicrosoftSendReceipt {id:string;webLink:string;state:'sent'|'accepted'|'uncertain';sentAt?:string;}
@@ -20,12 +21,13 @@ export async function sendMicrosoftTestMail(input:DraftInput&{confirmed:boolean}
  await session();const owner=await microsoftProfile(input.token,input.fetcher);if(!microsoftOwnerMatches(input.email,owner))throw Error('Connectez le compte Outlook correspondant à votre session CDInnov.');
  const files=await checkedAttachments(input),expected=await Promise.all(files.map(async f=>({name:attachmentName(f.filename),contentBytes:bytes64(new Uint8Array(await f.blob.arrayBuffer()))})));
  const signature=await sha(JSON.stringify([input.subject,input.message,expected])),key='cdi-outlook-send-test:'+owner.id+':'+signature;
- const run=async()=>{
+ const run=async(dispatchAllowed:boolean)=>{
  const save=(value:MicrosoftSendReceipt)=>input.storage.setItem(key,JSON.stringify(value));
  let previous:MicrosoftSendReceipt|null=null;
  try{previous=JSON.parse(input.storage.getItem(key)||'null');}catch{throw Error('Le suivi local du test est indisponible. Ouvrez Outlook pour vérifier l’envoi.');}
  const observe=async(receipt:MicrosoftSendReceipt)=>{await session();try{const message=await readMessage(input,receipt.id);if(!message.isDraft&&message.sentDateTime){receipt={...receipt,state:'sent' as const,sentAt:message.sentDateTime,webLink:outlookWebLink(message.webLink)};save(receipt);}}catch(e){if((e as {status?:number}).status===401)throw e;}return receipt;};
  if(previous?.id){previous.webLink=outlookWebLink(previous.webLink);if(previous.state==='sent')return previous;return observe(previous);}
+ if(!dispatchAllowed)throw Error(microsoftSendLockMessage);
  const draft=await createMicrosoftDraft({...input,documentId:'test-send-'+signature});
  const message=await readMessage(input,draft.id),got=message.attachments||[];
  const recipients=message.toRecipients||[];
@@ -41,5 +43,5 @@ export async function sendMicrosoftTestMail(input:DraftInput&{confirmed:boolean}
  if([400,401,403,413,429].includes(response.status)){input.storage.removeItem(key);throw Error(response.status===403?'Microsoft n’a pas autorisé l’envoi. Activez l’envoi Outlook pour ce compte.':response.status===401?'Reconnectez votre compte Outlook.':response.status===429?'Outlook est occupé. Attendez avant de relancer le test.':'Microsoft a refusé le message de test. Vérifiez son contenu et ses pièces jointes.');}
  return observe(receipt);
  };
- return typeof navigator!=='undefined'&&navigator.locks?navigator.locks.request(key,run):run();
+ return withMicrosoftSendLock(key,run);
 }

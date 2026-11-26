@@ -2,6 +2,7 @@ import {billingNumberSQL} from './billing-monthly-number-schema.mjs';
 import {invoiceNumberingPolicyReady} from './billing-invoice-finalization-number-schema.mjs';
 import {invoiceLegacyNumberResolvedSQL} from './billing-invoice-regularization-schema.mjs';
 import {invoiceQuoteNumberPlan} from './billing-invoice-quote-number.ts';
+import {ambiguousOrderMessage} from './billing-order-budget.ts';
 import {createHash} from 'node:crypto';
 import type {Database} from './contracts';
 import type {BillingDraft,BillingKind,BillingTotals} from './billing-contracts';
@@ -108,6 +109,8 @@ export async function reserveIssuance(db:Database,input:{id:string;documentId:st
   if(row)return unpack(row);
  }catch(error){
   const retried=await replay();if(retried)return retried;
+  if(String(error).includes('BILLING_ORDER_AMBIGUOUS'))return fail(422,ambiguousOrderMessage);
+  if(String(error).includes('BILLING_TRASH_CONFLICT'))return fail(409,'Ce document a été placé dans la corbeille pendant la préparation. Actualisez la liste et restaurez-le avant de le finaliser.');
   if(/BILLING_REVISION_INACTIVE/.test(String(error)))return fail(409,'Cette version du devis a été remplacée ou abandonnée. Ouvrez la version en cours.');
   if(!/BILLING_RESERVATION_CONFLICT|UNIQUE constraint/.test(String(error)))throw error;
  }

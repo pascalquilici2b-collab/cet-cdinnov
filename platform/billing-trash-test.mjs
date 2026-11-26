@@ -17,12 +17,14 @@ try{
   await ok(await call(path,'DELETE'),428);
   await ok(await call(path,'DELETE',undefined,doc.version));await ok(await call(path,'DELETE',undefined,doc.version));
   assert.equal((await ok(await call('/documents?kind='+kind))).total,0);
-  let listing=await ok(await call('/documents?kind='+kind+'&state=trash&q='+encodeURIComponent(doc.reservedNumber.number)));assert.equal(listing.total,1);assert.equal(listing.documents[0].id,doc.id);
+  const search=kind==='quote'?doc.reservedNumber.number:doc.data.title;
+  if(kind==='invoice')assert.equal(doc.reservedNumber,null);
+  let listing=await ok(await call('/documents?kind='+kind+'&state=trash&q='+encodeURIComponent(search)));assert.equal(listing.total,1);assert.equal(listing.documents[0].id,doc.id);
   for(const [suffix,method,body] of [['','GET'],['','PUT',{data}],['/issue','POST',{id:randomUUID(),seriesId:'automatic'}],['/number','POST',{}],['/convert','POST',{id:randomUUID()}]])await ok(await call(path+suffix,method,body,doc.version),410);
   await ok(await call('/documents','POST',{id:doc.id,data}),410);
   await assert.rejects(()=>p.ctx.db.prepare('UPDATE billing_documents SET version=version+1 WHERE id=?').bind(doc.id).run(),/BILLING_TRASH_CONFLICT/);
   await ok(await call(path+'/restore','POST',{},doc.version+1),409);
-  const restored=await ok(await call(path+'/restore','POST',{},doc.version));assert.equal(restored.id,doc.id);assert.equal(restored.reservedNumber.number,doc.reservedNumber.number);assert.deepEqual(restored.data,doc.data);
+  const restored=await ok(await call(path+'/restore','POST',{},doc.version));assert.equal(restored.id,doc.id);assert.deepEqual(restored.reservedNumber,doc.reservedNumber);assert.deepEqual(restored.data,doc.data);
   assert.equal((await ok(await call('/documents?kind='+kind+'&state=trash'))).total,0);assert.equal((await ok(await call('/documents?kind='+kind))).total,1);
   const edited=await ok(await call(path,'PUT',{data:{...doc.data,title:'Modifié après restauration'}},doc.version));assert.equal(edited.version,doc.version+1);await ok(await call(path,'DELETE',undefined,doc.version),409);
   if(kind==='quote'){
@@ -31,7 +33,10 @@ try{
    // A stale deletion cannot win after a concurrent edit.
    await assert.rejects(()=>p.ctx.db.prepare('INSERT INTO billing_document_trash VALUES(?,?,?,?)').bind(doc.id,doc.version,new Date().toISOString(),'test').run(),/BILLING_TRASH_CONFLICT/);
    await ok(await call(path,'DELETE',undefined,edited.version));
-   const next=await ok(await call('/documents','POST',{id:randomUUID(),data}),201);const numbered=await ok(await call('/documents/'+next.id+'/number','POST',{},next.version));assert.match(numbered.reservedNumber.number,/-002$/);
+   const counters=await p.ctx.db.prepare('SELECT id,next_value FROM billing_number_series ORDER BY id').all();
+   const next=await ok(await call('/documents','POST',{id:randomUUID(),data}),201);const numbered=await ok(await call('/documents/'+next.id+'/number','POST',{},next.version));assert.equal(numbered.reservedNumber,null);
+   assert.deepEqual((await p.ctx.db.prepare('SELECT id,next_value FROM billing_number_series ORDER BY id').all()).results,counters.results);
+   assert.equal((await p.ctx.db.prepare('SELECT count(*) n FROM billing_draft_numbers WHERE document_id IN (?,?)').bind(doc.id,next.id).first()).n,0);
   }
  }
  console.log('OK Corbeille : droits, conflits de version, recherche, masquage, protection contre modification/émission, restauration, aucun numéro recyclé.');

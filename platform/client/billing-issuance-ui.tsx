@@ -12,8 +12,9 @@ import {StatusPaymentDialog} from './billing-status-payment';
 import {DropdownMenu} from 'radix-ui';
 import {useConfirmation} from './action-dialog';
 import {Help} from './billing-help';
-import type {BillingDocument,BillingTransport,BillingIssue} from '../billing-contracts';
+import type {BillingDocument,BillingTransport,BillingIssue,BillingContext} from '../billing-contracts';
 import {invoiceDraftNumberNotice} from './billing-document-number';
+import {billingNumberPreview} from './billing-number-preview';
 
 const message=(e:unknown)=>e instanceof Error?e.message:'La finalisation n’a pas abouti.';
 export type DocumentStatusHandle={finalize:()=>Promise<BillingDocument|undefined>};
@@ -74,10 +75,10 @@ export function IssuanceFiles({record,busy,onDownload}:{record:BillingDocument;b
  return files.length?<details className="bill-archive-tools"><summary>Fichiers techniques et contrôles</summary><div className="bill-issuance-actions">{files.map(kind=><button type="button" className="bill-button" key={kind} disabled={busy} onClick={()=>onDownload(kind)}>{({xml:'Télécharger le XML',validation:'Rapport de validation',verapdf:'Rapport PDF/A'} as Record<string,string>)[kind]||kind}</button>)}</div></details>:null;
 }
 export function NumberingPanel({onDirty,transport}:{transport:BillingTransport;sellerSiren:string;busy:boolean;onBusy:(value:string)=>void;onDirty:(value:boolean)=>void}){
- const [numbers,setNumbers]=useState<{kind:string;prefix:string;width:number;nextValue:number}[]>([]);
+ const [numbers,setNumbers]=useState<NonNullable<BillingContext['numbering']>>([]);
  useEffect(()=>{let active=true;transport.context().then(c=>{if(active)setNumbers(c.numbering||[]);}).catch(()=>{});return()=>{active=false;};},[transport]);
  useEffect(()=>{onDirty(false);},[onDirty]);
  const continuous=numbers.length>0;
- const next=(kind:string,fallback:string)=>{const s=numbers.find(s=>s.kind===kind);return s?s.prefix+String(s.nextValue).padStart(s.width,'0'):fallback;};
- return <section className="bill-issuance bill-numbering" aria-label="Numérotation"><h2 className="bill-title-help">Numérotation automatique <Help label="Numérotation" text={continuous?'Le numéro du devis est réservé à sa création ; celui de la facture est attribué à sa finalisation. Devis et factures ont leurs propres compteurs continus. La référence du devis reste visible sur sa facture.':'Le numéro du devis est réservé à sa création ; celui de la facture est attribué à sa finalisation. Le compteur des devis est quotidien ; celui des factures est continu. La référence du devis reste visible sur sa facture.'}/></h2><div className="bill-fields"><p><strong>Devis</strong><br/>{next('quote','AAAAMMJJ-001')}</p><p><strong>Factures</strong><br/>{invoiceDraftNumberNotice}</p></div></section>;
+ const next=(kind:string,fallback:string)=>{const s=numbers.find(s=>s.kind===kind);return s?billingNumberPreview(s):fallback;};
+ return <section className="bill-issuance bill-numbering" aria-label="Numérotation"><h2 className="bill-title-help">Numérotation automatique <Help label="Numérotation" text={continuous?'Le numéro du devis est réservé à sa création ; celui de la facture est attribué à sa finalisation. Devis et factures ont leurs propres compteurs continus. La référence du devis reste visible sur sa facture.':'Le numéro du devis est réservé à sa création ; celui de la facture est attribué à sa finalisation. Le compteur des devis est quotidien ; celui des factures est continu. La référence du devis reste visible sur sa facture.'}/></h2><div className="bill-fields"><p><strong>Devis</strong><br/>{next('quote','AAAAMMJJ-001')}<br/><small>Prévision pour aujourd’hui · Réservé à la création</small></p><p><strong>Factures</strong><br/>{invoiceDraftNumberNotice}</p></div></section>;
 }

@@ -14,4 +14,4 @@
 [data-theme=dark] .cdi-select-check{color:#68b4ff}[data-theme=dark] .cdi-activity{border-color:#4d4d52;background:#303033;color:#c5c5cc}[data-theme=dark] .cdi-activity i{background:#a0a0a8}[data-theme=dark] .cdi-activity[data-state=active]{border-color:#326247;background:#203b2c;color:#9ce2b5}[data-theme=dark] .cdi-activity[data-state=active] i{background:#64cc8a}
 @keyframes cdi-select-in{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:translateY(0)}}
 @media(prefers-reduced-motion:reduce){.cdi-select-content{animation:none}}
-@media(max-width:520px){.cdi-select-option{gap:8px}.cdi-select-trigger{flex-wrap:wrap}.cdi-select-content{min-width:0;width:var(--radix-select-trigger-width)}}
+@media(max-width:520px){.cdi-select-option{gap:8px}.cdi-select-trigger{flex-wrap:wrap}.cdi-select-content{min-width:0;width:var(--radix-select-trigger-width)}.cdi-select-trigger:has(>.cdi-activity)>.cdi-select-value,.cdi-select-option:has(>.cdi-activity)>.cdi-select-value{flex:1 0 100%}.cdi-select-option:has(>.cdi-activity){flex-wrap:wrap}.cdi-select-trigger:has(>.cdi-activity)>span:last-child{margin-left:auto}}
