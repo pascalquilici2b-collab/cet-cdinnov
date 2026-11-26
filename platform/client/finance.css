@@ -9,6 +9,26 @@
 .finance-selected-projects li button{width:32px;min-height:32px;flex:none;border:0;background:transparent;color:inherit;cursor:pointer;font-size:17px}
 .finance-selected-projects li button:hover{color:var(--accent-strong)}
 .finance-selected-projects li button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;border-radius:6px}
+.finance-route{position:relative;display:grid;gap:7px;padding-inline-start:13px;width:100%;min-width:0}
+.finance-route::before{content:"";position:absolute;inset:16px auto 16px 4px;border-inline-start:1px solid var(--line-strong)}
+.finance-route-place{position:relative;display:flex;align-items:center;gap:5px;min-width:0}
+.finance-route-place::before{content:"";position:absolute;inset-inline-start:-12px;width:7px;height:7px;border-radius:50%;background:var(--panel-2);border:1px solid var(--accent)}
+.finance-route-place:first-child::before,.finance-route-place:last-child::before{background:var(--accent)}
+.finance-route-place>.inp{flex:1;min-width:0}
+.finance-route-order,.finance-route-actions{display:flex;align-items:center;gap:4px}
+.finance-route-order .btn{padding:4px 6px;min-width:29px;justify-content:center}
+.finance-route-actions{flex-wrap:wrap;gap:7px}
+.finance-maps-import{width:100%;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:8px 0}
+.finance-maps-import summary{cursor:pointer;color:var(--accent-strong);font-size:12px;font-weight:650;min-height:28px}
+.finance-maps-import .hint{margin:3px 0 9px}
+.finance-maps-fields{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:8px;margin-bottom:8px}
+.finance-maps-fields .form-row,.finance-maps-fields .inp{min-width:0}
+.finance-maps-error{color:var(--warn);margin-top:7px;font-size:12px}
+@media(max-width:560px){
+  .finance-route-order .btn{min-width:34px;min-height:36px}
+  .finance-maps-fields{grid-template-columns:1fr}
+  .finance-maps-import summary{min-height:40px;padding-top:7px}
+}
 [data-theme=dark] .finance-editor .finance-pdf-box{background:#242c36;border-color:#4a647f;color:#f5f5f7}
 [data-theme=dark] .finance-editor .finance-pdf-box .label,[data-theme=dark] .finance-editor .finance-pdf-box p,[data-theme=dark] .finance-editor .finance-pdf-box small{color:#c5d6e9}
 .finance-editor .finance-pdf-box input[type=file]{max-width:100%;font:inherit;color:inherit}

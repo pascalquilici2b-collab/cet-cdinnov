@@ -26,11 +26,21 @@ Object.assign(fixture, {params: {anneeSuivi: 2026}, types: [], mouvements: [], c
 fixture.notesFrais[0].signature = null;
 delete fixture.notesFrais[0].lignes[0].justificatif;
 Object.assign(fixture.notesFrais[0], {projectId: 'retired', projectName: 'Ancien projet'});
+fixture.notesFrais[0].lignes.push({
+  id: 'old-mileage', date: '2026-10-18', categorie: 'Frais kilométriques', description: 'Ancien trajet',
+  depart: 'Bastia', arrivee: 'Corte', allerRetour: true, vehicule: 'voiture', cv: '3', km: 140, montant: 74.06
+});
 const projects = [
   {id: 'north', name: 'Projet Boréal', startDate: '2025-01-01', endDate: '2028-01-01'},
   {id: 'south', name: 'Projet Austral', startDate: '2025-01-01', endDate: '2028-01-01'},
   {id: 'retired', name: 'Ancien projet', archived: true}
 ];
+const routeCoordinates = {
+  Bastia: ['9.45', '42.7'], Furiani: ['9.42', '42.65'], Borgo: ['9.43', '42.55'],
+  'Ponte Leccia': ['9.19', '42.45'], Corte: ['9.15', '42.3']
+};
+const routeRequests = [];
+const cors = {'Access-Control-Allow-Origin': '*'};
 
 const html = (await readFile(join(root, 'index.html'), 'utf8')).replace('\nbootAuth();', () => `
 budgetsObserveClients=()=>{};
@@ -86,7 +96,24 @@ try {
 
   async function openSession(email, width) {
     const context = await browser.newContext({viewport: {width, height: 920}, locale: 'fr-FR'});
-    await context.route('**/*', route => route.request().url().startsWith(base + '/') ? route.continue() : route.abort());
+    await context.route('**/*', route => {
+      const url = new URL(route.request().url());
+      if (url.origin === base) return route.continue();
+      if (url.hostname === 'nominatim.openstreetmap.org') {
+        const coordinates = routeCoordinates[url.searchParams.get('q')];
+        const result = coordinates ? [{lon: coordinates[0], lat: coordinates[1]}] : [];
+        return route.fulfill({headers: cors, json: result});
+      }
+      if (url.hostname === 'router.project-osrm.org') {
+        const coordinates = decodeURIComponent(url.pathname.split('/').at(-1)).split(';');
+        routeRequests.push(coordinates);
+        return route.fulfill({headers: cors, json: {code: 'Ok', routes: [{distance: 60000}]}});
+      }
+      if (url.hostname === 'www.google.com' && url.pathname.startsWith('/maps/dir')) {
+        return route.fulfill({contentType: 'text/html', body: '<title>Google Maps fixture</title>'});
+      }
+      return route.abort();
+    });
     const page = await context.newPage();
     page.setDefaultTimeout(8000);
     page.on('pageerror', error => errors.push(error.message));
@@ -164,6 +191,46 @@ try {
   assert.deepEqual(await selected.locator('li span').allTextContents(), ['Projet Boréal', 'Projet Austral']);
   assert.equal(await subjectField.inputValue(), subject);
 
+  await editor.getByRole('button', {name: 'Ajouter une ligne', exact: true}).click();
+  await editor.locator('#nfl-cat-2').selectOption('Frais kilométriques');
+  await editor.locator('#nfl-dep-2').fill('Bastia');
+  await editor.locator('#nfl-arr-2').fill('Corte');
+  const addStop = editor.getByRole('button', {name: 'Ajouter une étape', exact: true});
+  await addStop.click();
+  await editor.locator('#nfl-stop-2-0').fill('Borgo');
+  await addStop.click();
+  await editor.locator('#nfl-stop-2-1').fill('Furiani');
+  await editor.getByRole('button', {name: 'Monter l’étape 2', exact: true}).click();
+  assert.equal(await editor.locator('#nfl-stop-2-0').inputValue(), 'Furiani');
+  await addStop.click();
+  await editor.locator('#nfl-stop-2-2').fill('Ponte Leccia');
+  await editor.getByRole('button', {name: 'Retirer l’étape 3', exact: true}).click();
+  assert.equal(await editor.locator('#nfl-stop-2-2').count(), 0);
+  await editor.locator('#nfl-ar-2').check();
+  await editor.getByRole('button', {name: 'Calculer les km', exact: true}).click();
+  await page.waitForFunction(() => document.getElementById('nfl-km-2')?.value === '120');
+  assert.deepEqual(routeRequests, [['Bastia', 'Furiani', 'Borgo', 'Corte'].map(name => routeCoordinates[name].join(','))]);
+  assert.equal(await editor.locator('#nfl-montant-2').inputValue(), '63.48');
+  await editor.locator('#nfl-stop-2-0').fill('Ponte Leccia');
+  await page.waitForFunction(() => document.getElementById('nfl-km-2')?.value === '0');
+  assert.equal(await editor.locator('#nfl-montant-2').inputValue(), '0');
+  await editor.locator('#nfl-km-2').fill('122');
+  await editor.locator('#nfl-stop-2-0').fill('Furiani');
+  assert.equal(await editor.locator('#nfl-km-2').inputValue(), '122');
+  await editor.getByRole('button', {name: 'Calculer les km', exact: true}).click();
+  await page.waitForFunction(() => document.getElementById('nfl-km-2')?.value === '120');
+
+  const openedMaps = page.context().waitForEvent('page');
+  await editor.getByRole('button', {name: 'Google Maps', exact: true}).click();
+  const maps = await openedMaps;
+  await maps.waitForURL(/google\.com\/maps\/dir/);
+  const mapsUrl = new URL(maps.url());
+  assert.equal(mapsUrl.searchParams.get('origin'), 'Bastia');
+  assert.equal(mapsUrl.searchParams.get('destination'), 'Bastia');
+  assert.deepEqual(mapsUrl.searchParams.get('waypoints').split('|'), ['Furiani', 'Borgo', 'Corte', 'Borgo', 'Furiani']);
+  await maps.close();
+  assert.equal(await subjectField.inputValue(), subject);
+
   await editor.getByRole('button', {name: 'Aperçu', exact: true}).click();
   await page.locator('#nfPreviewRoot').waitFor();
   await page.mouse.click(5, 5);
@@ -177,9 +244,12 @@ try {
   assert.match(pdf, /Projet Boréal/);
   assert.match(pdf, /Projet Austral/);
   assert.doesNotMatch(pdf, /Matricule/i);
+  assert.match(pdf, /Furiani[\s\S]*Borgo[\s\S]*Corte/);
+  assert.match(pdf, /120 km/);
   await page.getByRole('button', {name: 'Retour', exact: true}).click();
   assert.equal(await subjectField.inputValue(), subject);
   assert.equal(await editor.locator('#nfl-desc-1').inputValue(), 'Déjeuner de test');
+  assert.equal(await editor.locator('#nfl-stop-2-1').inputValue(), 'Borgo');
   assert.deepEqual(await selected.locator('li span').allTextContents(), ['Projet Boréal', 'Projet Austral']);
 
   const synced = page.waitForResponse(response => response.url().endsWith('/api/v1/portal') && response.request().method() === 'PATCH');
@@ -194,7 +264,10 @@ try {
   assert.equal(saved.statut, 'Brouillon');
   assert.equal(saved.lignes[1].montant, 42.5);
   assert.equal(saved.lignes[1].description, 'Déjeuner de test');
+  assert.equal(saved.lignes[2].km, 120);
+  assert.equal(saved.lignes[2].montant, 63.48);
   console.log('OK Desktop: portraits, two projects, accidental clicks and keys, preview, PDF, and local server persistence');
+  console.log('OK Desktop mileage: ordered intermediate stops, routing distance doubled for a round trip, matching Google Maps loop and PDF');
 
   const mobile = await openSession(users[1], 390);
   const mobileEditor = mobile.locator('[data-react-editor="expense"]');
@@ -205,17 +278,88 @@ try {
   assert.equal(await mobileEditor.getByRole('combobox', {name: 'Salarié', exact: true}).count(), 0);
   assert.doesNotMatch(await mobileEditor.innerText(), /Matricule/i);
   assert.deepEqual(await mobileEditor.getByRole('list', {name: 'Projets sélectionnés'}).locator('li span').allTextContents(), ['Projet Boréal', 'Projet Austral']);
+  assert.equal(await mobileEditor.locator('#nfl-stop-2-0').inputValue(), 'Furiani');
+  assert.equal(await mobileEditor.locator('#nfl-stop-2-1').inputValue(), 'Borgo');
+  assert.equal(await mobileEditor.locator('#nfl-ar-2').isChecked(), true);
+
+  await mobileEditor.getByRole('button', {name: 'Ajouter une ligne', exact: true}).click();
+  await mobileEditor.locator('#nfl-cat-3').selectOption('Frais kilométriques');
+  const importLine = mobileEditor.locator('.nf-line').nth(3);
+  await importLine.locator('#nfl-ar-3').check();
+  const importedLink = new URL('https://www.google.com/maps/dir/?api=1');
+  importedLink.searchParams.set('origin', 'Bastia');
+  importedLink.searchParams.set('destination', 'Corte');
+  importedLink.searchParams.set('waypoints', 'Furiani|Ponte Leccia');
+  importedLink.searchParams.set('travelmode', 'driving');
+  async function enterMapsImport(link, distance) {
+    const linkField = importLine.locator('#nfl-maps-link-3');
+    if (!await linkField.isVisible()) await importLine.getByText('Importer depuis Google Maps', {exact: true}).click();
+    await linkField.fill(link);
+    await importLine.locator('#nfl-maps-km-3').fill(distance);
+  }
+  const applyMaps = importLine.getByRole('button', {name: 'Appliquer à la ligne', exact: true});
+  await enterMapsImport(mapsUrl.href, '120');
+  await applyMaps.click();
+  assert.equal(await importLine.locator('#nfl-ar-3').isChecked(), false);
+  assert.equal(await importLine.locator('#nfl-km-3').inputValue(), '120');
+  await importLine.locator('#nfl-ar-3').check();
+  assert.equal(await importLine.locator('#nfl-km-3').inputValue(), '0');
+  await enterMapsImport(importedLink.href, '75,4 km');
+  await mobileEditor.locator('#nfl-cat-1').selectOption('Restaurant');
+  assert.equal(await importLine.locator('#nfl-maps-link-3').inputValue(), importedLink.href);
+  assert.equal(await importLine.locator('#nfl-maps-km-3').inputValue(), '75,4 km');
+  assert.equal(await applyMaps.isVisible(), true);
+  await applyMaps.click();
+  assert.equal(await importLine.locator('#nfl-dep-3').inputValue(), 'Bastia');
+  assert.equal(await importLine.locator('#nfl-arr-3').inputValue(), 'Corte');
+  assert.equal(await importLine.locator('#nfl-stop-3-0').inputValue(), 'Furiani');
+  assert.equal(await importLine.locator('#nfl-stop-3-1').inputValue(), 'Ponte Leccia');
+  assert.equal(await importLine.locator('#nfl-km-3').inputValue(), '75.4');
+  assert.equal(await importLine.locator('#nfl-montant-3').inputValue(), '39.89');
+  assert.equal(await importLine.locator('#nfl-ar-3').isChecked(), true);
+  await importLine.locator('#nfl-km-3').fill('76.25');
   assert.ok(await mobile.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+
+  const mobileSynced = mobile.waitForResponse(response => response.url().endsWith('/api/v1/portal') && response.request().method() === 'PATCH');
+  await mobileEditor.getByRole('button', {name: 'Enregistrer', exact: true}).click();
+  assert.equal((await mobileSynced).status(), 200);
+  await mobileEditor.waitFor({state: 'detached'});
+  await mobile.reload();
+  await mobile.locator('body.authed').waitFor();
+  await mobile.getByRole('button', {name: 'Menu', exact: true}).click();
+  await mobile.locator('.sidebar [data-view="notesfrais"]').click();
+  await mobile.getByRole('button', {name: 'N°' + saved.numero, exact: true}).click();
+  assert.equal(await mobileEditor.locator('#nfl-km-3').inputValue(), '76.25');
+  assert.equal(await mobileEditor.locator('#nfl-stop-3-1').inputValue(), 'Ponte Leccia');
+  await importLine.getByText('Importer depuis Google Maps', {exact: true}).click();
+  assert.equal(await importLine.locator('#nfl-maps-link-3').inputValue(), importedLink.href);
+  assert.equal(await importLine.locator('#nfl-maps-km-3').inputValue(), '75,4');
+  assert.equal(await importLine.getByRole('link', {name: 'Ouvrir le lien enregistré', exact: true}).getAttribute('href'), importedLink.href);
+  assert.ok(await importLine.locator('.finance-maps-fields').evaluate(fields => fields.scrollWidth <= fields.clientWidth + 1));
+
+  await mobileEditor.getByRole('button', {name: 'Aperçu', exact: true}).click();
+  await mobile.locator('#nfPreviewRoot').waitFor();
+  const importedDownload = mobile.waitForEvent('download');
+  await mobile.getByRole('button', {name: 'Télécharger PDF', exact: true}).click();
+  const importedPdf = await readFile(await (await importedDownload).path(), 'latin1');
+  assert.match(importedPdf, /Ponte Leccia[\s\S]*76,25 km/);
+  await mobile.getByRole('button', {name: 'Retour', exact: true}).click();
   await mobileEditor.getByRole('button', {name: 'Fermer', exact: true}).last().click();
   await mobileEditor.waitFor({state: 'detached'});
   await mobile.getByRole('button', {name: 'N°12', exact: true}).click();
   await mobileEditor.getByRole('button', {name: 'Retirer Ancien projet', exact: true}).waitFor();
   assert.equal(await mobileEditor.getByRole('list', {name: 'Projets sélectionnés'}).locator('li span').innerText(), 'Ancien projet');
+  assert.equal(await mobileEditor.locator('#nfl-dep-2').inputValue(), 'Bastia');
+  assert.equal(await mobileEditor.locator('#nfl-arr-2').inputValue(), 'Corte');
+  assert.equal(await mobileEditor.locator('#nfl-ar-2').isChecked(), true);
+  assert.equal(await mobileEditor.locator('#nfl-km-2').inputValue(), '140');
+  assert.equal(await mobileEditor.locator('#nfl-stop-2-0').count(), 0);
   await mobileEditor.getByRole('button', {name: 'Fermer', exact: true}).last().click();
   await mobileEditor.waitFor({state: 'detached'});
   assert.deepEqual(errors, []);
   assert.deepEqual(apiErrors, []);
   console.log('OK Mobile consultant: personal portrait, persisted projects, unchanged edit, archived project from a historical note');
+  console.log('OK Mobile mileage: imported route and entered total after reload and in PDF, with legacy itineraries readable');
 } catch (error) {
   if (apiErrors.length) console.error(apiErrors);
   throw error;

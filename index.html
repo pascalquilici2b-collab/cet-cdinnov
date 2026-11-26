@@ -1914,66 +1914,167 @@ function baremeFormule(vt,cv,km){
 }
 /* Itinéraire gratuit sans clé : Nominatim (géocodage OSM) + OSRM (routage) */
 async function geocodeOSM(q){
-  const r=await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q='+encodeURIComponent(q),{headers:{'Accept':'application/json'}});
+  const r=await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q='+encodeURIComponent(q),{headers:{'Accept':'application/json'},signal:AbortSignal.timeout(10000)});
   if(!r.ok) throw new Error('Géocodage indisponible'); const j=await r.json();
   if(!j||!j.length) throw new Error('Adresse introuvable : '+q);
-  return {lat:+j[0].lat, lon:+j[0].lon};
+  const point=nfCoordinates(j[0].lat,j[0].lon);
+  if(!point)throw new Error('Coordonnées indisponibles : '+q);
+  return point;
 }
-async function routeKmOSM(a,b){
-  const r=await fetch('https://router.project-osrm.org/route/v1/driving/'+a.lon+','+a.lat+';'+b.lon+','+b.lat+'?overview=false');
+async function routeKmOSM(points){
+  const path=points.map(({lon,lat})=>lon+','+lat).join(';');
+  const r=await fetch('https://router.project-osrm.org/route/v1/driving/'+path+'?overview=false',{signal:AbortSignal.timeout(10000)});
   if(!r.ok) throw new Error('Routage indisponible'); const j=await r.json();
-  if(j.code!=='Ok'||!j.routes||!j.routes.length) throw new Error('Itinéraire introuvable');
-  return j.routes[0].distance/1000;
+  const metres=j.routes?.[0]?.distance;
+  if(j.code!=='Ok'||!Number.isFinite(metres)||metres<0) throw new Error('Itinéraire introuvable');
+  return metres/1000;
+}
+const nfRouteRequests=new WeakMap(),nfAddressBooks=new WeakMap(),nfAddressTimers=new WeakMap(),nfMapsDrafts=new WeakMap();
+let nfGeocodeQueue=Promise.resolve(),nfNextGeocodeAt=0;
+function nfAddressBook(draft){
+  if(!nfAddressBooks.has(draft))nfAddressBooks.set(draft,new Map());
+  return nfAddressBooks.get(draft);
+}
+function nfCoordinates(lat,lon){
+  if(lat==null||lon==null||lat===''||lon==='')return null;
+  const point={lat:Number(lat),lon:Number(lon)};
+  return Number.isFinite(point.lat)&&Number.isFinite(point.lon)&&Math.abs(point.lat)<=90&&Math.abs(point.lon)<=180?point:null;
+}
+function nfMileagePath(line){
+  const steps=Array.isArray(line.etapes)?line.etapes.filter(step=>typeof step==='string').map(step=>step.trim()).filter(Boolean):[];
+  return [String(line.depart||'').trim(),...steps,String(line.arrivee||'').trim()];
+}
+function nfMileageSignature(line){
+  return JSON.stringify([nfMileagePath(line),!!line.allerRetour,line.km,line.depLat,line.depLon,line.arrLat,line.arrLon,line.googleMapsUrl]);
+}
+function nfGeocodePoint(address,book,active){
+  const coordinates=address.match(/^([+-]?\d+(?:\.\d+)?)\s*,\s*([+-]?\d+(?:\.\d+)?)$/);
+  const point=coordinates?nfCoordinates(coordinates[1],coordinates[2]):book.get(address);
+  if(point)return Promise.resolve(point);
+  const request=nfGeocodeQueue.then(async()=>{
+    if(!active())return null;
+    const delay=nfNextGeocodeAt-Date.now();
+    if(delay>0)await new Promise(resolve=>setTimeout(resolve,delay));
+    if(!active())return null;
+    if(book.has(address))return book.get(address);
+    nfNextGeocodeAt=Date.now()+1100;
+    const result=await geocodeOSM(address);
+    book.set(address,result);
+    return result;
+  });
+  nfGeocodeQueue=request.catch(()=>null);
+  return request;
 }
 async function nfCalcItineraire(i){
-  nfSync(); const l=nfDraft.lignes[i];
-  const user=AUTH_USER,draft=nfDraft;
-  const dep=(l.depart||'').trim(), arr=(l.arrivee||'').trim();
-  if(!dep||!arr){ toast('Renseignez le départ et l\'arrivée'); return; }
+  nfSync();
+  const user=AUTH_USER,draft=nfDraft,line=draft?.lignes[i];
+  if(line?.categorie!=='Frais kilométriques')return;
+  const path=nfMileagePath(line);
+  if(!path[0]||!path.at(-1)){toast('Renseignez le départ et l’arrivée');return;}
+  const initial=nfMileageSignature(line),request=Symbol();
+  nfRouteRequests.set(line,request);
+  const active=()=>AUTH_USER===user&&nfDraft===draft&&draft.lignes.includes(line)&&!!$('#nfLines')&&nfRouteRequests.get(line)===request;
+  const current=()=>{
+    if(!active())return false;
+    nfSync();
+    return line.categorie==='Frais kilométriques'&&nfMileageSignature(line)===initial;
+  };
   toast('Calcul de l\'itinéraire…');
   try{
-    let ga=(l.depLat!=null&&l.depLon!=null)?{lat:l.depLat,lon:l.depLon}:null;
-    let gb=(l.arrLat!=null&&l.arrLon!=null)?{lat:l.arrLat,lon:l.arrLon}:null;
-    const needA=!ga, needB=!gb;
-    if(needA) ga=await geocodeOSM(dep);
-    if(needB){ if(needA) await new Promise(r=>setTimeout(r,1100)); gb=await geocodeOSM(arr); }
-    let km=Math.round(await routeKmOSM(ga,gb));
-    if(AUTH_USER!==user||nfDraft!==draft||!draft.lignes.includes(l)||!$('#nfLines'))return;
-    nfSync();if((l.depart||'').trim()!==dep||(l.arrivee||'').trim()!==arr){toast('Le trajet a changé. Relancez le calcul des kilomètres.');return;}
-    if(l.allerRetour) km*=2;
-    l.km=km; l.montant=calcKm(l.vehicule||'voiture',String(l.cv||baremeCv(l.vehicule||'voiture')[0]),km,l.elec);
-    renderNoteEditor(); toast(km+' km calculés'+(l.allerRetour?' (A/R)':''));
-  }catch(e){ toast(e.message||'Calcul impossible — saisissez les km manuellement'); }
+    const book=nfAddressBook(draft),points=[];
+    for(const [index,address] of path.entries()){
+      const stored=index===0?nfCoordinates(line.depLat,line.depLon):index===path.length-1?nfCoordinates(line.arrLat,line.arrLon):null;
+      const point=stored||await nfGeocodePoint(address,book,current);
+      if(!point||!current())return;
+      points.push(point);
+    }
+    const distance=await routeKmOSM(points);
+    if(!current())return;
+    const km=Math.round(distance)*(line.allerRetour?2:1);
+    nfApplyMileage(line,km,'osm');
+    renderNoteEditor();
+    toast(km+' km calculés'+(line.allerRetour?' (A/R)':''));
+  }catch(e){if(current())toast(e.message||'Calcul impossible. Saisissez les km manuellement.');}
+  finally{if(nfRouteRequests.get(line)===request)nfRouteRequests.delete(line);}
 }
-function nfOpenMaps(i){
-  nfSync(); const l=nfDraft.lignes[i]; const dep=(l.depart||'').trim(), arr=(l.arrivee||'').trim();
-  if(!dep||!arr){ toast('Renseignez le départ et l\'arrivée'); return; }
-  window.open('https://www.google.com/maps/dir/?api=1&origin='+encodeURIComponent(dep)+'&destination='+encodeURIComponent(arr),'_blank');
+function nfApplyMileage(line,km,source){
+  line.km=km;
+  line.kmSource=source;
+  line.montant=calcKm(line.vehicule,String(line.cv),km,line.elec);
+}
+function nfOpenMaps(i,storedLink){
+  nfSync();
+  const line=nfDraft?.lignes[i];
+  if(line?.categorie!=='Frais kilométriques')return;
+  if(storedLink&&line.googleMapsUrl===storedLink){window.open(storedLink,'_blank','noopener,noreferrer');return;}
+  let path=nfMileagePath(line);
+  if(!path[0]||!path.at(-1)){toast('Renseignez le départ et l’arrivée');return;}
+  if(path.length>11){toast('Google Maps accepte jusqu’à 9 étapes intermédiaires par lien.');return;}
+  if(line.allerRetour){
+    const roundTrip=[...path,...path.slice(0,-1).reverse()];
+    if(roundTrip.length<=11)path=roundTrip;
+    else toast('Google Maps s’ouvre sur l’aller. Le trajet complet dépasse la limite du lien.');
+  }
+  const url=new URL('https://www.google.com/maps/dir/');
+  url.search=new URLSearchParams({api:'1',origin:path[0],destination:path.at(-1),travelmode:'driving'});
+  if(path.length>2)url.searchParams.set('waypoints',path.slice(1,-1).join('|'));
+  if(url.href.length>2048){toast('Le lien Google Maps est trop long. Raccourcissez les libellés des adresses.');return;}
+  window.open(url.href,'_blank','noopener,noreferrer');
+}
+function nfImportMaps(i,route,km){
+  nfSync();
+  const line=nfDraft?.lignes[i];
+  if(line?.categorie!=='Frais kilométriques')return;
+  nfRouteRequests.delete(line);
+  const places=route.places;
+  if(places){
+    line.depart=places.departure;
+    line.etapes=places.stops;
+    line.arrivee=places.arrival;
+    line.depLat=line.depLon=line.arrLat=line.arrLon=null;
+    if(line.depart.localeCompare(line.arrivee,'fr',{sensitivity:'accent'})===0)line.allerRetour=false;
+  }
+  line.googleMapsUrl=route.url;
+  line.googleMapsKm=km;
+  nfMapsDrafts.delete(line);
+  nfApplyMileage(line,km,'google');
+  renderNoteEditor();
+  toast(places?'Itinéraire et distance Google Maps repris':'Lien et distance Google Maps repris');
 }
 
-let _acTimer=null, _acByLabel={};
 async function nfGeoSuggest(q){
-  try{ const r=await fetch('https://api-adresse.data.gouv.fr/search/?autocomplete=1&limit=6&q='+encodeURIComponent(q));
+  try{ const r=await fetch('https://api-adresse.data.gouv.fr/search/?autocomplete=1&limit=6&q='+encodeURIComponent(q),{signal:AbortSignal.timeout(6000)});
     if(r.ok){ const j=await r.json(); if(j&&j.features&&j.features.length) return j.features.map(f=>({lon:f.geometry.coordinates[0],lat:f.geometry.coordinates[1],label:(f.properties.label||f.properties.name||'')})); } }catch(e){}
-  try{ const r=await fetch('https://photon.komoot.io/api/?lang=fr&limit=6&q='+encodeURIComponent(q));
+  try{ const r=await fetch('https://photon.komoot.io/api/?lang=fr&limit=6&q='+encodeURIComponent(q),{signal:AbortSignal.timeout(6000)});
     const j=await r.json(); return ((j&&j.features)||[]).map(f=>{ const p=f.properties||{}, c=(f.geometry||{}).coordinates||[0,0];
       const main=[p.name,p.housenumber].filter(Boolean).join(' ')||p.street||p.city||p.country||'';
       const sub=[(p.street&&p.street!==p.name)?p.street:'',p.postcode,p.city,p.state,p.country].filter(Boolean).join(', ');
       return {lon:c[0],lat:c[1],label:(main+(sub?', '+sub:''))}; }); }catch(e){}
   return [];
 }
-function nfAddrInput(i,field){
-  const inp=$('#nfl-'+field+'-'+i); if(!inp) return; const l=nfDraft.lignes[i]; if(!l) return; const v=inp.value;
-  if(field==='dep'){ l.depart=v; const c=_acByLabel[v]; l.depLat=c?c.lat:null; l.depLon=c?c.lon:null; }
-  else { l.arrivee=v; const c=_acByLabel[v]; l.arrLat=c?c.lat:null; l.arrLon=c?c.lon:null; }
-  const q=v.trim(); if(q.length<3) return;
-  clearTimeout(_acTimer);
-  _acTimer=setTimeout(async()=>{
-    const data=await nfGeoSuggest(q); const dl=$('#nfdl-'+field+'-'+i); if(!dl) return;
-    let opts='';
-    data.forEach(o=>{ if(!o.label) return; _acByLabel[o.label]={lat:o.lat,lon:o.lon}; opts+='<option value="'+String(o.label).replace(/"/g,'&quot;')+'"></option>'; });
-    dl.innerHTML=opts;
+function nfAddrInput(i,input){
+  const draft=nfDraft,line=draft?.lignes[i],list=input.list;
+  if(!line||!list)return;
+  nfMileageRouteEdited(i);
+  const query=input.value.trim();
+  clearTimeout(nfAddressTimers.get(input));
+  list.replaceChildren();
+  if(query.length<3||nfAddressBook(draft).has(query))return;
+  const timer=setTimeout(async()=>{
+    const suggestions=await nfGeoSuggest(query);
+    if(nfDraft!==draft||!input.isConnected||input.value.trim()!==query||nfAddressTimers.get(input)!==timer)return;
+    const book=nfAddressBook(draft),options=[];
+    for(const suggestion of suggestions){
+      const position=nfCoordinates(suggestion.lat,suggestion.lon);
+      if(!position||!suggestion.label)continue;
+      book.set(suggestion.label,position);
+      const option=document.createElement('option');
+      option.value=suggestion.label;
+      options.push(option);
+    }
+    list.replaceChildren(...options);
   },300);
+  nfAddressTimers.set(input,timer);
 }
 function nfInitSign(){
   const cv=$('#nfSign'); if(!cv) return; const ctx=cv.getContext&&cv.getContext('2d'); if(!ctx) return;
@@ -2068,14 +2169,55 @@ function nfSync(){
       const vt=g('#nfl-vt-'+i); if(vt!==undefined) l.vehicule=vt;
       const cv=g('#nfl-cv-'+i); if(cv!==undefined) l.cv=cv;
       const km=g('#nfl-km-'+i); if(km!==undefined) l.km=Number(km)||0;
-      const dep=g('#nfl-dep-'+i); if(dep!==undefined) l.depart=dep;
-      const arr=g('#nfl-arr-'+i); if(arr!==undefined) l.arrivee=arr;
-      const ar=$('#nfl-ar-'+i); if(ar) l.allerRetour=ar.checked;
+      nfSyncMileageRoute(l,i);
       const el=$('#nfl-elec-'+i); if(el) l.elec=el.checked;
       if(!l.vehicule) l.vehicule='voiture'; if(!l.cv) l.cv=baremeCv(l.vehicule)[0];
       l.montant=calcKm(l.vehicule, String(l.cv), l.km||0, l.elec);
     } else { const mo=g('#nfl-montant-'+i); if(mo!==undefined) l.montant=Number(mo)||0; }
   });
+}
+function nfSyncMileageRoute(line,index){
+  const route=$('#nfl-route-'+index);
+  if(!route)return;
+  const before=JSON.stringify([nfMileagePath(line),!!line.allerRetour]);
+  const dep=$('#nfl-dep-'+index).value,arr=$('#nfl-arr-'+index).value;
+  const book=nfAddressBook(nfDraft);
+  if(dep.trim()!==String(line.depart||'').trim()){
+    const point=book.get(dep.trim());
+    line.depLat=point?.lat??null;
+    line.depLon=point?.lon??null;
+  }
+  if(arr.trim()!==String(line.arrivee||'').trim()){
+    const point=book.get(arr.trim());
+    line.arrLat=point?.lat??null;
+    line.arrLon=point?.lon??null;
+  }
+  line.depart=dep;
+  line.arrivee=arr;
+  const stops=[...route.querySelectorAll('[data-nf-stop]')].map(input=>input.value);
+  if(stops.length||Array.isArray(line.etapes))line.etapes=stops;
+  line.allerRetour=$('#nfl-ar-'+index).checked;
+  if(before===JSON.stringify([nfMileagePath(line),line.allerRetour]))return;
+  delete line.googleMapsUrl;
+  delete line.googleMapsKm;
+  if(line.kmSource){
+    delete line.kmSource;
+    line.km=0;
+    const input=$('#nfl-km-'+index);
+    if(input)input.value=0;
+  }
+}
+function nfMileageRouteEdited(i){
+  const line=nfDraft?.lignes[i];
+  if(!line||!line.kmSource)return;
+  nfTot();
+  if(line.kmSource)return;
+  nfRefreshMileageLine(i);
+  toast('Itinéraire modifié. Renseignez à nouveau la distance.');
+}
+function nfSetMapsDraft(i,fields){
+  const line=nfDraft?.lignes[i];
+  if(line)nfMapsDrafts.set(line,{...nfMapsDrafts.get(line),...fields});
 }
 function nfSetProjects(projects){
   nfDraft.projects=projects;
@@ -2089,9 +2231,20 @@ function nfCloseEditor(){
   nfInitial=null;
   closeModal();
 }
-function nfItinSync(i){ const l=nfDraft.lignes[i]; if(!l) return; const dep=$('#nfl-dep-'+i), arr=$('#nfl-arr-'+i), ar=$('#nfl-ar-'+i); if(dep) l.depart=dep.value; if(arr) l.arrivee=arr.value; if(ar) l.allerRetour=ar.checked; }
 function nfTot(){ nfSync(); const d=$('#nfTotalDisp'); if(d) d.textContent=eur2(nfTotal(nfDraft)); const r=$('#nfRembDisp'); if(r) r.textContent=eur2(nfRembourse(nfDraft)); }
-function nfLineKm(i){ nfSync(); const l=nfDraft.lignes[i]; const ind=$('#nfl-ind-'+i); if(ind) ind.textContent=eur2(l.montant||0); const bm=$('#nfl-bareme-'+i); if(bm) bm.innerHTML=baremeFormule(l.vehicule,String(l.cv),l.km||0)+(l.elec?' ×1,2':''); const mi=$('#nfl-montant-'+i); if(mi) mi.value=l.montant; nfTot(); }
+function nfRefreshMileageLine(i){
+  nfTot();
+  const line=nfDraft.lignes[i],ind=$('#nfl-ind-'+i),formula=$('#nfl-bareme-'+i),amount=$('#nfl-montant-'+i);
+  if(ind)ind.textContent=eur2(line.montant||0);
+  if(formula)formula.textContent=baremeFormule(line.vehicule,String(line.cv),line.km||0)+(line.elec?' ×1,2':'');
+  if(amount)amount.value=line.montant;
+}
+function nfLineKm(i){
+  const line=nfDraft.lignes[i];
+  nfRouteRequests.delete(line);
+  delete line.kmSource;
+  nfRefreshMileageLine(i);
+}
 function nfLineChanged(i){ nfSync(); const l=nfDraft.lignes[i]; if(l&&l.categorie==='Frais kilométriques'){ if(!l.vehicule)l.vehicule='voiture'; const cvs=baremeCv(l.vehicule); if(cvs.indexOf(String(l.cv))<0)l.cv=cvs[0]; l.montant=calcKm(l.vehicule,String(l.cv),l.km||0,l.elec); } renderNoteEditor(); }
 function nfDureeUpd(){ const e=$('#nfDuree'); if(e) e.value=nfCalcDuree($('#nfD1').value,$('#nfD2').value); }
 function nfAddLine(){ nfSync(); nfDraft.lignes.push({id:uid(),date:ymd(new Date()),categorie:NF_CATS[0],description:'',montant:0}); renderNoteEditor(); }
@@ -2125,6 +2278,9 @@ function saveNoteFrais(thenPdf){
   const arr=notesFrais(); const idx=arr.findIndex(x=>x.id===n.id);
   const prevPaid = idx>=0 && arr[idx] && arr[idx].statut==='Payée';
   const copy=JSON.parse(JSON.stringify(n));
+  for(const line of copy.lignes||[]){
+    if(line.categorie==='Frais kilométriques'&&Array.isArray(line.etapes))line.etapes=nfMileagePath(line).slice(1,-1);
+  }
   if(idx<0)copy.createdAt=new Date().toISOString();
   if(idx>=0) arr[idx]=copy; else arr.push(copy);
   save(); toastSaved('Note de frais enregistrée');
@@ -2198,13 +2354,30 @@ async function exportNoteFraisPDF(id,preview=false){
     doc.text('Date',COL.d,y+5); doc.text('Catégorie',COL.c,y+5); doc.text('Description',COL.de,y+5); doc.text('Montant',COL.m,y+5,{align:'right'}); y+=7;
     doc.setTextColor(30,32,40); doc.setFont(F,'normal'); doc.setFontSize(9);
     (n.lignes||[]).forEach((l,idx)=>{
-      let desc=l.description||''; if(l.categorie==='Frais kilométriques'&&l.km){ desc=(desc?desc+' - ':'')+(l.depart&&l.arrivee?l.depart+' -> '+l.arrivee+(l.allerRetour?' (A/R)':'')+', ':'')+l.km+' km '+((BAREME_KM[l.vehicule]||{}).label||'')+' '+l.cv+' CV'+(l.elec?' elec.':'')+' ('+baremeFormule(l.vehicule,String(l.cv),l.km)+(l.elec?' x1,2':'')+')'; }
+      let desc=l.description||'';
+      if(l.categorie==='Frais kilométriques'&&l.km){
+        const path=nfMileagePath(l);
+        const itinerary=path[0]&&path.at(-1)?path.join(' -> ')+(l.allerRetour?' (A/R)':'')+', ':'';
+        const distance=Number(l.km).toLocaleString('fr-FR',{useGrouping:false,maximumFractionDigits:20});
+        desc=(desc?desc+' - ':'')+itinerary+distance+' km '+((BAREME_KM[l.vehicule]||{}).label||'')+' '+l.cv+' CV'+(l.elec?' elec.':'')+' ('+baremeFormule(l.vehicule,String(l.cv),l.km)+(l.elec?' x1,2':'')+')';
+      }
       const dl=doc.splitTextToSize(clean(desc),DESC_W); const cl=doc.splitTextToSize(clean(l.categorie),CAT_W);
-      const nL=Math.max(dl.length,cl.length,1); const rh=nL*4.6+2.6;
-      if(y+rh>274){ doc.addPage(); y=18; }
-      if(idx%2===1){ doc.setFillColor(247,248,250); doc.rect(14,y,182,rh,'F'); }
-      doc.text(l.date?dateFR(l.date):'',COL.d,y+4.6); doc.text(cl,COL.c,y+4.6); doc.text(dl,COL.de,y+4.6); doc.text(nf2(l.montant),COL.m,y+4.6,{align:'right'});
-      y+=rh; doc.setDrawColor(228,231,236); doc.line(14,y,196,y);
+      const lines=Math.max(dl.length,cl.length,1),rowHeight=count=>count*4.6+2.6;
+      if(y+rowHeight(lines)>274){doc.addPage();y=18;}
+      for(let offset=0;offset<lines;){
+        const capacity=Math.floor((274-y-2.6)/4.6);
+        const count=Math.min(capacity,lines-offset),height=rowHeight(count);
+        if(idx%2===1){doc.setFillColor(247,248,250);doc.rect(14,y,182,height,'F');}
+        if(offset===0){
+          doc.text(l.date?dateFR(l.date):'',COL.d,y+4.6);
+          doc.text(nf2(l.montant),COL.m,y+4.6,{align:'right'});
+        }
+        if(cl.length>offset)doc.text(cl.slice(offset,offset+count),COL.c,y+4.6);
+        if(dl.length>offset)doc.text(dl.slice(offset,offset+count),COL.de,y+4.6);
+        y+=height;doc.setDrawColor(228,231,236);doc.line(14,y,196,y);
+        offset+=count;
+        if(offset<lines){doc.addPage();y=18;}
+      }
     });
     y+=8; if(y>250){ doc.addPage(); y=20; }
     const totLine=(label,val,bold,size)=>{ doc.setFont(F,bold?'bold':'normal'); doc.setFontSize(size||10); doc.text(label,150,y,{align:'right'}); doc.text(val,194,y,{align:'right'}); y+=6; };
@@ -2471,8 +2644,8 @@ let financeModulePromise=null,financeMounted=null,financeEpoch=0,financeView=nul
 let financeEditorDispose=null,financeEditorEpoch=0,financeClientStatus='',financeClientError=false;
 let nfPage=1,nfPer=20;
 function financeModule(){
-  if(!$('#financeStyle')){const link=document.createElement('link');link.id='financeStyle';link.rel='stylesheet';link.href='platform/finance.css?v=expense-editor-20261126';document.head.append(link);}
-  return financeModulePromise ||= import('./platform/finance.js?v=expense-editor-20261126').catch(error=>{financeModulePromise=null;throw error;});
+  if(!$('#financeStyle')){const link=document.createElement('link');link.id='financeStyle';link.rel='stylesheet';link.href='platform/finance.css?v=expense-itinerary-20261126';document.head.append(link);}
+  return financeModulePromise ||= import('./platform/finance.js?v=expense-itinerary-20261126').catch(error=>{financeModulePromise=null;throw error;});
 }
 function financeForget(){financeEpoch++;financeMounted?.dispose();financeMounted=null;financeView=null;$('#financeRoot')?.remove();}
 function financeEditorForget(){financeEditorEpoch++;if(financeEditorDispose){financeEditorDispose();financeEditorDispose=null;}}
@@ -2526,8 +2699,9 @@ async function financeOpenEditor(kind,record,existing){
       const email=normEmail(s.email)||salEmail(s.matricule);
       return {matricule:s.matricule,nom:s.nom,prenom:s.prenom,photo:photoURL(s.photo)||(email?agendaPortrait(email):'')};
     }):[];
-    const actions={close:expense?nfCloseEditor:closeModal,projects:nfSetProjects,choosePdf:fvChoosePdf,ttcAuto:fvTtcAuto,lineChanged:nfLineChanged,total:nfTot,lineKm:nfLineKm,address:nfAddrInput,itinerarySync:nfItinSync,itinerary:nfCalcItineraire,maps:nfOpenMaps,duration:nfDureeUpd,addLine:nfAddLine,removeLine:nfRemoveLine,receipt:nfJustif,removeReceipt:nfJustifRemove,previewReceipt:nfJustifPreview,clearSignature:nfSignClear,saveExpense:saveNoteFrais,previewExpense:()=>exportNoteFraisPDF(null,true)};
-    financeEditorDispose=module.mountFinanceEditor(element,{loadProjects:nfLoadProjects,kind,record:expense?{...record,projects:nfProjects(record)}:record,existing,today:ymd(new Date()),employees,codes:codesAff(),lockedMat,paymentLocked:!isAlbert()&&record.statut==='Payée',categories:NF_CATS,statuses:nfStatutOptions(record.statut),vehicles:BAREME_KM,formula:baremeFormule,
+    const actions={close:expense?nfCloseEditor:closeModal,projects:nfSetProjects,choosePdf:fvChoosePdf,ttcAuto:fvTtcAuto,lineChanged:nfLineChanged,total:nfTot,lineKm:nfLineKm,address:nfAddrInput,itinerarySync:nfMileageRouteEdited,itinerary:nfCalcItineraire,maps:nfOpenMaps,importMaps:nfImportMaps,mapsDraft:nfSetMapsDraft,duration:nfDureeUpd,addLine:nfAddLine,removeLine:nfRemoveLine,receipt:nfJustif,removeReceipt:nfJustifRemove,previewReceipt:nfJustifPreview,clearSignature:nfSignClear,saveExpense:saveNoteFrais,previewExpense:()=>exportNoteFraisPDF(null,true)};
+    const mapsDrafts=expense?(record.lignes||[]).map(line=>nfMapsDrafts.get(line)):[];
+    financeEditorDispose=module.mountFinanceEditor(element,{loadProjects:nfLoadProjects,kind,record:expense?{...record,projects:nfProjects(record)}:record,existing,today:ymd(new Date()),employees,codes:codesAff(),lockedMat,mapsDrafts,paymentLocked:!isAlbert()&&record.statut==='Payée',categories:NF_CATS,statuses:nfStatutOptions(record.statut),vehicles:BAREME_KM,formula:baremeFormule,
       act:(name,...args)=>{if(AUTH_USER===user&&element.isConnected)return actions[name]?.(...args);},
       save:values=>{if(AUTH_USER!==user||!element.isConnected)throw new Error('La session ou le formulaire a changé.');return kind==='code'?saveCodeAffaire(existing?record.id:'',values):saveFacture(existing?record.id:'',values);},
       init:()=>{if(kind==='invoice')fvInitPdfForm(existing);if(kind==='expense')nfInitSign();}

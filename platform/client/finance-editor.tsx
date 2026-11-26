@@ -6,11 +6,14 @@ import {createRoot} from 'react-dom/client';
 import {flushSync} from 'react-dom';
 import type {BusinessCode,Invoice,Expense,ExpenseLine,ExpenseProject,Employee} from './finance-domain';
 import {codeInput,invoiceInput,codeKey,codeLabel,money,expenseTotal,expenseRefund,expenseStatus} from './finance-domain';
+import {displayedKilometres,sharedGoogleRoute} from './expense-itinerary';
 
+type MapsDraft = {open?:boolean;link?:string;distance?:string};
 export interface EditorProps {
   loadProjects:()=>Promise<{projects:{id:string;name:string;clientName:string;archived:boolean;startDate?:string;endDate?:string}[]}>;
   kind:'code'|'invoice'|'expense';record:BusinessCode|Invoice|Expense;existing:boolean;today:string;
   employees:Employee[];codes:BusinessCode[];lockedMat:string|null;paymentLocked:boolean;
+  mapsDrafts:(MapsDraft|undefined)[];
   categories:string[];statuses:string[];vehicles:Record<string,{label:string;cv:Record<string,unknown>}>;
   formula:(vehicle:string,cv:string,km:unknown)=>string;
   act:(name:string,...args:any[])=>any;save:(value:unknown)=>Promise<void>|void;init:()=>void;
@@ -32,6 +35,78 @@ function InvoiceEditor(p:EditorProps){const f=p.record as Invoice;return <><head
   <Field id="fvClient" label="Client" initial={f.client} list="cdiClientsList"/><Field id="fvHT" label="Montant HT (€)" type="number" step="0.01" initial={f.ht} onInput={()=>p.act('ttcAuto')}/><Field id="fvTTC" label="Montant TTC (€)" type="number" step="0.01" initial={f.ttc}/>
   <Field id="fvSent" label="Envoyée le" type="date" initial={f.dateEnvoi} min={f.dateFacture||undefined} max={p.today}/><Field id="fvPay" label="Date de paiement" type="date" initial={f.datePaiement}/>
   </div></div><Buttons><button type="button" className="btn btn-ghost" onClick={()=>p.act('close')}>Annuler</button><button type="submit" className="btn btn-primary" id="fvSave">{p.existing?'Enregistrer':'Créer la facture'}</button></Buttons></>;}
+function MileageItinerary({line,index,mapsDraft,act}:{line:ExpenseLine;index:number;mapsDraft?:MapsDraft;act:EditorProps['act']}){
+  const [stops,setStops]=useState(Array.isArray(line.etapes)?line.etapes.filter(stop=>typeof stop==='string'):[]);
+  const [error,setError]=useState('');
+  const storedLink=line.googleMapsUrl&&sharedGoogleRoute(line.googleMapsUrl)?.url;
+  const routeId=(field:string)=>'nfl-'+field+'-'+index;
+  const linkId=routeId('maps-link'),distanceId=routeId('maps-km');
+  const inputId=(stop:number)=>routeId('stop')+'-'+stop;
+  useEffect(()=>{act('itinerarySync',index);},[act,index,stops]);
+  const addStop=()=>{
+    setStops([...stops,'']);
+    requestAnimationFrame(()=>document.getElementById(inputId(stops.length))?.focus());
+  };
+  const moveStop=(from:number,to:number)=>{
+    const next=stops.slice();
+    [next[from],next[to]]=[next[to],next[from]];
+    setStops(next);
+  };
+  const apply=(details:HTMLElement)=>{
+    const link=details.querySelector<HTMLInputElement>('#'+linkId)!;
+    const distance=details.querySelector<HTMLInputElement>('#'+distanceId)!;
+    const route=sharedGoogleRoute(link.value);
+    if(!route){setError('Collez un lien d’itinéraire Google Maps valide.');link.focus();return;}
+    const km=displayedKilometres(distance.value);
+    if(km===null){setError('Saisissez la distance totale affichée, par exemple 123,4 km.');distance.focus();return;}
+    setError('');
+    act('importMaps',index,route,km);
+  };
+  return <>
+    <div className="finance-route" id={routeId('route')}>
+      <div className="finance-route-place">
+        <input className="inp slim" id={routeId('dep')} list={routeId('dep-options')} aria-label="Départ (ville / adresse)" placeholder="Départ (ville / adresse)" defaultValue={line.depart||''} autoComplete="off" onInput={e=>act('address',index,e.currentTarget)}/>
+        <datalist id={routeId('dep-options')}/>
+      </div>
+      {stops.map((stop,position)=><div className="finance-route-place" key={position}>
+        <input className="inp slim" id={inputId(position)} data-nf-stop list={inputId(position)+'-options'} aria-label={'Étape '+(position+1)+' (ville / adresse)'} placeholder={'Étape '+(position+1)+' (ville / adresse)'} value={stop} autoComplete="off" onChange={e=>{
+          const value=e.currentTarget.value;
+          setStops(stops.map((previous,i)=>i===position?value:previous));
+          act('address',index,e.currentTarget);
+        }}/>
+        <datalist id={inputId(position)+'-options'}/>
+        <div className="finance-route-order">
+          <button type="button" className="btn btn-ghost btn-sm" aria-label={'Monter l’étape '+(position+1)} disabled={position===0} onClick={()=>moveStop(position,position-1)}>↑</button>
+          <button type="button" className="btn btn-ghost btn-sm" aria-label={'Descendre l’étape '+(position+1)} disabled={position===stops.length-1} onClick={()=>moveStop(position,position+1)}>↓</button>
+          <button type="button" className="btn btn-ghost btn-sm" aria-label={'Retirer l’étape '+(position+1)} onClick={()=>setStops(stops.filter((_,i)=>i!==position))}>×</button>
+        </div>
+      </div>)}
+      <div className="finance-route-place">
+        <input className="inp slim" id={routeId('arr')} list={routeId('arr-options')} aria-label="Arrivée (ville / adresse)" placeholder="Arrivée (ville / adresse)" defaultValue={line.arrivee||''} autoComplete="off" onInput={e=>act('address',index,e.currentTarget)}/>
+        <datalist id={routeId('arr-options')}/>
+      </div>
+    </div>
+    <div className="finance-route-actions">
+      <button type="button" className="btn btn-ghost btn-sm" onClick={addStop}>Ajouter une étape</button>
+      <label className="finance-check"><input type="checkbox" id={routeId('ar')} defaultChecked={line.allerRetour} onChange={()=>act('itinerarySync',index)}/> A/R ×2</label>
+      <button type="button" className="btn btn-primary btn-sm" onClick={()=>act('itinerary',index)}>Calculer les km</button>
+      <button type="button" className="btn btn-ghost btn-sm" onClick={()=>act('maps',index,storedLink)}>Google Maps</button>
+    </div>
+    <details className="finance-maps-import" open={mapsDraft?.open} onToggle={e=>act('mapsDraft',index,{open:e.currentTarget.open})}>
+      <summary>Importer depuis Google Maps</summary>
+      <p className="hint">Collez le lien partagé et la distance totale affichée dans Google Maps. Pour un aller-retour, renseignez la distance de l’ensemble du trajet.</p>
+      <div className="finance-maps-fields">
+        <Field id={linkId} label="Lien Google Maps" type="url" initial={mapsDraft?.link??storedLink} placeholder="https://maps.app.goo.gl/…" autoComplete="off" onInput={e=>act('mapsDraft',index,{link:e.currentTarget.value})}/>
+        <Field id={distanceId} label="Distance affichée (km)" initial={mapsDraft?.distance??line.googleMapsKm?.toLocaleString('fr-FR',{maximumFractionDigits:20})} inputMode="decimal" placeholder="ex. 123,4" onInput={e=>act('mapsDraft',index,{distance:e.currentTarget.value})}/>
+      </div>
+      <div className="finance-route-actions">
+        <button type="button" className="btn btn-primary btn-sm" onClick={e=>apply(e.currentTarget.closest('details')!)}>Appliquer à la ligne</button>
+        {storedLink&&<a className="btn btn-ghost btn-sm" href={storedLink} target="_blank" rel="noopener noreferrer">Ouvrir le lien enregistré</a>}
+      </div>
+      {error&&<p role="alert" className="finance-maps-error">{error}</p>}
+    </details>
+  </>;
+}
 function ExpenseLineEditor({line:l,index:i,p}:{line:ExpenseLine;index:number;p:EditorProps}){
   const km=l.categorie==='Frais kilométriques',vehicle=l.vehicule||'voiture',cvs=Object.keys(p.vehicles[vehicle]?.cv||{});
   const id=(field:string)=>'nfl-'+field+'-'+i;
@@ -40,13 +115,10 @@ function ExpenseLineEditor({line:l,index:i,p}:{line:ExpenseLine;index:number;p:E
     <Field id={id('montant')} label="Montant €" type="number" step="0.01" readOnly={km} initial={l.montant} onInput={()=>p.act('total')}/>
     <div className="form-row"><label>Justificatif</label><div className="finance-justif">{l.justificatif?<><button type="button" className="btn btn-ghost btn-sm" title={l.justName||'Justificatif'} onClick={()=>p.act('previewReceipt',i)}>Voir</button><button type="button" className="icon-btn" title="Retirer le justificatif" aria-label="Retirer le justificatif" onClick={()=>p.act('removeReceipt',i)}>×</button></>:<label className="btn btn-ghost btn-sm finance-file">Joindre<input type="file" accept="image/*,application/pdf" aria-label="Joindre un justificatif" onChange={e=>p.act('receipt',i,e.currentTarget)}/></label>}<button type="button" className="btn btn-ghost btn-sm finance-danger" aria-label="Supprimer la ligne" onClick={()=>p.act('removeLine',i)}>Supprimer</button></div></div>
   </div>
-  {km&&<div className="nf-km"><div className="nf-itin">
-    <input className="inp slim" id={id('dep')} list={'nfdl-dep-'+i} aria-label="Départ (ville / adresse)" placeholder="Départ (ville / adresse)" defaultValue={l.depart||''} autoComplete="off" onInput={()=>p.act('address',i,'dep')}/><datalist id={'nfdl-dep-'+i}/><span aria-hidden="true">→</span>
-    <input className="inp slim" id={id('arr')} list={'nfdl-arr-'+i} aria-label="Arrivée (ville / adresse)" placeholder="Arrivée (ville / adresse)" defaultValue={l.arrivee||''} autoComplete="off" onInput={()=>p.act('address',i,'arr')}/><datalist id={'nfdl-arr-'+i}/>
-    <label className="finance-check"><input type="checkbox" id={id('ar')} defaultChecked={l.allerRetour} onChange={()=>p.act('itinerarySync',i)}/> A/R ×2</label><button type="button" className="btn btn-primary btn-sm" onClick={()=>p.act('itinerary',i)}>Calculer les km</button><button type="button" className="btn btn-ghost btn-sm" onClick={()=>p.act('maps',i)}>Google Maps</button>
-  </div><div className="finance-km-fields"><div className="form-row"><label htmlFor={id('vt')}>Véhicule</label><select className="inp slim" id={id('vt')} defaultValue={vehicle} onChange={()=>p.act('lineChanged',i)}>{Object.entries(p.vehicles).map(([v,data])=><option key={v} value={v}>{data.label}</option>)}</select></div>
+  {km&&<div className="nf-km"><MileageItinerary line={l} index={i} mapsDraft={p.mapsDrafts[i]} act={p.act}/>
+  <div className="finance-km-fields"><div className="form-row"><label htmlFor={id('vt')}>Véhicule</label><select className="inp slim" id={id('vt')} defaultValue={vehicle} onChange={()=>p.act('lineChanged',i)}>{Object.entries(p.vehicles).map(([v,data])=><option key={v} value={v}>{data.label}</option>)}</select></div>
     <div className="form-row"><label htmlFor={id('cv')}>Puiss. fiscale</label><select className="inp slim" id={id('cv')} defaultValue={String(l.cv||cvs[0])} onChange={()=>p.act('lineChanged',i)}>{cvs.map(cv=><option key={cv}>{cv}</option>)}</select></div>
-    <Field id={id('km')} label="Km" type="number" initial={l.km} onInput={()=>p.act('lineKm',i)}/><label className="finance-check"><input type="checkbox" id={id('elec')} defaultChecked={l.elec} onChange={()=>p.act('lineChanged',i)}/> Électrique (+20%)</label>
+    <Field id={id('km')} label="Km" type="number" min={0} step="any" initial={l.km} onInput={()=>p.act('lineKm',i)}/><label className="finance-check"><input type="checkbox" id={id('elec')} defaultChecked={l.elec} onChange={()=>p.act('lineChanged',i)}/> Électrique (+20%)</label>
     <div className="finance-km-formula">Forfait : <b id={id('bareme')}>{p.formula(vehicle,String(l.cv||cvs[0]),l.km||0)}{l.elec?' ×1,2':''}</b> → Indemnité : <b id={id('ind')}>{money(l.montant)}</b></div>
   </div></div>}
   <div style={{marginTop:8}}><Field id={id('desc')} label="Description / commentaire" initial={l.description}/></div></div>;

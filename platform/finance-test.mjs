@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {codesFiltered,invoicesFiltered,expensesFiltered,paginate,expenseTotal,expenseRefund,expenseStatus,codeKey} from './client/finance-domain.ts';
+import {displayedKilometres,sharedGoogleRoute} from './client/expense-itinerary.ts';
 const codes=[{id:'a',code1:24,code2:7,label:'Etude',client:'Client A',montantHT:0,extension:{preserve:true}},{id:'b',code1:25,code2:1,label:'Suivi',client:'Client B',montantHT:100}];
 const invoices=Array.from({length:1216},(_,i)=>({id:'i'+i,number:'F-'+i,code:'2407',client:i%2?'Client A':'Client B',ht:i/100,ttc:i*1.2/100,dateFacture:i%3?'2026-10-18':'2025-09-01',pdfSource:{name:'source.pdf'},extension:{keep:i}}));
 const expenses=[{id:'n1',numero:1,matricule:'004',dateNote:'2026-10-01',objet:'Mission',statut:'Soumise',avance:10,lignes:[{montant:0.1},{montant:0.2}],unknown:{keep:true}},{id:'n2',numero:2,matricule:'001',dateNote:'2026-10-02',statut:'Payée',lignes:[{montant:100}]}];
@@ -14,4 +15,17 @@ assert.deepEqual(expensesFiltered(snapshot).map(v=>v.id),['n1']);assert.deepEqua
 assert.equal(expensesFiltered({...snapshot,admin:true}).length,2);assert.equal(expensesFiltered({...snapshot,filters:{...snapshot.filters,expenseStatus:'Envoyé'}}).length,1);
 assert.equal(expenseTotal(expenses[0]),0.3);assert.equal(expenseRefund(expenses[0]),-9.7);assert.equal(expenseStatus('Validée'),'Envoyé');
 assert.equal(JSON.stringify({codes,invoices,expenses}),before);
+const directions='https://www.google.com/maps/dir/?api=1&origin=Bastia&waypoints=Corte%7CSaint-Florent&destination=Calvi';
+const route={departure:'Bastia',stops:['Corte','Saint-Florent'],arrival:'Calvi'};
+assert.deepEqual(sharedGoogleRoute(directions),{url:directions,places:route});
+assert.deepEqual(sharedGoogleRoute('https://www.google.fr/maps/dir/Bastia/Corte/Saint-Florent/Calvi/@42.4,9.1,11z/data=!4m2').places,route);
+assert.deepEqual(sharedGoogleRoute('https://maps.app.goo.gl/TravelExample123'),{url:'https://maps.app.goo.gl/TravelExample123'});
+for(const url of ['https://www.google.com.example.com/maps/dir','https://www.google.com/maps/place/Bastia','http://maps.app.goo.gl/TravelExample123','javascript:alert(1)','https://www.google.com@external.example/maps/dir','https://a:b@www.google.com/maps/dir']){
+  assert.equal(sharedGoogleRoute(url),null,url);
+}
+assert.equal(displayedKilometres('1\u202f234,5 km'),1234.5);
+assert.equal(displayedKilometres('75.4'),75.4);
+assert.equal(displayedKilometres('12–15 km'),null);
+assert.equal(displayedKilometres('14 mi'),null);
+assert.equal(displayedKilometres('0'),null);
 console.log('Finance domain passed: 1,216 records, filtering, totals, pagination, scope isolation and immutable source records.');
