@@ -33,3 +33,48 @@ test('a successful wake does not bypass document validation or follow redirects'
  const result=await requestBillingPDF(new URL('https://renderer.test/api/billing/preflight-pdf'),'fictional-key',{document:{}},AbortSignal.timeout(5000));
  assert.equal(result.status,422);assert.equal(posts,2);assert.equal(gets,1);
 });
+
+test('a gateway 429 page wakes the sleeping service and preserves the request',async t=>{
+ let awake=false;const requests=[],payload={document:{title:'Fictional quote',references:{quoteNumber:'DEV-FICTITIOUS'}}};
+ t.mock.method(globalThis,'fetch',async(url,options)=>{
+  requests.push({url:String(url),...options});
+  if(options.method==='GET'){awake=true;return Response.json({ready:true});}
+  return awake?new Response('%PDF-fixture',{headers:{'Content-Type':'application/pdf'}}):new Response('<html>Starting</html>',{status:429,headers:{'Content-Type':'text/html'}});
+ });
+ const url=new URL('https://renderer.test/api/billing/preview-pdf'),signal=AbortSignal.timeout(5000);
+ const result=await requestBillingPDF(url,'synthetic-private-key',payload,signal);
+ assert.equal(result.status,200);assert.equal(await result.text(),'%PDF-fixture');
+ assert.deepEqual(requests.map(r=>r.method),['POST','GET','POST']);
+ assert.equal(requests[0].body,requests[2].body);assert.deepEqual(JSON.parse(requests[2].body),payload);
+ assert.ok(requests.every(r=>new URL(r.url).origin===url.origin&&r.redirect==='manual'&&r.signal===signal));
+});
+
+test('JSON application backpressure retries without a hosting wake',async t=>{
+ const methods=[];
+ t.mock.method(globalThis,'fetch',async(url,options)=>{
+  methods.push(options.method);
+  return methods.length===1?Response.json({detail:'Busy'},{status:429}):Response.json({valid:true});
+ });
+ const response=await requestBillingPDF(new URL('https://renderer.test/api/billing/preflight-pdf'),'synthetic-key',{document:{}},AbortSignal.timeout(5000));
+ assert.equal(response.status,200);assert.deepEqual(methods,['POST','POST']);
+});
+
+test('a transient network failure can wake and retry the same read-only render',async t=>{
+ const calls=[],payload={document:{title:'Synthetic invoice'}};
+ t.mock.method(globalThis,'fetch',async(url,options)=>{
+  calls.push({url:String(url),...options});
+  if(calls.length===1)throw new TypeError('Synthetic connection reset');
+  return Response.json(options.method==='GET'?{ready:true}:{valid:true});
+ });
+ const response=await requestBillingPDF(new URL('https://renderer.test/api/billing/preflight-pdf'),'synthetic-key',payload,AbortSignal.timeout(5000));
+ assert.equal(response.status,200);assert.deepEqual(calls.map(r=>r.method),['POST','GET','POST']);
+ assert.equal(calls[0].body,calls[2].body);assert.deepEqual(JSON.parse(calls[2].body),payload);
+});
+
+test('a cancelled request stops before another render or wake',async t=>{
+ const controller=new AbortController();let calls=0;
+ t.mock.method(globalThis,'fetch',async()=>{calls++;controller.abort();throw controller.signal.reason;});
+ t.mock.method(console,'warn',()=>{});
+ await assert.rejects(()=>requestBillingPDF(new URL('https://renderer.test/api/billing/preview-pdf'),'synthetic-key',{document:{}},controller.signal),error=>error===controller.signal.reason);
+ assert.equal(calls,1);
+});
