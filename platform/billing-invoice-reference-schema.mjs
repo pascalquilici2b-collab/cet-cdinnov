@@ -47,7 +47,7 @@ export const billingInvoiceReferenceActivateSchema=[
  `CREATE TRIGGER IF NOT EXISTS billing_external_series_guard BEFORE INSERT ON billing_external_number_series BEGIN
  SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM billing_documents d JOIN billing_number_series b ON b.id=NEW.base_series_id WHERE d.id=NEW.document_id AND d.version=NEW.document_version AND ${eligible('d','NEW.quote_number')}
  AND NOT EXISTS(SELECT 1 FROM billing_invoice_regularization_audits a WHERE a.document_id=d.id) AND b.kind='invoice' AND b.issuer_siren=NEW.issuer_siren AND b.issuer_siren=${cleanIssuer('d')} AND ${active('b')} AND ${regular('b')}
- AND NEW.width=b.width AND NEW.first_value BETWEEN 1 AND 999999999 AND length(NEW.prefix) BETWEEN 1 AND 26
+ AND NEW.width BETWEEN 1 AND 9 AND NEW.width=length(${referenceInvoiceStemSQL('b')}||${referenceSuffixSQL('NEW.quote_number')})-length(NEW.prefix) AND NEW.first_value BETWEEN 1 AND 999999999 AND length(NEW.prefix) BETWEEN 1 AND 26
  AND ${suffixShape('NEW.quote_number','NEW.prefix',referenceInvoiceStemSQL('b'),'NEW.width','NEW.first_value')}
  AND NEW.prefix<>${referenceCurrentPrefixSQL('b',"json_extract(d.data_json,'$.issueDate')")} AND NOT EXISTS(SELECT 1 FROM billing_number_series s WHERE s.id=NEW.series_id OR s.issuer_siren=NEW.issuer_siren AND s.prefix=NEW.prefix)) THEN RAISE(ABORT,'BILLING_EXTERNAL_SERIES_CONFLICT') END; END`,
  'DROP TRIGGER IF EXISTS billing_series_initial',initial,
@@ -76,3 +76,6 @@ export const billingInvoiceReferenceActivateSchema=[
  'DROP TRIGGER IF EXISTS billing_issuance_guard',issuance,
 ];
 export const billingInvoiceReferenceSchema=[...billingInvoiceReferencePrepareSchema,...billingInvoiceReferenceActivateSchema];
+// Targeted upgrade for already installed external-reference schemas. The audit,
+// counter, normal-series and immutable-history guards are left in place.
+export const billingInvoiceReferenceWidthSchema=['DROP TRIGGER IF EXISTS billing_external_series_guard',pick(billingInvoiceReferenceActivateSchema,'billing_external_series_guard')];

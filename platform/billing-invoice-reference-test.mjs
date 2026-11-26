@@ -7,6 +7,7 @@ import {migrateBilling} from './billing-schema.mjs';
 import {billingMonthlyNumberSchema,billingNumberSQL} from './billing-monthly-number-schema.mjs';
 import {createNumberSeries,reserveIssuance} from './billing-issuance.ts';
 import {automaticNumberSeries} from './billing-numbering.ts';
+import {billingInvoiceReferenceWidthSchema} from './billing-invoice-reference-schema.mjs';
 
 test('provided historical reference uses an isolated opaque prefix, exact saved consent and immutable audit',async()=>{
  const ctx=await testEnvironment(),user=users[0],date='2026-11-19',clientId=randomUUID();
@@ -74,5 +75,42 @@ test('an exact own historical reservation retains its original series and full n
   const regularized=await ok(await call('/documents/'+draft.id+'/regularize-invoice-reference','POST',{quoteNumber:'260318004',referenceConfirmed:true},draft.version));assert.equal(regularized.retiredNumber,undefined);
   const issued=await reserveIssuance(ctx.db,{id:randomUUID(),documentId:draft.id,documentVersion:regularized.version,seriesId:series.id},user);assert.equal(issued.sequenceValue,260318004);assert.equal(issued.number,'FAC-260318004');assert.equal((await ctx.db.prepare('SELECT next_value FROM billing_number_series WHERE id=?').bind(series.id).first()).next_value,260318005);
   assert.equal((await ctx.db.prepare('SELECT count(*) n FROM billing_external_number_series').first()).n,0);
+ }finally{await ctx.worker.dispose();}
+});
+
+test('historical reference width is preserved exactly, including the eight-digit VIS-GEMS structure',async()=>{
+ const ctx=await testEnvironment(),user=users[0],date='2026-11-19';
+ try{
+  await migrateBilling(ctx.db);const admin=await ctx.login(user);
+  const call=(path,method='GET',body,version)=>ctx.worker.dispatchFetch('https://local/api/v1/billing'+path,{method,headers:{Origin:'https://app.cdinnov.eu','X-CDInnov-Request':'1','Content-Type':'application/json',Cookie:admin.cookie,...(version===undefined?{}:{'If-Match':String(version)})},...(body===undefined?{}:{body:JSON.stringify(body)})});
+  const ok=async r=>{assert.ok(r.ok,await r.clone().text());return r.json();},get=doc=>call('/documents/'+doc.id+'/regularization-reference','GET',undefined,doc.version).then(ok),post=doc=>call('/documents/'+doc.id+'/regularize-invoice-reference','POST',{quoteNumber:doc.data.references.quoteNumber,referenceConfirmed:true},doc.version);
+  const series=await createNumberSeries(ctx.db,{id:randomUUID(),issuerSiren:'732829320',kind:'invoice',prefix:'FAC-AAAAMM',width:3,firstValue:81,startDate:'1970-01-01',endDate:'9999-12-31'},user);await ctx.db.prepare('INSERT INTO billing_monthly_series VALUES(?)').bind(series.id).run();await ctx.db.prepare('INSERT INTO billing_default_series VALUES(?,?,?)').bind('732829320','invoice',series.id).run();
+  const create=async ref=>{
+   const data={...invoiceFixture(),issueDate:date,dueDate:'2026-12-19',title:'Projet fictif — référence historique à largeur variable'};data.references={...data.references,quoteNumber:ref};const doc=await ok(await call('/documents','POST',{id:randomUUID(),data}));
+   await ctx.db.batch(billingMonthlyNumberSchema.filter(sql=>/billing_draft_number_guard/.test(sql)).map(sql=>ctx.db.prepare(sql)));await ctx.db.prepare(`INSERT INTO billing_draft_numbers SELECT d.id,s.id,s.issuer_siren,s.next_value,${billingNumberSQL('?')},?,?,? FROM billing_documents d JOIN billing_number_series s ON s.id=? WHERE d.id=?`).bind(date,date,date,new Date().toISOString(),user,series.id,doc.id).run();await migrateBilling(ctx.db);return doc;
+  };
+  const draft=await create('26031603');assert.equal((await ctx.db.prepare('SELECT number FROM billing_draft_numbers WHERE document_id=?').bind(draft.id).first()).number,'FAC-202611081');
+  const preview=await get(draft);assert.equal(preview.invoiceNumber,'FAC-26031603');assert.equal(preview.blockedReason,undefined);assert.equal(preview.reservationAction,'release');
+  const previousGuard=billingInvoiceReferenceWidthSchema[1].replace(/AND NEW.width BETWEEN 1 AND 9 AND NEW.width=[^\n]+? AND NEW.first_value/,'AND NEW.width=b.width AND NEW.first_value');assert.notEqual(previousGuard,billingInvoiceReferenceWidthSchema[1]);
+  await ctx.db.batch([ctx.db.prepare(billingInvoiceReferenceWidthSchema[0]),ctx.db.prepare(previousGuard)]);
+  // The targeted upgrade, not removal of the guard, is necessary for the new width.
+  assert.equal((await post(draft)).status,409);assert.equal((await ctx.db.prepare('SELECT count(*) n FROM billing_external_number_series').first()).n,0);assert.equal((await ctx.db.prepare('SELECT version FROM billing_documents WHERE id=?').bind(draft.id).first()).version,draft.version);
+  await ctx.db.batch(billingInvoiceReferenceWidthSchema.map(sql=>ctx.db.prepare(sql)));
+  const standardBefore=await ctx.db.prepare('SELECT * FROM billing_number_series WHERE id=?').bind(series.id).first(),ready=await ok(await post(draft));assert.equal(ready.regularization.invoiceNumber,'FAC-26031603');assert.deepEqual(ready.data,draft.data);assert.deepEqual(ready.totals,draft.totals);
+  const historical=await ctx.db.prepare("SELECT * FROM billing_number_series WHERE prefix='FAC-260316'").first();assert.equal(historical.width,2);assert.equal(historical.first_value,3);assert.equal(historical.next_value,3);
+  const issued=await reserveIssuance(ctx.db,{id:randomUUID(),documentId:draft.id,documentVersion:ready.version,seriesId:historical.id},user);assert.equal(issued.number,'FAC-26031603');assert.equal(issued.issueDate,date);assert.equal(issued.sequenceValue,3);assert.deepEqual(await ctx.db.prepare('SELECT * FROM billing_number_series WHERE id=?').bind(series.id).first(),standardBefore);
+  const next=await create('26031604'),nextReady=await ok(await post(next));assert.equal(nextReady.regularization.invoiceNumber,'FAC-26031604');assert.equal((await reserveIssuance(ctx.db,{id:randomUUID(),documentId:next.id,documentVersion:nextReady.version,seriesId:historical.id},user)).number,'FAC-26031604');
+  const gap=await create('26031609');assert.match((await get(gap)).blockedReason,/saut/);assert.equal((await post(gap)).status,409);
+  const padded=await create('260316005');assert.match((await get(padded)).blockedReason,/format.*historique/);assert.equal((await post(padded)).status,409);
+  const current=await create('DEV-20261103');assert.match((await get(current)).blockedReason,/format.*courante/);assert.equal((await post(current)).status,409);
+  const zero=await create('26031500');assert.match((await get(zero)).blockedReason,/positif/);assert.equal((await post(zero)).status,409);
+  for(const [ref,width] of [['2603173',1],['260319000000003',9]]){
+   const doc=await create(ref),value=await ok(await post(doc)),s=await ctx.db.prepare('SELECT * FROM billing_number_series WHERE prefix=?').bind('FAC-'+ref.slice(0,6)).first();assert.equal(s.width,width);assert.equal(value.regularization.invoiceNumber,'FAC-'+ref);assert.equal((await reserveIssuance(ctx.db,{id:randomUUID(),documentId:doc.id,documentVersion:value.version,seriesId:s.id},user)).number,'FAC-'+ref);
+  }
+  // Crossing 99 -> 100 is still the same width-two namespace, without rewriting it.
+  for(const ref of ['26032099','260320100']){
+   const doc=await create(ref),value=await ok(await post(doc)),s=await ctx.db.prepare("SELECT * FROM billing_number_series WHERE prefix='FAC-260320'").first();assert.equal(s.width,2);assert.equal((await reserveIssuance(ctx.db,{id:randomUUID(),documentId:doc.id,documentVersion:value.version,seriesId:s.id},user)).number,'FAC-'+ref);
+  }
+  assert.equal((await ctx.db.prepare("SELECT count(*) n FROM billing_documents WHERE kind='quote'").first()).n,0);
  }finally{await ctx.worker.dispose();}
 });

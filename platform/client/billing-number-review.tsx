@@ -1,4 +1,4 @@
-import {useEffect,useRef,useState} from 'react';
+import {useEffect,useId,useRef,useState} from 'react';
 import {CheckCircle2,Hash,Link2,LoaderCircle,RotateCw,X} from 'lucide-react';
 import type {BillingDocument,BillingRegularizationQuote,BillingRegularizationReference,BillingTransport} from '../billing-contracts';
 import {Field} from './billing-fields';
@@ -8,7 +8,7 @@ const quoteDate=(value:string)=>/^\d{4}-\d{2}-\d{2}$/.test(value)?value.slice(8)
 type ReviewMode='linked'|'provided';
 export function InvoiceNumberReview({record,saved,busy,transport,onDocument,onBusy}:{record:BillingDocument;saved:boolean;busy:boolean;transport:BillingTransport;onDocument:(doc:BillingDocument)=>void;onBusy:(value:string)=>void}){
  const [mode,setMode]=useState<ReviewMode|null>(null),[query,setQuery]=useState(''),[items,setItems]=useState<BillingRegularizationQuote[]>([]),[total,setTotal]=useState(0),[selected,setSelected]=useState<BillingRegularizationQuote|null>(null),[reference,setReference]=useState<BillingRegularizationReference|null>(null),[confirmed,setConfirmed]=useState(false),[reason,setReason]=useState(''),[pending,setPending]=useState(false),[loading,setLoading]=useState(false),[loadError,setLoadError]=useState(''),[error,setError]=useState(''),[refresh,setRefresh]=useState(0);
- const dialog=useRef<HTMLDialogElement>(null),live=useRef(true),submitting=useRef(false);
+ const dialog=useRef<HTMLDialogElement>(null),live=useRef(true),submitting=useRef(false),blockedId=useId();
  useEffect(()=>{live.current=true;return()=>{live.current=false;};},[]);
  useEffect(()=>{if(mode)dialog.current?.showModal();},[mode]);
  useEffect(()=>{
@@ -56,9 +56,10 @@ export function InvoiceNumberReview({record,saved,busy,transport,onDocument,onBu
     <p className="bill-number-review-hint">Référence enregistrée dans « Affaire, marché & références ».</p>
    </>}
    {loading?<p className="bill-number-review-hint" role="status">{mode==='linked'?'Chargement des devis…':'Vérification de la référence…'}</p>:loadError?<div className="bill-number-review-error" role="alert"><p>{loadError}</p><button type="button" className="bill-button" disabled={pending} onClick={()=>setRefresh(value=>value+1)}><RotateCw size={16} aria-hidden="true"/>Réessayer</button></div>:mode==='linked'&&!items.length?<p className="bill-number-review-hint" role="status">{query?'Aucun devis ne correspond à cette recherche.':'Aucun devis disponible pour ce client.'}</p>:mode==='linked'&&total>items.length?<p className="bill-number-review-hint">{total} devis correspondent. Précisez la recherche pour retrouver le vôtre.</p>:null}
-   {plan?.blockedReason&&<p role="alert">{plan.blockedReason}</p>}
+   {mode==='linked'&&plan?.blockedReason&&<p role="alert">{plan.blockedReason}</p>}
    {plan&&<div className="bill-number-review-selection">{mode==='linked'&&selected?<><strong>{selected.number}</strong><span>{selected.title||'Sans objet'}</span><small>{selected.clientName} · {quoteDate(selected.issueDate)}</small></>:<strong>{record.data.buyer.name||'Client du brouillon'}</strong>}<span className="bill-number-review-projection">Numéro de facture prévu : <strong>{plan.invoiceNumber||'Indisponible'}</strong></span>{plan.reservationAction==='preserve'&&<small>Numéro existant conservé</small>}</div>}
-   {mode==='provided'&&<label className="bill-number-reference-confirm"><input type="checkbox" checked={confirmed} disabled={pending||loading||!!loadError||!reference?.quoteNumber||!!reference?.blockedReason} onChange={event=>setConfirmed(event.target.checked)}/><span>Je confirme que la référence du devis « {record.data.references.quoteNumber||'à renseigner'} » correspond à cette facture.</span></label>}
+   {mode==='provided'&&<label className="bill-number-reference-confirm"><input type="checkbox" aria-describedby={reference?.blockedReason?blockedId:undefined} checked={confirmed} disabled={pending||loading||!!loadError||!reference?.quoteNumber||!!reference?.blockedReason} onChange={event=>setConfirmed(event.target.checked)}/><span>Je confirme que la référence du devis « {record.data.references.quoteNumber||'à renseigner'} » correspond à cette facture.</span></label>}
+   {mode==='provided'&&reference?.blockedReason&&<p id={blockedId} className="bill-status-error" role="alert">{reference.blockedReason}</p>}
    <p className="bill-number-review-hint">Le numéro de facture reprendra celui du devis à la finalisation. Les prestations et les montants restent inchangés.{record.numberingReview&&plan?.reservationAction!=='preserve'?' L’ancien numéro restera dans l’historique.':''}</p>
    <Field label="Note (facultatif)"><textarea disabled={pending} maxLength={2000} rows={2} value={reason} onChange={event=>setReason(event.target.value)}/></Field>
    {error&&<p role="alert">{error}</p>}

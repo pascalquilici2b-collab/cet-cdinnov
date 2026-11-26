@@ -25,19 +25,22 @@ async function planReference(db:Database,record:BillingDocument):Promise<Plan>{
  out.invoiceNumber=policy.stem+suffix;
  const own=await db.prepare(`SELECT n.*,s.next_value,s.last_issue_date,s.prefix,s.width FROM billing_draft_numbers n JOIN billing_number_series s ON s.id=n.series_id WHERE n.document_id=? AND n.issuer_siren=? AND n.number=?`).bind(record.id,policy.issuer_siren,out.invoiceNumber).first<{series_id:string;sequence_value:number;next_value:number;last_issue_date:string|null;prefix:string;width:number}>();
  // A six-digit prefix is an opaque historical namespace, not a date.
- const match=suffix.match(/^(\d{6})(\d{3,9})$/)||suffix.match(/^(\d{4}-|\d{8}-)(\d{3,9})$/);
+ const match=suffix.match(/^(\d{6})(\d{1,9})$/)||suffix.match(/^(\d{4}-|\d{8}-)(\d{1,9})$/);
  if(!own&&!match)return blocked('La référence doit être un numéro numérique, par exemple 260318004 ou DEV-202611004, sans espace.');
  let sequence=own?.sequence_value??Number(match![2]),prefix=own?.prefix??(policy.stem+match![1]);
- if(!own&&(sequence<1||sequence>999999999||String(sequence).padStart(policy.width,'0')!==match![2]))return blocked('Le rang final du devis doit être un entier positif au format de la série de facturation.');
+ if(!own&&(sequence<1||sequence>999999999))return blocked('Le rang final du devis doit être un entier positif.');
  if(out.invoiceNumber.length>35||prefix.length>26)return blocked('Le numéro de facture issu de cette référence est trop long.');
  let seriesId=base.id,createSeries=false,last=base.last_issue_date,next=base.next_value,width=policy.width;
  if(own){seriesId=own.series_id;sequence=own.sequence_value;next=own.next_value;last=own.last_issue_date;prefix=own.prefix;width=own.width;}
  else if(prefix!==policy.current_prefix){
   const existing=await db.prepare(`SELECT s.*,EXISTS(SELECT 1 FROM billing_external_number_series x WHERE x.series_id=s.id) external FROM billing_number_series s WHERE s.issuer_siren=? AND s.prefix=?`).bind(policy.issuer_siren,prefix).first<{id:string;external:number;next_value:number;last_issue_date:string|null;width:number}>();
   if(existing&&!existing.external)return blocked('Ce préfixe appartient déjà à une autre série de facturation. Son historique doit être vérifié avant la régularisation.');
-  if(existing&&existing.width!==width)return blocked('Le format de cette référence diffère de la série historique existante.');
+  // Existing namespaces retain their original padding; a newly confirmed
+  // historical reference determines its own width (03 stays 03, never 003).
+  width=existing?.width??match![2].length;
+  if(String(sequence).padStart(width,'0')!==match![2])return blocked('Le format de cette référence diffère de la série historique existante.');
   seriesId=existing?.id||externalId(policy.issuer_siren,prefix);createSeries=!existing;next=existing?.next_value??sequence;last=existing?.last_issue_date??null;
- }
+ }else if(String(sequence).padStart(width,'0')!==match![2])return blocked('Le rang final du devis ne correspond pas au format de la série de facturation courante.');
  const checked=await checkInvoiceNumberPlan(db,record.id,record.data.issueDate,{quote_id:null,quote_number:quoteNumber,sequence_value:sequence,number:out.invoiceNumber,series_id:seriesId,next_value:next,last_issue_date:last},policy.issuer_siren);
  return {...out,seriesId,baseSeriesId:base.id,issuerSiren:policy.issuer_siren,prefix,width,sequence,createSeries,reservationAction:checked.reservationAction,...(checked.blockedReason?{blockedReason:checked.blockedReason}:{})};
 }
