@@ -4,7 +4,7 @@ import {useEffect,useLayoutEffect,useState} from 'react';
 import type {InputHTMLAttributes,ReactNode} from 'react';
 import {createRoot} from 'react-dom/client';
 import {flushSync} from 'react-dom';
-import type {BusinessCode,Invoice,Expense,ExpenseLine,Employee} from './finance-domain';
+import type {BusinessCode,Invoice,Expense,ExpenseLine,ExpenseProject,Employee} from './finance-domain';
 import {codeInput,invoiceInput,codeKey,codeLabel,money,expenseTotal,expenseRefund,expenseStatus} from './finance-domain';
 
 export interface EditorProps {
@@ -51,24 +51,77 @@ function ExpenseLineEditor({line:l,index:i,p}:{line:ExpenseLine;index:number;p:E
   </div></div>}
   <div style={{marginTop:8}}><Field id={id('desc')} label="Description / commentaire" initial={l.description}/></div></div>;
 }
-function ExpenseProject({p,n}:{p:EditorProps;n:Expense}){
- const [projects,setProjects]=useState<{id:string;name:string;clientName:string;archived:boolean;startDate?:string;endDate?:string}[]>([]),[error,setError]=useState(''),[loading,setLoading]=useState(true),[retry,setRetry]=useState(0),[selected,setSelected]=useState(String(n.projectId||''));
- useEffect(()=>{let active=true;setLoading(true);void p.loadProjects().then(r=>{if(active){setProjects(r.projects);setError('');}}).catch(e=>{if(active)setError(e.message);}).finally(()=>{if(active)setLoading(false);});return()=>{active=false;};},[retry]);
- return <div className="form-row full"><label htmlFor="nfProjectChoice">Projet</label><ActivitySelect id="nfProjectChoice" label="Projet" nativeId="nfProject" value={selected} onChange={setSelected} disabled={loading||!!error} placeholder={loading?'Chargement…':'Aucun projet'} options={[...(selected&&!projects.some(p=>p.id===selected)?[{value:selected,label:String(n.projectName||'Projet enregistré'),name:String(n.projectName||'')}]:[]),...projects.filter(p=>!p.archived||p.id===selected).map(p=>({value:p.id,label:p.name,name:p.name,detail:p.clientName,activity:projectActivity(p)}))]}/>{error&&<span role="alert">{error} <button type="button" className="btn btn-ghost btn-sm" onClick={()=>setRetry(n=>n+1)}>Réessayer</button></span>}</div>;
+function ExpenseProjects({loadProjects,initial,change}:{loadProjects:EditorProps['loadProjects'];initial:ExpenseProject[];change:(projects:ExpenseProject[])=>void}){
+  const [catalogue,setCatalogue]=useState<Awaited<ReturnType<EditorProps['loadProjects']>>['projects']>([]);
+  const [selected,setSelected]=useState(initial);
+  const [error,setError]=useState('');
+  const [loading,setLoading]=useState(true);
+  const [retry,setRetry]=useState(0);
+  useEffect(()=>{
+    let active=true;
+    setLoading(true);
+    setError('');
+    void loadProjects().then(({projects})=>{if(active)setCatalogue(projects);})
+      .catch(()=>{if(active)setError('Impossible de charger les projets.');})
+      .finally(()=>{if(active)setLoading(false);});
+    return ()=>{active=false;};
+  },[loadProjects,retry]);
+  const available=catalogue.filter(project=>!project.archived&&!selected.some(item=>item.id===project.id));
+  const update=(projects:ExpenseProject[])=>{setSelected(projects);change(projects);};
+  const add=(id:string)=>{
+    const project=available.find(item=>item.id===id);
+    if(project)update([...selected,{id:project.id,name:project.name}]);
+  };
+  return <div className="form-row full">
+    <label htmlFor="nfProjectChoice">Projets</label>
+    {selected.length>0&&<ul className="finance-selected-projects" aria-label="Projets sélectionnés">{selected.map((project,index)=>
+      <li key={project.id||project.name}><span>{project.name}</span>
+        <button type="button" aria-label={'Retirer '+project.name} onClick={()=>update(selected.filter((_,i)=>i!==index))}>×</button>
+      </li>)}</ul>}
+    <ActivitySelect id="nfProjectChoice" label="Ajouter un projet" value="" onChange={add} allowEmpty={false}
+      disabled={loading||!!error||!available.length}
+      placeholder={loading?'Chargement…':error?'Projets indisponibles':available.length?'Ajouter un projet':'Aucun projet disponible'}
+      options={available.map(project=>({value:project.id,label:project.name,detail:project.clientName,activity:projectActivity(project)}))}/>
+    {error&&<span role="alert">{error} <button type="button" className="btn btn-ghost btn-sm" onClick={()=>setRetry(attempt=>attempt+1)}>Réessayer</button></span>}
+  </div>;
 }
-function ExpenseEditor(p:EditorProps){const n=p.record as Expense;const [mat,setMat]=useState(p.lockedMat||n.matricule);const person=p.employees.find(e=>e.matricule===mat);const employees=p.employees.filter(e=>!p.lockedMat||e.matricule===p.lockedMat);return <>
-  <header className="modal-head"><h3 id="financeEditorTitle">Note de frais — N°{n.numero}</h3><div className="grow"/><button className="icon-btn" type="button" aria-label="Fermer" onClick={()=>p.act('close')}>×</button></header><div className="modal-body"><section className="finance-employee-header" aria-label="Identification du salarié"><strong>{person?.prenom} {person?.nom}</strong><span>Matricule {mat}</span></section><div className="form-grid">
-    <div className="form-row"><label htmlFor="nfSal">Salarié</label><select className="inp" id="nfSal" value={mat} onChange={e=>setMat(e.target.value)} disabled={!!p.lockedMat}>{employees.map(e=><option key={e.matricule} value={e.matricule}>{e.nom} {e.prenom}</option>)}</select></div>
+function ExpensePersonAvatar({person}:{person:Employee}){
+  const [failed,setFailed]=useState(false);
+  const initials=[person.prenom,person.nom].map(part=>(part||'').trim().charAt(0)).join('').toLocaleUpperCase('fr-FR');
+  return <span className="finance-person-avatar" aria-hidden="true">
+    {person.photo&&!failed?<img src={person.photo} alt="" referrerPolicy="no-referrer" onError={()=>setFailed(true)}/>:initials}
+  </span>;
+}
+function ExpenseEmployee({employees,lockedMat,matricule}:{employees:Employee[];lockedMat:string|null;matricule:string}){
+  const [mat,setMat]=useState(lockedMat||matricule);
+  const person=employees.find(employee=>employee.matricule===mat);
+  const name=(employee:Employee)=>[employee.prenom,employee.nom].filter(Boolean).join(' ');
+  return <div className="form-row">
+    {lockedMat?<><label id="nfSalLabel">Salarié</label><div className="finance-locked-person" aria-labelledby="nfSalLabel">
+      {person&&<><ExpensePersonAvatar person={person}/>{name(person)}</>}
+      <input type="hidden" id="nfSal" value={mat}/>
+    </div></>:<>
+      <label htmlFor="nfSalChoice">Salarié</label>
+      <ActivitySelect id="nfSalChoice" nativeId="nfSal" label="Salarié" value={mat} onChange={setMat}
+        placeholder="Choisir un salarié" allowEmpty={false}
+        options={employees.map(employee=>({value:employee.matricule,label:name(employee),visual:<ExpensePersonAvatar key={employee.matricule} person={employee}/>}))}/>
+    </>}
+  </div>;
+}
+function ExpenseEditor(p:EditorProps){const n=p.record as Expense;return <>
+  <header className="modal-head"><h3 id="financeEditorTitle">Note de frais — N°{n.numero}</h3><div className="grow"/><button className="icon-btn" type="button" aria-label="Fermer" onClick={()=>p.act('close')}>×</button></header><div className="modal-body"><div className="form-grid">
+    <ExpenseEmployee employees={p.employees} lockedMat={p.lockedMat} matricule={n.matricule}/>
     <div className="form-row"><label htmlFor="nfStatut">Statut</label><select className="inp" id="nfStatut" defaultValue={expenseStatus(n.statut)} disabled={p.paymentLocked}>{p.statuses.map(s=><option key={s}>{s}</option>)}</select></div>
-    <Field id="nfObjet" label="Objet de la mission" initial={n.objet} full placeholder="ex. Mission Livorno"/><ExpenseProject p={p} n={n}/><Field id="nfLieu" label="Lieu(x)" initial={n.lieu}/><Field id="nfCodeC" label="Code compta" initial={n.codeCompta}/>
+    <Field id="nfObjet" label="Objet de la mission" initial={n.objet} full placeholder="ex. Mission Livorno"/><ExpenseProjects loadProjects={p.loadProjects} initial={n.projects||[]} change={projects=>p.act('projects',projects)}/><Field id="nfLieu" label="Lieu(x)" initial={n.lieu}/><Field id="nfCodeC" label="Code compta" initial={n.codeCompta}/>
     <Field id="nfD1" label="Date départ" type="date" initial={n.dateDepart} onChange={()=>p.act('duration')}/><Field id="nfD2" label="Date retour" type="date" initial={n.dateRetour} onChange={()=>p.act('duration')}/><Field id="nfDuree" label="Durée (jours)" initial={n.duree} disabled/><Field id="nfDateNote" label="Date de la note" type="date" initial={n.dateNote}/><Field id="nfFaitA" label="Fait à (lieu)" initial={n.faitA} placeholder="ex. Bastia"/>
   </div><div className="section-title">Lignes de dépenses</div><div id="nfLines">{(n.lignes||[]).map((line,i)=><ExpenseLineEditor key={line.id||i} line={line} index={i} p={p}/>)}</div><button type="button" className="btn btn-ghost btn-sm" style={{marginTop:10}} onClick={()=>p.act('addLine')}>Ajouter une ligne</button>
   <div className="finance-refund"><Field id="nfAvance" label="Avance à déduire (€)" type="number" step="0.01" initial={n.avance} onInput={()=>p.act('total')}/><div className="finance-refund-total"><div className="hint">Total / Montant à rembourser</div><strong><span id="nfTotalDisp">{money(expenseTotal(n))}</span> / <span id="nfRembDisp">{money(expenseRefund(n))}</span></strong></div></div>
   <div className="section-title">Signature de l’intéressé(e)</div><div className="finance-sign"><canvas id="nfSign" width={360} height={130} aria-label="Signature de l’intéressé"/><button type="button" className="btn btn-ghost btn-sm" onClick={()=>p.act('clearSignature')}>Effacer</button></div><div className="hint" style={{marginTop:6}}>Signez à la main (souris ou tactile) — la signature sera reprise sur le PDF.</div>
-  </div><Buttons><button type="button" className="btn btn-ghost" onClick={()=>p.act('close')}>Fermer</button><div className="grow"/><button type="button" className="btn btn-ghost" onClick={()=>p.act('previewExpense')}>Aperçu</button><button type="submit" className="btn btn-ghost">Enregistrer</button><button type="button" className="btn btn-primary" onClick={()=>p.act('saveExpense',true)}>Enregistrer + PDF</button></Buttons>
+  </div><Buttons><button type="button" className="btn btn-ghost" onClick={()=>p.act('close')}>Fermer</button><div className="grow"/><button type="button" className="btn btn-ghost" onClick={()=>p.act('previewExpense')}>Aperçu</button><button type="button" className="btn btn-ghost" onClick={()=>p.act('saveExpense',false)}>Enregistrer</button><button type="button" className="btn btn-primary" onClick={()=>p.act('saveExpense',true)}>Enregistrer + PDF</button></Buttons>
   </>;
 }
 function Editor(p:EditorProps){const [error,setError]=useState('');useLayoutEffect(()=>{p.init();},[]);return <form className="finance-editor" data-react-editor={p.kind} noValidate aria-labelledby="financeEditorTitle" onSubmit={async e=>{
-  e.preventDefault();setError('');try{if(p.kind==='expense')p.act('saveExpense',false);else await p.save(p.kind==='code'?codeInput(e.currentTarget):invoiceInput(e.currentTarget));}catch(err){setError(err instanceof Error?err.message:'Enregistrement impossible.');}
+  e.preventDefault();if(p.kind==='expense')return;
+  setError('');try{await p.save(p.kind==='code'?codeInput(e.currentTarget):invoiceInput(e.currentTarget));}catch(err){setError(err instanceof Error?err.message:'Enregistrement impossible.');}
  }}>{p.kind==='code'?<CodeEditor {...p}/>:p.kind==='invoice'?<InvoiceEditor {...p}/>:<ExpenseEditor {...p}/ >}{error&&<div className="finance-error" role="alert">{error}</div>}</form>;}
 export function mountFinanceEditor(element:HTMLElement,props:EditorProps){const root=createRoot(element);flushSync(()=>root.render(<Editor {...props}/>));return ()=>root.unmount();}

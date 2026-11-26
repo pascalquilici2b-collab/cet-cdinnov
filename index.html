@@ -555,7 +555,7 @@ body:has(.agenda-shell) .topbar{flex-wrap:wrap;row-gap:12px}
 <script src="./platform/workspace-client.js?v=access-design-20261025"></script>
 </head>
 <body>
-<div class="app">
+<div class="app" id="portalApp">
   <!-- ======= SIDEBAR ======= -->
   <aside class="sidebar" id="portalNavigation" aria-label="Navigation principale"><button class="icon-btn sidebar-close" type="button" aria-label="Fermer le menu" onclick="toggleSidebar(false)">×</button>
     <a class="brand" href="./" aria-label="Accueil du portail CDInnov" title="Revenir à l’accueil" onclick="event.preventDefault();setView('dashboard');toggleSidebar(false)">
@@ -2024,12 +2024,28 @@ function nfCalcDuree(d1,d2){ if(!d1||!d2) return ''; const a=new Date(d1+'T00:00
 let nfFilter={sal:'',statut:'',q:''};
 function renderNotesFrais(){renderReactFinance('notesfrais');}
 
-let nfDraft=null;
+let nfDraft=null,nfInitial=null,nfProjectRequest=null;
+function nfProjects(note){
+  if(Array.isArray(note.projects))return note.projects;
+  if(!note.projectId&&!note.projectName)return [];
+  return [{id:String(note.projectId||''),name:String(note.projectName||note.projectId)}];
+}
+function nfLoadProjects(){
+  if(nfProjectRequest)return nfProjectRequest;
+  const request=portalFetch(budgetsApi().replace(/\/budgets\/?$/,'')+'/api/v1/projects')
+    .then(r=>r.json()).then(data=>{
+      if(!Array.isArray(data.projects))throw new Error('Catalogue de projets indisponible');
+      return data;
+    }).catch(error=>{if(nfProjectRequest===request)nfProjectRequest=null;throw error;});
+  return nfProjectRequest=request;
+}
 function openNoteFrais(id){
   if(!AUTH_USER||(!isAdmin(AUTH_USER)&&!AUTH_USER_MAT[AUTH_USER]))return;
   if(id&&!financeExpenseAllowed(notesFrais().find(n=>n.id===id)))return;
   if(id){ nfDraft=JSON.parse(JSON.stringify(notesFrais().find(n=>n.id===id))); }
   else { nfDraft={ id:uid(), numero:nextNumNF(), matricule:(typeof movAccess!=='undefined'&&movAccess&&movAccess!=='admin'?movAccess:(state.salaries[0]?state.salaries[0].matricule:'')), objet:'', affaire:'', codeAffaire:'', codeCompta:'', lieu:'', dateDepart:'', dateRetour:'', duree:'', dateNote:ymd(new Date()), statut:'Brouillon', avance:0, lignes:[{id:uid(),date:ymd(new Date()),categorie:NF_CATS[0],description:'',montant:0}] }; }
+  nfInitial=null;
+  nfProjectRequest=null;
   return renderNoteEditor();
 }
 function renderNoteEditor(){
@@ -2041,7 +2057,6 @@ function nfSync(){
   const n=nfDraft; if(!n) return; const g=s=>{const e=$(s);return e?e.value:undefined;};
   if($('#nfSal')) n.matricule=$('#nfSal').value;
   if($('#nfStatut')) n.statut=$('#nfStatut').value;
-  const project=$('#nfProject');if(project&&!project.disabled){n.projectId=project.value;n.projectName=project.selectedOptions[0]?.dataset.name||'';}
   ['objet:nfObjet','codeCompta:nfCodeC','lieu:nfLieu','dateDepart:nfD1','dateRetour:nfD2','dateNote:nfDateNote','faitA:nfFaitA'].forEach(p=>{const[k,id]=p.split(':'); const v=g('#'+id); if(v!==undefined) n[k]=v;});
   n.duree=nfCalcDuree(n.dateDepart,n.dateRetour);
   const av=g('#nfAvance'); if(av!==undefined) n.avance=Number(av)||0;
@@ -2061,6 +2076,18 @@ function nfSync(){
       l.montant=calcKm(l.vehicule, String(l.cv), l.km||0, l.elec);
     } else { const mo=g('#nfl-montant-'+i); if(mo!==undefined) l.montant=Number(mo)||0; }
   });
+}
+function nfSetProjects(projects){
+  nfDraft.projects=projects;
+  nfDraft.projectId=projects[0]?.id||'';
+  nfDraft.projectName=projects[0]?.name||'';
+}
+function nfCloseEditor(){
+  nfSync();
+  if(nfInitial!==null&&nfInitial!==JSON.stringify(nfDraft)&&!window.confirm('Fermer la note de frais et perdre les modifications non enregistrées ?'))return;
+  nfDraft=null;
+  nfInitial=null;
+  closeModal();
 }
 function nfItinSync(i){ const l=nfDraft.lignes[i]; if(!l) return; const dep=$('#nfl-dep-'+i), arr=$('#nfl-arr-'+i), ar=$('#nfl-ar-'+i); if(dep) l.depart=dep.value; if(arr) l.arrivee=arr.value; if(ar) l.allerRetour=ar.checked; }
 function nfTot(){ nfSync(); const d=$('#nfTotalDisp'); if(d) d.textContent=eur2(nfTotal(nfDraft)); const r=$('#nfRembDisp'); if(r) r.textContent=eur2(nfRembourse(nfDraft)); }
@@ -2085,12 +2112,13 @@ function nfJustifRemove(i){ nfSync(); const l=nfDraft.lignes[i];if(!l)return;del
 async function nfJustifPreview(i){
   nfSync();
   const l=nfDraft.lignes[i]; if(!l||!l.justificatif) return;
-  const user=AUTH_USER,draft=nfDraft;let fileURL;try{fileURL=await privateFileURL(l.justificatif);}catch(e){toast(e.message);return;}if(AUTH_USER!==user||nfDraft!==draft)return;
+  const user=AUTH_USER,draft=nfDraft,editor=$('#financeEditorRoot');let fileURL;try{fileURL=await privateFileURL(l.justificatif);}catch(e){toast(e.message);return;}if(AUTH_USER!==user||nfDraft!==draft||!editor?.isConnected)return;
+  nfSync();
   const isImg=l.justType ? l.justType.indexOf('image/')===0 : /^data:image\//.test(l.justificatif);
   modal(`<div class="modal-head"><h3>Justificatif — ${esc(l.categorie||'')}</h3><div class="grow"></div><button class="icon-btn" onclick="renderNoteEditor()">${ic('close')}</button></div>
     <div class="modal-body"><div style="font-size:12px;color:var(--muted);margin-bottom:10px">${esc(l.justName||'')} <a class="link" href="${esc(fileURL)}" download="${esc(l.justName||'justificatif')}">Télécharger</a></div>
     ${isImg?`<img src="${esc(fileURL)}" style="max-width:100%;border:1px solid var(--line);border-radius:8px">`:`<iframe sandbox src="${esc(fileURL)}" style="width:100%;height:60vh;border:1px solid var(--line);border-radius:8px"></iframe>`}</div>
-    <div class="modal-foot"><button class="btn btn-ghost" onclick="renderNoteEditor()">Retour à la note</button></div>`, true);
+    <div class="modal-foot"><button class="btn btn-ghost" onclick="renderNoteEditor()">Retour à la note</button></div>`,true,true);
 }
 function saveNoteFrais(thenPdf){
   nfSync(); const n=nfDraft;if(!financeExpenseAllowed(n))return; if(!n.matricule){ toast('Salarié requis'); return; }
@@ -2102,6 +2130,8 @@ function saveNoteFrais(thenPdf){
   save(); toastSaved('Note de frais enregistrée');
   if(n.statut && n.statut!=='Brouillon'){ const _s=salByMat(n.matricule)||{}; notify('Note de frais N°'+n.numero+' — '+(_s.nom||'')+' '+(_s.prenom||''), '<p><b>'+esc(_s.nom)+' '+esc(_s.prenom)+'</b> a déposé la note de frais <b>N°'+n.numero+'</b> (statut : '+esc(n.statut)+').</p><p>Objet : '+esc(n.objet||'—')+'<br>Montant : <b>'+eur2(nfTotal(n))+'</b></p>'); }
   if(n.statut==='Payée' && !prevPaid){ const em=salEmail(n.matricule); const _s2=salByMat(n.matricule)||{}; if(em) notify('Votre note de frais N°'+n.numero+' a été payée', '<p>Bonjour '+esc(_s2.prenom)+',</p><p>Votre note de frais <b>N°'+n.numero+'</b> ('+eur2(nfTotal(n))+') a été <b>payée</b>.</p>', em); }
+  nfDraft=null;
+  nfInitial=null;
   closeModal(); render();
   if(thenPdf) exportNoteFraisPDF(n.id);
 }
@@ -2127,8 +2157,9 @@ function loadJsPDF(){
 }
 async function exportNoteFraisPDF(id,preview=false){
   if(preview&&!id)nfSync();
-  const user=AUTH_USER,initialDraft=nfDraft;
-  let n = id? notesFrais().find(x=>x.id===id) : nfDraft;
+  const user=AUTH_USER,initialDraft=nfDraft,editor=$('#financeEditorRoot'),overlay=$('#overlay'),panel=overlay.firstElementChild;
+  const n=structuredClone(id?notesFrais().find(x=>x.id===id):nfDraft);
+  const current=()=>AUTH_USER===user&&financeExpenseAllowed(n)&&(!preview||overlay.firstElementChild===panel)&&(id||nfDraft===initialDraft&&editor?.isConnected);
   if(!financeExpenseAllowed(n)){ toast('Note introuvable ou accès non autorisé'); return; }
   toast('Génération du PDF…');
   try{
@@ -2143,14 +2174,25 @@ async function exportNoteFraisPDF(id,preview=false){
     doc.setFont(F,'normal'); doc.setFontSize(11); doc.text('N° '+(n.numero||''),196,17,{align:'right'});
     doc.setDrawColor(23,134,201); doc.setLineWidth(0.4); doc.line(14,33,196,33);
     let y=43; doc.setFontSize(10);
-    const info=(label,val)=>{ doc.setFont(F,'bold'); doc.text(label,14,y); doc.setFont(F,'normal'); const ls=doc.splitTextToSize(clean(val)||'—',140); doc.text(ls,52,y); y+=Math.max(6,ls.length*5); };
+    const info=(label,val)=>{
+      doc.setFont(F,'normal');
+      const lines=doc.splitTextToSize(clean(val)||'—',140);
+      lines.forEach((line,index)=>{
+        if(y>265){doc.addPage();y=20;}
+        if(index===0){doc.setFont(F,'bold');doc.text(label,14,y);doc.setFont(F,'normal');}
+        doc.text(line,52,y);
+        y+=5;
+      });
+      y+=1;
+    };
     info('Nom / Prénom :',(s.nom||'')+' '+(s.prenom||''));
     info('Objet :',n.objet);
-    info('Matricule :',n.matricule);
-    if(n.projectName)info('Projet :',n.projectName);
+    const projects=nfProjects(n);
+    if(projects.length)info(projects.length===1?'Projet :':'Projets :',projects.map(project=>project.name).join('\n'));
     info('Lieu(x) :',n.lieu);
     info('Période :',(n.dateDepart?dateFR(n.dateDepart):'')+(n.dateRetour?' au '+dateFR(n.dateRetour):'')+(n.duree?'   ('+n.duree+' jours)':''));
     y+=3;
+    if(y+18>274){doc.addPage();y=20;}
     const COL={d:16,c:38,de:73,m:194}; const DESC_W=82, CAT_W=32;
     doc.setFillColor(23,134,201); doc.rect(14,y,182,7,'F'); doc.setTextColor(255); doc.setFont(F,'bold'); doc.setFontSize(9);
     doc.text('Date',COL.d,y+5); doc.text('Catégorie',COL.c,y+5); doc.text('Description',COL.de,y+5); doc.text('Montant',COL.m,y+5,{align:'right'}); y+=7;
@@ -2189,11 +2231,14 @@ async function exportNoteFraisPDF(id,preview=false){
       }
     }
     const filename='Note_de_frais_N'+(n.numero||'')+'_'+(s.nom||'').replace(/\s+/g,'')+'.pdf';
-    if(AUTH_USER!==user||!financeExpenseAllowed(n)||preview&&!id&&nfDraft!==initialDraft)return;
+    if(!current())return;
     if(preview){
-      const blob=doc.output('blob'),module=await financeModule();if(AUTH_USER!==user||!financeExpenseAllowed(n))return;if(!document.getElementById('billingStyle')){const css=document.createElement('link');css.id='billingStyle';css.rel='stylesheet';css.href='platform/billing.css?v=access-design-20261025';document.head.append(css);}
-      modal('<div class="modal-head"><h3>Aperçu — Note de frais N°'+esc(n.numero)+'</h3><div class="grow"></div><button type="button" class="btn btn-ghost" id="nfPreviewDownload">Télécharger PDF</button><button type="button" class="btn btn-ghost" id="nfPreviewClose">'+(id?'Fermer':'Retour')+'</button></div><div class="modal-body bill-app"><div id="nfPreviewRoot"></div></div>',true);
-      financeEditorDispose=module.mountExpensePreview($('#nfPreviewRoot'),blob);$('#nfPreviewDownload').onclick=()=>doc.save(filename);$('#nfPreviewClose').onclick=()=>id?closeModal():renderNoteEditor();
+      const blob=doc.output('blob'),module=await financeModule();if(!current())return;if(!document.getElementById('billingStyle')){const css=document.createElement('link');css.id='billingStyle';css.rel='stylesheet';css.href='platform/billing.css?v=access-design-20261025';document.head.append(css);}
+      if(!id)nfSync();
+      modal('<div class="modal-head"><h3>Aperçu — Note de frais N°'+esc(n.numero)+'</h3><div class="grow"></div><button type="button" class="btn btn-ghost" id="nfPreviewDownload">Télécharger PDF</button><button type="button" class="btn btn-ghost" id="nfPreviewClose">'+(id?'Fermer':'Retour')+'</button></div><div class="modal-body bill-app"><div id="nfPreviewRoot"></div></div>',true,!id);
+      $('#nfPreviewDownload').onclick=()=>doc.save(filename);
+      $('#nfPreviewClose').onclick=()=>id?closeModal():renderNoteEditor();
+      financeEditorDispose=module.mountExpensePreview($('#nfPreviewRoot'),blob);
     }else{doc.save(filename);toast('PDF généré');}
   }catch(e){ toast(e.message||'Erreur lors de la génération du PDF'); }
 }
@@ -2426,8 +2471,8 @@ let financeModulePromise=null,financeMounted=null,financeEpoch=0,financeView=nul
 let financeEditorDispose=null,financeEditorEpoch=0,financeClientStatus='',financeClientError=false;
 let nfPage=1,nfPer=20;
 function financeModule(){
-  if(!$('#financeStyle')){const link=document.createElement('link');link.id='financeStyle';link.rel='stylesheet';link.href='platform/finance.css?v=stamping-allocation-20261025';document.head.append(link);}
-  return financeModulePromise ||= import('./platform/finance.js?v=finance-back-20261029').catch(error=>{financeModulePromise=null;throw error;});
+  if(!$('#financeStyle')){const link=document.createElement('link');link.id='financeStyle';link.rel='stylesheet';link.href='platform/finance.css?v=expense-editor-20261126';document.head.append(link);}
+  return financeModulePromise ||= import('./platform/finance.js?v=expense-editor-20261126').catch(error=>{financeModulePromise=null;throw error;});
 }
 function financeForget(){financeEpoch++;financeMounted?.dispose();financeMounted=null;financeView=null;$('#financeRoot')?.remove();}
 function financeEditorForget(){financeEditorEpoch++;if(financeEditorDispose){financeEditorDispose();financeEditorDispose=null;}}
@@ -2470,18 +2515,41 @@ function renderReactFinance(view){
 async function financeOpenEditor(kind,record,existing){
   const user=AUTH_USER;
   if(!user||(kind!=='expense'&&!canAccess('facturier')))return;
-  modal('<div id="financeEditorRoot">'+loadingMarkup('Chargement du formulaire…')+'</div>',kind==='expense');
+  const expense=kind==='expense',previous=expense&&$('#financeEditorRoot'),overlay=$('#overlay');
+  const scroll=previous&&{overlay:overlay.scrollTop,panel:previous.parentElement.scrollTop,focus:document.activeElement?.id};
+  modal('<div id="financeEditorRoot">'+loadingMarkup('Chargement du formulaire…')+'</div>',expense,expense);
   const element=$('#financeEditorRoot'),epoch=++financeEditorEpoch;
   try{
     const module=await financeModule();if(epoch!==financeEditorEpoch||AUTH_USER!==user||!element.isConnected)return;
-    const actions={close:closeModal,choosePdf:fvChoosePdf,ttcAuto:fvTtcAuto,lineChanged:nfLineChanged,total:nfTot,lineKm:nfLineKm,address:nfAddrInput,itinerarySync:nfItinSync,itinerary:nfCalcItineraire,maps:nfOpenMaps,duration:nfDureeUpd,addLine:nfAddLine,removeLine:nfRemoveLine,receipt:nfJustif,removeReceipt:nfJustifRemove,previewReceipt:nfJustifPreview,clearSignature:nfSignClear,saveExpense:saveNoteFrais,previewExpense:()=>exportNoteFraisPDF(null,true)};
-    financeEditorDispose=module.mountFinanceEditor(element,{loadProjects:async()=>{const r=await portalFetch(budgetsApi().replace(/\/budgets\/?$/,'')+'/api/v1/projects');return r.json();},kind,record,existing,today:ymd(new Date()),employees:state.salaries.map(({matricule,nom,prenom})=>({matricule,nom,prenom})),codes:codesAff(),lockedMat:isAdmin(user)?null:AUTH_USER_MAT[user]||null,paymentLocked:!isAlbert()&&record.statut==='Payée',categories:NF_CATS,statuses:nfStatutOptions(record.statut),vehicles:BAREME_KM,formula:baremeFormule,
+    const lockedMat=isAdmin(user)?null:AUTH_USER_MAT[user]||null;
+    const employees=expense?state.salaries.filter(s=>!lockedMat||s.matricule===lockedMat).map(s=>{
+      const email=normEmail(s.email)||salEmail(s.matricule);
+      return {matricule:s.matricule,nom:s.nom,prenom:s.prenom,photo:photoURL(s.photo)||(email?agendaPortrait(email):'')};
+    }):[];
+    const actions={close:expense?nfCloseEditor:closeModal,projects:nfSetProjects,choosePdf:fvChoosePdf,ttcAuto:fvTtcAuto,lineChanged:nfLineChanged,total:nfTot,lineKm:nfLineKm,address:nfAddrInput,itinerarySync:nfItinSync,itinerary:nfCalcItineraire,maps:nfOpenMaps,duration:nfDureeUpd,addLine:nfAddLine,removeLine:nfRemoveLine,receipt:nfJustif,removeReceipt:nfJustifRemove,previewReceipt:nfJustifPreview,clearSignature:nfSignClear,saveExpense:saveNoteFrais,previewExpense:()=>exportNoteFraisPDF(null,true)};
+    financeEditorDispose=module.mountFinanceEditor(element,{loadProjects:nfLoadProjects,kind,record:expense?{...record,projects:nfProjects(record)}:record,existing,today:ymd(new Date()),employees,codes:codesAff(),lockedMat,paymentLocked:!isAlbert()&&record.statut==='Payée',categories:NF_CATS,statuses:nfStatutOptions(record.statut),vehicles:BAREME_KM,formula:baremeFormule,
       act:(name,...args)=>{if(AUTH_USER===user&&element.isConnected)return actions[name]?.(...args);},
       save:values=>{if(AUTH_USER!==user||!element.isConnected)throw new Error('La session ou le formulaire a changé.');return kind==='code'?saveCodeAffaire(existing?record.id:'',values):saveFacture(existing?record.id:'',values);},
       init:()=>{if(kind==='invoice')fvInitPdfForm(existing);if(kind==='expense')nfInitSign();}
     });
-    element.querySelector('input:not([type=file]):not([disabled]),select:not([disabled])')?.focus();
-  }catch(error){if(epoch===financeEditorEpoch&&element.isConnected){element.textContent='Le formulaire ne peut pas être chargé. Fermez-le et réessayez.';toast(error.message);}}
+    if(expense){
+      if(nfInitial===null){nfSync();nfInitial=JSON.stringify(nfDraft);}
+      element.parentElement.setAttribute('aria-labelledby','financeEditorTitle');
+    }
+    if(scroll){
+      const focused=scroll.focus&&document.getElementById(scroll.focus);
+      (focused||element.parentElement).focus({preventScroll:true});
+      overlay.scrollTop=scroll.overlay;
+      element.parentElement.scrollTop=scroll.panel;
+    }else element.querySelector('input:not([type=file]):not([type=hidden]):not([disabled]),select:not([hidden]):not([disabled])')?.focus();
+  }catch(error){
+    if(epoch!==financeEditorEpoch||!element.isConnected)return;
+    element.innerHTML='<div class="modal-body" role="alert">Le formulaire ne peut pas être chargé.</div><div class="modal-foot"><button type="button" class="btn btn-ghost">Fermer</button></div>';
+    const close=element.querySelector('button');
+    close.onclick=expense?nfCloseEditor:closeModal;
+    close.focus();
+    toast(error.message);
+  }
 }
 
 /* React personnel screens. Existing CET calculations, imports and storage remain authoritative. */
@@ -2532,15 +2600,23 @@ async function personnelOpenEditor(kind,record,mat){
 }
 
 /* ===================== MODALS ===================== */
-function modal(html,wide){
+function modal(html,wide,protect=false){
   agendaEditorForget();personnelEditorForget();financeEditorForget();
   const o=$('#overlay');
   o.innerHTML=`<div class="modal ${wide?'wide':''}">${html}</div>`;
+  o.toggleAttribute('data-protected',protect);
+  $('#portalApp').inert=protect;
   o.classList.add('show');
-  o.onclick=e=>{ if(e.target===o) closeModal(); };
+  if(protect){
+    const panel=o.firstElementChild,title=panel.querySelector('h3');
+    panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.tabIndex=-1;
+    if(title){title.id||='protectedModalTitle';panel.setAttribute('aria-labelledby',title.id);}
+    panel.focus({preventScroll:true});
+  }
+  o.onclick=e=>{ if(e.target===o&&!protect) closeModal(); };
 }
-function closeModal(){ agendaEditorForget();financeEditorForget();personnelEditorForget(); facturxCloseViewer(); $('#overlay').classList.remove('show'); $('#overlay').innerHTML=''; if(typeof _facturxSession!=='undefined') _facturxSession=null; if(typeof _fvPdfFile!=='undefined') _fvPdfFile=null; }
-document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeModal(); });
+function closeModal(){ agendaEditorForget();financeEditorForget();personnelEditorForget(); facturxCloseViewer(); $('#portalApp').inert=false; $('#overlay').removeAttribute('data-protected'); $('#overlay').classList.remove('show'); $('#overlay').innerHTML=''; if(typeof _facturxSession!=='undefined') _facturxSession=null; if(typeof _fvPdfFile!=='undefined') _fvPdfFile=null; }
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&!$('#overlay').hasAttribute('data-protected')) closeModal(); });
 document.addEventListener('click', ()=>{ if(typeof $$==='function') $$('.salpick-list').forEach(l=>l.style.display='none'); });
 
 /* --- Mouvement form --- */
