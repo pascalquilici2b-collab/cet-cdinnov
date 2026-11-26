@@ -1,9 +1,11 @@
 @import url('./tokens.css?v=apple1');
+@font-face{font-family:'Barlow Semi Condensed';src:url('./brand/fonts/BarlowSemiCondensed-SemiBold-latin.woff2') format('woff2');font-style:normal;font-weight:600;font-display:swap}
 /* Application density uses smaller headings than the editorial website. */
 :root{--bg:var(--paper);--panel:var(--surface);--panel-2:var(--paper-tint);--muted-2:var(--muted-alt);--line-strong:var(--field-border);--accent:var(--cyan);--accent-strong:var(--cyan-hover);--accent-soft:var(--paper-tint);--font:var(--font-sans);--font-head:var(--font-sans);--radius:18px;--shadow:none;--shadow-lg:var(--shadow-menu)}
 body{font-family:var(--font-sans)}
 body :is(button,input,select,textarea){font-family:var(--font-sans)}
-.sidebar,.topbar{background:var(--surface);border-color:var(--line);border-radius:var(--radius-field);box-shadow:none;backdrop-filter:none}
+.sidebar{background:var(--surface);border-color:var(--line);border-radius:var(--radius-field);box-shadow:none;backdrop-filter:none}
+.main>.topbar{background:var(--paper);border:0;border-radius:0;box-shadow:none;backdrop-filter:none}
 .brand{flex-direction:column;align-items:flex-start;gap:10px;padding:6px 6px 24px}
 .sidebar .brand .brand-logo{width:172px;max-width:100%;height:auto}
 .sidebar .brand-sub{color:var(--muted);letter-spacing:.05em}
@@ -16,7 +18,13 @@ body :is(button,input,select,textarea){font-family:var(--font-sans)}
 .sidebar .nav-item.cdi-application>svg{color:var(--app-color)}
 .sidebar .user-chip,.topbar .year-pick,.topbar .year-pick select{border-radius:var(--radius-field)}
 .sidebar .nav-label{color:var(--muted);font-weight:550;letter-spacing:.13em}
-.topbar h1{color:var(--ink);font-weight:500;letter-spacing:-.035em}
+.topbar-heading{--section-icon-size:40px;--section-icon-gap:12px;position:relative;display:flex;flex-direction:column;justify-content:center;min-width:0;min-height:var(--section-icon-size);padding-inline-start:calc(var(--section-icon-size) + var(--section-icon-gap))}
+.portal-section-icon{position:absolute;inset-inline-start:0;inset-block-start:50%;transform:translateY(-50%);display:grid;place-items:center;width:var(--section-icon-size);height:var(--section-icon-size);border-radius:9px;background:color-mix(in srgb,var(--cyan) 14%,transparent);color:var(--cyan-hover)}
+.portal-section-icon .cdi-icon{width:20px;height:20px}
+#pageTitle{color:var(--ink);font-family:'Barlow Semi Condensed',var(--font-sans);font-size:clamp(22px,calc(18px + .75vw),29px);font-weight:600;letter-spacing:.005em;line-height:1.08;overflow-wrap:anywhere;text-wrap:balance}
+#pageTitle .cdi-beta{font-family:var(--font-sans);letter-spacing:0}
+#pageSub{color:var(--muted)}
+#pageSub:empty{display:none}
 .card,.stat,.cp-card,.content .db-panel,.content .db-stat,.content .mk-card,.modal{border-radius:var(--radius-field);box-shadow:none;border-color:var(--line)}
 .card-head,.modal-head{background:var(--surface)}
 .btn,.btn-sm,.icon-btn,.pg-btn,.menu-btn,.billing-nav{border-radius:var(--radius-button);box-shadow:none}
@@ -42,4 +50,9 @@ body :is(button,input,select,textarea){font-family:var(--font-sans)}
 .auth-box{border-radius:var(--radius-field);box-shadow:none;border-color:var(--line);font-family:var(--font-sans)}
 :is(button,a,input,select,textarea):focus-visible{outline-color:var(--cyan)}
 @media(max-width:880px){.sidebar .brand .brand-logo{width:172px}.sidebar{box-shadow:var(--shadow-menu)}}
-@media(max-width:600px){.responsive-table tbody tr{border-radius:var(--radius-field);box-shadow:none}.modal,.card,.topbar{border-radius:var(--radius-field)}}
+@media(max-width:600px){
+  .responsive-table tbody tr{border-radius:var(--radius-field);box-shadow:none}
+  .modal,.card{border-radius:var(--radius-field)}
+  .topbar-heading{--section-icon-size:34px;--section-icon-gap:9px}
+  .portal-section-icon .cdi-icon{width:18px;height:18px}
+}

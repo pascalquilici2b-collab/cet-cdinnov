@@ -137,7 +137,7 @@ function applyAccessNavigation(){
 }
 function firstAllowedView(){return CDIPlatform.accessModules.find(m=>m.key!=='sheets'&&canAccess(m.key))?.key||'access';}
 function renderAccessHome(){
- $('#topAction').style.display='none';$('#pageTitle').textContent='Votre espace';$('#pageSub').textContent='';
+ $('#topAction').style.display='none';
  $('#content').innerHTML='<section class="card card-pad" style="max-width:480px;margin:48px auto;text-align:center">'+(canAccess('sheets')?'<a class="btn btn-primary" href="./feuilles/">Ouvrir CDInnovSheets</a>':'Aucune rubrique n’est activée pour ce compte.')+'</section>';
 }
 async function authSetAccess(email,access){
@@ -397,7 +397,6 @@ async function bootAuth(){
 }
 
 function renderDashboard(){
-  $('#pageTitle').textContent=VIEW_META.dashboard.title;$('#pageSub').textContent=VIEW_META.dashboard.sub;
   $('#topAction').style.display='none';document.querySelector('.year-pick').style.display='none';
   if(!AUTH_USER){$('#content').innerHTML='';return;}
   if($('#dashboardRoot'))return;

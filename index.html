@@ -387,7 +387,6 @@ body.cdi-budget-expanded .cdi-budget-frame{height:100dvh!important;min-height:0;
 body:has(.agenda-shell) .year-pick{display:none}
 body:has(.agenda-shell) #syncPill,body:has(.agenda-shell) #majPill{display:none}
 .agenda-shell,.agenda-modal{--ag-line:#c9dcea;--ag-muted:#4e6c8e;--ag-navy:#183f77;--accent:#087ca7;--accent-strong:#2453a1;--font:'Manrope','Segoe UI',sans-serif;--font-head:'Manrope','Segoe UI',sans-serif;font-family:var(--font);color:var(--ag-navy)}
-body:has(.agenda-shell) .topbar h1,body:has(.agenda-shell) .topbar .sub{font-family:'Manrope','Segoe UI',sans-serif;color:#183f77}
 body:has(.agenda-shell) #topAction{background:#087ca7;font-family:'Manrope','Segoe UI',sans-serif}
 .portal-top-actions{display:flex;align-items:center;gap:10px}
 #agendaTopLeave{display:none}
@@ -615,6 +614,7 @@ body:has(.agenda-shell) .topbar{flex-wrap:wrap;row-gap:12px}
     <div class="topbar">
       <button class="menu-btn no-print" onclick="toggleSidebar()" aria-label="Menu" aria-controls="portalNavigation" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
       <div class="topbar-heading">
+        <span class="portal-section-icon" id="pageTitleIcon" aria-hidden="true"></span>
         <h1 id="pageTitle">Tableau de bord</h1>
         <div class="sub" id="pageSub">Activité de l’équipe, congés et derniers documents</div>
       </div>
@@ -710,13 +710,14 @@ body.authed .auth-gate{display:none}
 .agdot{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:5px;vertical-align:-1px}
 </style>
 <link rel="stylesheet" href="platform/design-system.css">
-<link rel="stylesheet" href="design/portal.css?v=apple1">
+<link rel="preload" href="design/brand/fonts/BarlowSemiCondensed-SemiBold-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="design/portal.css?v=section-heading-20261126">
 <link rel="stylesheet" href="design/apple.css?v=stamping-allocation-20261025">
 <link rel="stylesheet" href="design/interface-refresh.css?v=stamping-allocation-20261025">
 <link rel="stylesheet" href="design/interactions.css?v=stamping-allocation-20261025">
 <link rel="stylesheet" href="design/rh-navigation.css?v=rh-workspace-20261106">
 <link rel="stylesheet" href="design/portal-mobile.css?v=20261119">
-<script src="platform/icons.js?v=pdf-markets-followup-20261029"></script>
+<script src="platform/icons.js?v=section-heading-20261126"></script>
 
 <div id="authGate" class="auth-gate" data-loading="true" aria-busy="true">
   <span class="auth-startup-status cdi-loading-sr" role="status">Connexion en cours…</span>
@@ -977,21 +978,37 @@ function availableYears(){
 /* Symbole CDInnov du 21 septembre 2026 : SVG intégré, PNG pour les exports PDF. */
 
 const VIEW_META = {
-  rh:{title:'Documents de paiement RH',sub:'',action:null},
-  missions:{title:'Lettres de mission',sub:'',action:null},
-  tamponnage:{title:'Tamponnage des pièces',sub:'Bulletins, factures et imputations par projet',action:null},
-  marches:{title:'Logiciel de facturation',sub:'Marchés et contrats · prix, plafonds et périodes',action:null},
-  agenda:{title:'Agenda',sub:'Déplacements et congés de l’équipe',action:'Nouveau déplacement',actFn:()=>openAgendaTrip()},
-  budgetsprojets:{title:'Outil budgets',sub:'',action:null},
-  dashboard:{title:'Tableau de bord', sub:'Activité de l’équipe, congés et derniers documents', action:null},
-  cet:{title:'Synthèse CET',sub:'Soldes et suivi du Compte Épargne-Temps',action:'Nouveau mouvement',actFn:()=>openMouvement()},
-  mouvements:{title:'Mouvements CET', sub:'Historique des alimentations et utilisations', action:'Nouveau mouvement', actFn:()=>openMouvement()},
-  salaries:{title:'Salariés', sub:'Bénéficiaires du dispositif CET', action:'Nouveau salarié', actFn:()=>openSalarie()},
-  conges:{title:'Congés payés', sub:'', action:'Poser une période', actFn:()=>openConge()},
-  notesfrais:{title:'Note de frais', sub:'Création, suivi et archivage des notes de frais', action:'Créer une note de frais', actFn:()=>openNoteFrais()},
-  facturier:{title:'Facturation', sub:'', action:null},
-  parametres:{title:'Paramètres & données', sub:'Plafonds, types de mouvements, sauvegardes', action:null}
+  rh:{title:'Documents de paiement RH',icon:'id-card',sub:'',action:null},
+  missions:{title:'Lettres de mission',icon:'edit',sub:'',action:null},
+  tamponnage:{title:'Tamponnage des pièces',icon:'stamp',sub:'Bulletins, factures et imputations par projet',action:null},
+  marches:{title:'Logiciel de facturation',icon:'file',beta:true,sub:'Marchés et contrats · prix, plafonds et périodes',action:null},
+  agenda:{title:'Agenda',icon:'calendar',sub:'Déplacements et congés de l’équipe',action:'Nouveau déplacement',actFn:()=>openAgendaTrip()},
+  budgetsprojets:{title:'Outil budgets',icon:'chart',beta:true,sub:'',action:null},
+  dashboard:{title:'Tableau de bord',icon:'home',sub:'Activité de l’équipe, congés et derniers documents',action:null},
+  cet:{title:'Synthèse CET',icon:'clock',sub:'Soldes et suivi du Compte Épargne-Temps',action:'Nouveau mouvement',actFn:()=>openMouvement()},
+  mouvements:{title:'Mouvements CET',icon:'movements',sub:'Historique des alimentations et utilisations',action:'Nouveau mouvement',actFn:()=>openMouvement()},
+  salaries:{title:'Salariés',icon:'team',sub:'Bénéficiaires du dispositif CET',action:'Nouveau salarié',actFn:()=>openSalarie()},
+  conges:{title:'Congés payés',icon:'sun',sub:'',action:'Poser une période',actFn:()=>openConge()},
+  notesfrais:{title:'Note de frais',icon:'wallet',sub:'Création, suivi et archivage des notes de frais',action:'Créer une note de frais',actFn:()=>openNoteFrais()},
+  facturier:{title:'Facturation',icon:'receipt',beta:true,sub:'',action:null},
+  parametres:{title:'Paramètres & données',icon:'settings',sub:'Plafonds, types de mouvements, sauvegardes',action:null}
 };
+
+function renderPortalHeading(view){
+  const title=$('#pageTitle');
+  if(title.dataset.section===view)return;
+  const meta=VIEW_META[view]||{title:'Votre espace',icon:'lock',sub:''};
+  title.textContent=meta.title;
+  if(meta.beta){
+    const badge=document.createElement('span');
+    badge.className='cdi-beta';
+    badge.textContent='Bêta';
+    title.append(' ',badge);
+  }
+  $('#pageSub').textContent=meta.sub;
+  $('#pageTitleIcon').innerHTML=ic(meta.icon);
+  title.dataset.section=view;
+}
 
 function toggleRhNavigation(open){
  const button=document.getElementById('rhNavigationToggle'),children=document.getElementById('rhNavigationChildren');if(!button||!children)return;
@@ -1034,9 +1051,6 @@ function setView(v,billingSection='modern'){
   const inRh=['rh','tamponnage','missions'].includes(v);document.getElementById('rhNavigation')?.setAttribute('data-active',String(inRh));if(inRh)toggleRhNavigation(true);
   $$('.nav-item').forEach(n=>{const active=n.dataset.view===v||(v==='marches'&&n.dataset.view==='facturier')||(v==='cet'&&n.dataset.view==='mouvements');n.classList.toggle('active',active);if(active)n.setAttribute('aria-current','page');else n.removeAttribute('aria-current');});
   const meta=VIEW_META[v];
-  $('#pageTitle').textContent=meta.title;
-  if(['marches','facturier'].includes(v)){const badge=document.createElement('span');badge.className='cdi-beta';badge.textContent='Bêta';$('#pageTitle').append(' ',badge);}
-  $('#pageSub').textContent=meta.sub;
   const ta=$('#topAction');
   if(meta.action){ ta.style.display=''; $('#topActionLabel').textContent=meta.action; ta.onclick=meta.actFn; }
   else ta.style.display='none';
@@ -1058,6 +1072,7 @@ $('#yearSelect').addEventListener('change', e=>{ currentYear=Number(e.target.val
 /* ---------- render dispatch ---------- */
 function render(){
   if(AUTH_USER&&!canAccess(currentView)){currentView=firstAllowedView();document.body.dataset.view=currentView;}
+  renderPortalHeading(currentView);
   if(currentView!=='rh')rhForget();
   if(currentView!=='missions')missionLettersForget();
   if(currentView!=='tamponnage')stampingForget();
@@ -3486,7 +3501,6 @@ function budgetsLeave(){
 function renderBudgetsProjets(){
   const content=document.getElementById('content');
   if(!AUTH_USER){content.innerHTML='<div class="card card-pad">Connectez-vous pour ouvrir les budgets projets.</div>';return;}
-  const title=document.getElementById('pageTitle');if(title&&!title.querySelector('.cdi-beta')){const badge=document.createElement('span');badge.className='cdi-beta';badge.textContent='Bêta';title.append(' ',badge);}
   if(document.getElementById('cdiBudgetsFrame'))return;
   content.innerHTML='<iframe id="cdiBudgetsFrame" title="Outil budgets" src="./budgets-projets/index.html'+(budgetsClientsMode?'?clients=1':'')+'" class="cdi-budget-frame"></iframe>';
   budgetsClientsMode=false;
@@ -6155,7 +6169,7 @@ function applyAccessNavigation(){
 }
 function firstAllowedView(){return CDIPlatform.accessModules.find(m=>m.key!=='sheets'&&canAccess(m.key))?.key||'access';}
 function renderAccessHome(){
- $('#topAction').style.display='none';$('#pageTitle').textContent='Votre espace';$('#pageSub').textContent='';
+ $('#topAction').style.display='none';
  $('#content').innerHTML='<section class="card card-pad" style="max-width:480px;margin:48px auto;text-align:center">'+(canAccess('sheets')?'<a class="btn btn-primary" href="./feuilles/">Ouvrir CDInnovSheets</a>':'Aucune rubrique n’est activée pour ce compte.')+'</section>';
 }
 async function authSetAccess(email,access){
@@ -6415,7 +6429,6 @@ async function bootAuth(){
 }
 
 function renderDashboard(){
-  $('#pageTitle').textContent=VIEW_META.dashboard.title;$('#pageSub').textContent=VIEW_META.dashboard.sub;
   $('#topAction').style.display='none';document.querySelector('.year-pick').style.display='none';
   if(!AUTH_USER){$('#content').innerHTML='';return;}
   if($('#dashboardRoot'))return;
