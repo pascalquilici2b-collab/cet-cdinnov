@@ -15,7 +15,7 @@ const issuer=(data:BillingDraft)=>digits(data.seller.siren)||digits(data.seller.
 type QuoteRow={id:string;version:number;data_json:string;number:string;sequence_value:number;stem:string};
 type LinkRow={document_id:string;document_version:number;quote_id:string;quote_version:number;quote_number:string;reason:string;regularized_at:string};
 const normalizeQuery=(value:string)=>value.normalize('NFKD').replace(/\p{M}/gu,'').toLowerCase();
-export const regularizationJSON=`(SELECT json_object('quoteId',r.quote_id,'quoteNumber',r.quote_number,'regularizedAt',r.regularized_at,'invoiceNumber',r.invoice_number,'reservationAction',r.reservation_action) FROM billing_invoice_regularizations r WHERE r.document_id=billing_documents.id)`;
+export const regularizationJSON=`(SELECT json_object('quoteId',r.quote_id,'source',r.source,'quoteNumber',r.quote_number,'regularizedAt',r.regularized_at,'invoiceNumber',r.invoice_number,'reservationAction',r.reservation_action) FROM billing_invoice_regularization_audits r WHERE r.document_id=billing_documents.id)`;
 
 async function identities(db:Database){return (await clientFilterProjection(db,null,false)).native;}
 function compatible(invoice:BillingDocument,quote:QuoteRow,identity:Awaited<ReturnType<typeof identities>>){
@@ -28,9 +28,9 @@ function compatible(invoice:BillingDocument,quote:QuoteRow,identity:Awaited<Retu
  const as=digits(invoice.data.buyer.siret),bs=digits(data.buyer.siret);
  return !!(as&&as===bs||a&&a===b&&(!as||!bs));
 }
-async function selectedSeries(db:Database,data:BillingDraft){
+export async function selectedSeries(db:Database,data:BillingDraft){
  return db.prepare(`SELECT s.id,s.prefix,s.next_value,s.last_issue_date FROM billing_number_series s
- WHERE s.issuer_siren=? AND s.kind='invoice' AND NOT EXISTS(SELECT 1 FROM billing_retired_series r WHERE r.series_id=s.id)
+ WHERE s.issuer_siren=? AND s.kind='invoice' AND NOT EXISTS(SELECT 1 FROM billing_retired_series r WHERE r.series_id=s.id) AND NOT EXISTS(SELECT 1 FROM billing_external_number_series x WHERE x.series_id=s.id)
  ORDER BY EXISTS(SELECT 1 FROM billing_default_series p WHERE p.series_id=s.id) DESC,s.created_at DESC LIMIT 1`).bind(issuer(data)).first<{id:string;prefix:string;next_value:number;last_issue_date:string|null}>();
 }
 export async function regularizationQuotes(db:Database,record:BillingDocument,query=''):Promise<{items:BillingRegularizationQuote[];total:number}>{
@@ -55,6 +55,7 @@ export async function regularizeInvoice(db:Database,record:BillingDocument,versi
  const quoteId=(input.quoteId as string).toLowerCase(),reason=String(input.reason||'').trim(),find=()=>db.prepare('SELECT * FROM billing_invoice_regularizations WHERE document_id=?').bind(record.id).first<LinkRow>();
  const same=(r:LinkRow)=>r.document_version===version&&r.quote_id===quoteId&&r.quote_version===input.quoteVersion&&r.reason===reason;
  const existing=await find();if(existing){if(same(existing))return;return fail(409,'Ce brouillon possède déjà un rattachement audité à son devis.');}
+ if(record.regularization)return fail(409,'Ce brouillon possède déjà une régularisation confirmée.');
  if(record.version!==version)return fail(409,'La facture a changé. Rechargez-la avant de la régulariser.');
  const candidates=await regularizationQuotes(db,record,(await db.prepare('SELECT number FROM billing_quote_number_sources WHERE document_id=?').bind(quoteId).first<{number:string}>())?.number||''),selected=candidates.items.find(q=>q.id===quoteId);
  if(!selected)return fail(422,'Choisissez un devis numéroté du même client, dans sa version en cours. Le devis d’origine est conservé pour une facture déjà liée.');

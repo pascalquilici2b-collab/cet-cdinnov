@@ -8,7 +8,7 @@ export async function automaticNumberSeries(db:Database,draft:BillingDraft,user:
  const date=draft.issueDate,siren=(draft.seller.siren||draft.seller.siret.slice(0,9)).replace(/\s/g,'');
  const today=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Paris'}).format(now);
  if(!validBillingDate(date)||date>today)return fail('La date du document ne peut pas être postérieure à aujourd’hui.');
- const configured=await db.prepare('SELECT s.id FROM billing_default_series p JOIN billing_number_series s ON s.id=p.series_id WHERE p.issuer_siren=? AND p.kind=? AND NOT EXISTS(SELECT 1 FROM billing_retired_series r WHERE r.series_id=s.id)').bind(siren,draft.kind).first<{id:string}>();
+ const configured=await db.prepare('SELECT s.id FROM billing_default_series p JOIN billing_number_series s ON s.id=p.series_id WHERE p.issuer_siren=? AND p.kind=? AND NOT EXISTS(SELECT 1 FROM billing_retired_series r WHERE r.series_id=s.id) AND NOT EXISTS(SELECT 1 FROM billing_external_number_series x WHERE x.series_id=s.id)').bind(siren,draft.kind).first<{id:string}>();
  if(configured)return configured.id;
  const quote=draft.kind==='quote',digest=createHash('sha256').update('cdinnov-numbering-v1:'+siren+':'+(quote?date:'invoice')).digest('hex');
  const id=`${digest.slice(0,8)}-${digest.slice(8,12)}-5${digest.slice(13,16)}-a${digest.slice(17,20)}-${digest.slice(20,32)}`;

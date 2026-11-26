@@ -9,7 +9,7 @@ export const invoiceQuoteIdSQL=id=>`(SELECT q.id FROM billing_link_roots l JOIN 
 export const regularizedQuoteIdSQL=id=>`(SELECT quote_id FROM billing_invoice_regularizations WHERE document_id=${id})`;
 // A review may preserve the same active allocation or retire an obsolete one.
 // Resolving that review does not itself mean that the old number was retired.
-export const invoiceLegacyNumberResolvedSQL=id=>`(EXISTS(SELECT 1 FROM billing_invoice_number_retirements r WHERE r.document_id=${id}) OR EXISTS(SELECT 1 FROM billing_invoice_regularizations r WHERE r.document_id=${id}))`;
+export const invoiceLegacyNumberResolvedSQL=id=>`(EXISTS(SELECT 1 FROM billing_invoice_number_retirements r WHERE r.document_id=${id}) OR EXISTS(SELECT 1 FROM billing_invoice_regularizations r WHERE r.document_id=${id}) OR EXISTS(SELECT 1 FROM billing_invoice_reference_regularizations r WHERE r.document_id=${id}))`;
 export const invoiceQuoteNumberSQL=(series='s',quote='q')=>`(CASE WHEN EXISTS(SELECT 1 FROM billing_monthly_series m WHERE m.series_id=${series}.id) THEN substr(${series}.prefix,1,4) ELSE ${series}.prefix END)||substr(${quote}.number,length(${quote}.stem)+1)`;
 const pick=(schema,name)=>schema.find(sql=>sql.startsWith('CREATE TRIGGER IF NOT EXISTS '+name+' '));
 const oldReleased='EXISTS(SELECT 1 FROM billing_invoice_number_retirements r WHERE r.document_id=n.document_id)';

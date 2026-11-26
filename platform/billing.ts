@@ -22,6 +22,7 @@ import {draftPDF} from './billing-pdf';
 import {reserveDraftNumber} from './billing-draft-number';
 import {retireInvoiceDraftNumber} from './billing-invoice-number-retirement';
 import {regularizationJSON,regularizationQuotes,regularizeInvoice,invoiceQuoteNumberPlan} from './billing-invoice-regularization';
+import {regularizationReference,regularizeInvoiceReference} from './billing-invoice-reference';
 import {invoiceLegacyNumberResolvedSQL} from './billing-invoice-regularization-schema.mjs';
 import {invoiceNumberingPolicyReady} from './billing-invoice-finalization-number-schema.mjs';
 import {automaticNumberSeries} from './billing-numbering';
@@ -63,7 +64,7 @@ const issuanceJSON=`(SELECT json_object('id',i.id,'number',i.number,'state',j.st
  'files',json(CASE WHEN j.state='ready' THEN (SELECT json_group_array(json_extract(value,'$.kind')) FROM json_each(j.manifest_json,'$.artifacts')) ELSE '[]' END))
  FROM billing_issuances i JOIN billing_issue_jobs j ON j.issuance_id=i.id WHERE i.document_id=billing_documents.id)`;
 const reservedNumberJSON=`(SELECT json_object('number',number,'date',number_date,'seriesId',series_id) FROM billing_draft_numbers WHERE document_id=billing_documents.id AND NOT ${invoiceLegacyNumberResolvedSQL("billing_documents.id")} AND (billing_documents.kind='quote' OR EXISTS(SELECT 1 FROM billing_issuances WHERE document_id=billing_documents.id)))`;
-const retiredNumberJSON=`(SELECT json_object('number',n.number,'date',n.number_date,'seriesId',n.series_id,'retiredAt',r.retired_at) FROM (SELECT document_id,retired_at FROM billing_invoice_number_retirements UNION ALL SELECT document_id,regularized_at FROM billing_invoice_regularizations WHERE reservation_action='release') r JOIN billing_draft_numbers n ON n.document_id=r.document_id WHERE r.document_id=billing_documents.id ORDER BY r.retired_at LIMIT 1)`;
+const retiredNumberJSON=`(SELECT json_object('number',n.number,'date',n.number_date,'seriesId',n.series_id,'retiredAt',r.retired_at) FROM (SELECT document_id,retired_at FROM billing_invoice_number_retirements UNION ALL SELECT document_id,regularized_at FROM billing_invoice_regularization_audits WHERE reservation_action='release') r JOIN billing_draft_numbers n ON n.document_id=r.document_id WHERE r.document_id=billing_documents.id ORDER BY r.retired_at LIMIT 1)`;
 const numberingReviewSQL=`(CASE WHEN billing_documents.kind='invoice' AND NOT EXISTS(SELECT 1 FROM billing_issuances WHERE document_id=billing_documents.id) AND EXISTS(SELECT 1 FROM billing_draft_numbers n WHERE n.document_id=billing_documents.id AND NOT ${invoiceLegacyNumberResolvedSQL("n.document_id")}) THEN 1 ELSE 0 END)`;
 const get=(db:Database,id:string)=>db.prepare(`SELECT *,${followupJSON} AS followup_json,${sentAtSQL} AS sent_at,${rectificationJSON()} AS rectification_json,${reservedNumberJSON} AS reserved_number_json,${retiredNumberJSON} AS retired_number_json,${regularizationJSON} AS regularization_json,${numberingReviewSQL} AS numbering_review,(SELECT number FROM billing_draft_numbers WHERE document_id=billing_documents.id) AS numbering_review_number,${issuanceJSON} AS issuance_json,${quoteJSON()} AS quote_json,${settlementJSON()} AS settlement_json FROM billing_documents WHERE id=?`).bind(id).first<Row>();
 const conflict=()=>fail(409,'Ce document a changé ou cet identifiant est déjà utilisé. Rechargez le document avant de continuer.');
@@ -124,7 +125,7 @@ async function context(db:Database,env:Environment):Promise<BillingContext> {
  ]);
  const parsedMarkets=markets.results.map(r=>({...r,market:JSON.parse(r.payload)}));
  const projectOwners=parsedMarkets.map(r=>({id:r.id,projects:r.market.projects||[]}));
- const [engagements,annualQuotes,reports,numbering]=await Promise.all([linkedEngagements(db),readAnnualQuotes(db),db.prepare('SELECT document_key,version FROM billing_intervention_reports').all<{document_key:string;version:number}>(),db.prepare('SELECT s.kind,s.prefix,s.width,s.next_value AS nextValue FROM billing_default_series p JOIN billing_number_series s ON s.id=p.series_id WHERE p.issuer_siren=?').bind(settings.data.seller.siren||settings.data.seller.siret.slice(0,9)).all<{kind:'invoice'|'quote';prefix:string;width:number;nextValue:number}>()]);
+ const [engagements,annualQuotes,reports,numbering]=await Promise.all([linkedEngagements(db),readAnnualQuotes(db),db.prepare('SELECT document_key,version FROM billing_intervention_reports').all<{document_key:string;version:number}>(),db.prepare('SELECT s.kind,s.prefix,s.width,s.next_value AS nextValue FROM billing_default_series p JOIN billing_number_series s ON s.id=p.series_id WHERE p.issuer_siren=? AND NOT EXISTS(SELECT 1 FROM billing_external_number_series x WHERE x.series_id=s.id)').bind(settings.data.seller.siren||settings.data.seller.siret.slice(0,9)).all<{kind:'invoice'|'quote';prefix:string;width:number;nextValue:number}>()]);
  const ordersForContext=(id:string,orders:import('./client/markets-contracts').MarketOrder[],projectId='')=>{const linked=engagements.filter(e=>e.kind==='order'&&e.marketId===id&&(!e.projectId||e.projectId===projectId)),all=[...orders,...linked.filter(e=>!orders.some(o=>o.id===e.orderId)).map(e=>({id:e.orderId,reference:e.reference,date:e.date,amountMinor:e.amountMinor,documentId:'',notes:'',archived:false}))];return [...new Map(all.map(o=>{const e=linked.find(e=>e.orderId===o.id);return [o.id,{...o,serviceCode:e?.serviceCode||'',engagement:e?.engagement||'',otherReference:e?.otherReference||''}];})).values()];};
  const marketOrders=(id:string)=>ordersForContext(id,parsedMarkets.find(m=>m.id===id)?.market.orders||[]);
  const marketProjects=(id:string)=>projectsForMarket(id,projectOwners).map(p=>({...p,orders:ordersForContext(id,[...p.orders,...marketOrders(id)],p.id)}));
@@ -218,7 +219,7 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
  if(path==='/api/v1/billing/mail-signature')return mailSignatureRoute(request,db,session.email,reply);
  if(path==='/api/v1/billing/settings')return settingsRoute(request,db,session.email,reply);
  if(path==='/api/v1/billing/number-series'){
-  if(request.method==='GET')return reply(200,(await db.prepare('SELECT id,issuer_siren,kind,prefix,width,first_value,next_value,start_date,end_date,last_issue_date,version FROM billing_number_series ORDER BY start_date DESC,kind,id').all()).results);
+  if(request.method==='GET')return reply(200,(await db.prepare('SELECT id,issuer_siren,kind,prefix,width,first_value,next_value,start_date,end_date,last_issue_date,version FROM billing_number_series s WHERE NOT EXISTS(SELECT 1 FROM billing_external_number_series x WHERE x.series_id=s.id) ORDER BY start_date DESC,kind,id').all()).results);
   if(request.method==='POST'){const input=await body(request,['data']);return reply(201,await createNumberSeries(db,input.data as Parameters<typeof createNumberSeries>[1],session.email));}
   return reply(405,{error:'Méthode non autorisée.'});
  }
@@ -251,7 +252,7 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
   }
   return reply(200,document(existing));
  }
- const match=path.match(/^\/api\/v1\/billing\/documents\/([^/]+)(\/followup|\/engagement|\/intervention-report(?:\.pdf)?|\/rectify|\/restore|\/number|\/retire-draft-number|\/regularization-quotes|\/regularize-invoice|\/email|\/outlook-sent|\/sent|\/payments|\/quote-versions|\/revise|\/abandon-revision|\/quote-events|\/convert|\/preview\.pdf|\/issue|\/finalize|\/files\/(?:pdf|xml|validation|verapdf))?$/);
+ const match=path.match(/^\/api\/v1\/billing\/documents\/([^/]+)(\/followup|\/engagement|\/intervention-report(?:\.pdf)?|\/rectify|\/restore|\/number|\/retire-draft-number|\/regularization-quotes|\/regularize-invoice|\/regularization-reference|\/regularize-invoice-reference|\/email|\/outlook-sent|\/sent|\/payments|\/quote-versions|\/revise|\/abandon-revision|\/quote-events|\/convert|\/preview\.pdf|\/issue|\/finalize|\/files\/(?:pdf|xml|validation|verapdf))?$/);
  if(!match)return reply(404,{error:'Accès de facturation introuvable.'});
  if(!uuid(match[1]))return fail(400,'Identifiant de document invalide.');
  const id=match[1].toLowerCase();
@@ -309,6 +310,17 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
   const expected=expectedVersion(request);await body(request,[]);const row=await get(db,id);
   if(!row)return reply(404,{error:'Document introuvable.'});if(row.version!==expected)return conflict();
   await reserveDraftNumber(db,document(row),session.email);return reply(200,document((await get(db,id))!));
+ }
+ if(match[2]==='/regularization-reference'){
+  if(request.method!=='GET')return reply(405,{error:'Méthode non autorisée.'});
+  const expected=expectedVersion(request),row=await get(db,id);if(!row)return fail(404,'Facture introuvable.');if(row.version!==expected)return conflict();
+  return reply(200,await regularizationReference(db,document(row)));
+ }
+ if(match[2]==='/regularize-invoice-reference'){
+  if(request.method!=='POST')return reply(405,{error:'Méthode non autorisée.'});
+  const expected=expectedVersion(request),input=await body(request,['quoteNumber','referenceConfirmed'],['reason']),row=await get(db,id);if(!row)return fail(404,'Facture introuvable.');
+  await regularizeInvoiceReference(db,document(row),expected,{quoteNumber:input.quoteNumber,referenceConfirmed:input.referenceConfirmed,reason:input.reason},session.email);
+  return reply(200,document((await get(db,id))!));
  }
  if(match[2]==='/regularization-quotes'){
   if(request.method!=='GET')return reply(405,{error:'Méthode non autorisée.'});
@@ -375,7 +387,7 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
    if((current.data.kind==='invoice'||input.seriesId==='automatic')&&current.data.issueDate>new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Paris'}).format(new Date()))return fail(409,'La date du document ne peut pas être postérieure à aujourd’hui.');
    if(!current.issuance&&current.quote&&(current.quote.revision.abandoned||current.quote.revision.currentId!==current.id))return fail(409,'Cette version du devis a été remplacée ou abandonnée. Ouvrez la version en cours.');
    if(current.numberingReview)return fail(409,'Cette facture possède un ancien numéro de brouillon. Rattachez-la à son devis dans la régularisation.');
-   const plannedSeries=current.regularization?await db.prepare('SELECT invoice_series_id series_id FROM billing_invoice_regularizations WHERE document_id=?').bind(id).first<{series_id:string}>():null;
+   const plannedSeries=current.regularization?await db.prepare('SELECT invoice_series_id series_id FROM billing_invoice_regularization_audits WHERE document_id=?').bind(id).first<{series_id:string}>():null;
    if(!current.issuance&&current.regularization){
     const seriesId=input.seriesId==='automatic'?plannedSeries?.series_id:input.seriesId;
     if(!seriesId)return fail(409,'Configurez la série de numérotation des factures avant la finalisation.');
@@ -415,8 +427,8 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
   if(previous.issuance)return fail(409,'Ce document est figé et ne peut plus être modifié. Créez un document correctif.');
   if(previous.data.kind!==p.data.kind)return fail(400,'Le type du document ne peut pas être modifié.');
   if(previous.regularization){
-   if(p.data.references.quoteNumber!==previous.regularization.quoteNumber)return fail(409,'La référence du devis rattaché est conservée par la régularisation.');
-   if(p.data.clientId!==previous.data.clientId||p.data.buyer.siren!==previous.data.buyer.siren||p.data.buyer.siret!==previous.data.buyer.siret)return fail(409,'Le client de cette facture est lié au devis régularisé. Son identité ne peut plus être remplacée.');
+   if(p.data.references.quoteNumber!==previous.regularization.quoteNumber)return fail(409,'La référence du devis confirmée lors de la régularisation est conservée.');
+   if(p.data.clientId!==previous.data.clientId||p.data.buyer.siren!==previous.data.buyer.siren||p.data.buyer.siret!==previous.data.buyer.siret)return fail(409,'Le client de cette facture est conservé lors de la régularisation. Son identité ne peut plus être remplacée.');
   }
   if(previous.quote?.revision.abandoned)return fail(409,'Cette version a été abandonnée. Ouvrez la version en cours.');
   const numbered=await db.prepare('SELECT issuer_siren FROM billing_draft_numbers WHERE document_id=?').bind(id).first<{issuer_siren:string}>();

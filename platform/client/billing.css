@@ -361,3 +361,12 @@ select.bill-status-filter{background:var(--bill-surface,#fff);color:var(--bill-i
 .bill-paper-refs .bill-paper-ref-subject{grid-column:1/-1;display:block;min-width:0}
 .bill-paper-ref-subject dd{white-space:pre-wrap;overflow-wrap:anywhere}
 .bill-paper-refs-invoice dt{font-weight:700;color:inherit}
+
+.bill-number-review-modes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.bill-number-review-modes .bill-button{justify-content:flex-start;white-space:normal;text-align:left;line-height:1.4;min-height:52px}
+.bill-number-review-modes .bill-button svg,.bill-number-review-dialog h3 svg{flex-shrink:0}
+.bill-app .bill-number-review-dialog .bill-number-reference-confirm{display:flex;align-items:flex-start;gap:10px;margin:16px 0;line-height:1.5}
+.bill-app .bill-number-review-dialog .bill-number-reference-confirm input[type=checkbox]{width:17px;min-width:17px;height:17px;flex:0 0 17px;padding:0;margin:2px 0 0;accent-color:var(--bill-accent)}
+@media(max-width:720px){.bill-number-review-modes{grid-template-columns:minmax(0,1fr)}}
+
+.bill-number-reference-confirm span{min-width:0;overflow-wrap:anywhere}

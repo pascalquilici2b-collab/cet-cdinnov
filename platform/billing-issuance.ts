@@ -53,6 +53,7 @@ export async function readIssuance(db:Database,issuanceId:string){const row=awai
 export async function createNumberSeries(db:Database,input:NumberSeriesInput,user:string):Promise<SeriesRow>{
  if(!input||typeof input!=='object'||Object.keys(input).sort().join()!==['id','issuerSiren','kind','prefix','width','firstValue','startDate','endDate'].sort().join())return fail(400,'Paramètres de série invalides.');
  const seriesId=id(input.id);actor(user);
+ if(await db.prepare('SELECT 1 FROM billing_external_number_series WHERE series_id=?').bind(seriesId).first())return fail(409,'Cette série est réservée aux régularisations de références historiques.');
  if(typeof input.issuerSiren!=='string'||!/^\d{9}$/.test(input.issuerSiren)||!['invoice','quote'].includes(input.kind)||typeof input.prefix!=='string'||
   !/^[A-Z0-9][A-Z0-9_/-]{0,25}$/.test(input.prefix)||!integer(input.width,1,9)||!integer(input.firstValue,1,999999999)||
   typeof input.startDate!=='string'||typeof input.endDate!=='string'||!validBillingDate(input.startDate)||!validBillingDate(input.endDate)||input.endDate<input.startDate)return fail(422,'Émetteur, préfixe, compteur ou période de série invalide.');
@@ -82,6 +83,7 @@ export async function reserveIssuance(db:Database,input:{id:string;documentId:st
   return null;
  };
  const existing=await replay();if(existing)return existing;
+ if(await db.prepare('SELECT 1 FROM billing_external_number_series x WHERE x.series_id=? AND NOT EXISTS(SELECT 1 FROM billing_invoice_reference_regularizations a WHERE a.document_id=? AND a.invoice_series_id=x.series_id)').bind(seriesId,documentId).first())return fail(409,'Cette série est réservée à la référence historique confirmée de la facture.');
  const source=await db.prepare('SELECT data_json,version FROM billing_documents WHERE id=?').bind(documentId).first<{data_json:string;version:number}>();
  if(!source)return fail(404,'Document introuvable.');if(source.version!==input.documentVersion)return fail(409,'Le document a changé avant la finalisation.');
  const snapshot=normalizeDraft(JSON.parse(source.data_json)),issues=inspectDocumentReadiness(snapshot);
