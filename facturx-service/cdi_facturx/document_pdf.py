@@ -44,6 +44,8 @@ class DocumentPDFError(ValueError):
 
 _FONT_NAME = "CDIDejaVuSans"
 _FONT_PATH = Path(__file__).parent / "assets" / "fonts" / "DejaVuSans.ttf"
+_BOLD_FONT_NAME = "CDIDejaVuSansBold"
+_BOLD_FONT_PATH = _FONT_PATH.with_name("DejaVuSans-Bold.ttf")
 _LOGO_PATH = Path(__file__).parent / "assets" / "brand" / "cdinnov-logo.png"
 _FONT_LOCK = Lock()
 _FONT_CHARS: frozenset[int] | None = None
@@ -73,8 +75,9 @@ def _font_chars() -> frozenset[int]:
             if _FONT_CHARS is None:
                 font = TTFont(_FONT_NAME, str(_FONT_PATH))
                 pdfmetrics.registerFont(font)
-                # Use the same embedded face for every weight: no system fallback.
-                pdfmetrics.registerFontFamily(_FONT_NAME, normal=_FONT_NAME, bold=_FONT_NAME, italic=_FONT_NAME, boldItalic=_FONT_NAME)
+                pdfmetrics.registerFont(TTFont(_BOLD_FONT_NAME, str(_BOLD_FONT_PATH)))
+                # Both weights are embedded from the same DejaVu release.
+                pdfmetrics.registerFontFamily(_FONT_NAME, normal=_FONT_NAME, bold=_BOLD_FONT_NAME, italic=_FONT_NAME, boldItalic=_BOLD_FONT_NAME)
                 _FONT_CHARS = frozenset(code for code, glyph in font.face.charToGlyph.items() if glyph)
     return _FONT_CHARS
 
@@ -278,8 +281,13 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
     by_id = _validate_totals(document, totals, issued)
     style = _styles()
 
-    def p(value: str, variant: str = "body", field: str | None = None) -> Paragraph:
+    def p(value: str, variant: str = "body", field: str | None = None, *, label: str | None = None) -> Paragraph:
         markup = _markup(value)
+        if label is not None:
+            caption = _markup(label) + " :"
+            if document["kind"] == "invoice":
+                caption = f"<b>{caption}</b>"
+            markup = caption + " " + markup
         if editable and not issued and field and re.fullmatch(r'[A-Za-z0-9.]+', field):
             markup = f'<link href="https://editor.cdinnov.invalid/field/{field}">{markup}</link>'
         return Paragraph(markup, style[variant])
@@ -408,7 +416,7 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
         # their complete text in full-width, splittable paragraphs; the compact
         # reference grid is reserved for shorter identifiers and metadata.
         full_width_labels = ('Objet du document', 'Objet du marché', 'Période concernée', 'Périodes concernées')
-        ref_cells = [p(f"{label} : {value}", "small", field) for label, value, field in shown_refs if label not in full_width_labels]
+        ref_cells = [p(value, "small", field, label=label) for label, value, field in shown_refs if label not in full_width_labels]
         if len(ref_cells) % 2:
             ref_cells.append("")
         if ref_cells:
@@ -417,7 +425,7 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
             story.append(ref_table)
         for label, value, field in shown_refs:
             if label in full_width_labels:
-                story.append(p(f"{label} : {value}", "small", field))
+                story.append(p(value, "small", field, label=label))
 
     story.append(heading("Prestations"))
     if _text(document.get('description')):

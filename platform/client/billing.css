@@ -360,3 +360,4 @@ select.bill-status-filter{background:var(--bill-surface,#fff);color:var(--bill-i
 @media(max-width:480px){.bill-app .bill-number-review-dialog{padding:18px}.bill-number-review-actions .bill-button{flex:1;justify-content:center}}
 .bill-paper-refs .bill-paper-ref-subject{grid-column:1/-1;display:block;min-width:0}
 .bill-paper-ref-subject dd{white-space:pre-wrap;overflow-wrap:anywhere}
+.bill-paper-refs-invoice dt{font-weight:700;color:inherit}
