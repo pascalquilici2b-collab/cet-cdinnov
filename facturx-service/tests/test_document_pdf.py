@@ -90,7 +90,7 @@ class DocumentPDFTests(unittest.TestCase):
             self.assertIn(value, text)
         self.assertNotIn("BROUILLON", text)
         self.assertNotIn("DOCUMENT ÉMIS", text)
-        self.assertNotIn(document["title"], text)
+        self.assertIn(document["title"], text)
         self.assertNotIn(document["references"]["marketId"], text)
         self.assert_page_layout(pdf)
         with fitz.open(stream=pdf, filetype="pdf") as opened:

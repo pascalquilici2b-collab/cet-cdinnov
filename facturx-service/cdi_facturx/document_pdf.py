@@ -395,7 +395,7 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
     shown_refs += [(label, _text(details.get(key)), 'details.'+key) for key, label in (("marketObject", "Objet du marché"), ("personInCharge", "Personne en charge"), ("fundingProgramme", "Programme")) if _text(details.get(key))]
     periods = details.get('periods', [details['period']] if details.get('period') else [])
     numbers = [str(number) for number in range(1, 9) if f'S{number}' in periods]
-    if document['kind'] == 'quote' and _text(document.get('title')):
+    if _text(document.get('title')):
         shown_refs.append(('Objet du document', document['title'], 'title'))
     if _text(details.get('customPeriod')):
         shown_refs.append(('Période concernée', details['customPeriod'], 'details.customPeriod'))
@@ -404,7 +404,11 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
         shown_refs.append(('Périodes concernées' if len(numbers) > 1 else 'Période concernée', label, None))
     if shown_refs:
         story.append(heading("Références"))
-        ref_cells = [p(f"{label} : {value}", "small", field) for label, value, field in shown_refs if label not in ('Objet du document','Période concernée','Périodes concernées')]
+        # Subjects are entered by the user for both invoices and quotes. Keep
+        # their complete text in full-width, splittable paragraphs; the compact
+        # reference grid is reserved for shorter identifiers and metadata.
+        full_width_labels = ('Objet du document', 'Objet du marché', 'Période concernée', 'Périodes concernées')
+        ref_cells = [p(f"{label} : {value}", "small", field) for label, value, field in shown_refs if label not in full_width_labels]
         if len(ref_cells) % 2:
             ref_cells.append("")
         if ref_cells:
@@ -412,7 +416,7 @@ def render_document(document: dict, totals: dict | None, number: str | None = No
             ref_table.setStyle(_table_style([('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),2),('BOTTOMPADDING',(0,0),(-1,-1),2)]))
             story.append(ref_table)
         for label, value, field in shown_refs:
-            if label in ('Objet du document', 'Période concernée', 'Périodes concernées'):
+            if label in full_width_labels:
                 story.append(p(f"{label} : {value}", "small", field))
 
     story.append(heading("Prestations"))
