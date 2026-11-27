@@ -84,7 +84,14 @@ try {
   assert.equal((await ctx.worker.dispatchFetch('https://test/api/v1/session',{headers:{Cookie:'__Host-cdi_session='+capturedCookie.value,Origin:'https://app.cdinnov.eu'}})).status,401,'Logout revokes a copied cookie on the server');
   assert.equal((await context.cookies()).some(c=>c.name==='__Host-cdi_session'),false);
   await page.locator('#authRecentAccount').waitFor({state:'visible'});assert.equal(await page.locator('#authRecentAccount img').count(),1);assert.equal(await page.locator('#authStepRecent .auth-recent-badge').innerText(),'Dernière connexion utilisée');
-  await page.locator('.auth-recent-badge').focus();await page.getByRole('tooltip').waitFor({state:'visible'});assert.match(await page.getByRole('tooltip').innerText(),/mot de passe reste nécessaire/);
+  // Logout mounts the remembered account twice, each with delayed autofocus.
+  // Retry the complete keyboard assertion if that initial focus moves again.
+  const tooltipDeadline=Date.now()+3000,tooltipTimeout=()=>Math.max(1,Math.min(500,tooltipDeadline-Date.now()));let tooltipError;
+  do{
+    try{await page.locator('.auth-recent-badge').focus({timeout:tooltipTimeout()});await page.getByRole('tooltip').waitFor({state:'visible',timeout:tooltipTimeout()});assert.match(await page.getByRole('tooltip').innerText({timeout:tooltipTimeout()}),/mot de passe reste nécessaire/);tooltipError=null;break;}
+    catch(error){tooltipError=error;}
+  }while(Date.now()<tooltipDeadline);
+  if(tooltipError)throw tooltipError;
   await page.locator('#authRecentAccount').focus();await page.screenshot({path:join(out,'login-last-account-desktop.png')});
   await page.setViewportSize({width:390,height:844});await page.screenshot({path:join(out,'login-last-account-mobile.png')});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await page.evaluate(()=>CDITheme.set('dark'));await page.screenshot({path:join(out,'login-last-account-dark-mobile.png')});await page.evaluate(()=>CDITheme.set('light'));await page.setViewportSize({width:1440,height:1000});
   const beforeChoice=requests.length;await page.locator('#authRecentAccount').click();await page.locator('#authPw').waitFor({state:'visible'});assert.equal(requests.length,beforeChoice,'Choosing a remembered account must not make an authentication request');assert.equal(await page.evaluate(()=>_authEmailPending),users[0]);assert.equal(await page.locator('#authPw').inputValue(),'');assert.equal(await page.evaluate(()=>AUTH_USER),null);

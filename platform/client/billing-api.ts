@@ -1,3 +1,4 @@
+import {ensureDocumentEngine} from './document-engine-wake.ts';
 import type {BillingTransport,BillingInvoiceSelection,BillingDraft,BillingDocument,BillingContext,BillingPage,BillingSettings,BillingNumberSeries,BillingDirectoryRecord,BillingDirectoryPage,BillingQuoteEvent,BillingQuoteRevisionItem,BillingPaymentEntry} from '../billing-contracts';
 export function createBillingTransport(options:{baseUrl:string;getSession:()=>Promise<string>;isActive:()=>boolean}):BillingTransport & {dispose:()=>void} {
   let disposed=false;const controllers=new Set<AbortController>();
@@ -5,14 +6,21 @@ export function createBillingTransport(options:{baseUrl:string;getSession:()=>Pr
   async function request<T>(path:string,method='GET',body?:unknown,version?:number,binary=false,extraHeaders?:Record<string,string>):Promise<T>{
     active();const sessionId=await options.getSession();active();
     const controller=new AbortController();controllers.add(controller);
-    const timer=setTimeout(()=>controller.abort(),(path.endsWith('/engagement-analysis')||path.endsWith('/ai/ocr-page'))?90000:path.endsWith('/finalize')?210000:path.endsWith('/issue')||path.endsWith('.pdf')?90000:30000);
+    let timer:ReturnType<typeof setTimeout>|undefined;
+    let expired=false;
     try{
+      if(path.endsWith('/preview.pdf')||path.endsWith('/issue')||path.endsWith('/finalize')||path.endsWith('/intervention-report.pdf')){
+        await ensureDocumentEngine({baseUrl:options.baseUrl,signal:controller.signal,sessionId});active();
+        if(await options.getSession()!==sessionId)throw new Error('Votre session ou la page a changé.');active();
+      }
+      controller.signal.throwIfAborted();
+      timer=setTimeout(()=>controller.abort(),(path.endsWith('/engagement-analysis')||path.endsWith('/ai/ocr-page'))?90000:path.endsWith('/finalize')?210000:path.endsWith('/issue')||path.endsWith('.pdf')?90000:30000);
       const response=await fetch(options.baseUrl.replace(/\/$/,'')+(path.startsWith('/api/v1/')||path.startsWith('/budgets/')?'':'/api/v1/billing')+path,{method,credentials:'same-origin',cache:'no-store',signal:controller.signal,headers:{'X-CDInnov-Request':'1',...(body===undefined||body instanceof Blob?{}:{'Content-Type':'application/json'}),...extraHeaders,...(version===undefined?{}:{'If-Match':String(version)})},...(body===undefined?{}:{body:body instanceof Blob?body:JSON.stringify(body)})});
-      if(response.status===401)window.dispatchEvent(new CustomEvent('cdinnov-session-expired',{detail:{sessionId}}));
+      if(response.status===401){expired=true;window.dispatchEvent(new CustomEvent('cdinnov-session-expired',{detail:{sessionId}}));}
       const data=response.ok&&binary?await response.blob():await response.json();active();
       if(!response.ok)throw Object.assign(new Error(data.error||'La sauvegarde n’a pas abouti. Vos modifications sont conservées.'),{status:response.status});
       return data as T;
-    }catch(error){active();if(controller.signal.aborted)throw Object.assign(new Error('Le service ne répond pas. Vos modifications sont conservées ; vous pouvez réessayer.'),{name:'TimeoutError'});if(error instanceof TypeError)throw new Error('La connexion au serveur a été interrompue. Votre saisie est conservée ; vous pouvez réessayer.');if(error instanceof SyntaxError)throw new Error('La réponse du serveur est illisible. Votre saisie est conservée ; vous pouvez réessayer.');throw error;}
+    }catch(error){active();if(!expired&&error&&typeof error==='object'&&'status' in error&&error.status===401)window.dispatchEvent(new CustomEvent('cdinnov-session-expired',{detail:{sessionId}}));if(controller.signal.aborted)throw Object.assign(new Error('Le service ne répond pas. Vos modifications sont conservées ; vous pouvez réessayer.'),{name:'TimeoutError'});if(error instanceof TypeError)throw new Error('La connexion au serveur a été interrompue. Votre saisie est conservée ; vous pouvez réessayer.');if(error instanceof SyntaxError)throw new Error('La réponse du serveur est illisible. Votre saisie est conservée ; vous pouvez réessayer.');throw error;}
     finally{clearTimeout(timer);controllers.delete(controller);}
   }
   async function numbered(promise:Promise<BillingDocument>){const doc=await promise;const siren=doc.data.seller.siren.replace(/\s/g,'')||doc.data.seller.siret.replace(/\s/g,'').slice(0,9);return doc.data.kind==='quote'&&!doc.issuance&&!doc.reservedNumber&&!doc.quote?.revision.abandoned&&/^\d{9}$/.test(siren)?request<BillingDocument>('/documents/'+encodeURIComponent(doc.id)+'/number','POST',{},doc.version):doc;}

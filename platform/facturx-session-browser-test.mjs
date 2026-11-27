@@ -2,25 +2,32 @@ import {createServer} from 'node:http';
 import {readFile,mkdir,writeFile} from 'node:fs/promises';
 import {resolve,join,extname,sep} from 'node:path';
 import {createRequire} from 'node:module';
+import {build} from 'esbuild';
 import assert from 'node:assert/strict';
 import {testEnvironment,users} from '../marches/test.mjs';
 import {dashboardFixture} from './dashboard-fixture.mjs';
 import {sessionTestAssets} from './session-test-assets.mjs';
-const root=process.cwd(),out=join(root,'platform/security-audit-20261105/facturx-embed');await mkdir(out,{recursive:true});
-const require=createRequire('C:/Users/quili/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright/package.json');
+const root=process.cwd(),out=join(root,'.private/facturx-session-browser');await mkdir(out,{recursive:true});
+const require=createRequire(process.env.PLAYWRIGHT_PACKAGE||join(root,'package.json'));
 const {chromium}=require('playwright');
 const [assets,ctx]=await Promise.all([sessionTestAssets(root),testEnvironment()]);
+const wakeModule=await build({entryPoints:[join(root,'platform/client/document-engine-wake.ts')],bundle:true,platform:'browser',format:'esm',write:false});
+assets.set('/platform/document-engine-wake.js',wakeModule.outputFiles[0].contents);
 const fixture=dashboardFixture(ctx.accounts,'2026-11-05');fixture.salaries.forEach(s=>{s.photo=null;s.payslip=null;});fixture.factures=[];fixture.notesFrais=[];Object.assign(fixture,{params:{anneeSuivi:2026,entreprise:'CDInnov test'},types:[],mouvements:[],codesAffaires:[]});await ctx.setPortal(JSON.stringify(fixture));
 const html=assets.get('/index.html').replace(/const CLOUD_ENDPOINT\s*=\s*["'][^"']+["']/,'const CLOUD_ENDPOINT=location.origin').replace('\nbootAuth();',"\nfacturxWarmLogin=()=>{};authSaveCredential=async()=>{};notify=()=>{throw Error('External notifications disabled')};bootAuth();");assets.set('/index.html',html);
 const mime={'.html':'text/html; charset=utf-8','.js':'application/javascript','.mjs':'application/javascript','.css':'text/css','.svg':'image/svg+xml','.png':'image/png','.woff2':'font/woff2'};
-const requests=[],errors=[],checks=[];let forcedStatus=0,holdSheet=null,sheetReached=null,facturxStatus=200;const converterRequests=[];
+const requests=[],errors=[],checks=[];let forcedStatus=0,holdSheet=null,sheetReached=null,facturxStatus=200,facturxReady=false,holdWake=null,wakeReached=null;const converterRequests=[],publicWakes=[],metadataRequests=[];
 const server=createServer(async(req,res)=>{try{
  const url=new URL(req.url,'http://localhost');
 
  if(url.pathname==='/files/facturx-fixture.pdf'){requests.push({path:url.pathname,cookie:!!req.headers.cookie});res.setHeader('Content-Type','application/pdf');res.end('%PDF-local-fixture');return;}
+ if(url.pathname==='/api/v1/billing/document-engine'){
+   metadataRequests.push({cookie:!!req.headers.cookie,csrf:req.headers['x-cdinnov-request'],authorization:req.headers.authorization||null});
+   res.setHeader('Content-Type','application/json');res.setHeader('Cache-Control','no-store');res.end(JSON.stringify({wakeUrl:'https://cdinnov-facturx.onrender.com/api/health'}));return;
+ }
  if(url.pathname.startsWith('/api/v1/facturx/')){
    converterRequests.push({path:url.pathname,csrf:req.headers['x-cdinnov-request'],authorization:req.headers.authorization||null});
-   if(url.pathname.endsWith('/health')){res.setHeader('Content-Type','application/json');res.end(JSON.stringify({ready:true}));return;}
+   if(url.pathname.endsWith('/health')){res.setHeader('Content-Type','application/json');res.end(JSON.stringify({ready:facturxReady}));return;}
    if(url.pathname.endsWith('/import-pdf')){res.setHeader('Content-Type','application/json');res.end(JSON.stringify({source_sha256:'a'.repeat(64),pages:1,preview_image:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a8ioAAAAASUVORK5CYII=',text:'PDF fictif',warnings:[],invoice:{number:'TEST-FX-2026',issue_date:'2026-11-05',currency:'EUR',type_code:'380',buyer:{name:'Client fictif'},lines:[{description:'Prestation fictive',quantity:'1',unit_price:'100',vat_rate:'20',unit:'C62',vat_category:'S'}],totals:{net:'100',vat:'20',gross:'120',due:'120'}}}));return;}
    if(url.pathname.endsWith('/generate')){
      if(facturxStatus!==200){res.writeHead(facturxStatus,{'Content-Type':'application/json'});res.end(JSON.stringify({error:'Session de test expirée'}));return;}
@@ -39,10 +46,19 @@ const server=createServer(async(req,res)=>{try{
  let name=url.pathname;if(name.endsWith('/'))name+='index.html';const file=resolve(root,'.'+decodeURIComponent(name));if(!file.startsWith(root+sep))throw Error('outside');res.setHeader('Content-Type',mime[extname(file)]||'application/octet-stream');res.end(assets.has(name)?assets.get(name):await readFile(file));
 }catch(error){res.writeHead(500);res.end('Local test error: '+error.message);}});
 await new Promise(r=>server.listen(0,'127.0.0.1',r));const base='http://127.0.0.1:'+server.address().port;
-const browser=await chromium.launch({channel:'msedge',headless:true});
+const browser=await chromium.launch({headless:true,...(process.env.CHROMIUM_PATH?{executablePath:process.env.CHROMIUM_PATH}:{})});
 try{
  const context=await browser.newContext({viewport:{width:1440,height:1000},locale:'fr-FR'});
- await context.route('**/*',route=>{const u=new URL(route.request().url());if(u.origin===base)return route.continue();if(route.request().resourceType()==='image')return route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg"/>'});return route.abort();});
+ await context.addCookies([{name:'synthetic-private-cookie',value:'must-not-reach-public-wake',domain:'cdinnov-facturx.onrender.com',path:'/',secure:true,sameSite:'None'}]);
+ await context.route('**/*',async route=>{const request=route.request(),u=new URL(request.url());if(u.origin===base)return route.continue();
+  if(u.href==='https://cdinnov-facturx.onrender.com/api/health'){
+   const headers=request.headers();assert.equal(request.method(),'GET');assert.equal(request.postData(),null);
+   for(const name of ['cookie','authorization','x-api-key','x-cdinnov-request','content-type','referer'])assert.equal(headers[name],undefined,name+' must not reach the public wake');
+   publicWakes.push({method:request.method(),body:false,privateHeaders:false});
+   if(holdWake){wakeReached();await holdWake;}
+   return route.fulfill({status:200,headers:{'Content-Type':'application/json','Access-Control-Allow-Origin':'*'},body:JSON.stringify({ready:facturxReady})});
+  }
+  if(request.resourceType()==='image')return route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg"/>'});return route.abort();});
  const page=await context.newPage();page.setDefaultTimeout(15000);page.on('pageerror',e=>{errors.push(e.message);console.log('BROWSER',e.message)});page.on('dialog',dialog=>dialog.accept());await page.goto(base);
  assert.equal(await page.locator('#cdi-session-dialog').count(),0,'initial login has no expired notice');
  await page.locator('#authEmail').fill(users[0]);await page.locator('#authEmail').press('Enter');await page.locator('#authPw').fill(ctx.password);await page.locator('#authPw').press('Enter');await page.waitForFunction(()=>document.body.classList.contains('authed'));
@@ -53,9 +69,28 @@ try{
    state.factures.push({id:'qa-facturx-session',number:'TEST-FX-2026',dateFacture:'2026-11-05',client:'Client fictif',ht:100,ttc:120,pdfSource:{url:'data:application/pdf;base64,'+btoa(String.fromCharCode(...bytes)),name:'facture-fictive.pdf',sha256:sha}});
    await openFacturX('qa-facturx-session');
  });
+ await page.locator('#facturxLoading').filter({hasText:'Le moteur de conversion n’est pas prêt.'}).waitFor();
+ assert.equal(await page.locator('#facturxFrame').isHidden(),true);
+ assert.equal(converterRequests.some(request=>request.path.endsWith('/import-pdf')),false);
+ facturxReady=true;await page.evaluate(()=>openFacturX('qa-facturx-session'));
  const frame=page.frameLocator('#facturxFrame');await frame.locator('#file-label').filter({hasText:'facture-fictive.pdf'}).waitFor();
  const iframe=page.frames().find(f=>f.parentFrame());assert.ok(iframe);
  const initial=await iframe.evaluate(()=>({name:sourceFile.name,hash:sourceHash,bytes:sourceFile.size}));
+ // A public ready=false proves the process is awake, not that electronic
+ // conversion is configured. The iframe must keep the real health response.
+ facturxReady=false;
+ const notReady=await iframe.evaluate(async()=>{const response=await apiFetch('/api/health');return response.json();});
+ assert.equal(notReady.ready,false);facturxReady=true;
+ // A session change while the public GET is in flight cannot send even a
+ // fictitious conversion body under the new session.
+ let releaseWake;holdWake=new Promise(resolve=>{releaseWake=resolve;});let reached;const reachedWake=new Promise(resolve=>{reached=resolve;});wakeReached=reached;
+ const beforeRace=converterRequests.length;
+ const switched=page.evaluate(async()=>{try{const data=new FormData();data.append('pdf',new Blob(['fictitious conversion body']),'fictitious.pdf');await facturxApi('/api/facturx/generate?output=stream',{method:'POST',body:data});return {sent:true};}catch(error){return {error:error.message};}});
+ await reachedWake;
+ await page.evaluate(()=>{window.qaOriginalSessionGetter=budgetsCurrentSession;budgetsCurrentSession=()=>({...qaOriginalSessionGetter(),sessionId:'changed-local-session'});});
+ releaseWake();const switchResult=await switched;holdWake=null;
+ await page.evaluate(()=>{budgetsCurrentSession=qaOriginalSessionGetter;delete window.qaOriginalSessionGetter;});
+ assert.match(switchResult.error,/session utilisateur a changé/);assert.equal(converterRequests.length,beforeRace);
  await iframe.evaluate(()=>{setValue('buyer.name','Client saisi avant expiration');});
  facturxStatus=401;
  const expired=await iframe.evaluate(async()=>{try{await apiFetch('/api/facturx/generate?output=stream',{method:'POST',body:new FormData()});return {ok:true};}catch(error){return {error:error.message,source:sourceFile?.name,hash:sourceHash,buyer:invoiceData().buyer.name};}});
@@ -66,6 +101,7 @@ try{
  const streamed=await iframe.evaluate(async()=>{const events=[];const response=await apiFetch('/api/facturx/generate?output=stream',{method:'POST',body:new FormData()});const result=await CDIConversion.readStream(response,event=>events.push(event));return {events,valid:result.valid,pdf:result.pdf_base64,source:sourceFile.name,hash:sourceHash,buyer:invoiceData().buyer.name};});
  assert.equal(streamed.events.length,1);assert.equal(streamed.events[0].label,'Validation locale');assert.equal(streamed.valid,true);assert.equal(streamed.source,initial.name);assert.equal(streamed.hash,initial.hash);assert.equal(streamed.buyer,'Client saisi avant expiration');
  assert.ok(converterRequests.length>=4);assert.ok(converterRequests.every(r=>r.csrf==='1'&&r.authorization===null));assert.deepEqual(errors,[]);
- await writeFile(join(out,'checks.json'),JSON.stringify({checks:['historical and current R2 PDF route same-origin with cookie; foreign URL rejected','actual embedded app delegates to parent.facturxApi','401 opens exactly one shared modal','PDF source/hash and entered buyer retained','real same-account reconnect preserves iframe','NDJSON progress and validated result parsed after reconnect','same-origin cookie transport and no Authorization'],fileChecks,initial,streamed,converterRequests,errors},null,2));
+ assert.ok(metadataRequests.length>0&&metadataRequests.every(r=>r.cookie&&r.csrf==='1'&&r.authorization===null));assert.ok(publicWakes.length>0);
+ await writeFile(join(out,'checks.json'),JSON.stringify({checks:['historical and current R2 PDF route same-origin with cookie; foreign URL rejected','actual embedded app delegates to parent.facturxApi','public wake GET carries no secret, cookie, document or referrer','ready=false remains false for Factur-X','session switch during wake sends no conversion body','401 opens exactly one shared modal','PDF source/hash and entered buyer retained','real same-account reconnect preserves iframe','NDJSON progress and validated result parsed after reconnect','same-origin cookie transport and no Authorization'],fileChecks,initial,streamed,converterRequests,metadataRequests,publicWakes,errors},null,2));
  console.log('PASS Factur-X embedded session, source preservation and NDJSON stream');
 }finally{await browser.close();server.closeAllConnections();await new Promise(r=>server.close(r));await ctx.worker.dispose();}

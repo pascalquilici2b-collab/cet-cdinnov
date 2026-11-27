@@ -54,13 +54,19 @@ async function startPDFService(){
 
 test('invoice number is assigned at finalization and the real frozen PDF survives render/storage retries', {timeout:90000}, async()=>{
  const pdf=await startPDFService();let ctx,mode='ok',poisonedKey;
- const calls=[];
+ const calls=[];let healthChecks=0,healthPermit=false;
  try{
-  ctx=await testEnvironment({bindings:{BILLING_PDF_SERVICE_URL:'https://pdf-finalization.test',BILLING_PDF_SERVICE_KEY:key},outboundService:async request=>{
-   const url=new URL(request.url);assert.equal(url.origin,'https://pdf-finalization.test');
+  ctx=await testEnvironment({bindings:{BILLING_PDF_SERVICE_URL:'https://pdf-finalization.onrender.com',BILLING_PDF_SERVICE_KEY:key},outboundService:async request=>{
+   const url=new URL(request.url);assert.equal(url.origin,'https://pdf-finalization.onrender.com');
+   if(url.pathname==='/api/health'){
+    assert.equal(request.method,'GET');assert.equal(request.body,null);assert.equal(request.headers.has('x-api-key'),false);assert.equal(request.headers.has('authorization'),false);assert.equal(request.headers.has('cookie'),false);
+    const upstream=await fetch(pdf.base+'/api/health'),result=await upstream.json();assert.equal(upstream.status,200);assert.equal(typeof result.ready,'boolean');healthChecks++;healthPermit=true;
+    return Response.json(result);
+   }
+   assert.equal(healthPermit,true,'The real service must respond to a public health GET before each business POST');healthPermit=false;
    assert.ok(['/api/billing/preview-pdf','/api/billing/preflight-pdf','/api/billing/generate-issued-pdf','/api/billing/intervention-report'].includes(url.pathname));
    assert.equal(request.headers.get('x-api-key'),key);assert.equal(request.headers.has('authorization'),false);assert.equal(request.headers.has('cookie'),false);
-   const payload=await request.json();calls.push({path:url.pathname,payload});
+   const payload=await request.json();calls.push({path:url.pathname,payload});assert.ok(healthChecks>=calls.length);
    if(mode==='render-error'&&url.pathname.endsWith('/generate-issued-pdf'))return Response.json({detail:'Synthetic renderer interruption'},{status:500});
    const upstream=await fetch(pdf.base+url.pathname,{method:'POST',headers:{'Content-Type':'application/json','X-API-Key':key},body:JSON.stringify(payload)});
    const bytes=await upstream.arrayBuffer();
