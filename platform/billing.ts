@@ -115,6 +115,20 @@ function documentServiceConfigured(env:Environment):boolean {
  if(typeof env.BILLING_PDF_SERVICE_URL!=='string'||typeof env.BILLING_PDF_SERVICE_KEY!=='string'||env.BILLING_PDF_SERVICE_KEY.length<32)return false;
  try{const u=new URL(env.BILLING_PDF_SERVICE_URL);return u.protocol==='https:'&&!u.username&&!u.password&&!u.search&&!u.hash&&['','/'].includes(u.pathname);}catch{return false;}
 }
+function documentEngineWakeURL(env:Environment):string|null {
+ const base=env.BILLING_PDF_SERVICE_URL,key=env.BILLING_PDF_SERVICE_KEY;
+ const unavailable=()=>fail(503,'Le moteur documentaire doit être configuré par l’administrateur.');
+ if(typeof base!=='string'||typeof key!=='string'||key.length<32||key.trim()!==key||/[\x00-\x1f\x7f]/.test(key))return unavailable();
+ try{
+  const url=new URL(base);
+  // Validate the configured root itself, including explicit default ports that
+  // URL.port normalizes away. Client parameters never choose this destination.
+  if(!/^https:\/\/(?:\[[a-f0-9:.]+\]|[a-z0-9.-]+)\/?$/i.test(base)||url.protocol!=='https:'||url.username||url.password||url.port||url.search||url.hash||url.pathname!=='/')return unavailable();
+  if(!url.hostname.startsWith('[')&&!url.hostname.split('.').every(label=>/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i.test(label)))return unavailable();
+  if(!url.hostname.endsWith('.onrender.com'))return null;
+  url.pathname='/api/health';return url.href;
+ }catch{return unavailable();}
+}
 async function context(db:Database,env:Environment):Promise<BillingContext> {
  // Read only the allowed business columns. Account verifiers and portal authentication never enter this response.
  const [clients,codes,markets,settings,people,logos]=await Promise.all([
@@ -204,6 +218,11 @@ export async function billingRoute(request:Request,env:Environment,reply:Reply):
  if(!session)return reply(401,{error:'Votre connexion CDInnov a expiré. Reconnectez-vous.'});
  if(!hasAccess(session,'facturier'))return reply(403,{error:'Votre compte n’a pas accès à la facturation.'});
  const path=new URL(request.url).pathname,db=env.BUDGETS_DB.withSession('first-primary');
+ if(path==='/api/v1/billing/document-engine'){
+  if(request.method!=='GET')return reply(405,{error:'Méthode non autorisée.'});
+  if(new URL(request.url).search)return fail(400,'Paramètres du moteur documentaire invalides.');
+  return reply(200,{wakeUrl:documentEngineWakeURL(env)});
+ }
  if(path==='/api/v1/billing/attention'){
   if(request.method!=='GET')return reply(405,{error:'Méthode non autorisée.'});
   if(new URL(request.url).search)return fail(400,'Paramètres de compteurs invalides.');

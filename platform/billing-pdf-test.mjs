@@ -8,7 +8,7 @@ import {blankDraft} from './billing-domain.ts';
 test('PDF brouillon : identité, version figée, clé privée et erreurs sans mutation',async t=>{
  const requests=[],key='synthetic-service-key-'.repeat(2);let mode='pdf',temporaryStatuses=[],wakeRequests=0;
  const ctx=await testEnvironment({bindings:{BILLING_PDF_SERVICE_URL:'https://pdf-service.test',BILLING_PDF_SERVICE_KEY:key},outboundService:async request=>{
-  if(new URL(request.url).pathname==='/api/health'){wakeRequests++;assert.equal(request.method,'GET');assert.equal(request.headers.get('x-api-key'),key);return Response.json({ready:true});}
+  if(new URL(request.url).pathname==='/api/health'){wakeRequests++;assert.equal(request.method,'GET');assert.equal(request.headers.get('x-api-key'),null);assert.equal(request.body,null);return Response.json({ready:true});}
   requests.push({url:request.url,headers:Object.fromEntries(request.headers),body:await request.json()});
   if(temporaryStatuses.length)return new Response(null,{status:temporaryStatuses.shift()});
   if(mode==='error')return Response.json({secret:'upstream-private',detail:'secret'}, {status:500});
@@ -33,11 +33,12 @@ test('PDF brouillon : identité, version figée, clé privée et erreurs sans mu
   assert.deepEqual(requests[0].body,{document:data});
   temporaryStatuses=[429,503];
   const beforeRetry=requests.length;
+  const beforeWake=wakeRequests;
   const retried=await pdf();
   assert.equal(retried.status,200);
   assert.match(await retried.text(),/^%PDF-/);
   assert.equal(requests.length,beforeRetry+3);
-  assert.equal(wakeRequests,1);
+  assert.equal(wakeRequests-beforeWake,2);
   assert.deepEqual(requests.slice(beforeRetry).map(r=>r.body),[{document:data},{document:data},{document:data}]);
   for(const [value,status] of [['error',503],['validation',422],['invalid',502],['html',502],['redirect',503]]){
    mode=value;const result=await pdf();assert.equal(result.status,status,await result.clone().text());assert.doesNotMatch(await result.text(),/upstream-private|private-input|synthetic-service-key/);
